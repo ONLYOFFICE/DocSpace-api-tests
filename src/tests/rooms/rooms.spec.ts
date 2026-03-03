@@ -9,9 +9,20 @@ function filterRoomsFolder(rooms: RoomsApi, filterValue: string) {
   // TODO(sdk): getRoomsFolder has 15 positional params — filterValue is the last one.
   // Fix: set useSingleRequestParameter=true in the openapi-generator config to generate an options object instead.
   return rooms.getRoomsFolder(
-    undefined, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
     filterValue,
   );
 }
@@ -105,14 +116,16 @@ test.describe("API rooms methods", () => {
     });
 
     await test.step("filter by type returns only matching rooms", async () => {
-      const { data, status } = await ownerApi.rooms.getRoomsFolder(
-        [RoomType.CustomRoom],
-      );
+      const { data, status } = await ownerApi.rooms.getRoomsFolder([
+        RoomType.CustomRoom,
+      ]);
 
       expect(status).toBe(200);
       expect(data.response!.total).toBe(1);
       // TODO(sdk): FolderContentDtoInteger.folders typed as FileEntryBaseDto[] — roomType field missing
-      expect((data.response!.folders as any[])[0].roomType).toBe(RoomType.CustomRoom);
+      expect((data.response!.folders as any[])[0].roomType).toBe(
+        RoomType.CustomRoom,
+      );
     });
 
     await test.step("filterValue search by title", async () => {
@@ -123,7 +136,9 @@ test.describe("API rooms methods", () => {
 
       expect(status).toBe(200);
       expect(data.response!.count).toBe(1);
-      expect(data.response!.folders![0].title as string).toContain("Autotest VDR");
+      expect(data.response!.folders![0].title as string).toContain(
+        "Autotest VDR",
+      );
     });
   });
 
@@ -138,7 +153,9 @@ test.describe("API rooms methods", () => {
     const roomId = createData.response!.id!;
 
     await test.step("PUT /files/rooms/:id - update title", async () => {
-      const { data, status } = await ownerApi.rooms.updateRoom(roomId, { title: "Autotest Room After Update" });
+      const { data, status } = await ownerApi.rooms.updateRoom(roomId, {
+        title: "Autotest Room After Update",
+      });
 
       expect(status).toBe(200);
       expect(data.response!.title).toBe("Autotest Room After Update");
@@ -195,7 +212,10 @@ test.describe("API rooms methods", () => {
       expect(lifetime.period).toBe(0);
       expect(lifetime.value).toBe(30);
       expect(lifetime.deletePermanently).toBe(true);
-      const watermark = data.response!.watermark as unknown as Record<string, unknown>;
+      const watermark = data.response!.watermark as unknown as Record<
+        string,
+        unknown
+      >;
       expect(watermark.additions).toBe(1);
       expect(watermark.text).toBe("Confidential");
       expect(watermark.rotate).toBe(0);
@@ -215,7 +235,10 @@ test.describe("API rooms methods", () => {
       const lifetime = data.response!.lifetime as Record<string, unknown>;
       expect(lifetime.period).toBe(0);
       expect(lifetime.value).toBe(30);
-      const watermark = data.response!.watermark as unknown as Record<string, unknown>;
+      const watermark = data.response!.watermark as unknown as Record<
+        string,
+        unknown
+      >;
       expect(watermark.additions).toBe(1);
       expect(watermark.text).toBe("Confidential");
     });
@@ -235,8 +258,19 @@ test.describe("API rooms methods", () => {
     const { data, status } = await ownerApi.rooms.updateRoom(roomId, {
       indexing: true,
       denyDownload: true,
-      lifetime: { deletePermanently: true, period: 0, value: 30, enabled: true },
-      watermark: { enabled: true, additions: 1, text: "Confidential", rotate: 0, imageScale: 100 },
+      lifetime: {
+        deletePermanently: true,
+        period: 0,
+        value: 30,
+        enabled: true,
+      },
+      watermark: {
+        enabled: true,
+        additions: 1,
+        text: "Confidential",
+        rotate: 0,
+        imageScale: 100,
+      },
     });
     expect(status).toBe(200);
     expect(data.response!.indexing).toBe(true);
@@ -253,7 +287,9 @@ test.describe("API rooms methods", () => {
     });
     const roomId = createData.response!.id!;
 
-    const { data, status } = await ownerApi.rooms.updateRoom(roomId, { title: "" });
+    const { data, status } = await ownerApi.rooms.updateRoom(roomId, {
+      title: "",
+    });
 
     // API ignores empty title and keeps the original value
     expect(status).toBe(200);
@@ -266,7 +302,9 @@ test.describe("API rooms methods", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.rooms.updateRoom(999999999, { title: "Does Not Exist" });
+    const { data } = await ownerApi.rooms.updateRoom(999999999, {
+      title: "Does Not Exist",
+    });
 
     expect(data.statusCode).toBe(403);
   });
@@ -280,7 +318,9 @@ test.describe("API rooms methods", () => {
     const roomId = createData.response!.id!;
 
     await test.step("archive room", async () => {
-      const { status } = await ownerApi.rooms.archiveRoom(roomId, { deleteAfter: false });
+      const { status } = await ownerApi.rooms.archiveRoom(roomId, {
+        deleteAfter: false,
+      });
       const operation = await waitForOperation(ownerApi.operations);
 
       expect(status).toBe(200);
@@ -288,7 +328,9 @@ test.describe("API rooms methods", () => {
     });
 
     await test.step("unarchive room", async () => {
-      const { status } = await ownerApi.rooms.unarchiveRoom(roomId, { deleteAfter: false });
+      const { status } = await ownerApi.rooms.unarchiveRoom(roomId, {
+        deleteAfter: false,
+      });
       const operation = await waitForOperation(ownerApi.operations);
 
       expect(status).toBe(200);
@@ -328,7 +370,10 @@ test.describe("API rooms methods", () => {
     const roomId = roomData.response!.id!;
 
     await test.step("POST /files/roomtemplate - create room template", async () => {
-      const { data, status } = await ownerApi.rooms.createRoomTemplate({ roomId, title: "Autotest Template" });
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
+        roomId,
+        title: "Autotest Template",
+      });
 
       expect(status).toBe(200);
       expect(data.response!.error).toBeFalsy();
@@ -336,7 +381,8 @@ test.describe("API rooms methods", () => {
 
     await test.step("GET /files/roomtemplate/status - check template status", async () => {
       await expect(async () => {
-        const { data, status } = await ownerApi.rooms.getRoomTemplateCreatingStatus();
+        const { data, status } =
+          await ownerApi.rooms.getRoomTemplateCreatingStatus();
         expect(status).toBe(200);
         expect(data.response!.isCompleted).toBe(true);
       }).toPass({
@@ -360,24 +406,32 @@ test.describe("API rooms methods", () => {
     });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.createRoomTemplate({ roomId, title: "Autotest Template" });
+    await ownerApi.rooms.createRoomTemplate({
+      roomId,
+      title: "Autotest Template",
+    });
     const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
     await test.step("GET /files/roomtemplate/:id/public - check default is false", async () => {
-      const { data, status } = await ownerApi.rooms.getPublicSettings(templateId);
+      const { data, status } =
+        await ownerApi.rooms.getPublicSettings(templateId);
 
       expect(status).toBe(200);
       expect(data.response).toBe(false);
     });
 
     await test.step("PUT /files/roomtemplate/public - set public to true", async () => {
-      const { status } = await ownerApi.rooms.setPublicSettings({ id: templateId, public: true });
+      const { status } = await ownerApi.rooms.setPublicSettings({
+        id: templateId,
+        public: true,
+      });
 
       expect(status).toBe(200);
     });
 
     await test.step("GET /files/roomtemplate/:id/public - verify changed to true", async () => {
-      const { data, status } = await ownerApi.rooms.getPublicSettings(templateId);
+      const { data, status } =
+        await ownerApi.rooms.getPublicSettings(templateId);
 
       expect(status).toBe(200);
       expect(data.response).toBe(true);
@@ -387,7 +441,9 @@ test.describe("API rooms methods", () => {
   test("Owner creates and deletes tags", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     await test.step("POST /files/tags - create a tag", async () => {
-      const { data, status } = await ownerApi.rooms.createRoomTag({ name: "Autotest Tag" });
+      const { data, status } = await ownerApi.rooms.createRoomTag({
+        name: "Autotest Tag",
+      });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -404,7 +460,9 @@ test.describe("API rooms methods", () => {
     });
 
     await test.step("DELETE /files/tags - delete a tag", async () => {
-      const { status } = await ownerApi.rooms.deleteCustomTags({ names: ["Autotest Tag"] });
+      const { status } = await ownerApi.rooms.deleteCustomTags({
+        names: ["Autotest Tag"],
+      });
 
       expect(status).toBe(200);
     });
@@ -414,7 +472,9 @@ test.describe("API rooms methods", () => {
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
-      expect(data.response as unknown as string[]).not.toContain("Autotest Tag");
+      expect(data.response as unknown as string[]).not.toContain(
+        "Autotest Tag",
+      );
     });
   });
 
@@ -449,7 +509,9 @@ test.describe("API rooms methods", () => {
       expect(status).toBe(200);
       // TODO(sdk): getRoomSecurityInfo returns untyped response — ArrayWrapper<RoomSecurityDto> missing
       expect((data as any).statusCode).toBe(200);
-      const response = (data as any).response as Array<{sharedToUser: {id: string}}>;
+      const response = (data as any).response as Array<{
+        sharedToUser: { id: string };
+      }>;
       expect(response.length).toBe(2);
       expect(response[1].sharedToUser.id).toBe(userId);
     });
@@ -488,7 +550,9 @@ test.describe("API rooms methods", () => {
 
       expect(status).toBe(200);
       // TODO(sdk): getRoomSecurityInfo returns untyped response — ArrayWrapper<RoomSecurityDto> missing
-      const response = (data as any).response as Array<{sharedToUser: {id: string}}>;
+      const response = (data as any).response as Array<{
+        sharedToUser: { id: string };
+      }>;
       expect(response.length).toBe(1);
       expect(response[0].sharedToUser.id).not.toBe(userId);
     });
@@ -506,7 +570,9 @@ test.describe("API rooms methods", () => {
     const roomId = roomData.response!.id!;
 
     await test.step("PUT /files/rooms/:id/tags - add tags to room", async () => {
-      const { data, status } = await ownerApi.rooms.addRoomTags(roomId, { names: ["Tag1", "Tag2"] });
+      const { data, status } = await ownerApi.rooms.addRoomTags(roomId, {
+        names: ["Tag1", "Tag2"],
+      });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -518,7 +584,9 @@ test.describe("API rooms methods", () => {
     });
 
     await test.step("DELETE /files/rooms/:id/tags - remove tag from room", async () => {
-      const { data, status } = await ownerApi.rooms.deleteRoomTags(roomId, { names: ["Tag1"] });
+      const { data, status } = await ownerApi.rooms.deleteRoomTags(roomId, {
+        names: ["Tag1"],
+      });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);

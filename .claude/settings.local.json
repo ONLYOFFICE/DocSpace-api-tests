@@ -1,11 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc:*)",
-      "Bash(python3:*)",
-      "Bash(done)",
-      "Bash(perl:*)",
-      "Bash(npm show:*)"
+      "Bash(npm run:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

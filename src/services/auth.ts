@@ -42,7 +42,6 @@ class Auth {
 
     return this.authTokenOwner;
   }
-
 }
 
 export default Auth;

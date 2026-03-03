@@ -10,8 +10,10 @@ export class PaymentApi {
   private pKey: string;
 
   constructor(apiContext: APIRequestContext, portalSetupApi: Apisystem) {
-    if (!config.MACHINEKEY) throw new Error("MACHINEKEY is not set in environment variables");
-    if (!config.PKEY) throw new Error("PKEY is not set in environment variables");
+    if (!config.MACHINEKEY)
+      throw new Error("MACHINEKEY is not set in environment variables");
+    if (!config.PKEY)
+      throw new Error("PKEY is not set in environment variables");
     this.apiContext = apiContext;
     this.portalSetupApi = portalSetupApi;
     this.machineKey = config.MACHINEKEY;
@@ -21,7 +23,9 @@ export class PaymentApi {
   private get portalDomain(): string {
     const domain = this.portalSetupApi.portalDomain;
     if (!domain) {
-      throw new Error("Portal domain is not set. Please create a portal first.");
+      throw new Error(
+        "Portal domain is not set. Please create a portal first.",
+      );
     }
     return domain;
   }
@@ -53,7 +57,9 @@ export class PaymentApi {
     );
     if (!response.ok()) {
       const error = await response.json();
-      throw new Error(`Failed to get portal info: ${error.message || "Unknown error"}`);
+      throw new Error(
+        `Failed to get portal info: ${error.message || "Unknown error"}`,
+      );
     }
     const portalInfo = await response.json();
     const tenantId = portalInfo.response?.tenantId;
@@ -112,7 +118,9 @@ export class PaymentApi {
     );
     if (!tariffResponse.ok()) {
       const error = await tariffResponse.json();
-      throw new Error(`Failed to refresh tariff info: ${error.message || "Unknown error"}`);
+      throw new Error(
+        `Failed to refresh tariff info: ${error.message || "Unknown error"}`,
+      );
     }
 
     const quotaResponse = await this.apiContext.get(
@@ -121,7 +129,9 @@ export class PaymentApi {
     );
     if (!quotaResponse.ok()) {
       const error = await quotaResponse.json();
-      throw new Error(`Failed to refresh quota info: ${error.message || "Unknown error"}`);
+      throw new Error(
+        `Failed to refresh quota info: ${error.message || "Unknown error"}`,
+      );
     }
 
     return {
