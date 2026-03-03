@@ -1,0 +1,35 @@
+{
+  "name": "docspace-api-tests",
+  "version": "1.0.0",
+  "description": "DocSpace API-only test suite using @onlyoffice/docspace-api-sdk",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:api": "npx playwright test --project=api-tests",
+    "lint": "eslint \"./src/**/*.{ts,js}\"",
+    "lint:fix": "eslint \"./src/**/*.{ts,js}\" --fix",
+    "tsc": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.15.21",
+    "@typescript-eslint/eslint-plugin": "^8.32.1",
+    "@typescript-eslint/parser": "^8.32.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.2.3",
+    "globals": "^15.14.0",
+    "prettier": "^3.8.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.32.1"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^9.9.0",
+    "@onlyoffice/docspace-api-sdk": "file:onlyoffice-docspace-api-sdk-3.6.0.tgz",
+    "axios": "^1.9.0",
+    "dotenv": "^16.4.7"
+  }
+}

@@ -1,0 +1,438 @@
+import { expect } from "@playwright/test";
+import { test } from "@/src/fixtures/index";
+import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
+
+test.describe("POST /files/rooms - access control", () => {
+  test("Owner can create a room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { status } = await ownerApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("DocSpaceAdmin can create a room", async ({ apiSdk }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { status } = await adminApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("User cannot create a room", async ({ apiSdk }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { status } = await userApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Guest cannot create a room", async ({ apiSdk }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message as string).toContain(
+      "You don't have enough permission to create",
+    );
+  });
+});
+
+test.describe("PUT /files/rooms/:id - access control", () => {
+  test("Owner can update own room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.updateRoom(roomId, {
+      title: "Updated Room",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe("Updated Room");
+  });
+
+  test("DocSpaceAdmin can update own room", async ({ apiSdk }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data: createData } = await adminApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+
+    const { data, status } = await adminApi.rooms.updateRoom(roomId, {
+      title: "Updated Room",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe("Updated Room");
+  });
+
+  test("DocSpaceAdmin cannot update other's room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data } = await adminApi.rooms.updateRoom(roomId, {
+      title: "Updated Room",
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("User without room access cannot update room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.rooms.updateRoom(roomId, {
+      title: "Updated by User",
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Guest without room access cannot update room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.rooms.updateRoom(roomId, {
+      title: "Updated by Guest",
+    });
+
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message as string).toContain(
+      "You don't have permission to edit the room",
+    );
+  });
+
+  test("Updating room without authorization", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const anonApi = apiSdk.forAnonymous();
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await anonApi.rooms.updateRoom(roomId, {
+      title: "Updated without auth",
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+// TODO: Investigate expected behavior for room deletion permissions
+// DELETE /files/rooms/:id works asynchronously:
+// 1. Controller has NO permission checks
+// 2. HTTP always returns 200 (operation queued)
+// 3. Permission check happens later in FileDeleteOperation.cs
+// 4. If access denied, error appears in GET /fileops result.error field
+test.describe.skip("DELETE /files/rooms/:id - access control", () => {
+  test("Owner can delete a room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Room to Delete",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoom(roomId, {
+      deleteAfter: false,
+    });
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+  });
+
+  test.skip("DocSpaceAdmin can delete a room", async ({ apiSdk }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data: createData } = await adminApi.rooms.createRoom({
+      title: "Autotest Room to Delete",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await adminApi.rooms.deleteRoom(roomId, {
+      deleteAfter: false,
+    });
+    const operation = await waitForOperation(adminApi.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+  });
+
+  test.skip("User cannot delete a room", async ({ apiSdk }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Room to Delete",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await userApi.rooms.deleteRoom(roomId, {
+      deleteAfter: false,
+    });
+    const operation = await waitForOperation(userApi.operations);
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toContain(
+      "You don't have enough permission to delete the folder",
+    );
+  });
+
+  test.skip("Guest cannot delete a room", async ({ apiSdk }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Room to Delete",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await guestApi.rooms.deleteRoom(roomId, {
+      deleteAfter: false,
+    });
+    const operation = await waitForOperation(guestApi.operations);
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toContain(
+      "You don't have enough permission to delete the folder",
+    );
+  });
+});
+
+test.describe("POST /files/tags - access control", () => {
+  test("Owner can create a tag", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data, status } = await ownerApi.rooms.createRoomTag({
+      name: "Autotest Tag",
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response as unknown as string).toBe("Autotest Tag");
+    expect(data.count).toBe(1);
+  });
+
+  test("DocSpaceAdmin can create a tag", async ({ apiSdk }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data, status } = await adminApi.rooms.createRoomTag({
+      name: "Autotest Tag",
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response as unknown as string).toBe("Autotest Tag");
+    expect(data.count).toBe(1);
+  });
+
+  test("User cannot create a tag", async ({ apiSdk }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.rooms.createRoomTag({
+      name: "Autotest Tag",
+    });
+
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message as string).toContain("Access denied");
+  });
+
+  test("Guest cannot create a tag", async ({ apiSdk }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.rooms.createRoomTag({
+      name: "Autotest Tag",
+    });
+
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message as string).toContain("Access denied");
+  });
+});
+
+test.describe("PUT /files/rooms/:id/share - access control", () => {
+  test("Owner can set room access rights", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Share Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.setRoomSecurity(roomId, {
+      invitations: [{ id: userId, access: FileShare.Editing }],
+      notify: false,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.members).toBeDefined();
+    expect(data.response!.members!.length).toBeGreaterThan(0);
+  });
+
+  test("DocSpaceAdmin can set access rights on own room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      title: "Autotest Share Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await adminApi.rooms.setRoomSecurity(roomId, {
+      invitations: [{ id: userId, access: FileShare.Editing }],
+      notify: false,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.members).toBeDefined();
+  });
+
+  test("DocSpaceAdmin cannot set access rights on other's room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Share Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data } = await adminApi.rooms.setRoomSecurity(roomId, {
+      invitations: [{ id: userId, access: FileShare.Editing }],
+      notify: false,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("User cannot set room access rights", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Share Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    const { data } = await userApi.rooms.setRoomSecurity(roomId, {
+      invitations: [{ id: userId, access: FileShare.Editing }],
+      notify: false,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Guest cannot set room access rights", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      title: "Autotest Share Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData, api: guestApi } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const userId = memberData.response!.id!;
+
+    const { data } = await guestApi.rooms.setRoomSecurity(roomId, {
+      invitations: [{ id: userId, access: FileShare.Editing }],
+      notify: false,
+    });
+
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message as string).toContain(
+      "You don't have enough permission to view the folder content",
+    );
+  });
+});

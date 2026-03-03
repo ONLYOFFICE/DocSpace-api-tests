@@ -1,0 +1,24 @@
+import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { ApiSDK } from "../services/api-sdk";
+import { Role } from "../services/token-store";
+
+export async function createAllRoomTypes(apiSdk: ApiSDK, role: Role) {
+  const configs = [
+    { title: "Autotest Custom", roomType: RoomType.CustomRoom },
+    { title: "Autotest Collaboration", roomType: RoomType.EditingRoom },
+    { title: "Autotest FormFilling", roomType: RoomType.FillingFormsRoom },
+    { title: "Autotest Public", roomType: RoomType.PublicRoom },
+    { title: "Autotest VDR", roomType: RoomType.VirtualDataRoom },
+  ];
+
+  const rooms: { id: number; title: string; roomType: number }[] = [];
+  for (const cfg of configs) {
+    const { data } = await apiSdk.forRole(role).rooms.createRoom(cfg);
+    rooms.push({
+      id: data.response!.id!,
+      title: data.response!.title!,
+      roomType: data.response!.roomType! as number,
+    });
+  }
+  return rooms;
+}
