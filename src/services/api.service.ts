@@ -94,21 +94,27 @@ export class ApiSDK {
 
   async archiveRoom(role: Role, roomId: number) {
     const api = this.forRole(role);
-    const { status } = await api.rooms.archiveRoom(roomId, { deleteAfter: false });
+    const { status } = await api.rooms.archiveRoom(roomId, {
+      deleteAfter: false,
+    });
     const operation = await waitForOperation(api.operations);
     return { status, operation };
   }
 
   async unarchiveRoom(role: Role, roomId: number) {
     const api = this.forRole(role);
-    const { status } = await api.rooms.unarchiveRoom(roomId, { deleteAfter: false });
+    const { status } = await api.rooms.unarchiveRoom(roomId, {
+      deleteAfter: false,
+    });
     const operation = await waitForOperation(api.operations);
     return { status, operation };
   }
 
   async deleteRoom(role: Role, roomId: number) {
     const api = this.forRole(role);
-    const { status } = await api.rooms.deleteRoom(roomId, { deleteAfter: false });
+    const { status } = await api.rooms.deleteRoom(roomId, {
+      deleteAfter: false,
+    });
     const operation = await waitForOperation(api.operations);
     return { status, operation };
   }
@@ -143,5 +149,4 @@ export class ApiSDK {
     const data = await response.json();
     return { data, status: response.status(), userData: fakeUser };
   }
-
 }

@@ -17,7 +17,10 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { status } = await anonApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { status } = await anonApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(status).toBe(401);
   });
@@ -26,7 +29,10 @@ test.describe("PUT /people/status/:status - access control", () => {
   test("PUT /people/status/:status - DocSpace admin deactivates the DocSpace admin", async ({
     apiSdk,
   }) => {
-    const { data: docspaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docspaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docspaceAdminId = docspaceAdminData.response!.id!;
 
     const requestData = {
@@ -34,8 +40,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    const { data } = await adminApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data } = await adminApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
@@ -54,8 +66,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    const { data } = await adminApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data } = await adminApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
@@ -70,7 +88,10 @@ test.describe("PUT /people/status/:status - access control", () => {
     const { data: userData } = await apiSdk.addMember("owner", "User");
     const userId = userData.response!.id!;
 
-    const { data: docSpaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docSpaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
     const requestData = {
@@ -78,8 +99,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const { data } = await roomAdminApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { data } = await roomAdminApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -95,7 +122,10 @@ test.describe("PUT /people/status/:status - access control", () => {
     const { data: userData } = await apiSdk.addMember("owner", "User");
     const userId = userData.response!.id!;
 
-    const { data: docSpaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docSpaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
     const requestData = {
@@ -103,9 +133,18 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const { data } = await roomAdminApi.userStatus.updateUserStatus(EmployeeStatus.Active, requestData);
+    await ownerApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { data } = await roomAdminApi.userStatus.updateUserStatus(
+      EmployeeStatus.Active,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -114,7 +153,10 @@ test.describe("PUT /people/status/:status - access control", () => {
   test("PUT /people/status/:status - Room admin deactivates Room Admin", async ({
     apiSdk,
   }) => {
-    const { data: roomAdminData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
     const roomAdminId = roomAdminData.response!.id!;
 
     const requestData = {
@@ -122,8 +164,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const { data } = await roomAdminApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { data } = await roomAdminApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -132,7 +180,10 @@ test.describe("PUT /people/status/:status - access control", () => {
   test("PUT /people/status/:status - Room admin deactivates DocSpace Admin", async ({
     apiSdk,
   }) => {
-    const { data: docSpaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docSpaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
     const requestData = {
@@ -140,8 +191,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const { data } = await roomAdminApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { data } = await roomAdminApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -159,8 +216,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const { data } = await roomAdminApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { data } = await roomAdminApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
@@ -178,8 +241,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
-    const { data } = await userApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
@@ -188,7 +257,10 @@ test.describe("PUT /people/status/:status - access control", () => {
   test("PUT /people/status/:status - User deactivates DocSpace Admin", async ({
     apiSdk,
   }) => {
-    const { data: docSpaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docSpaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
     const requestData = {
@@ -196,8 +268,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
-    const { data } = await userApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -206,7 +284,10 @@ test.describe("PUT /people/status/:status - access control", () => {
   test("PUT /people/status/:status - User deactivates Room admin", async ({
     apiSdk,
   }) => {
-    const { data: roomAdminData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
     const roomAdminId = roomAdminData.response!.id!;
 
     const requestData = {
@@ -214,8 +295,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
-    const { data } = await userApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -232,8 +319,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
-    const { data } = await userApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -251,8 +344,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const { data } = await guestApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
@@ -261,7 +360,10 @@ test.describe("PUT /people/status/:status - access control", () => {
   test("PUT /people/status/:status - Guest deactivates DocSpace Admin", async ({
     apiSdk,
   }) => {
-    const { data: docSpaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docSpaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
     const requestData = {
@@ -269,8 +371,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const { data } = await guestApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -279,7 +387,10 @@ test.describe("PUT /people/status/:status - access control", () => {
   test("PUT /people/status/:status - Guest deactivates Room Admin", async ({
     apiSdk,
   }) => {
-    const { data: roomAdminData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
     const roomAdminId = roomAdminData.response!.id!;
 
     const requestData = {
@@ -287,8 +398,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const { data } = await guestApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -305,8 +422,14 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const { data } = await guestApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -319,10 +442,16 @@ test.describe("PUT /people/status/:status - access control", () => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
     const guestId = guestData.response!.id!;
 
-    const { data: roomAdminData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
     const roomAdminId = roomAdminData.response!.id!;
 
-    const { data: docSpaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docSpaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
     const requestData = {
@@ -330,9 +459,18 @@ test.describe("PUT /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
-    const { api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
-    const { data } = await userApi.userStatus.updateUserStatus(EmployeeStatus.Active, requestData);
+    await ownerApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.userStatus.updateUserStatus(
+      EmployeeStatus.Active,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -345,10 +483,15 @@ test.describe("GET /people/status/:status - access control", () => {
   }) => {
     await apiSdk.addMember("owner", "DocSpaceAdmin");
     await apiSdk.addMember("owner", "RoomAdmin");
-    const { api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
     await apiSdk.addMember("owner", "Guest");
 
-    const { data } = await userApi.userStatus.getByStatus(EmployeeStatus.Active);
+    const { data } = await userApi.userStatus.getByStatus(
+      EmployeeStatus.Active,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -358,10 +501,16 @@ test.describe("GET /people/status/:status - access control", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: docSpaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docSpaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
-    const { data: roomAdminData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
     const roomAdminId = roomAdminData.response!.id!;
 
     const { data: userData } = await apiSdk.addMember("owner", "User");
@@ -375,8 +524,13 @@ test.describe("GET /people/status/:status - access control", () => {
       resendAll: false,
     });
 
-    const { api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
-    const { data } = await userApi.userStatus.getByStatus(EmployeeStatus.Terminated);
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.userStatus.getByStatus(
+      EmployeeStatus.Terminated,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -389,10 +543,16 @@ test.describe("GET /people/status/:status - access control", () => {
     const { data: userData } = await apiSdk.addMember("owner", "User");
     const userId = userData.response!.id!;
 
-    const { data: roomAdminData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
     const roomAdminId = roomAdminData.response!.id!;
 
-    const { data: docSpaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docSpaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
     const requestData = {
@@ -400,9 +560,18 @@ test.describe("GET /people/status/:status - access control", () => {
       resendAll: false,
     };
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, requestData);
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const { data } = await guestApi.userStatus.updateUserStatus(EmployeeStatus.Active, requestData);
+    await ownerApi.userStatus.updateUserStatus(
+      EmployeeStatus.Terminated,
+      requestData,
+    );
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.userStatus.updateUserStatus(
+      EmployeeStatus.Active,
+      requestData,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -412,10 +581,16 @@ test.describe("GET /people/status/:status - access control", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: docSpaceAdminData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: docSpaceAdminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
-    const { data: roomAdminData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
     const roomAdminId = roomAdminData.response!.id!;
 
     const { data: userData } = await apiSdk.addMember("owner", "User");
@@ -429,8 +604,13 @@ test.describe("GET /people/status/:status - access control", () => {
       resendAll: false,
     });
 
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const { data } = await guestApi.userStatus.getByStatus(EmployeeStatus.Terminated);
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.userStatus.getByStatus(
+      EmployeeStatus.Terminated,
+    );
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");

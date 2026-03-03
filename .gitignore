@@ -4,3 +4,4 @@ test-output/
 .claude/
 
 .env
+.vscode/

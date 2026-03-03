@@ -22,6 +22,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.2.3",
     "globals": "^15.14.0",
+    "lefthook": "^2.1.2",
     "prettier": "^3.8.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.32.1"

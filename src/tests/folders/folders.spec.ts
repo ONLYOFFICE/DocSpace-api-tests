@@ -7,10 +7,19 @@ function getFolderSortedByCustomOrder(folders: FoldersApi, folderId: number) {
   // Fix: set useSingleRequestParameter=true in the openapi-generator config to generate an options object instead.
   return folders.getFolderByFolderId(
     folderId,
-    undefined, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined, undefined,
-    undefined, undefined,
-    "10",                  // sortBy: CustomOrder
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    "10", // sortBy: CustomOrder
     SortOrder.Ascending,
   );
 }
@@ -26,7 +35,9 @@ test.describe("POST /files/folder/:folderId - Create folder", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await ownerApi.folders.createFolder(roomId, { title: "Autotest Folder" });
+    const { data, status } = await ownerApi.folders.createFolder(roomId, {
+      title: "Autotest Folder",
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -42,7 +53,10 @@ test.describe("POST /files/folder/:folderId - Create folder", () => {
     const { data: myDocsData } = await ownerApi.folders.getMyFolder();
     const myDocsFolderId = myDocsData.response!.current!.id!;
 
-    const { data, status } = await ownerApi.folders.createFolder(myDocsFolderId, { title: "Autotest Folder In My Docs" });
+    const { data, status } = await ownerApi.folders.createFolder(
+      myDocsFolderId,
+      { title: "Autotest Folder In My Docs" },
+    );
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -60,10 +74,15 @@ test.describe("PUT /files/folder/:folderId/order - Set folder order", () => {
     const { data: myDocsData } = await ownerApi.folders.getMyFolder();
     const myDocsFolderId = myDocsData.response!.current!.id!;
 
-    const { data: folderData } = await ownerApi.folders.createFolder(myDocsFolderId, { title: "Autotest Folder For Order" });
+    const { data: folderData } = await ownerApi.folders.createFolder(
+      myDocsFolderId,
+      { title: "Autotest Folder For Order" },
+    );
     const folderId = folderData.response!.id!;
 
-    const { data, status } = await ownerApi.folders.setFolderOrder(folderId, { order: 1 });
+    const { data, status } = await ownerApi.folders.setFolderOrder(folderId, {
+      order: 1,
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -82,10 +101,14 @@ test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () =>
     });
     const roomId = roomData.response!.id!;
 
-    const { data: folderAData } = await ownerApi.folders.createFolder(roomId, { title: "Autotest Folder A" });
+    const { data: folderAData } = await ownerApi.folders.createFolder(roomId, {
+      title: "Autotest Folder A",
+    });
     const folderA = folderAData.response!;
 
-    const { data: folderBData } = await ownerApi.folders.createFolder(roomId, { title: "Autotest Folder B" });
+    const { data: folderBData } = await ownerApi.folders.createFolder(roomId, {
+      title: "Autotest Folder B",
+    });
     const folderB = folderBData.response!;
 
     await ownerApi.folders.setFolderOrder(folderA.id!, { order: 2 });
@@ -96,8 +119,8 @@ test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () =>
       roomId,
     );
 
-    const titles = data.response!.folders!
-      .map((f) => f.title)
+    const titles = data
+      .response!.folders!.map((f) => f.title)
       .filter((t) => t === "Autotest Folder A" || t === "Autotest Folder B");
 
     expect(titles?.indexOf("Autotest Folder B")).toBeLessThan(

@@ -35,7 +35,9 @@ type MemberBase = {
 };
 
 export type AddMemberResult = MemberBase;
-export type AddAuthenticatedMemberResult = MemberBase & { api: ReturnType<ApiSDK["forRole"]> };
+export type AddAuthenticatedMemberResult = MemberBase & {
+  api: ReturnType<ApiSDK["forRole"]>;
+};
 
 export class ApiSDK {
   readonly faker: FAKER;
@@ -110,7 +112,9 @@ export class ApiSDK {
     const response = await this.request.post(
       `https://${this.tokenStore.portalDomain}/api/2.0/${endpoint}`,
       {
-        headers: { Authorization: `Bearer ${this.tokenStore.getToken(creatorRole)}` },
+        headers: {
+          Authorization: `Bearer ${this.tokenStore.getToken(creatorRole)}`,
+        },
         data: userData,
       },
     );
@@ -118,17 +122,27 @@ export class ApiSDK {
     return { data, status: response.status(), userData: fakeUser };
   }
 
-  async addAuthenticatedMember(creatorRole: Role, type: UserType): Promise<AddAuthenticatedMemberResult> {
+  async addAuthenticatedMember(
+    creatorRole: Role,
+    type: UserType,
+  ): Promise<AddAuthenticatedMemberResult> {
     const base = await this.addMember(creatorRole, type);
     const credentialRole = USER_TYPE_TO_ROLE[type];
 
     const authResponse = await this.request.post(
       `https://${this.tokenStore.portalDomain}/api/2.0/authentication`,
-      { data: { userName: base.userData.email, password: base.userData.password } },
+      {
+        data: {
+          userName: base.userData.email,
+          password: base.userData.password,
+        },
+      },
     );
     const authBody = await authResponse.json();
     if (!authResponse.ok()) {
-      throw new Error(`Authentication failed for ${type}: ${authResponse.status()} - ${authBody.error || authBody.message}`);
+      throw new Error(
+        `Authentication failed for ${type}: ${authResponse.status()} - ${authBody.error || authBody.message}`,
+      );
     }
     this.tokenStore.setToken(credentialRole, authBody.response.token);
 
@@ -144,5 +158,4 @@ export class ApiSDK {
       },
     );
   }
-
 }

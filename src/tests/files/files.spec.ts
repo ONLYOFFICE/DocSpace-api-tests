@@ -8,7 +8,9 @@ test.describe("POST /files/@my/file", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data, status } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Document" });
+    const { data, status } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Document",
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -20,7 +22,9 @@ test.describe("POST /files/@my/file", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data, status } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Document.docx" });
+    const { data, status } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Document.docx",
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -33,7 +37,9 @@ test.describe("POST /files/@my/file", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data, status } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Document.txt" });
+    const { data, status } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Document.txt",
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -69,7 +75,9 @@ test.describe("POST /files/:folderId/file", () => {
     });
     const folderId = roomData.response!.id!;
 
-    const { data, status } = await ownerApi.files.createFile(folderId, { title: "Autotest Document" });
+    const { data, status } = await ownerApi.files.createFile(folderId, {
+      title: "Autotest Document",
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -121,11 +129,14 @@ test.describe("POST /files/:folderId/html - Create HTML file", () => {
     });
     const firstId = firstData.response!.id!;
 
-    const { data: secondData, status } = await ownerApi.files.createHtmlFile(folderId, {
-      title: "Autotest HTML Dedup",
-      content: "some text",
-      createNewIfExist: false,
-    });
+    const { data: secondData, status } = await ownerApi.files.createHtmlFile(
+      folderId,
+      {
+        title: "Autotest HTML Dedup",
+        content: "some text",
+        createNewIfExist: false,
+      },
+    );
 
     expect(status).toBe(200);
     expect(secondData.statusCode).toBe(200);
@@ -175,11 +186,14 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     });
     const firstId = firstData.response!.id!;
 
-    const { data: secondData, status } = await ownerApi.files.createTextFile(folderId, {
-      title: "Autotest Text Dedup",
-      content: "some text",
-      createNewIfExist: false,
-    });
+    const { data: secondData, status } = await ownerApi.files.createTextFile(
+      folderId,
+      {
+        title: "Autotest Text Dedup",
+        content: "some text",
+        createNewIfExist: false,
+      },
+    );
 
     expect(status).toBe(200);
     expect(secondData.statusCode).toBe(200);
@@ -192,7 +206,9 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Source File" });
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Source File",
+    });
     const fileId = fileData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -215,7 +231,9 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Source File For Form" });
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Source File For Form",
+    });
     const fileId = fileData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -240,7 +258,9 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Source File For Password" });
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Source File For Password",
+    });
     const fileId = fileData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -264,7 +284,9 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Source File For Ext" });
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Source File For Ext",
+    });
     const fileId = fileData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -290,7 +312,9 @@ test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Source File For PDF" });
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Source File For PDF",
+    });
     const fileId = fileData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -316,10 +340,15 @@ test.describe("GET /files/favorites/:fileId - Change favorite status", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Favorite File" });
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Favorite File",
+    });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await ownerApi.files.toggleFileFavorite(fileId, true);
+    const { data, status } = await ownerApi.files.toggleFileFavorite(
+      fileId,
+      true,
+    );
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -330,11 +359,16 @@ test.describe("GET /files/favorites/:fileId - Change favorite status", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({ title: "Autotest Unfavorite File" });
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      title: "Autotest Unfavorite File",
+    });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.toggleFileFavorite(fileId, true);
-    const { data, status } = await ownerApi.files.toggleFileFavorite(fileId, false);
+    const { data, status } = await ownerApi.files.toggleFileFavorite(
+      fileId,
+      false,
+    );
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
