@@ -68,4 +68,5 @@ test.describe("PUT /people/type/:type - Change user type", () => {
     expect(toRoomAdminData.statusCode).toBe(200);
     expect(toRoomAdminData.response![0].isRoomAdmin).toBe(true);
   });
+
 });
