@@ -21,5 +21,26 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
     console.log(data as any); // delete this string after fixing the bug
     // BUG: API returns 200, expected 403
     expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test.skip("BUG: Room admin should not be able to change the type of a guest who does not belong to them.", async ({
+    apiSdk,
+  }) => {
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const guestId = (guestData as any).response.id as string;
+
+    const { data } = await roomAdminApi.userType.updateUserType(
+      EmployeeType.User,
+      { userIds: [guestId] },
+    );
+    console.log(data as any); // delete this string after fixing the bug
+    // BUG: API returns 200, expected 403
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
   });
 });
