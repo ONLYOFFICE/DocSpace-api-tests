@@ -21,12 +21,6 @@ import { waitForRoomTemplate } from "../utils/waitForRoomTemplate";
 
 export type UserType = "DocSpaceAdmin" | "RoomAdmin" | "User" | "Guest";
 
-const USER_TYPE_TO_ROLE: Record<UserType, Role> = {
-  DocSpaceAdmin: "docSpaceAdmin",
-  RoomAdmin: "roomAdmin",
-  User: "user",
-  Guest: "guest",
-};
 
 export type AddMemberResult = {
   data: EmployeeFullWrapper;
@@ -127,13 +121,6 @@ export class ApiSDK {
   async addMember(creatorRole: Role, type: UserType): Promise<AddMemberResult> {
     const fakeUser = this.faker.generateUser();
     const userData = { ...fakeUser, type };
-
-    const credentialRole = USER_TYPE_TO_ROLE[type];
-    this.tokenStore.setCredentials(
-      credentialRole,
-      fakeUser.email,
-      fakeUser.password,
-    );
 
     // Guests are created via a different endpoint
     const endpoint = type === "Guest" ? "people/active" : "people";
