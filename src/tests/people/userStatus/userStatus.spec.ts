@@ -636,4 +636,6 @@ test.describe("GET /people/status/:status - Get profiles by status", () => {
   });
 });
 
-//TODO: Write tests from different users to activate / disabled users
+/* TODO: - Need email integration to this methods to be able to test them properly
+PUT /people/activationstatus/{status}
+*/
