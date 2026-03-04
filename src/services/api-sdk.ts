@@ -15,6 +15,12 @@ import {
   PeopleQuotaApi,
   EmailApi,
   EmployeeFullWrapper,
+  GuestsApi,
+  PeopleSearchApi,
+  ThemeApi,
+  ThirdPartyAccountsApi,
+  UserDataApi,
+  UserTypeApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { waitForRoomTemplate } from "../helpers/wait-for-room-template";
@@ -79,6 +85,16 @@ export class ApiSDK {
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
       email: new EmailApi(config, undefined, axiosInstance),
+      guests: new GuestsApi(config, undefined, axiosInstance),
+      peopleSearch: new PeopleSearchApi(config, undefined, axiosInstance),
+      theme: new ThemeApi(config, undefined, axiosInstance),
+      thirdPartyAccounts: new ThirdPartyAccountsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      userData: new UserDataApi(config, undefined, axiosInstance),
+      userType: new UserTypeApi(config, undefined, axiosInstance),
     };
   }
 
@@ -96,6 +112,16 @@ export class ApiSDK {
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
       email: new EmailApi(config, undefined, axiosInstance),
+      guests: new GuestsApi(config, undefined, axiosInstance),
+      peopleSearch: new PeopleSearchApi(config, undefined, axiosInstance),
+      theme: new ThemeApi(config, undefined, axiosInstance),
+      thirdPartyAccounts: new ThirdPartyAccountsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      userData: new UserDataApi(config, undefined, axiosInstance),
+      userType: new UserTypeApi(config, undefined, axiosInstance),
     };
   }
 
