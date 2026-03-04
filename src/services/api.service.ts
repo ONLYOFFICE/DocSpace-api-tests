@@ -21,7 +21,6 @@ import { waitForRoomTemplate } from "../utils/waitForRoomTemplate";
 
 export type UserType = "DocSpaceAdmin" | "RoomAdmin" | "User" | "Guest";
 
-
 export type AddMemberResult = {
   data: EmployeeFullWrapper;
   status: number;
