@@ -66,7 +66,7 @@ export class ApiSDK {
 
   forRole(role: Role) {
     const config = new Configuration({
-      basePath: `https://${this.tokenStore.portalDomain}`,
+      basePath: `${this.tokenStore.portalBaseUrl}`,
       baseOptions: {
         headers: {
           Authorization: `Bearer ${this.tokenStore.getToken(role)}`,
@@ -100,7 +100,7 @@ export class ApiSDK {
 
   forAnonymous() {
     const config = new Configuration({
-      basePath: `https://${this.tokenStore.portalDomain}`,
+      basePath: `${this.tokenStore.portalBaseUrl}`,
     });
     const axiosInstance = this.createAxiosInstance();
     return {
@@ -137,7 +137,7 @@ export class ApiSDK {
 
     const endpoint = type === "Guest" ? "people/active" : "people";
     const response = await this.request.post(
-      `https://${this.tokenStore.portalDomain}/api/2.0/${endpoint}`,
+      `${this.tokenStore.portalBaseUrl}/api/2.0/${endpoint}`,
       {
         headers: {
           Authorization: `Bearer ${this.tokenStore.getToken(creatorRole)}`,
@@ -156,7 +156,7 @@ export class ApiSDK {
     const credentialRole = USER_TYPE_TO_ROLE[type];
 
     const authResponse = await this.request.post(
-      `https://${this.tokenStore.portalDomain}/api/2.0/authentication`,
+      `${this.tokenStore.portalBaseUrl}/api/2.0/authentication`,
       {
         data: {
           userName: userData.email,
@@ -187,7 +187,7 @@ export class ApiSDK {
 
   async enableUserQuota(role: Role, defaultQuotaBytes: number) {
     await this.request.post(
-      `https://${this.tokenStore.portalDomain}/api/2.0/settings/userquotasettings`,
+      `${this.tokenStore.portalBaseUrl}/api/2.0/settings/userquotasettings`,
       {
         headers: { Authorization: `Bearer ${this.tokenStore.getToken(role)}` },
         data: { enableQuota: true, defaultQuota: defaultQuotaBytes },
