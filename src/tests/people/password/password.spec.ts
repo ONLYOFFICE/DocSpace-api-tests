@@ -169,3 +169,7 @@ test.describe("POST /people/password - Send password reminder", () => {
     );
   });
 });
+
+/* TODO: - Need email integration to this methods to be able to test them properly
+PUT /people/{userid}/password
+*/

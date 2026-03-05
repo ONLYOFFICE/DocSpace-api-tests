@@ -7,7 +7,6 @@ class Apisystem {
   portalDomain: string = "";
   adminUserId: string = "";
   portalName: string = "";
-  authToken: string = "";
 
   private auth: Auth;
 
@@ -16,20 +15,17 @@ class Apisystem {
     this.auth = auth;
   }
 
-  setAuthToken(authToken: string) {
-    this.authToken = authToken;
-  }
-
-  setPortalDomain(portalDomain: string) {
-    this.portalDomain = portalDomain;
-  }
-
-  setPortalName(portalName: string) {
-    this.portalName = portalName;
-  }
-
   getOwnerAuthToken(): string {
     return this.auth.authTokenOwner;
+  }
+
+  private get isLocal(): boolean {
+    return !!config.LOCAL_PORTAL_DOMAIN;
+  }
+
+  get portalBaseUrl(): string {
+    const scheme = this.isLocal ? "http" : "https";
+    return `${scheme}://${this.portalDomain}`;
   }
 
   async createPortal(portalNamePrefix = "test-portal") {
@@ -38,29 +34,32 @@ class Apisystem {
 
     this.portalName = `${portalNamePrefix}-${randomPrefix}-${datePrefix}`;
 
-    const response = await this.apiContext.post(
-      `${config.PORTAL_REGISTRATION_URL}/register`,
-      {
-        data: {
-          portalName: this.portalName,
-          firstName: "admin-zero",
-          lastName: "admin-zero",
-          email: config.DOCSPACE_OWNER_EMAIL,
-          password: config.DOCSPACE_OWNER_PASSWORD,
-          language: "en",
-        },
+    const registerUrl = this.isLocal
+      ? `http://${config.LOCAL_PORTAL_DOMAIN}/apisystem/portal/register`
+      : `${config.PORTAL_REGISTRATION_URL}/register`;
+
+    const response = await this.apiContext.post(registerUrl, {
+      data: {
+        portalName: this.portalName,
+        firstName: "admin-zero",
+        lastName: "admin-zero",
+        email: config.DOCSPACE_OWNER_EMAIL,
+        password: config.DOCSPACE_OWNER_PASSWORD,
+        language: "en",
       },
-    );
+    });
 
-    const body = await response.json();
-
+    const text = await response.text();
     if (!response.ok()) {
       throw new Error(
-        `Failed to create portal: ${response.status()} - ${body.error || body.message}`,
+        `Failed to create portal: ${response.status()} - ${text}`,
       );
     }
+    const body = JSON.parse(text);
 
-    this.portalDomain = body.tenant.domain;
+    this.portalDomain = this.isLocal
+      ? config.LOCAL_PORTAL_DOMAIN
+      : body.tenant.domain;
     this.adminUserId = body.tenant.ownerId;
 
     return body;
@@ -71,7 +70,7 @@ class Apisystem {
       throw new Error("Owner token is missing. Cannot delete portal.");
     }
 
-    const deleteUrl = `https://${this.portalDomain}/api/2.0/portal/deleteportalimmediately`;
+    const deleteUrl = `${this.portalBaseUrl}/api/2.0/portal/deleteportalimmediately`;
 
     const response = await this.apiContext.delete(deleteUrl, {
       headers: { Authorization: `Bearer ${this.auth.authTokenOwner}` },

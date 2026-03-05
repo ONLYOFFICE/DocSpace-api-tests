@@ -1,5 +1,6 @@
 import { APIRequestContext } from "@playwright/test";
 
+import config from "../../config";
 import Apisystem from "./apisystem";
 import Auth from "./auth";
 import { TokenStore } from "./token-store";
@@ -29,10 +30,11 @@ class API {
   async setup() {
     const portal = await this.apisystem.createPortal("integration-test-portal");
 
-    this.portalDomain = portal.tenant.domain;
+    this.portalDomain = config.LOCAL_PORTAL_DOMAIN || portal.tenant.domain;
     this.adminUserId = portal.tenant.ownerId;
 
     this.tokenStore.portalDomain = this.portalDomain;
+    this.tokenStore.isLocal = !!config.LOCAL_PORTAL_DOMAIN;
     await this.auth.authenticateOwner();
   }
 

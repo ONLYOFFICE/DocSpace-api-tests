@@ -53,7 +53,7 @@ export class PaymentApi {
 
   async getPortalInfo() {
     const response = await this.apiContext.get(
-      `https://${this.portalDomain}/api/2.0/portal`,
+      `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal`,
     );
     if (!response.ok()) {
       const error = await response.json();
@@ -113,7 +113,7 @@ export class PaymentApi {
     };
 
     const tariffResponse = await this.apiContext.get(
-      `https://${this.portalDomain}/api/2.0/portal/tariff`,
+      `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/tariff`,
       { headers, params: { refresh: true } },
     );
     if (!tariffResponse.ok()) {
@@ -124,7 +124,7 @@ export class PaymentApi {
     }
 
     const quotaResponse = await this.apiContext.get(
-      `https://${this.portalDomain}/api/2.0/portal/payment/quota`,
+      `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/payment/quota`,
       { headers, params: { refresh: true } },
     );
     if (!quotaResponse.ok()) {
