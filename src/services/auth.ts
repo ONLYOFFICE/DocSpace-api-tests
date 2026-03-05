@@ -24,7 +24,7 @@ class Auth {
     const password = config.DOCSPACE_OWNER_PASSWORD;
 
     const authResponse = await this.apiRequestContext.post(
-      `https://${this.portalDomain}/api/2.0/authentication`,
+      `${this.tokenStore.portalBaseUrl}/api/2.0/authentication`,
       {
         data: { userName, password },
       },
