@@ -69,4 +69,71 @@ test.describe("PUT /people/type/:type - Change user type", () => {
     expect(toRoomAdminData.response![0].isRoomAdmin).toBe(true);
   });
 
+  test("PUT /people/type/:type & PUT /people/type - Owner demotes DocSpace admin through all user types", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: adminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminId = adminData.response!.id!;
+
+    // DocSpace Admin -> Room Admin
+    const { data: toRoomAdminData } = await ownerApi.userType.updateUserType(
+      EmployeeType.RoomAdmin,
+      { userIds: [adminId] },
+    );
+
+    expect(toRoomAdminData.statusCode).toBe(200);
+    expect(toRoomAdminData.response![0].isRoomAdmin).toBe(true);
+
+    // Room Admin -> User
+    const { data: toUserData } = await ownerApi.userType.starUserTypetUpdate({
+      type: EmployeeType.User,
+      userId: adminId,
+    });
+
+    expect(toUserData.statusCode).toBe(200);
+
+    // User -> Guest
+    const { data: toGuestData } = await ownerApi.userType.starUserTypetUpdate({
+      type: EmployeeType.Guest,
+      userId: adminId,
+    });
+
+    expect(toGuestData.statusCode).toBe(200);
+  });
+
+  test("PUT /people/type - DocSpace admin demotes Room Admin to User and Guest", async ({
+    apiSdk,
+  }) => {
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const roomAdminId = roomAdminData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    // Room Admin -> User
+    const { data: toUserData } = await adminApi.userType.starUserTypetUpdate({
+      type: EmployeeType.User,
+      userId: roomAdminId,
+    });
+
+    expect(toUserData.statusCode).toBe(200);
+
+    // User -> Guest
+    const { data: toGuestData } = await adminApi.userType.starUserTypetUpdate({
+      type: EmployeeType.Guest,
+      userId: roomAdminId,
+    });
+
+    expect(toGuestData.statusCode).toBe(200);
+  });
 });

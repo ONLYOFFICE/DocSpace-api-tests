@@ -107,6 +107,7 @@ export class ApiSDK {
       rooms: new RoomsApi(config, undefined, axiosInstance),
       files: new FilesApi(config, undefined, axiosInstance),
       folders: new FoldersApi(config, undefined, axiosInstance),
+      sharing: new SharingApi(config, undefined, axiosInstance),
       profiles: new ProfilesApi(config, undefined, axiosInstance),
       password: new PasswordApi(config, undefined, axiosInstance),
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
@@ -148,19 +149,18 @@ export class ApiSDK {
     return { data, status: response.status(), userData: fakeUser };
   }
 
-  async addAuthenticatedMember(
-    creatorRole: Role,
+  async authenticateMember(
+    userData: FakeUser,
     type: UserType,
-  ): Promise<AddAuthenticatedMemberResult> {
-    const base = await this.addMember(creatorRole, type);
+  ): Promise<ReturnType<ApiSDK["forRole"]>> {
     const credentialRole = USER_TYPE_TO_ROLE[type];
 
     const authResponse = await this.request.post(
       `https://${this.tokenStore.portalDomain}/api/2.0/authentication`,
       {
         data: {
-          userName: base.userData.email,
-          password: base.userData.password,
+          userName: userData.email,
+          password: userData.password,
         },
       },
     );
@@ -172,7 +172,17 @@ export class ApiSDK {
     }
     this.tokenStore.setToken(credentialRole, authBody.response.token);
 
-    return { ...base, api: this.forRole(credentialRole) };
+    return this.forRole(credentialRole);
+  }
+
+  async addAuthenticatedMember(
+    creatorRole: Role,
+    type: UserType,
+  ): Promise<AddAuthenticatedMemberResult> {
+    const base = await this.addMember(creatorRole, type);
+    const api = await this.authenticateMember(base.userData, type);
+
+    return { ...base, api };
   }
 
   async enableUserQuota(role: Role, defaultQuotaBytes: number) {
