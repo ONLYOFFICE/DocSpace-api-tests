@@ -14,6 +14,8 @@ import {
   UserStatusApi,
   PeopleQuotaApi,
   EmailApi,
+  BackupApi,
+  ThirdPartyIntegrationApi,
   EmployeeFullWrapper,
 } from "@onlyoffice/docspace-api-sdk";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
@@ -79,6 +81,8 @@ export class ApiSDK {
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
       email: new EmailApi(config, undefined, axiosInstance),
+      backup: new BackupApi(config, undefined, axiosInstance),
+      thirdPartyIntegration: new ThirdPartyIntegrationApi(config, undefined, axiosInstance),
     };
   }
 
@@ -96,6 +100,7 @@ export class ApiSDK {
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
       email: new EmailApi(config, undefined, axiosInstance),
+      backup: new BackupApi(config, undefined, axiosInstance),
     };
   }
 

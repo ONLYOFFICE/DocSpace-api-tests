@@ -9,6 +9,10 @@ interface Config {
   DOCSPACE_OWNER_PASSWORD: string;
   MACHINEKEY: string;
   PKEY: string;
+  DOCSPACE_PORTAL_DOMAIN: string;
+  NEXTCLOUD_URL: string;
+  NEXTCLOUD_LOGIN: string;
+  NEXTCLOUD_PASSWORD: string;
 }
 
 const config: Config = {
@@ -20,6 +24,10 @@ const config: Config = {
   DOCSPACE_OWNER_PASSWORD: process.env.DOCSPACE_OWNER_PASSWORD ?? "test1234",
   MACHINEKEY: process.env.MACHINEKEY ?? "",
   PKEY: process.env.PKEY ?? "",
+  DOCSPACE_PORTAL_DOMAIN: process.env.DOCSPACE_PORTAL_DOMAIN ?? "",
+  NEXTCLOUD_URL: process.env.NEXTCLOUD_URL ?? "",
+  NEXTCLOUD_LOGIN: process.env.NEXTCLOUD_LOGIN ?? "",
+  NEXTCLOUD_PASSWORD: process.env.NEXTCLOUD_PASSWORD ?? "",
 };
 
 export default config;
