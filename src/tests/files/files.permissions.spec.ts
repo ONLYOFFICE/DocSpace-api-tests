@@ -4,7 +4,7 @@ import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
 
 test.describe("Share link privacy - no user data leakage", () => {
-  test.skip("BUG: External file share link response does not expose room creator and link creator data", async ({
+  test.skip("BUG 80495: External file share link response does not expose room creator and link creator data", async ({
     apiSdk,
     request,
   }) => {
