@@ -88,7 +88,11 @@ export class ApiSDK {
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
       email: new EmailApi(config, undefined, axiosInstance),
       backup: new BackupApi(config, undefined, axiosInstance),
-      thirdPartyIntegration: new ThirdPartyIntegrationApi(config, undefined, axiosInstance),
+      thirdPartyIntegration: new ThirdPartyIntegrationApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
       guests: new GuestsApi(config, undefined, axiosInstance),
       peopleSearch: new PeopleSearchApi(config, undefined, axiosInstance),
       theme: new ThemeApi(config, undefined, axiosInstance),

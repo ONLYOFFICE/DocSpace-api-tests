@@ -2,14 +2,10 @@ import { test as base } from "@playwright/test";
 import API from "@/src/services/api";
 import { ApiSDK } from "../services/api-sdk";
 import { PaymentApi } from "../services/payment-api";
-import { TokenStore } from "../services/token-store";
-import Auth from "../services/auth";
-import config from "@/config";
 
 type TestFixtures = {
   api: API;
   apiSdk: ApiSDK;
-  apiSdkExisting: ApiSDK;
   paymentsApi: PaymentApi;
 };
 
@@ -34,17 +30,6 @@ export const test = base.extend<TestFixtures>({
 
   apiSdk: async ({ api, request }, use) => {
     const sdk = new ApiSDK(request, api.tokenStore);
-    await use(sdk);
-  },
-
-  apiSdkExisting: async ({ request }, use) => {
-    const tokenStore = new TokenStore();
-    tokenStore.portalDomain = config.DOCSPACE_PORTAL_DOMAIN;
-
-    const auth = new Auth(request, tokenStore);
-    await auth.authenticateOwner();
-
-    const sdk = new ApiSDK(request, tokenStore);
     await use(sdk);
   },
 
