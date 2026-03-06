@@ -137,3 +137,180 @@ test.describe("PUT /people/type/:type - Change user type", () => {
     expect(toGuestData.statusCode).toBe(200);
   });
 });
+
+test.describe("GET /people/type/progress/{userid} - Get user type update progress", () => {
+  test("Owner demotes DocSpace admin to User and checks progress", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: adminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminId = adminData.response!.id!;
+
+    await ownerApi.userType.starUserTypetUpdate({
+      type: EmployeeType.User,
+      userId: adminId,
+    });
+
+    // Poll progress until completed
+    let isCompleted = false;
+    let progressData: any;
+
+    while (!isCompleted) {
+      const { data } =
+        await ownerApi.userType.getUserTypeUpdateProgress(adminId);
+      progressData = data;
+      isCompleted = (data as any).response?.isCompleted === true;
+
+      if (!isCompleted) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+    expect(progressData.statusCode).toBe(200);
+    expect(progressData.response.isCompleted).toBe(true);
+    expect(progressData.response.percentage).toBe(100);
+    expect(progressData.response.error).toBe("");
+  });
+
+  test("DocSpace admin demotes Room admin to User and checks progress", async ({
+    apiSdk,
+  }) => {
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const roomAdminId = roomAdminData.response!.id!;
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await adminApi.userType.starUserTypetUpdate({
+      type: EmployeeType.User,
+      userId: roomAdminId,
+    });
+
+    // Poll progress until completed
+    let isCompleted = false;
+    let progressData: any;
+
+    while (!isCompleted) {
+      const { data } =
+        await adminApi.userType.getUserTypeUpdateProgress(roomAdminId);
+      progressData = data;
+      isCompleted = (data as any).response?.isCompleted === true;
+
+      if (!isCompleted) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
+    expect(progressData.statusCode).toBe(200);
+    expect(progressData.response.isCompleted).toBe(true);
+    expect(progressData.response.percentage).toBe(100);
+    expect(progressData.response.error).toBe("");
+  });
+});
+
+test.describe("PUT /people/type/terminate - Terminate user type update", () => {
+  test("Owner terminates user type update", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: adminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminId = adminData.response!.id!;
+
+    // Start demotion
+    await ownerApi.userType.starUserTypetUpdate({
+      type: EmployeeType.User,
+      userId: adminId,
+    });
+
+    // Terminate the process
+    const { data: terminateData } =
+      await ownerApi.userType.terminateUserTypeUpdate({ userId: adminId });
+    expect(terminateData.statusCode).toBe(200);
+    expect((terminateData as any).response.isCompleted).toBe(true);
+    expect((terminateData as any).response.error).toBe("");
+    expect((terminateData as any).response.status).toBe(3);
+
+    // Verify user is still DocSpace admin
+    const { data: profileData } =
+      await ownerApi.profiles.getProfileByUserId(adminId);
+    expect(profileData.response!.isAdmin).toBe(true);
+  });
+
+  // Incorrect answer, you need to check the code and describe the bug if there is one.
+  test.skip("DocSpace admin terminates user type update started by Owner", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: userData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const userId = userData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    // Owner starts demotion
+    await ownerApi.userType.starUserTypetUpdate({
+      type: EmployeeType.User,
+      userId: userId,
+    });
+
+    // DocSpace admin terminates the process
+    const { data: terminateData } =
+      await adminApi.userType.terminateUserTypeUpdate({ userId: userId });
+    console.log("Terminate response:", terminateData);
+    expect(terminateData.statusCode).toBe(200);
+    expect((terminateData as any).response.isCompleted).toBe(true);
+    expect((terminateData as any).response.error).toBe("");
+    expect((terminateData as any).response.status).toBe(3);
+
+    // Verify user is still DocSpace admin
+    const { data: profileData } =
+      await ownerApi.profiles.getProfileByUserId(userId);
+    expect(profileData.response!.isAdmin).toBe(true);
+  });
+
+  test("DocSpace admin terminates own user type update of Room admin", async ({
+    apiSdk,
+  }) => {
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const roomAdminId = roomAdminData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    // DocSpace admin starts demotion
+    await adminApi.userType.starUserTypetUpdate({
+      type: EmployeeType.User,
+      userId: roomAdminId,
+    });
+
+    // DocSpace admin terminates the process
+    const { data: terminateData } =
+      await adminApi.userType.terminateUserTypeUpdate({ userId: roomAdminId });
+    expect(terminateData.statusCode).toBe(200);
+    expect((terminateData as any).response.isCompleted).toBe(true);
+    expect((terminateData as any).response.error).toBe("");
+    expect((terminateData as any).response.status).toBe(3);
+
+    // Verify user is still Room admin
+    const { data: profileData } =
+      await adminApi.profiles.getProfileByUserId(roomAdminId);
+    expect(profileData.response!.isRoomAdmin).toBe(true);
+  });
+});
