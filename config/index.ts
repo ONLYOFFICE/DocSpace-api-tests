@@ -10,6 +10,9 @@ interface Config {
   MACHINEKEY: string;
   PKEY: string;
   LOCAL_PORTAL_DOMAIN: string;
+  NEXTCLOUD_URL: string;
+  NEXTCLOUD_LOGIN: string;
+  NEXTCLOUD_PASSWORD: string;
 }
 
 const config: Config = {
@@ -22,6 +25,9 @@ const config: Config = {
   MACHINEKEY: process.env.MACHINEKEY ?? "",
   PKEY: process.env.PKEY ?? "",
   LOCAL_PORTAL_DOMAIN: process.env.LOCAL_PORTAL_DOMAIN ?? "",
+  NEXTCLOUD_URL: process.env.NEXTCLOUD_URL ?? "",
+  NEXTCLOUD_LOGIN: process.env.NEXTCLOUD_LOGIN ?? "",
+  NEXTCLOUD_PASSWORD: process.env.NEXTCLOUD_PASSWORD ?? "",
 };
 
 export default config;
