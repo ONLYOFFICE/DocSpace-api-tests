@@ -491,8 +491,6 @@ test.describe("GET /api/2.0/backup/getbackupscount - Get backups count", () => {
     await test.step("GET getbackupscount - verify count is greater than 0", async () => {
       const { data, status } = await ownerApi.backup.getBackupsCount();
 
-      console.log("getBackupsCount response:", data.response);
-
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response).toBeGreaterThan(0);
