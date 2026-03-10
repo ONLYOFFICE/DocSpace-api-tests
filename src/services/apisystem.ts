@@ -1,6 +1,7 @@
 import { APIRequestContext } from "@playwright/test";
 import config from "../../config";
 import Auth from "./auth";
+import { parseResponse } from "../utils/parse-response";
 
 class Apisystem {
   apiContext: APIRequestContext;
@@ -19,7 +20,7 @@ class Apisystem {
     return this.auth.authTokenOwner;
   }
 
-  private get isLocal(): boolean {
+  get isLocal(): boolean {
     return !!config.LOCAL_PORTAL_DOMAIN;
   }
 
@@ -38,16 +39,32 @@ class Apisystem {
       ? `http://${config.LOCAL_PORTAL_DOMAIN}/apisystem/portal/register`
       : `${config.PORTAL_REGISTRATION_URL}/register`;
 
-    const response = await this.apiContext.post(registerUrl, {
-      data: {
-        portalName: this.portalName,
-        firstName: "admin-zero",
-        lastName: "admin-zero",
-        email: config.DOCSPACE_OWNER_EMAIL,
-        password: config.DOCSPACE_OWNER_PASSWORD,
-        language: "en",
-      },
-    });
+    const maxRetries = 3;
+    let lastError: unknown;
+    let response;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        response = await this.apiContext.post(registerUrl, {
+          data: {
+            portalName: this.portalName,
+            firstName: "admin-zero",
+            lastName: "admin-zero",
+            email: config.DOCSPACE_OWNER_EMAIL,
+            password: config.DOCSPACE_OWNER_PASSWORD,
+            language: "en",
+          },
+        });
+        break;
+      } catch (e) {
+        lastError = e;
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * attempt));
+        }
+      }
+    }
+
+    if (!response) throw lastError;
 
     const text = await response.text();
     if (!response.ok()) {
@@ -77,8 +94,9 @@ class Apisystem {
         Origin: `http://${this.portalName}`,
       },
       data: { reference: `${this.portalName}.onlyoffice.io` },
+      timeout: 120000,
     });
-    const body = await response.json();
+    const body = await parseResponse(response);
 
     if (!response.ok()) {
       throw new Error(
