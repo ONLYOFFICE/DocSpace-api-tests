@@ -9,6 +9,7 @@ export class TokenStore {
     guest: "",
   };
 
+  newTenantDomain: string = "";
   portalDomain: string = "";
   isLocal: boolean = false;
 

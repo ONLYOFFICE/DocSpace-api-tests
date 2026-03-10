@@ -72,6 +72,7 @@ export class ApiSDK {
       baseOptions: {
         headers: {
           Authorization: `Bearer ${this.tokenStore.getToken(role)}`,
+          Origin: this.tokenStore.newTenantDomain,
         },
       },
     });
@@ -109,6 +110,11 @@ export class ApiSDK {
   forAnonymous() {
     const config = new Configuration({
       basePath: `${this.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: {
+          Origin: this.tokenStore.newTenantDomain,
+        }
+      }
     });
     const axiosInstance = this.createAxiosInstance();
     return {
@@ -170,6 +176,9 @@ export class ApiSDK {
         data: {
           userName: userData.email,
           password: userData.password,
+        },
+        headers: {
+          Origin: `http://${this.tokenStore.newTenantDomain}`
         },
       },
     );

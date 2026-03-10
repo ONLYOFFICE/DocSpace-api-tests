@@ -34,6 +34,7 @@ class API {
     this.adminUserId = portal.tenant.ownerId;
 
     this.tokenStore.portalDomain = this.portalDomain;
+    this.tokenStore.newTenantDomain = this.apisystem.portalName;
     this.tokenStore.isLocal = !!config.LOCAL_PORTAL_DOMAIN;
     await this.auth.authenticateOwner();
   }

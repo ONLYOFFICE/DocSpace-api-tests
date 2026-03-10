@@ -27,6 +27,9 @@ class Auth {
       `${this.tokenStore.portalBaseUrl}/api/2.0/authentication`,
       {
         data: { userName, password },
+        headers: {
+          Origin: `http://${this.tokenStore.newTenantDomain}`
+        },
       },
     );
 
