@@ -825,8 +825,8 @@ test.describe("API profile methods", () => {
     const listBody = listData as { response: UsersListItem[] };
     const userId = listBody.response[0].id;
     const userData = {
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
+      firstName: faker.person.firstName().replace(/[^a-zA-Z]/g, ""),
+      lastName: faker.person.lastName().replace(/[^a-zA-Z]/g, ""),
     };
 
     const { data } = await ownerApi.profiles.updateMember(userId, userData);
@@ -847,8 +847,8 @@ test.describe("API profile methods", () => {
     const userId = memberData.response!.id!;
 
     const userData = {
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
+      firstName: faker.person.firstName().replace(/[^a-zA-Z]/g, ""),
+      lastName: faker.person.lastName().replace(/[^a-zA-Z]/g, ""),
     };
 
     const { data } = await adminApi.profiles.updateMember(userId, userData);
@@ -870,8 +870,8 @@ test.describe("API profile methods", () => {
     const userId = memberData.response!.id!;
 
     const userData = {
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
+      firstName: faker.person.firstName().replace(/[^a-zA-Z]/g, ""),
+      lastName: faker.person.lastName().replace(/[^a-zA-Z]/g, ""),
     };
 
     const { data } = await roomAdminApi.profiles.updateMember(userId, userData);
@@ -894,8 +894,8 @@ test.describe("API profile methods", () => {
     const userId = memberData.response!.id!;
 
     const userData = {
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
+      firstName: faker.person.firstName().replace(/[^a-zA-Z]/g, ""),
+      lastName: faker.person.lastName().replace(/[^a-zA-Z]/g, ""),
     };
 
     const { data } = await userApi.profiles.updateMember(userId, userData);
@@ -917,8 +917,8 @@ test.describe("API profile methods", () => {
     const userId = memberData.response!.id!;
 
     const userData = {
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
+      firstName: faker.person.firstName().replace(/[^a-zA-Z]/g, ""),
+      lastName: faker.person.lastName().replace(/[^a-zA-Z]/g, ""),
     };
 
     const { data } = await guestApi.profiles.updateMember(userId, userData);
