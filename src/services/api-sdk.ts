@@ -72,7 +72,7 @@ export class ApiSDK {
       baseOptions: {
         headers: {
           Authorization: `Bearer ${this.tokenStore.getToken(role)}`,
-          Origin: this.tokenStore.newTenantDomain,
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
         },
       },
     });
@@ -112,7 +112,7 @@ export class ApiSDK {
       basePath: `${this.tokenStore.portalBaseUrl}`,
       baseOptions: {
         headers: {
-          Origin: this.tokenStore.newTenantDomain,
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
         },
       },
     });
@@ -156,6 +156,7 @@ export class ApiSDK {
       {
         headers: {
           Authorization: `Bearer ${this.tokenStore.getToken(creatorRole)}`,
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
         },
         data: userData,
       },
@@ -207,7 +208,10 @@ export class ApiSDK {
     await this.request.post(
       `${this.tokenStore.portalBaseUrl}/api/2.0/settings/userquotasettings`,
       {
-        headers: { Authorization: `Bearer ${this.tokenStore.getToken(role)}` },
+        headers: {
+          Authorization: `Bearer ${this.tokenStore.getToken(role)}`,
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
+        },
         data: { enableQuota: true, defaultQuota: defaultQuotaBytes },
       },
     );

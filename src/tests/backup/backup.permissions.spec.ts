@@ -5,6 +5,7 @@ import {
   BackupStorageType,
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
+import config from "@/config";
 
 test.describe("POST /portal/backup/start - access control", () => {
   test("POST /portal/backup/start - Start backup without authorization", async ({
@@ -22,6 +23,7 @@ test.describe("POST /portal/backup/start - access control", () => {
   test("POST /portal/backup/start - Start backup without paid plan", async ({
     apiSdk,
   }) => {
+    test.skip(!!config.LOCAL_PORTAL_DOMAIN, "Payment checks are not enforced on local instances");
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.startBackup({
@@ -137,6 +139,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     apiSdk,
     paymentsApi,
   }) => {
+    test.skip(!!config.LOCAL_PORTAL_DOMAIN, "Payment checks are not enforced on local instances");
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
 
@@ -171,6 +174,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
   test("POST /api/2.0/backup/createbackupschedule - Create schedule without paid plan", async ({
     apiSdk,
   }) => {
+    test.skip(!!config.LOCAL_PORTAL_DOMAIN, "Payment checks are not enforced on local instances");
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } =

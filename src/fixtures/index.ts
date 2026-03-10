@@ -17,12 +17,12 @@ export const test = base.extend<TestFixtures>({
     const api = new API(ownerContext);
 
     await api.setup();
-    console.log(`Portal domain: ${api.portalDomain}`);
+    console.log(`Portal: ${api.apisystem.portalName} (${api.portalDomain})`);
 
     await use(api);
 
     await api.auth.authenticateOwner();
-    console.log(`Deleting portal: ${api.portalDomain}`);
+    console.log(`Deleting portal: ${api.apisystem.portalName}`);
     await api.cleanup();
 
     await ownerContext.dispose();
