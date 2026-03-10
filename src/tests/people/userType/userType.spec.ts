@@ -217,7 +217,10 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
 
 test.describe("PUT /people/type/terminate - Terminate user type update", () => {
   test("Owner terminates user type update", async ({ apiSdk }) => {
-    test.skip(true, "Unstable: single-user type update completes too fast for terminate to catch it");
+    test.skip(
+      true,
+      "Unstable: single-user type update completes too fast for terminate to catch it",
+    );
 
     const ownerApi = apiSdk.forRole("owner");
 
@@ -236,7 +239,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
     // Terminate the process
     const { data: terminateData } =
       await ownerApi.userType.terminateUserTypeUpdate({ userId: adminId });
-      console.log("Terminate response:", terminateData);
+    console.log("Terminate response:", terminateData);
     expect(terminateData.statusCode).toBe(200);
     expect((terminateData as any).response.isCompleted).toBe(true);
     expect((terminateData as any).response.error).toBe("");
@@ -286,7 +289,10 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
   test("DocSpace admin terminates own user type update of Room admin", async ({
     apiSdk,
   }) => {
-    test.skip(true, "Unstable: single-user type update completes too fast for terminate to catch it");
+    test.skip(
+      true,
+      "Unstable: single-user type update completes too fast for terminate to catch it",
+    );
     const { data: roomAdminData } = await apiSdk.addMember(
       "owner",
       "RoomAdmin",
