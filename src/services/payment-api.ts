@@ -141,6 +141,9 @@ export class PaymentApi {
   }
 
   async setupPayment(quantity = 10) {
+    if (this.portalSetupApi.isLocal) {
+      return;
+    }
     const portalInfo = await this.getPortalInfo();
     const payment = await this.makePortalPayment(portalInfo.tenantId, quantity);
     const refresh = await this.refreshPaymentInfo();
