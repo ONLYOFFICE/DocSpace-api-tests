@@ -28,7 +28,7 @@ class Auth {
       {
         data: { userName, password },
         headers: {
-          Origin: `http://${this.tokenStore.newTenantDomain}`
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
         },
       },
     );

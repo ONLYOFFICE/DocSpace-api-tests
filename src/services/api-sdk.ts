@@ -113,8 +113,8 @@ export class ApiSDK {
       baseOptions: {
         headers: {
           Origin: this.tokenStore.newTenantDomain,
-        }
-      }
+        },
+      },
     });
     const axiosInstance = this.createAxiosInstance();
     return {
@@ -178,7 +178,7 @@ export class ApiSDK {
           password: userData.password,
         },
         headers: {
-          Origin: `http://${this.tokenStore.newTenantDomain}`
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
         },
       },
     );
