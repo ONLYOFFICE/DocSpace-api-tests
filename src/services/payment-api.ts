@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import config from "../../config";
 import { APIRequestContext } from "@playwright/test";
 import Apisystem from "./apisystem";
+import { parseResponse } from "../utils/parse-response";
 
 export class PaymentApi {
   private apiContext: APIRequestContext;
@@ -56,12 +57,12 @@ export class PaymentApi {
       `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal`,
     );
     if (!response.ok()) {
-      const error = await response.json();
+      const error = await parseResponse(response);
       throw new Error(
         `Failed to get portal info: ${error.message || "Unknown error"}`,
       );
     }
-    const portalInfo = await response.json();
+    const portalInfo = await parseResponse(response);
     const tenantId = portalInfo.response?.tenantId;
     if (!tenantId) {
       throw new Error("TenantId not found in portal info response");
@@ -94,7 +95,7 @@ export class PaymentApi {
     );
 
     if (!response.ok()) {
-      const error = await response.json();
+      const error = await parseResponse(response);
       throw new Error(`Payment failed: ${error.message || "Unknown error"}`);
     }
 

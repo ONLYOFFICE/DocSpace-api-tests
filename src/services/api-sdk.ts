@@ -25,6 +25,7 @@ import {
   UserTypeApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
+import { parseResponse } from "../utils/parse-response";
 import { waitForRoomTemplate } from "../helpers/wait-for-room-template";
 
 export type UserType = "DocSpaceAdmin" | "RoomAdmin" | "User" | "Guest";
@@ -161,7 +162,7 @@ export class ApiSDK {
         data: userData,
       },
     );
-    const data = await response.json();
+    const data = await parseResponse(response);
     return { data, status: response.status(), userData: fakeUser };
   }
 
@@ -183,7 +184,7 @@ export class ApiSDK {
         },
       },
     );
-    const authBody = await authResponse.json();
+    const authBody = await parseResponse(authResponse);
     if (!authResponse.ok()) {
       throw new Error(
         `Authentication failed for ${type}: ${authResponse.status()} - ${authBody.error || authBody.message}`,
