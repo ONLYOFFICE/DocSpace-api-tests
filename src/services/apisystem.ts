@@ -72,7 +72,7 @@ class Apisystem {
 
     const deleteUrl = `${this.portalBaseUrl}/api/2.0/portal/deleteportalimmediately`;
     const response = await this.apiContext.delete(deleteUrl, {
-      headers:{ 
+      headers: { 
         Authorization: `Bearer ${this.auth.authTokenOwner}`,
         Origin: `http://${this.portalName}`,
       },
