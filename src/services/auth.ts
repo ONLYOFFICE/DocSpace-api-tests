@@ -1,6 +1,7 @@
 import { APIRequestContext } from "@playwright/test";
 import config from "../../config";
 import { TokenStore } from "./token-store";
+import { parseResponse } from "../utils/parse-response";
 
 class Auth {
   apiRequestContext: APIRequestContext;
@@ -33,7 +34,7 @@ class Auth {
       },
     );
 
-    const authBody = await authResponse.json();
+    const authBody = await parseResponse(authResponse);
 
     if (!authResponse.ok()) {
       throw new Error(

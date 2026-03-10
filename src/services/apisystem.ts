@@ -1,6 +1,7 @@
 import { APIRequestContext } from "@playwright/test";
 import config from "../../config";
 import Auth from "./auth";
+import { parseResponse } from "../utils/parse-response";
 
 class Apisystem {
   apiContext: APIRequestContext;
@@ -95,7 +96,7 @@ class Apisystem {
       data: { reference: `${this.portalName}.onlyoffice.io` },
       timeout: 120000,
     });
-    const body = await response.json();
+    const body = await parseResponse(response);
 
     if (!response.ok()) {
       throw new Error(
