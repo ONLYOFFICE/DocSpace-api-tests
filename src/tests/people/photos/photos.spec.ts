@@ -2,15 +2,9 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { createTestImageBuffer } from "@/src/utils/test-image";
 
-// Bug: SDK PhotosApi.uploadMemberPhoto has wrong type for formCollection parameter.
-test("POST /people/:userid/photo - Owner uploads avatar via SDK photos.uploadMemberPhoto", async ({
+test.skip("Bug 80569 POST /people/:userid/photo - Owner uploads avatar via SDK photos.uploadMemberPhoto", async ({
   apiSdk,
 }) => {
-  test.skip(
-    true,
-    "Bug: SDK PhotosApi.uploadMemberPhoto type is Array<KeyValuePairStringStringValues> instead of File/Blob — server returns 400",
-  );
-
   const ownerApi = apiSdk.forRole("owner");
   const { data: profile } = await ownerApi.profiles.getSelfProfile();
   const userId = profile.response!.id!;
