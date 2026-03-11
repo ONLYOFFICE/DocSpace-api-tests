@@ -23,6 +23,7 @@ import {
   ThirdPartyAccountsApi,
   UserDataApi,
   UserTypeApi,
+  PhotosApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
@@ -105,6 +106,7 @@ export class ApiSDK {
       ),
       userData: new UserDataApi(config, undefined, axiosInstance),
       userType: new UserTypeApi(config, undefined, axiosInstance),
+      photos: new PhotosApi(config, undefined, axiosInstance),
     };
   }
 
@@ -216,5 +218,49 @@ export class ApiSDK {
         data: { enableQuota: true, defaultQuota: defaultQuotaBytes },
       },
     );
+  }
+
+  async uploadMemberPhoto(
+    role: Role,
+    userId: string,
+    imageBuffer: Buffer,
+    options?: {
+      fileName?: string;
+      mimeType?: string;
+      skipAuth?: boolean;
+      skipFile?: boolean;
+    },
+  ) {
+    const headers: Record<string, string> = {
+      Origin: `http://${this.tokenStore.newTenantDomain}`,
+    };
+
+    if (!options?.skipAuth) {
+      headers["Authorization"] = `Bearer ${this.tokenStore.getToken(role)}`;
+    }
+
+    const fetchOptions: Record<string, unknown> = {
+      method: "POST",
+      headers,
+    };
+
+    if (!options?.skipFile) {
+      fetchOptions.multipart = {
+        formCollection: {
+          name: options?.fileName ?? "avatar.png",
+          mimeType: options?.mimeType ?? "image/png",
+          buffer: imageBuffer,
+        },
+        Autosave: "true",
+      };
+    }
+
+    const response = await this.request.fetch(
+      `${this.tokenStore.portalBaseUrl}/api/2.0/people/${userId}/photo`,
+      fetchOptions,
+    );
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : {};
+    return { data, status: response.status() };
   }
 }
