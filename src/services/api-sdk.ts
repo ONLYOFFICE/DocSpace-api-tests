@@ -239,28 +239,24 @@ export class ApiSDK {
       headers["Authorization"] = `Bearer ${this.tokenStore.getToken(role)}`;
     }
 
-    const fetchOptions: Record<string, unknown> = {
-      method: "POST",
-      headers,
-    };
-
+    const formData = new FormData();
     if (!options?.skipFile) {
-      fetchOptions.multipart = {
-        formCollection: {
-          name: options?.fileName ?? "avatar.png",
-          mimeType: options?.mimeType ?? "image/png",
-          buffer: imageBuffer,
-        },
-        Autosave: "true",
-      };
+      formData.append(
+        "formCollection",
+        new Blob([new Uint8Array(imageBuffer)], {
+          type: options?.mimeType ?? "image/png",
+        }),
+        options?.fileName ?? "avatar.png",
+      );
+      formData.append("Autosave", "true");
     }
 
-    const response = await this.request.fetch(
+    const axiosInstance = this.createAxiosInstance();
+    const response = await axiosInstance.post(
       `${this.tokenStore.portalBaseUrl}/api/2.0/people/${userId}/photo`,
-      fetchOptions,
+      formData,
+      { headers },
     );
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : {};
-    return { data, status: response.status() };
+    return { data: response.data, status: response.status };
   }
 }
