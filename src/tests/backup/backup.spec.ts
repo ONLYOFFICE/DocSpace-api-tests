@@ -4,6 +4,7 @@ import {
   BackupPeriod,
   BackupProgressEnum,
   BackupStorageType,
+  DistributedTaskStatus,
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
@@ -544,6 +545,266 @@ test.describe("GET /api/2.0/backup/getbackupscount - Get backups count", () => {
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response).toBeGreaterThan(0);
+    });
+  });
+});
+
+// Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.
+test.describe("GET /api/2.0/backup/getbackupprogress - Get backup progress", () => {
+  test("Owner gets backup progress when no backup has been started", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.backup.getBackupProgress();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.count).toBe(0);
+    expect(data.response).toBeUndefined();
+  });
+
+  test("Owner gets backup progress while backup is in progress", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.backup.startBackup({
+      storageType: BackupStorageType.DataStore,
+    });
+
+    const { data, status } = await ownerApi.backup.getBackupProgress();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.count).toBe(1);
+    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+    expect(data.response!.isCompleted).toBe(false);
+    expect(data.response!.progress).toBeGreaterThanOrEqual(0);
+    expect(data.response!.progress).toBeLessThanOrEqual(100);
+    expect(data.response!.status).toBe(DistributedTaskStatus.Running);
+    expect(data.response!.tenantId).toBeGreaterThan(0);
+    expect(data.response!.taskId).toBeTruthy();
+    expect(data.response!.error).toBeFalsy();
+  });
+
+  test("Owner gets backup progress after backup completes", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("POST startbackup - start backup", async () => {
+      await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify all progress fields", async () => {
+      const { data, status } = await ownerApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.progress).toBe(100);
+      expect(data.response!.status).toBe(DistributedTaskStatus.Completed);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
+    });
+  });
+
+  test("DocSpaceAdmin gets backup progress after backup completes", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await test.step("POST startbackup - start backup", async () => {
+      await adminApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify all progress fields", async () => {
+      const { data, status } = await adminApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.progress).toBe(100);
+      expect(data.response!.status).toBe(DistributedTaskStatus.Completed);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
+    });
+  });
+});
+
+// Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.
+test.describe("GET /api/2.0/backup/getbackuphistory - Get backup history", () => {
+  test("Owner gets empty backup history on a fresh portal", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.backup.getBackupHistory();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toEqual([]);
+    expect(data.count).toBe(0);
+  });
+
+  test("Owner gets backup history after backup completes", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("POST startbackup - start backup", async () => {
+      await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackuphistory - verify history record fields", async () => {
+      const { data, status } = await ownerApi.backup.getBackupHistory();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.length).toBeGreaterThan(0);
+
+      const record = data.response![0];
+      expect(record.id).toBeTruthy();
+      expect(record.storageType).toBe(BackupStorageType.DataStore);
+      expect(record.createdOn).toBeTruthy();
+      expect(record.expiresOn).toBeTruthy();
+    });
+  });
+
+  test("Owner backup history count increases after each backup", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    let countAfterFirst: number;
+
+    await test.step("POST startbackup - start first backup", async () => {
+      await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for first backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackuphistory - get count after first backup", async () => {
+      const { data } = await ownerApi.backup.getBackupHistory();
+      countAfterFirst = data.count!;
+      expect(countAfterFirst).toBeGreaterThan(0);
+    });
+
+    await test.step("POST startbackup - start second backup", async () => {
+      await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for second backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackuphistory - verify count increased by 1", async () => {
+      const { data, status } = await ownerApi.backup.getBackupHistory();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(countAfterFirst + 1);
+    });
+  });
+
+  test("DocSpaceAdmin gets backup history after backup completes", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await test.step("POST startbackup - start backup", async () => {
+      await adminApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackuphistory - verify history record fields", async () => {
+      const { data, status } = await adminApi.backup.getBackupHistory();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.length).toBeGreaterThan(0);
+
+      const record = data.response![0];
+      expect(record.id).toBeTruthy();
+      expect(record.storageType).toBe(BackupStorageType.DataStore);
+      expect(record.createdOn).toBeTruthy();
+      expect(record.expiresOn).toBeTruthy();
     });
   });
 });

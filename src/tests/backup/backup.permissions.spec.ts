@@ -366,6 +366,63 @@ test.describe("DELETE /api/2.0/backup/deletebackupschedule - access control", ()
   });
 });
 
+test.describe("GET /api/2.0/backup/getbackupprogress - access control", () => {
+  test("GET /api/2.0/backup/getbackupprogress - Get backup progress without authorization", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.backup.getBackupProgress();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/backup/getbackupprogress - RoomAdmin gets backup progress", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.backup.getBackupProgress();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/backup/getbackupprogress - User gets backup progress", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.backup.getBackupProgress();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/backup/getbackupprogress - Guest gets backup progress", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.backup.getBackupProgress();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
+
 test.describe("GET /api/2.0/backup/getbackupscount - access control", () => {
   test("GET /api/2.0/backup/getbackupscount - Get backups count without authorization", async ({
     apiSdk,
@@ -434,7 +491,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect(status).toBe(401);
   });
 
-  // Bug: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
+  // Bug 80574: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
   test.skip("GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
     apiSdk,
   }) => {
@@ -450,7 +507,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  // Bug: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
+  // Bug 80574: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
   test.skip("GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
     apiSdk,
   }) => {
@@ -466,7 +523,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  // Bug: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
+  // Bug 80574: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
   test.skip("GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
     apiSdk,
   }) => {
@@ -476,6 +533,64 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     );
 
     const { data, status } = await guestApi.backup.getBackupsServiceState();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
+
+// Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.
+test.describe("GET /api/2.0/backup/getbackuphistory - access control", () => {
+  test("GET /api/2.0/backup/getbackuphistory - Get backup history without authorization", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.backup.getBackupHistory();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/backup/getbackuphistory - RoomAdmin gets backup history", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.backup.getBackupHistory();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/backup/getbackuphistory - User gets backup history", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.backup.getBackupHistory();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/backup/getbackuphistory - Guest gets backup history", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.backup.getBackupHistory();
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
