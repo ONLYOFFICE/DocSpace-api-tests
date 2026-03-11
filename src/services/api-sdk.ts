@@ -23,8 +23,10 @@ import {
   ThirdPartyAccountsApi,
   UserDataApi,
   UserTypeApi,
+  PhotosApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
+import { parseResponse } from "../utils/parse-response";
 import { waitForRoomTemplate } from "../helpers/wait-for-room-template";
 
 export type UserType = "DocSpaceAdmin" | "RoomAdmin" | "User" | "Guest";
@@ -104,6 +106,7 @@ export class ApiSDK {
       ),
       userData: new UserDataApi(config, undefined, axiosInstance),
       userType: new UserTypeApi(config, undefined, axiosInstance),
+      photos: new PhotosApi(config, undefined, axiosInstance),
     };
   }
 
@@ -161,7 +164,7 @@ export class ApiSDK {
         data: userData,
       },
     );
-    const data = await response.json();
+    const data = await parseResponse(response);
     return { data, status: response.status(), userData: fakeUser };
   }
 
@@ -183,7 +186,7 @@ export class ApiSDK {
         },
       },
     );
-    const authBody = await authResponse.json();
+    const authBody = await parseResponse(authResponse);
     if (!authResponse.ok()) {
       throw new Error(
         `Authentication failed for ${type}: ${authResponse.status()} - ${authBody.error || authBody.message}`,
@@ -215,5 +218,45 @@ export class ApiSDK {
         data: { enableQuota: true, defaultQuota: defaultQuotaBytes },
       },
     );
+  }
+
+  async uploadMemberPhoto(
+    role: Role,
+    userId: string,
+    imageBuffer: Buffer,
+    options?: {
+      fileName?: string;
+      mimeType?: string;
+      skipAuth?: boolean;
+      skipFile?: boolean;
+    },
+  ) {
+    const headers: Record<string, string> = {
+      Origin: `http://${this.tokenStore.newTenantDomain}`,
+    };
+
+    if (!options?.skipAuth) {
+      headers["Authorization"] = `Bearer ${this.tokenStore.getToken(role)}`;
+    }
+
+    const formData = new FormData();
+    if (!options?.skipFile) {
+      formData.append(
+        "formCollection",
+        new Blob([new Uint8Array(imageBuffer)], {
+          type: options?.mimeType ?? "image/png",
+        }),
+        options?.fileName ?? "avatar.png",
+      );
+      formData.append("Autosave", "true");
+    }
+
+    const axiosInstance = this.createAxiosInstance();
+    const response = await axiosInstance.post(
+      `${this.tokenStore.portalBaseUrl}/api/2.0/people/${userId}/photo`,
+      formData,
+      { headers },
+    );
+    return { data: response.data, status: response.status };
   }
 }
