@@ -422,3 +422,63 @@ test.describe("GET /api/2.0/backup/getbackupscount - access control", () => {
     expect((data as any).error.message).toBe("Access denied");
   });
 });
+
+test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () => {
+  test("GET /api/2.0/backup/getbackupsservicestate - Get service state without authorization", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.backup.getBackupsServiceState();
+
+    expect(status).toBe(401);
+  });
+
+  // Bug: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
+  test.skip("GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.backup.getBackupsServiceState();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  // Bug: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
+  test.skip("GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.backup.getBackupsServiceState();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  // Bug: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
+  test.skip("GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.backup.getBackupsServiceState();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});

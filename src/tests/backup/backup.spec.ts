@@ -598,3 +598,34 @@ test.describe("DELETE /api/2.0/backup/deletebackupschedule - Delete backup sched
     });
   });
 });
+
+test.describe("GET /api/2.0/backup/getbackupsservicestate - Get backup service state", () => {
+  test("Owner gets backup service state", async ({ apiSdk, paymentsApi }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.backup.getBackupsServiceState();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response!.enabled).toBe("boolean");
+  });
+
+  test("DocSpaceAdmin gets backup service state", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.backup.getBackupsServiceState();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response!.enabled).toBe("boolean");
+  });
+});
