@@ -141,6 +141,7 @@ export class ApiSDK {
       ),
       userData: new UserDataApi(config, undefined, axiosInstance),
       userType: new UserTypeApi(config, undefined, axiosInstance),
+      photos: new PhotosApi(config, undefined, axiosInstance),
     };
   }
 
