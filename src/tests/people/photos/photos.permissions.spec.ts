@@ -346,12 +346,9 @@ test.describe("POST /people/:userid/photo - Permissions", () => {
 
     const image = createTestImageBuffer();
 
-    const { status } = await apiSdk.uploadMemberPhoto(
-      "owner",
-      userId,
-      image,
-      { skipAuth: true },
-    );
+    const { status } = await apiSdk.uploadMemberPhoto("owner", userId, image, {
+      skipAuth: true,
+    });
 
     expect(status).toBe(401);
   });
@@ -374,7 +371,9 @@ test.describe("POST /people/:userid/photo - Permissions", () => {
 
     expect(status).toBe(200);
     expect(data.response?.success).toBe(false);
-    expect(data.response?.message).toBe("The maximum file size is exceeded (5 MB).");
+    expect(data.response?.message).toBe(
+      "The maximum file size is exceeded (5 MB).",
+    );
   });
 
   test("POST /people/:userid/photo - 415 when unsupported file type", async ({
