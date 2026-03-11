@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { createTestImageBuffer } from "@/src/utils/test-image";
 
-test.skip("Bug 80569 POST /people/:userid/photo - Owner uploads avatar via SDK photos.uploadMemberPhoto", async ({
+test.skip("BUG 80569 POST /people/:userid/photo - Owner uploads avatar via SDK photos.uploadMemberPhoto", async ({
   apiSdk,
 }) => {
   const ownerApi = apiSdk.forRole("owner");
