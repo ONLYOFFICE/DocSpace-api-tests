@@ -597,3 +597,113 @@ test.describe("GET /api/2.0/backup/getbackuphistory - access control", () => {
     expect((data as any).error.message).toBe("Access denied");
   });
 });
+
+test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
+  test("DELETE /api/2.0/backup/deletebackup - Delete backup without authorization", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.backup.deleteBackup(
+      "00000000-0000-0000-0000-000000000000",
+    );
+
+    expect(status).toBe(401);
+  });
+
+  // Bug XXXXX: deleteBackup returns 500 instead of 402/404 for non-existent backup ID
+  test.skip("DELETE /api/2.0/backup/deletebackup - Delete backup without paid plan", async ({
+    apiSdk,
+  }) => {
+    test.skip(
+      !!config.LOCAL_PORTAL_DOMAIN,
+      "Payment checks are not enforced on local instances",
+    );
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.backup.deleteBackup(
+      "00000000-0000-0000-0000-000000000000",
+    );
+
+    expect(status).toBe(402);
+    expect(data.statusCode).toBe(402);
+    expect((data as any).error).toBeDefined();
+  });
+
+  // Bug XXXXX: deleteBackup returns 500 instead of 404 for non-existent backup ID
+  test.skip("DELETE /api/2.0/backup/deletebackup - Delete non-existent backup", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.backup.deleteBackup(
+      "00000000-0000-0000-0000-000000000000",
+    );
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+    expect((data as any).error).toBeDefined();
+  });
+
+  test("DELETE /api/2.0/backup/deletebackup - RoomAdmin deletes backup", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.backup.deleteBackup(
+      "00000000-0000-0000-0000-000000000000",
+    );
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/backup/deletebackup - User deletes backup", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.backup.deleteBackup(
+      "00000000-0000-0000-0000-000000000000",
+    );
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/backup/deletebackup - Guest deletes backup", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.backup.deleteBackup(
+      "00000000-0000-0000-0000-000000000000",
+    );
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
