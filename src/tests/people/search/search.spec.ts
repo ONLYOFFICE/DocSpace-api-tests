@@ -1,6 +1,10 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
+import {
+  RoomType,
+  FileShare,
+  EmployeeStatus,
+} from "@onlyoffice/docspace-api-sdk";
 
 test.describe("GET /accounts/file/:id/search - Search accounts for file sharing", () => {
   test("GET /accounts/file/:id/search - Owner searches accounts by name for file", async ({
@@ -1089,6 +1093,291 @@ test.describe("GET /accounts/search - Search accounts", () => {
   });
 });
 
+test.describe("GET /people/search - Search users by query", () => {
+  test("GET /people/search - Owner searches users by email and name", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: adminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminEmail = adminData.response!.email!;
+    const adminName = adminData.response!.displayName!;
+
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const roomAdminEmail = roomAdminData.response!.email!;
+    const roomAdminName = roomAdminData.response!.displayName!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userEmail = userData.response!.email!;
+    const userName = userData.response!.displayName!;
+
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestEmail = guestData.response!.email!;
+    const guestName = guestData.response!.displayName!;
+
+    await test.step("Owner searches DocSpaceAdmin by email", async () => {
+      const { data } =
+        await ownerApi.peopleSearch.searchUsersByQuery(adminEmail);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.email === adminEmail),
+      ).toBe(true);
+    });
+
+    await test.step("Owner searches DocSpaceAdmin by name", async () => {
+      const { data } =
+        await ownerApi.peopleSearch.searchUsersByQuery(adminName);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.displayName === adminName),
+      ).toBe(true);
+    });
+
+    await test.step("Owner searches RoomAdmin by email", async () => {
+      const { data } =
+        await ownerApi.peopleSearch.searchUsersByQuery(roomAdminEmail);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
+      ).toBe(true);
+    });
+
+    await test.step("Owner searches RoomAdmin by name", async () => {
+      const { data } =
+        await ownerApi.peopleSearch.searchUsersByQuery(roomAdminName);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some(
+          (u: any) => u.displayName === roomAdminName,
+        ),
+      ).toBe(true);
+    });
+
+    await test.step("Owner searches User by email", async () => {
+      const { data } =
+        await ownerApi.peopleSearch.searchUsersByQuery(userEmail);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.email === userEmail),
+      ).toBe(true);
+    });
+
+    await test.step("Owner searches User by name", async () => {
+      const { data } = await ownerApi.peopleSearch.searchUsersByQuery(userName);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.displayName === userName),
+      ).toBe(true);
+    });
+
+    await test.step("Owner searches Guest by email", async () => {
+      const { data } =
+        await ownerApi.peopleSearch.searchUsersByQuery(guestEmail);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.email === guestEmail),
+      ).toBe(true);
+    });
+
+    await test.step("Owner searches Guest by name", async () => {
+      const { data } =
+        await ownerApi.peopleSearch.searchUsersByQuery(guestName);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.displayName === guestName),
+      ).toBe(true);
+    });
+  });
+
+  test("GET /people/search - DocSpace admin searches users by email and name", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: ownerData } = await ownerApi.profiles.getSelfProfile();
+    const ownerEmail = ownerData.response!.email!;
+    const ownerName = ownerData.response!.displayName!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const roomAdminEmail = roomAdminData.response!.email!;
+    const roomAdminName = roomAdminData.response!.displayName!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userEmail = userData.response!.email!;
+    const userName = userData.response!.displayName!;
+
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestEmail = guestData.response!.email!;
+    const guestName = guestData.response!.displayName!;
+
+    await test.step("DocSpace admin searches Owner by email", async () => {
+      const { data } =
+        await adminApi.peopleSearch.searchUsersByQuery(ownerEmail);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.email === ownerEmail),
+      ).toBe(true);
+    });
+
+    await test.step("DocSpace admin searches Owner by name", async () => {
+      const { data } =
+        await adminApi.peopleSearch.searchUsersByQuery(ownerName);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.displayName === ownerName),
+      ).toBe(true);
+    });
+
+    await test.step("DocSpace admin searches RoomAdmin by email", async () => {
+      const { data } =
+        await adminApi.peopleSearch.searchUsersByQuery(roomAdminEmail);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
+      ).toBe(true);
+    });
+
+    await test.step("DocSpace admin searches RoomAdmin by name", async () => {
+      const { data } =
+        await adminApi.peopleSearch.searchUsersByQuery(roomAdminName);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some(
+          (u: any) => u.displayName === roomAdminName,
+        ),
+      ).toBe(true);
+    });
+
+    await test.step("DocSpace admin searches User by email", async () => {
+      const { data } =
+        await adminApi.peopleSearch.searchUsersByQuery(userEmail);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.email === userEmail),
+      ).toBe(true);
+    });
+
+    await test.step("DocSpace admin searches User by name", async () => {
+      const { data } = await adminApi.peopleSearch.searchUsersByQuery(userName);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.displayName === userName),
+      ).toBe(true);
+    });
+
+    await test.step("DocSpace admin searches Guest by email", async () => {
+      const { data } =
+        await adminApi.peopleSearch.searchUsersByQuery(guestEmail);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.email === guestEmail),
+      ).toBe(true);
+    });
+
+    await test.step("DocSpace admin searches Guest by name", async () => {
+      const { data } =
+        await adminApi.peopleSearch.searchUsersByQuery(guestName);
+      expect(data.statusCode).toBe(200);
+      expect(
+        (data.response as any[]).some((u: any) => u.displayName === guestName),
+      ).toBe(true);
+    });
+  });
+});
+
+test.describe("GET /people/status/:status/search - Search users by status", () => {
+  test("GET /people/status/:status/search - Owner searches active and disabled users", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+    const userEmail = userData.response!.email!;
+
+    const { data: activeData, status: activeStatus } =
+      await ownerApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Active,
+        userEmail,
+      );
+    expect(activeStatus).toBe(200);
+    expect(
+      (activeData.response as any[]).some(
+        (u: any) => u.id === userId && u.email === userEmail,
+      ),
+    ).toBe(true);
+
+    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
+      userIds: [userId],
+    });
+
+    const { data: terminatedData, status: terminatedStatus } =
+      await ownerApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Terminated,
+        userEmail,
+      );
+    expect(terminatedStatus).toBe(200);
+    expect(
+      (terminatedData.response as any[]).some(
+        (u: any) => u.id === userId && u.email === userEmail,
+      ),
+    ).toBe(true);
+  });
+
+  test("GET /people/status/:status/search - DocSpace admin searches active and disabled users", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+    const userEmail = userData.response!.email!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data: activeData, status: activeStatus } =
+      await adminApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Active,
+        userEmail,
+      );
+    expect(activeStatus).toBe(200);
+    expect(
+      (activeData.response as any[]).some(
+        (u: any) => u.id === userId && u.email === userEmail,
+      ),
+    ).toBe(true);
+
+    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
+      userIds: [userId],
+    });
+
+    const { data: terminatedData, status: terminatedStatus } =
+      await adminApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Terminated,
+        userEmail,
+      );
+    expect(terminatedStatus).toBe(200);
+    expect(
+      (terminatedData.response as any[]).some(
+        (u: any) => u.id === userId && u.email === userEmail,
+      ),
+    ).toBe(true);
+  });
+});
+
 test.describe("GET /people/simple/filter - Simple filter accounts", () => {
   test("GET /people/simple/filter - Owner searches accounts", async ({
     apiSdk,
@@ -1732,7 +2021,7 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-    // Bug: API returns isAdmin: true for Owner, expected isAdmin: false
+    // Bug 80587: API returns isAdmin: true for Owner, expected isAdmin: false
     await test.step.skip("DocSpace admin searches Owner", async () => {
       await expect(async () => {
         const { data, status } =
@@ -1911,7 +2200,7 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-    // Bug: API returns isAdmin: true for Owner, expected isAdmin: false
+    // Bug 80587: API returns isAdmin: true for Owner, expected isAdmin: false
     await test.step.skip("Room admin searches Owner", async () => {
       await expect(async () => {
         const { data, status } =

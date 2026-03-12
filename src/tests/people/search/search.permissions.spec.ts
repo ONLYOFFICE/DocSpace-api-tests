@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
+import { RoomType, FileShare, EmployeeStatus } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("GET /accounts/file/:id/search - Permissions", () => {
   test("GET /accounts/file/:id/search - User cannot search accounts for file", async ({
@@ -753,6 +753,185 @@ test.describe("GET /accounts/search - Permissions", () => {
       const { status } = await anonApi.peopleSearch.getSearch(guestEmail);
       expect(status).toBe(401);
     });
+  });
+});
+
+test.describe("GET /people/search - Permissions", () => {
+  test("GET /people/search - Room admin cannot search users", async ({
+    apiSdk,
+  }) => {
+    const { data: ownerData } = await apiSdk
+      .forRole("owner")
+      .profiles.getSelfProfile();
+    const ownerEmail = ownerData.response!.email!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .peopleSearch.searchUsersByQuery(ownerEmail);
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test("GET /people/search - User cannot search users", async ({ apiSdk }) => {
+    const { data: ownerData } = await apiSdk
+      .forRole("owner")
+      .profiles.getSelfProfile();
+    const ownerEmail = ownerData.response!.email!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .peopleSearch.searchUsersByQuery(ownerEmail);
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test("GET /people/search - Guest cannot search users", async ({ apiSdk }) => {
+    const { data: ownerData } = await apiSdk
+      .forRole("owner")
+      .profiles.getSelfProfile();
+    const ownerEmail = ownerData.response!.email!;
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .peopleSearch.searchUsersByQuery(ownerEmail);
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test("GET /people/search - 401 when unauthorized", async ({ apiSdk }) => {
+    const { data: ownerData } = await apiSdk
+      .forRole("owner")
+      .profiles.getSelfProfile();
+    const ownerEmail = ownerData.response!.email!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .peopleSearch.searchUsersByQuery(ownerEmail);
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("GET /people/status/:status/search - Permissions", () => {
+  test("GET /people/status/:status/search - Room admin cannot search users by status", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+    const userEmail = userData.response!.email!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data: activeData, status: activeStatus } =
+      await roomAdminApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Active,
+        userEmail,
+      );
+    expect(activeStatus).toBe(403);
+    expect((activeData as any).error?.message).toContain("Access denied");
+
+    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
+      userIds: [userId],
+    });
+
+    const { data, status } =
+      await roomAdminApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Terminated,
+        userEmail,
+      );
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test("GET /people/status/:status/search - User cannot search users by status", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: userData } = await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+    const userEmail = userData.response!.email!;
+    const userApi = apiSdk.forRole("user");
+
+    const { data: activeData, status: activeStatus } =
+      await userApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Active,
+        userEmail,
+      );
+    expect(activeStatus).toBe(403);
+    expect((activeData as any).error?.message).toContain("Access denied");
+
+    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
+      userIds: [userId],
+    });
+
+    const { data, status } =
+      await userApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Terminated,
+        userEmail,
+      );
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test("GET /people/status/:status/search - Guest cannot search users by status", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+    const userEmail = userData.response!.email!;
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestApi = apiSdk.forRole("guest");
+
+    const { data: activeData, status: activeStatus } =
+      await guestApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Active,
+        userEmail,
+      );
+    expect(activeStatus).toBe(403);
+    expect((activeData as any).error?.message).toContain("Access denied");
+
+    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
+      userIds: [userId],
+    });
+
+    const { data, status } =
+      await guestApi.peopleSearch.searchUsersByStatus(
+        EmployeeStatus.Terminated,
+        userEmail,
+      );
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test("GET /people/status/:status/search - 401 when unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { data: ownerData } = await apiSdk
+      .forRole("owner")
+      .profiles.getSelfProfile();
+    const ownerEmail = ownerData.response!.email!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .peopleSearch.searchUsersByStatus(EmployeeStatus.Active, ownerEmail);
+
+    expect(status).toBe(401);
   });
 });
 
