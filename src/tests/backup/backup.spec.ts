@@ -860,6 +860,90 @@ test.describe("DELETE /api/2.0/backup/deletebackupschedule - Delete backup sched
   });
 });
 
+test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
+  test("Owner deletes a backup", async ({ apiSdk, paymentsApi }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    let backupId: string;
+
+    await test.step("POST startbackup - start backup", async () => {
+      await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackuphistory - get backup ID", async () => {
+      const { data } = await ownerApi.backup.getBackupHistory();
+      backupId = data.response![0].id;
+    });
+
+    await test.step("DELETE deletebackup - delete backup by ID", async () => {
+      const { data, status } = await ownerApi.backup.deleteBackup(backupId);
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    await test.step("GET getbackuphistory - verify backup is removed", async () => {
+      const { data } = await ownerApi.backup.getBackupHistory();
+      const ids = data.response!.map((r) => r.id);
+      expect(ids).not.toContain(backupId);
+    });
+  });
+
+  test("DocSpaceAdmin deletes a backup", async ({ apiSdk, paymentsApi }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    let backupId: string;
+
+    await test.step("POST startbackup - start backup", async () => {
+      await adminApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackuphistory - get backup ID", async () => {
+      const { data } = await adminApi.backup.getBackupHistory();
+      backupId = data.response![0].id;
+    });
+
+    await test.step("DELETE deletebackup - delete backup by ID", async () => {
+      const { data, status } = await adminApi.backup.deleteBackup(backupId);
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    await test.step("GET getbackuphistory - verify backup is removed", async () => {
+      const { data } = await adminApi.backup.getBackupHistory();
+      const ids = data.response!.map((r) => r.id);
+      expect(ids).not.toContain(backupId);
+    });
+  });
+});
+
 test.describe("GET /api/2.0/backup/getbackupsservicestate - Get backup service state", () => {
   test("Owner gets backup service state", async ({ apiSdk, paymentsApi }) => {
     await paymentsApi.setupPayment();
