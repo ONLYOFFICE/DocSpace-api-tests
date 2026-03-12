@@ -10,7 +10,10 @@ test.describe("PUT /settings/security/administrator - access control", () => {
   }) => {
     await paymentsApi.setupPayment(4);
 
-    const { data: admin2Data } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const { data: admin2Data } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const admin2Id = admin2Data.response!.id!;
 
     const { api: admin1Api } = await apiSdk.addAuthenticatedMember(
@@ -35,7 +38,10 @@ test.describe("PUT /settings/security/administrator - access control", () => {
   }) => {
     await paymentsApi.setupPayment(3);
 
-    const { data: roomAdminData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
     const roomAdminId = roomAdminData.response!.id!;
 
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
