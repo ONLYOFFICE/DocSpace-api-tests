@@ -27,6 +27,7 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
+import config from "../../config";
 import { waitForRoomTemplate } from "../helpers/wait-for-room-template";
 
 export type UserType = "DocSpaceAdmin" | "RoomAdmin" | "User" | "Guest";
@@ -196,6 +197,30 @@ export class ApiSDK {
     this.tokenStore.setToken(credentialRole, authBody.response.token);
 
     return this.forRole(credentialRole);
+  }
+
+  async authenticateOwner(): Promise<ReturnType<ApiSDK["forRole"]>> {
+    const authResponse = await this.request.post(
+      `${this.tokenStore.portalBaseUrl}/api/2.0/authentication`,
+      {
+        data: {
+          userName: config.DOCSPACE_OWNER_EMAIL,
+          password: config.DOCSPACE_OWNER_PASSWORD,
+        },
+        headers: {
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
+        },
+      },
+    );
+    const authBody = await parseResponse(authResponse);
+    if (!authResponse.ok()) {
+      throw new Error(
+        `Authentication failed for owner: ${authResponse.status()} - ${authBody.error || authBody.message}`,
+      );
+    }
+    this.tokenStore.setToken("owner", authBody.response.token);
+
+    return this.forRole("owner");
   }
 
   async addAuthenticatedMember(
