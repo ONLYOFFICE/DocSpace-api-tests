@@ -24,6 +24,7 @@ import {
   UserDataApi,
   UserTypeApi,
   PhotosApi,
+  SecurityApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
@@ -107,6 +108,7 @@ export class ApiSDK {
       userData: new UserDataApi(config, undefined, axiosInstance),
       userType: new UserTypeApi(config, undefined, axiosInstance),
       photos: new PhotosApi(config, undefined, axiosInstance),
+      security: new SecurityApi(config, undefined, axiosInstance),
     };
   }
 
@@ -142,6 +144,7 @@ export class ApiSDK {
       userData: new UserDataApi(config, undefined, axiosInstance),
       userType: new UserTypeApi(config, undefined, axiosInstance),
       photos: new PhotosApi(config, undefined, axiosInstance),
+      security: new SecurityApi(config, undefined, axiosInstance),
     };
   }
 
