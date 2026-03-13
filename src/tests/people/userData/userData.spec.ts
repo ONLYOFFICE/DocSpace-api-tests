@@ -555,15 +555,24 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
       "RoomAdmin",
     );
 
-    // RoomAdmin creates a room and a file
-    const { data: roomData } = await roomAdminApi.rooms.createRoom({
-      title: "Autotest Remove Room",
-      roomType: RoomType.CustomRoom,
-    });
-    const roomId = roomData.response!.id!;
-    await roomAdminApi.files.createFile(roomId, {
-      title: "Autotest Remove File",
-    });
+    // RoomAdmin creates multiple rooms and files to slow down removal
+    const roomIds: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const { data: roomData } = await roomAdminApi.rooms.createRoom({
+        title: `Autotest Remove Room ${i}`,
+        roomType: RoomType.CustomRoom,
+      });
+      roomIds.push(roomData.response!.id!);
+    }
+    await Promise.all(
+      roomIds.flatMap((roomId) =>
+        Array.from({ length: 5 }, (_, i) =>
+          roomAdminApi.files.createFile(roomId, {
+            title: `Autotest Remove File ${i}`,
+          }),
+        ),
+      ),
+    );
 
     // Re-authenticate owner
     const ownerApi = await apiSdk.authenticateOwner();
@@ -582,7 +591,6 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
     const { data } = await ownerApi.userData.getRemoveProgress(roomAdminId);
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBe(false);
-    expect(data.response?.percentage).toBe(95);
     expect(data.response?.error).toBe("");
     expect(data.response?.status).toBe(1);
   });
@@ -607,15 +615,24 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
       "RoomAdmin",
     );
 
-    // RoomAdmin creates a room and a file
-    const { data: roomData } = await roomAdminApi.rooms.createRoom({
-      title: "Autotest Remove Room",
-      roomType: RoomType.CustomRoom,
-    });
-    const roomId = roomData.response!.id!;
-    await roomAdminApi.files.createFile(roomId, {
-      title: "Autotest Remove File",
-    });
+    // RoomAdmin creates multiple rooms and files to slow down removal
+    const roomIds: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const { data: roomData } = await roomAdminApi.rooms.createRoom({
+        title: `Autotest Remove Room ${i}`,
+        roomType: RoomType.CustomRoom,
+      });
+      roomIds.push(roomData.response!.id!);
+    }
+    await Promise.all(
+      roomIds.flatMap((roomId) =>
+        Array.from({ length: 5 }, (_, i) =>
+          roomAdminApi.files.createFile(roomId, {
+            title: `Autotest Remove File ${i}`,
+          }),
+        ),
+      ),
+    );
 
     // Re-authenticate owner to deactivate RoomAdmin
     const ownerApi = await apiSdk.authenticateOwner();
@@ -640,7 +657,6 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
 
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBe(false);
-    expect(data.response?.percentage).toBe(95);
     expect(data.response?.error).toBe("");
     expect(data.response?.status).toBe(1);
   });

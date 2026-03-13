@@ -25,8 +25,7 @@ test.describe("PUT /people/status/:status - access control", () => {
     expect(status).toBe(401);
   });
 
-  // 79900 - FIX
-  test("PUT /people/status/:status - DocSpace admin deactivates the DocSpace admin", async ({
+  test("Bug 79900: PUT /people/status/:status - DocSpace admin deactivates the DocSpace admin", async ({
     apiSdk,
   }) => {
     const { data: docspaceAdminData } = await apiSdk.addMember(
@@ -53,8 +52,7 @@ test.describe("PUT /people/status/:status - access control", () => {
     expect((data as any).error.message as string).toContain("Access denied");
   });
 
-  // 79900 - FIX
-  test("PUT /people/status/:status - DocSpace admin deactivates Owner", async ({
+  test("Bug 79900: PUT /people/status/:status - DocSpace admin deactivates Owner", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
