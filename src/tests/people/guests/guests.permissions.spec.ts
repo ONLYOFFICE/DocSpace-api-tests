@@ -3,9 +3,7 @@ import { test } from "@/src/fixtures/index";
 import { EmployeeStatus } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("DELETE /people/guests - Permissions", () => {
-  // BUG: RoomAdmin can delete deactivated guests (returns 200 and actually deletes).
-  // In UI, RoomAdmin does not see deactivated users and should not be able to delete them.
-  test.skip("Bug: DELETE /people/guests - Room admin cannot delete a guest", async ({
+  test.skip("Bug: DELETE /people/guests - Room admin cannot delete another user's deactivated guest", async ({
     apiSdk,
   }) => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
@@ -16,6 +14,26 @@ test.describe("DELETE /people/guests - Permissions", () => {
       .userStatus.updateUserStatus(EmployeeStatus.Terminated, {
         userIds: [guestId],
       });
+
+    const { userData: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    await apiSdk.authenticateMember(roomAdminData, "RoomAdmin");
+
+    const { data } = await apiSdk
+      .forRole("roomAdmin")
+      .guests.deleteGuests({ userIds: [guestId] });
+
+    expect((data as any).statusCode).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test.skip("Bug: DELETE /people/guests - Room admin cannot delete another user's guest", async ({
+    apiSdk,
+  }) => {
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
 
     const { userData: roomAdminData } = await apiSdk.addMember(
       "owner",
