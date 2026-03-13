@@ -280,7 +280,8 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
   });
 
-  test("POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)", async ({
+  // Requires Document Server able to download files from DocSpace (DS ↔ DocSpace connectivity)
+  test.skip("POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");

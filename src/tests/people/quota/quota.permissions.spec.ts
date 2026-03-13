@@ -337,8 +337,7 @@ test.describe("PUT /people/resetquota - access control", () => {
     expect(status).toBe(401);
   });
 
-  // 80301 - NEW
-  test.skip("PUT /people/userquota - Owner changes the user's quota limit to a value higher than the total storage size", async ({
+    test("BUG 80301: PUT /people/userquota - Owner changes the user's quota limit to a value higher than the total storage size", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -358,8 +357,7 @@ test.describe("PUT /people/resetquota - access control", () => {
       userIds: [docspaceAdminId],
       quota: OVER_SIZE_BYTES,
     });
-
-    expect(data.statusCode).toBe(402);
+    expect(data.statusCode).toBe(400);
     expect((data as any).error.message).toBe(
       "Failed to set quota per user. The entered value is greater than the total DocSpace storage.",
     );

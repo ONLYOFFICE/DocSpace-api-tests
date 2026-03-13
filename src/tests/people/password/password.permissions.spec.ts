@@ -5,8 +5,7 @@ import { test } from "@/src/fixtures/index";
 import config from "@/config";
 
 test.describe("POST /people/password - access control", () => {
-  // 80157 - FIX
-  test("POST /people/password - DocSpace administrator reminds the owner of the password.", async ({
+  test("BUG 80157: POST /people/password - DocSpace administrator reminds the owner of the password.", async ({
     apiSdk,
   }) => {
     const ownerEmail = config.DOCSPACE_OWNER_EMAIL;
@@ -74,8 +73,7 @@ test.describe("POST /people/password - access control", () => {
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  // 80157 - FIX
-  test("POST /people/password - DocSpace admin reminds the docspace admin of the password.", async ({
+  test("BUG 80157: POST /people/password - DocSpace admin reminds the docspace admin of the password.", async ({
     apiSdk,
   }) => {
     const { data: docSpaceAdminData } = await apiSdk.addMember(

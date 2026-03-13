@@ -24,7 +24,7 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  test.skip("BUG 80748: Room admin should not be able to change the type of a guest who does not belong to them.", async ({
+  test.skip("BUG 80478: Room admin should not be able to change the type of a guest who does not belong to them.", async ({
     apiSdk,
   }) => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");

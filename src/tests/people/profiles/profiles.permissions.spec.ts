@@ -317,8 +317,7 @@ test.describe("API profiling tests for access rights", () => {
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  // 79545 - Fix
-  test("PUT /people/invite - User resend activation emails ", async ({
+  test("BUG 79545: PUT /people/invite - User resend activation emails ", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -366,8 +365,7 @@ test.describe("API profiling tests for access rights", () => {
     expect((data as any).error.message).toContain("The user is not suspended"); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  // 79560 - Fixed
-  test("DELETE /people/:userIds - Owner deletes a non-deactivated user", async ({
+  test("BUG 79560: DELETE /people/:userIds - Owner deletes a non-deactivated user", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -381,8 +379,7 @@ test.describe("API profiling tests for access rights", () => {
     expect((data as any).error.message).toContain("Users are not suspended"); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  // 79560 - Fixed
-  test("DELETE /people/:userIds - DocSpace admin deletes a non-deactivated user", async ({
+  test("BUG 79560: DELETE /people/:userIds - DocSpace admin deletes a non-deactivated user", async ({
     apiSdk,
   }) => {
     const { data: userData } = await apiSdk.addMember("owner", "User");
@@ -1009,8 +1006,7 @@ test.describe("API profiling tests for access rights", () => {
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  // 79876 - FIX
-  test("PUT /people/delete - Owner delete non-deactivated users", async ({
+  test("BUG 79876: PUT /people/delete - Owner delete non-deactivated users", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1133,8 +1129,7 @@ test.describe("API profiling tests for access rights", () => {
     expect(status).toBe(401);
   });
 
-  // 65478 - FIX
-  test("PUT /people/:userId/culture - Owner update a culture code another's users", async ({
+  test("BUG 65478: PUT /people/:userId/culture - Owner update a culture code another's users", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1189,8 +1184,7 @@ test.describe("API profiling tests for access rights", () => {
     expect((guestResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  // 65478 - FIX
-  test("PUT /people/:userId/culture - DocSpace admin update a culture code another's users", async ({
+  test("BUG 65478: PUT /people/:userId/culture - DocSpace admin update a culture code another's users", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1248,8 +1242,7 @@ test.describe("API profiling tests for access rights", () => {
     expect((guestResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  // 65478 - FIX
-  test("PUT /people/:userId/culture - Room admin update a culture code another's users", async ({
+  test("BUG 65478: PUT /people/:userId/culture - Room admin update a culture code another's users", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1303,8 +1296,7 @@ test.describe("API profiling tests for access rights", () => {
     expect((guestResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  // 65478 - FIX
-  test("PUT /people/:userId/culture - User update a culture code another's users", async ({
+  test("BUG 65478: PUT /people/:userId/culture - User update a culture code another's users", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1436,8 +1428,7 @@ test.describe("API profiling tests for access rights", () => {
     ); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  // 79918 - FIX
-  test("PUT /people/:userId/culture - Update culture code with long string", async ({
+  test("BUG 79918: PUT /people/:userId/culture - Update culture code with long string", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
