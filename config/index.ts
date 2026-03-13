@@ -13,6 +13,14 @@ interface Config {
   NEXTCLOUD_URL: string;
   NEXTCLOUD_LOGIN: string;
   NEXTCLOUD_PASSWORD: string;
+  DEEPSEEK_API_KEY: string;
+  XAI_API_KEY: string;
+  GOOGLE_AI_API_KEY: string;
+  OPENROUTER_API_KEY: string;
+  OPENAI_API_KEY: string;
+  ANTHROPIC_API_KEY: string;
+  TOGETHER_AI_API_KEY: string;
+  EXA_API_KEY: string;
 }
 
 const config: Config = {
@@ -28,6 +36,14 @@ const config: Config = {
   NEXTCLOUD_URL: process.env.NEXTCLOUD_URL ?? "",
   NEXTCLOUD_LOGIN: process.env.NEXTCLOUD_LOGIN ?? "",
   NEXTCLOUD_PASSWORD: process.env.NEXTCLOUD_PASSWORD ?? "",
+  DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY ?? "",
+  XAI_API_KEY: process.env.XAI_API_KEY ?? "",
+  GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY ?? "",
+  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? "",
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
+  TOGETHER_AI_API_KEY: process.env.TOGETHER_AI_API_KEY ?? "",
+  EXA_API_KEY: process.env.EXA_API_KEY ?? "",
 };
 
 export default config;
