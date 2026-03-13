@@ -35,7 +35,7 @@ test.describe("API profile methods", () => {
     );
   });
 
-  test("Bug 80020: POST /people - Owner create User", async ({ apiSdk }) => {
+  test("BUG 80020: POST /people - Owner create User", async ({ apiSdk }) => {
     const { data } = await apiSdk.addMember("owner", "User");
     expect(data.statusCode).toBe(200);
     expect(data.response!.isCollaborator).toBe(true);
@@ -885,7 +885,7 @@ test.describe("API profile methods", () => {
     expect(data.response!.isRoomAdmin).toBe(true);
   });
 
-  test("Bug 79994: PUT /people/:userId - Updating user profile data", async ({
+  test("BUG 79994: PUT /people/:userId - Updating user profile data", async ({
     apiSdk,
   }) => {
     const { data: memberData, api: userApi } =

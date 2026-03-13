@@ -3,7 +3,7 @@ import { test } from "@/src/fixtures/index";
 import { EmployeeStatus } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("DELETE /people/guests - Permissions", () => {
-  test.skip("Bug 80628: DELETE /people/guests - Room admin cannot delete another user's deactivated guest", async ({
+  test.skip("BUG 80628: DELETE /people/guests - Room admin cannot delete another user's deactivated guest", async ({
     apiSdk,
   }) => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
@@ -29,7 +29,7 @@ test.describe("DELETE /people/guests - Permissions", () => {
     expect((data as any).error?.message).toContain("Access denied");
   });
 
-  test.skip("Bug 80628: DELETE /people/guests - Room admin cannot delete another user's guest", async ({
+  test.skip("BUG 80628: DELETE /people/guests - Room admin cannot delete another user's guest", async ({
     apiSdk,
   }) => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
