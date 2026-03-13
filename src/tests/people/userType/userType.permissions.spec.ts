@@ -18,7 +18,6 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
       EmployeeType.DocSpaceAdmin,
       { userIds: [userId] },
     );
-    console.log(data as any); // delete this string after fixing the bug
     // BUG: API returns 200, expected 403
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -38,7 +37,6 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
       EmployeeType.User,
       { userIds: [guestId] },
     );
-    console.log(data as any); // delete this string after fixing the bug
     // BUG: API returns 200, expected 403
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -445,10 +443,8 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // Second DocSpace admin tries to terminate the process
-    const { data: terminateData } =
-      await admin2Api.userType.terminateUserTypeUpdate({
-        userId: roomAdminId,
-      });
-    console.log(terminateData as any);
+    await admin2Api.userType.terminateUserTypeUpdate({
+      userId: roomAdminId,
+    });
   });
 });
