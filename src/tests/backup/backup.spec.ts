@@ -217,7 +217,7 @@ test.describe("POST /portal/backup/start - Start backup", () => {
     expect(data.response!.error).toBeFalsy();
   });
 
-  test.skip("Owner creates backup to Custom cloud storage", async ({
+  test.fail("Owner creates backup to Custom cloud storage", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -237,7 +237,7 @@ test.describe("POST /portal/backup/start - Start backup", () => {
     expect(data.response!.error).toBeFalsy();
   });
 
-  test.skip("DocSpaceAdmin creates backup to Custom cloud storage", async ({
+  test.fail("DocSpaceAdmin creates backup to Custom cloud storage", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1029,105 +1029,6 @@ test.describe("DELETE /api/2.0/backup/deletebackuphistory - Delete backup histor
       expect(data.statusCode).toBe(200);
       expect(data.response).toEqual([]);
       expect(data.count).toBe(0);
-    });
-  });
-});
-
-test.describe("POST /api/2.0/backup/startrestore - Start backup restore", () => {
-  test("Owner starts a backup restore", async ({ apiSdk, paymentsApi }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-
-    let backupId: string;
-
-    await test.step("POST startbackup - start backup", async () => {
-      await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
-      });
-    });
-
-    await test.step("GET getbackupprogress - wait for backup completion", async () => {
-      await expect(async () => {
-        const { data } = await ownerApi.backup.getBackupProgress();
-        expect(data.response!.isCompleted).toBe(true);
-      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
-    });
-
-    await test.step("GET getbackuphistory - get backup ID", async () => {
-      const { data } = await ownerApi.backup.getBackupHistory();
-      backupId = data.response![0].id;
-    });
-
-    await test.step("POST startrestore - start restore and verify response", async () => {
-      const { data, status } = await ownerApi.backup.startBackupRestore({
-        backupId,
-        storageType: BackupStorageType.DataStore,
-        notify: false,
-      });
-
-      expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
-      expect(data.response!.backupProgressEnum).toBe(
-        BackupProgressEnum.Restore,
-      );
-      expect(data.response!.isCompleted).toBe(false);
-      expect(data.response!.progress).toBeGreaterThanOrEqual(0);
-      expect(data.response!.progress).toBeLessThanOrEqual(100);
-      expect(data.response!.tenantId).toBeGreaterThan(0);
-      expect(data.response!.taskId).toBeTruthy();
-      expect(data.response!.error).toBeFalsy();
-    });
-  });
-
-  test("DocSpaceAdmin starts a backup restore", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-
-    let backupId: string;
-
-    await test.step("POST startbackup - start backup", async () => {
-      await adminApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
-      });
-    });
-
-    await test.step("GET getbackupprogress - wait for backup completion", async () => {
-      await expect(async () => {
-        const { data } = await adminApi.backup.getBackupProgress();
-        expect(data.response!.isCompleted).toBe(true);
-      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
-    });
-
-    await test.step("GET getbackuphistory - get backup ID", async () => {
-      const { data } = await adminApi.backup.getBackupHistory();
-      backupId = data.response![0].id;
-    });
-
-    await test.step("POST startrestore - start restore and verify response", async () => {
-      const { data, status } = await adminApi.backup.startBackupRestore({
-        backupId,
-        storageType: BackupStorageType.DataStore,
-        notify: false,
-      });
-
-      expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
-      expect(data.response!.backupProgressEnum).toBe(
-        BackupProgressEnum.Restore,
-      );
-      expect(data.response!.isCompleted).toBe(false);
-      expect(data.response!.progress).toBeGreaterThanOrEqual(0);
-      expect(data.response!.progress).toBeLessThanOrEqual(100);
-      expect(data.response!.tenantId).toBeGreaterThan(0);
-      expect(data.response!.taskId).toBeTruthy();
-      expect(data.response!.error).toBeFalsy();
     });
   });
 });

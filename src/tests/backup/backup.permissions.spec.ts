@@ -23,7 +23,7 @@ test.describe("POST /portal/backup/start - access control", () => {
   test("POST /portal/backup/start - Start backup without paid plan", async ({
     apiSdk,
   }) => {
-    test.skip(
+    test.fail(
       !!config.LOCAL_PORTAL_DOMAIN,
       "Payment checks are not enforced on local instances",
     );
@@ -144,7 +144,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    test.skip(
+    test.fail(
       !!config.LOCAL_PORTAL_DOMAIN,
       "Payment checks are not enforced on local instances",
     );
@@ -182,7 +182,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
   test("POST /api/2.0/backup/createbackupschedule - Create schedule without paid plan", async ({
     apiSdk,
   }) => {
-    test.skip(
+    test.fail(
       !!config.LOCAL_PORTAL_DOMAIN,
       "Payment checks are not enforced on local instances",
     );
@@ -495,7 +495,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect(status).toBe(401);
   });
 
-  test.skip("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
+  test.fail("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
     apiSdk,
   }) => {
     const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
@@ -510,7 +510,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  test.skip("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
+  test.fail("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
     apiSdk,
   }) => {
     const { api: userApi } = await apiSdk.addAuthenticatedMember(
@@ -525,7 +525,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  test.skip("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
+  test.fail("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
     apiSdk,
   }) => {
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(
@@ -612,10 +612,10 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
     expect(status).toBe(401);
   });
 
-  test.skip("BUG 80608: DELETE /api/2.0/backup/deletebackup - Delete backup without paid plan", async ({
+  test.fail("BUG 80608: DELETE /api/2.0/backup/deletebackup - Delete backup without paid plan", async ({
     apiSdk,
   }) => {
-    test.skip(
+    test.fail(
       !!config.LOCAL_PORTAL_DOMAIN,
       "Payment checks are not enforced on local instances",
     );
@@ -632,7 +632,7 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
     );
   });
 
-  test.skip("BUG 80605: DELETE /api/2.0/backup/deletebackup - Delete non-existent backup", async ({
+  test.fail("BUG 80605: DELETE /api/2.0/backup/deletebackup - Delete non-existent backup", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -723,7 +723,7 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
   test("POST /api/2.0/backup/startrestore - Start restore without paid plan", async ({
     apiSdk,
   }) => {
-    test.skip(
+    test.fail(
       !!config.LOCAL_PORTAL_DOMAIN,
       "Payment checks are not enforced on local instances",
     );
