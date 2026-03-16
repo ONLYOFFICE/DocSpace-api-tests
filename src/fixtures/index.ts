@@ -21,9 +21,15 @@ export const test = base.extend<TestFixtures>({
 
     await use(api);
 
-    await api.auth.authenticateOwner();
-    console.log(`Deleting portal: ${api.portalDomain}`);
-    await api.cleanup();
+    try {
+      await api.auth.authenticateOwner();
+      console.log(`Deleting portal: ${api.portalDomain}`);
+      await api.cleanup();
+    } catch (error) {
+      console.warn(
+        `Portal cleanup failed for ${api.portalDomain} — portal may be orphaned. Reason: ${error}`,
+      );
+    }
 
     await ownerContext.dispose();
   },

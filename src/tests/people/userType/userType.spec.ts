@@ -239,7 +239,6 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
     // Terminate the process
     const { data: terminateData } =
       await ownerApi.userType.terminateUserTypeUpdate({ userId: adminId });
-    console.log("Terminate response:", terminateData);
     expect(terminateData.statusCode).toBe(200);
     expect((terminateData as any).response.isCompleted).toBe(true);
     expect((terminateData as any).response.error).toBe("");
@@ -274,7 +273,6 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
     // DocSpace admin terminates the process
     const { data: terminateData } =
       await adminApi.userType.terminateUserTypeUpdate({ userId: userId });
-    console.log("Terminate response:", terminateData);
     expect(terminateData.statusCode).toBe(200);
     expect((terminateData as any).response.isCompleted).toBe(true);
     expect((terminateData as any).response.error).toBe("");

@@ -944,6 +944,95 @@ test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
   });
 });
 
+test.describe("DELETE /api/2.0/backup/deletebackuphistory - Delete backup history", () => {
+  test("Owner deletes backup history", async ({ apiSdk, paymentsApi }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("POST startbackup - start backup", async () => {
+      await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackuphistory - verify history is not empty before delete", async () => {
+      const { data } = await ownerApi.backup.getBackupHistory();
+      expect(data.response!.length).toBeGreaterThan(0);
+    });
+
+    await test.step("DELETE deletebackuphistory - delete all backup history", async () => {
+      const { data, status } = await ownerApi.backup.deleteBackupHistory();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    await test.step("GET getbackuphistory - verify history is empty after delete", async () => {
+      const { data, status } = await ownerApi.backup.getBackupHistory();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toEqual([]);
+      expect(data.count).toBe(0);
+    });
+  });
+
+  test("DocSpaceAdmin deletes backup history", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await test.step("POST startbackup - start backup", async () => {
+      await adminApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackuphistory - verify history is not empty before delete", async () => {
+      const { data } = await adminApi.backup.getBackupHistory();
+      expect(data.response!.length).toBeGreaterThan(0);
+    });
+
+    await test.step("DELETE deletebackuphistory - delete all backup history", async () => {
+      const { data, status } = await adminApi.backup.deleteBackupHistory();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    await test.step("GET getbackuphistory - verify history is empty after delete", async () => {
+      const { data, status } = await adminApi.backup.getBackupHistory();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toEqual([]);
+      expect(data.count).toBe(0);
+    });
+  });
+});
+
 test.describe("GET /api/2.0/backup/getbackupsservicestate - Get backup service state", () => {
   test("Owner gets backup service state", async ({ apiSdk, paymentsApi }) => {
     await paymentsApi.setupPayment();
