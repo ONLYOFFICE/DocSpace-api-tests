@@ -802,3 +802,60 @@ test.describe("POST /ai/agents - Room Admin creates AI agent", () => {
     );
   });
 });
+
+test.describe("POST /ai/agents - Create AI agent with invalid modelId", () => {
+  test.skip("BUG : POST /ai/agents - Missing validation for modelId parameter", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: ProviderType.OpenAi,
+      title: "OpenAI",
+      key: config.OPENAI_API_KEY,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { status } = await ownerApi.agents.createAgent({
+      title: "Autotest Invalid Model Agent",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: "invalid-nonexistent-model-123",
+        prompt: "You are a test assistant",
+      },
+    });
+
+    expect(status).not.toBe(200);
+  });
+
+  test("POST /ai/agents - Owner cannot create an agent with empty modelId", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: ProviderType.OpenAi,
+      title: "OpenAI",
+      key: config.OPENAI_API_KEY,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data, status } = await ownerApi.agents.createAgent({
+      title: "Autotest Empty Model Agent",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: "",
+        prompt: "You are a test assistant",
+      },
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+});
