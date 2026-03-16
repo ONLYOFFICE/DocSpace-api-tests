@@ -81,6 +81,25 @@ Each API area has up to two spec files:
 - `*.spec.ts` — functional tests
 - `*.permissions.spec.ts` — permission/authorization tests
 
+## Known Bugs
+
+Tests for known bugs are marked with `test.fail`:
+
+```ts
+test.fail("BUG 80474: DocSpace admin should not be able to promote User to DocSpace admin", async ({ apiSdk }) => {
+  // test body runs and is expected to fail
+});
+```
+
+- The test runs and fails as expected while the bug is open — shown as **passed** in the report
+- When the bug is fixed, the test passes unexpectedly — shown as **failed** with "unexpected pass"
+- That's the signal to remove `test.fail` and keep the test as a regular passing test
+
+To check the status of a specific bug:
+```bash
+npx playwright test --grep "BUG 80474"
+```
+
 ## Architecture
 
 - Each test run creates a fresh portal and deletes it after completion

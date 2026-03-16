@@ -111,7 +111,7 @@ const user = apiSdk.faker.generateUser();
 - Test name = HTTP method + path + description, e.g. `"POST /files/rooms - Owner creates a Custom room"`
 - Permission tests go in `*.permissions.spec.ts`
 - Use `test.step("description", async () => { ... })` for multi-step tests
-- Mark known bugs with `test.skip(true, "Bug XXXXX: description")`
+- Mark known bugs with `test.fail("BUG XXXXX: description")` — the test runs and is expected to fail while the bug is open. When the bug is fixed, the test will report "unexpected pass", signaling it's time to remove `test.fail` and keep the test as a regular passing test.
 
 ## Running tests
 ```bash
