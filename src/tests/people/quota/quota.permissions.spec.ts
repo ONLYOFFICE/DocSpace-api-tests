@@ -337,7 +337,7 @@ test.describe("PUT /people/resetquota - access control", () => {
     expect(status).toBe(401);
   });
 
-    test("BUG 80301: PUT /people/userquota - Owner changes the user's quota limit to a value higher than the total storage size", async ({
+  test("BUG 80301: PUT /people/userquota - Owner changes the user's quota limit to a value higher than the total storage size", async ({
     apiSdk,
     paymentsApi,
   }) => {

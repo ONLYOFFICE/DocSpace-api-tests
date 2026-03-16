@@ -248,7 +248,7 @@ test.describe("API rooms methods", () => {
     });
 
     // TODO: Need clarification — should API reject VDR-only fields on non-VDR rooms or is this expected behavior?
-    test.skip("PUT /files/rooms/:id - Set VDR-only fields on CustomRoom", async ({
+    test.fail("PUT /files/rooms/:id - Set VDR-only fields on CustomRoom", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");

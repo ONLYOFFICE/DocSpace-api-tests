@@ -2,9 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 
 test.describe("GET /people/theme - Get portal theme", () => {
-  test("GET /people/theme - Owner gets portal theme", async ({
-    apiSdk,
-  }) => {
+  test("GET /people/theme - Owner gets portal theme", async ({ apiSdk }) => {
     const { data } = await apiSdk.forRole("owner").theme.getPortalTheme();
 
     expect(data.statusCode).toBe(200);
@@ -29,35 +27,25 @@ test.describe("GET /people/theme - Get portal theme", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-    const { data } = await apiSdk
-      .forRole("roomAdmin")
-      .theme.getPortalTheme();
+    const { data } = await apiSdk.forRole("roomAdmin").theme.getPortalTheme();
 
     expect(data.statusCode).toBe(200);
     expect(data.response?.theme).toBe("System");
   });
 
-  test("GET /people/theme - User gets portal theme", async ({
-    apiSdk,
-  }) => {
+  test("GET /people/theme - User gets portal theme", async ({ apiSdk }) => {
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data } = await apiSdk
-      .forRole("user")
-      .theme.getPortalTheme();
+    const { data } = await apiSdk.forRole("user").theme.getPortalTheme();
 
     expect(data.statusCode).toBe(200);
     expect(data.response?.theme).toBe("System");
   });
 
-  test("GET /people/theme - Guest gets portal theme", async ({
-    apiSdk,
-  }) => {
+  test("GET /people/theme - Guest gets portal theme", async ({ apiSdk }) => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { data } = await apiSdk
-      .forRole("guest")
-      .theme.getPortalTheme();
+    const { data } = await apiSdk.forRole("guest").theme.getPortalTheme();
 
     expect(data.statusCode).toBe(200);
     expect(data.response?.theme).toBe("System");

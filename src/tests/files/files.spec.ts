@@ -48,7 +48,7 @@ test.describe("POST /files/@my/file", () => {
   });
 
   // Bug 80324: enableExternalExt: true returns 403 with NullReferenceException
-  test.skip("POST /files/@my/file - Title with .md extension and enableExternalExt keeps original extension", async ({
+  test.fail("POST /files/@my/file - Title with .md extension and enableExternalExt keeps original extension", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -112,7 +112,7 @@ test.describe("POST /files/:folderId/html - Create HTML file", () => {
   });
 
   // Bug: createNewIfExist logic is inverted
-  test.skip("POST /files/:folderId/html - createNewIfExist: false returns existing file when title already exists", async ({
+  test.fail("POST /files/:folderId/html - createNewIfExist: false returns existing file when title already exists", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -169,7 +169,7 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
   });
 
   // Bug: createNewIfExist logic is inverted
-  test.skip("POST /files/:folderId/text - createNewIfExist: false returns existing file when title already exists", async ({
+  test.fail("POST /files/:folderId/text - createNewIfExist: false returns existing file when title already exists", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -254,7 +254,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
   });
 
   // TODO: requires a password-protected source file — no API method available to create one yet
-  test.skip("POST /files/file/:fileId/copyas - Copies file with password", async ({
+  test.fail("POST /files/file/:fileId/copyas - Copies file with password", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -281,7 +281,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
   });
 
   // Requires Document Server able to download files from DocSpace (DS ↔ DocSpace connectivity)
-  test.skip("POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)", async ({
+  test.fail("POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -309,10 +309,13 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
 });
 
 test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
-  test.skip("POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder", async ({
+  test.fail("POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder", async ({
     apiSdk,
   }) => {
-    test.skip(true, "Requires Document Server able to download files from DocSpace (DS ↔ DocSpace connectivity)");
+    test.skip(
+      true,
+      "Requires Document Server able to download files from DocSpace (DS ↔ DocSpace connectivity)",
+    );
 
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({

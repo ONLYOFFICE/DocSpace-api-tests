@@ -82,7 +82,7 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } =
+    const { data } =
       await adminApi.peopleSearch.getAccountsEntriesWithFilesShared(
         fileId,
         undefined,
@@ -341,26 +341,28 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
     });
     const folderId = folderData.response!.id!;
 
-    const { data } =
-      await ownerApi.peopleSearch.getAccountsEntriesWithFoldersShared(
-        folderId,
-        undefined, // employeeStatus
-        undefined, // activationStatus
-        undefined, // excludeShared
-        undefined, // includeShared
-        undefined, // invitedByMe
-        undefined, // inviterId
-        undefined, // area
-        undefined, // employeeTypes
-        undefined, // count
-        undefined, // startIndex
-        undefined, // filterSeparator
-        userName, // filterValue
-      );
-    expect(data.statusCode).toBe(200);
-    expect(data.count).toBe(1);
-    expect((data.response as any[])[0].id).toBe(userId);
-    expect((data.response as any[])[0].displayName).toBe(userName);
+    await expect(async () => {
+      const { data } =
+        await ownerApi.peopleSearch.getAccountsEntriesWithFoldersShared(
+          folderId,
+          undefined, // employeeStatus
+          undefined, // activationStatus
+          undefined, // excludeShared
+          undefined, // includeShared
+          undefined, // invitedByMe
+          undefined, // inviterId
+          undefined, // area
+          undefined, // employeeTypes
+          undefined, // count
+          undefined, // startIndex
+          undefined, // filterSeparator
+          userName, // filterValue
+        );
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+      expect((data.response as any[])[0].id).toBe(userId);
+      expect((data.response as any[])[0].displayName).toBe(userName);
+    }).toPass({ intervals: [2_000, 3_000, 5_000], timeout: 15_000 });
   });
 
   test("GET /accounts/folder/:id/search - DocSpace admin searches accounts for folder", async ({

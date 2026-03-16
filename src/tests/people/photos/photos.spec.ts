@@ -2,25 +2,26 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { createTestImageBuffer } from "@/src/utils/test-image";
 
-test.skip("BUG 80569 POST /people/:userid/photo - Owner uploads avatar via SDK photos.uploadMemberPhoto", async ({
-  apiSdk,
-}) => {
-  const ownerApi = apiSdk.forRole("owner");
-  const { data: profile } = await ownerApi.profiles.getSelfProfile();
-  const userId = profile.response!.id!;
+test.fail(
+  "BUG 80569 POST /people/:userid/photo - Owner uploads avatar via SDK photos.uploadMemberPhoto",
+  async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profile } = await ownerApi.profiles.getSelfProfile();
+    const userId = profile.response!.id!;
 
-  const imageBuffer = createTestImageBuffer();
-  const file = new File([new Uint8Array(imageBuffer)], "avatar.png", {
-    type: "image/png",
-  });
+    const imageBuffer = createTestImageBuffer();
+    const file = new File([new Uint8Array(imageBuffer)], "avatar.png", {
+      type: "image/png",
+    });
 
-  const { data, status } = await ownerApi.photos.uploadMemberPhoto(userId, [
-    file,
-  ] as any);
+    const { data, status } = await ownerApi.photos.uploadMemberPhoto(userId, [
+      file,
+    ] as any);
 
-  expect(status).toBe(200);
-  expect(data.response?.success).toBe(true);
-});
+    expect(status).toBe(200);
+    expect(data.response?.success).toBe(true);
+  },
+);
 
 test.describe("POST /people/:userid/photo - Upload member photo", () => {
   test("POST /people/:userid/photo - Owner uploads own avatar", async ({
