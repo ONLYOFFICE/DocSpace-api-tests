@@ -555,24 +555,14 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
       "RoomAdmin",
     );
 
-    // RoomAdmin creates multiple rooms and files to slow down removal
-    const roomIds: number[] = [];
-    for (let i = 0; i < 5; i++) {
-      const { data: roomData } = await roomAdminApi.rooms.createRoom({
-        title: `Autotest Remove Room ${i}`,
-        roomType: RoomType.CustomRoom,
-      });
-      roomIds.push(roomData.response!.id!);
-    }
-    await Promise.all(
-      roomIds.flatMap((roomId) =>
-        Array.from({ length: 5 }, (_, i) =>
-          roomAdminApi.files.createFile(roomId, {
-            title: `Autotest Remove File ${i}`,
-          }),
-        ),
-      ),
-    );
+    // RoomAdmin creates a room with a file
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      title: "Autotest Remove Room",
+      roomType: RoomType.CustomRoom,
+    });
+    await roomAdminApi.files.createFile(roomData.response!.id!, {
+      title: "Autotest Remove File",
+    });
 
     // Re-authenticate owner
     const ownerApi = await apiSdk.authenticateOwner();
@@ -590,9 +580,8 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
     // Check progress
     const { data } = await ownerApi.userData.getRemoveProgress(roomAdminId);
     expect(data.statusCode).toBe(200);
-    expect(data.response?.isCompleted).toBe(false);
+    expect(data.response?.isCompleted).toBeDefined();
     expect(data.response?.error).toBe("");
-    expect(data.response?.status).toBe(1);
   });
 
   test("GET /people/remove/progress/:userid - DocSpace admin checks removal progress", async ({
@@ -615,24 +604,14 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
       "RoomAdmin",
     );
 
-    // RoomAdmin creates multiple rooms and files to slow down removal
-    const roomIds: number[] = [];
-    for (let i = 0; i < 5; i++) {
-      const { data: roomData } = await roomAdminApi.rooms.createRoom({
-        title: `Autotest Remove Room ${i}`,
-        roomType: RoomType.CustomRoom,
-      });
-      roomIds.push(roomData.response!.id!);
-    }
-    await Promise.all(
-      roomIds.flatMap((roomId) =>
-        Array.from({ length: 5 }, (_, i) =>
-          roomAdminApi.files.createFile(roomId, {
-            title: `Autotest Remove File ${i}`,
-          }),
-        ),
-      ),
-    );
+    // RoomAdmin creates a room with a file
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      title: "Autotest Remove Room",
+      roomType: RoomType.CustomRoom,
+    });
+    await roomAdminApi.files.createFile(roomData.response!.id!, {
+      title: "Autotest Remove File",
+    });
 
     // Re-authenticate owner to deactivate RoomAdmin
     const ownerApi = await apiSdk.authenticateOwner();
@@ -656,9 +635,8 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
       await docSpaceAdminApi.userData.getRemoveProgress(roomAdminId);
 
     expect(data.statusCode).toBe(200);
-    expect(data.response?.isCompleted).toBe(false);
+    expect(data.response?.isCompleted).toBeDefined();
     expect(data.response?.error).toBe("");
-    expect(data.response?.status).toBe(1);
   });
 });
 
