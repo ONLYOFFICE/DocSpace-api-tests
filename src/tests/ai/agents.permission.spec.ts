@@ -100,8 +100,119 @@ test.describe("POST /ai/agents - Anonymous cannot create AI agent", () => {
   });
 });
 
+test.describe("GET /ai/agents - Get AI agents access control", () => {
+  test.fail(
+    "GET /ai/agents - Room Admin cannot see agents created by Owner",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      });
+      const providerId = providerData.response!.id!;
+
+      await ownerApi.agents.createAgent({
+        title: "Autotest Hidden Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+      const { status } = await roomAdminApi.agents.getAgents();
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test.fail(
+    "GET /ai/agents - User cannot see agents created by Owner",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      });
+      const providerId = providerData.response!.id!;
+
+      await ownerApi.agents.createAgent({
+        title: "Autotest Hidden Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", "User");
+      const userApi = apiSdk.forRole("user");
+
+      const { status } = await userApi.agents.getAgents();
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test.fail(
+    "GET /ai/agents - Guest cannot see agents created by Owner",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      });
+      const providerId = providerData.response!.id!;
+
+      await ownerApi.agents.createAgent({
+        title: "Autotest Hidden Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+      const guestApi = apiSdk.forRole("guest");
+
+      const { status } = await guestApi.agents.getAgents();
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test("GET /ai/agents - Anonymous cannot get agents without authorization", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.agents.getAgents();
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
-  test.skip("DELETE /ai/agents/:id - User cannot delete an agent", async ({
+  test.fail("BUG 80654: DELETE /ai/agents/:id - User cannot delete an agent", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -137,7 +248,7 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
     expect(data.statusCode).toBe(403);
   });
 
-  test.skip("DELETE /ai/agents/:id - Guest cannot delete an agent", async ({
+  test.fail("BUG 80654: DELETE /ai/agents/:id - Guest cannot delete an agent", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -207,7 +318,7 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
     expect(status).toBe(401);
   });
 
-  test.skip("DELETE /ai/agents/:id - DocSpace Admin cannot delete an agent created by Owner", async ({
+  test.fail("BUG 80654: DELETE /ai/agents/:id - DocSpace Admin cannot delete an agent created by Owner", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -243,7 +354,7 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
     expect(data.statusCode).toBe(403);
   });
 
-  test.skip("DELETE /ai/agents/:id - Room Admin cannot delete an agent created by Owner", async ({
+  test.fail("BUG 80654: DELETE /ai/agents/:id - Room Admin cannot delete an agent created by Owner", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");

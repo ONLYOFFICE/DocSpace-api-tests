@@ -417,7 +417,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
   });
 
   // Incorrect answer, you need to check the code and describe the bug if there is one.
-  test.skip("Second DocSpace admin tries to terminate user type update started by first DocSpace admin.", async ({
+  test.fail("Second DocSpace admin tries to terminate user type update started by first DocSpace admin.", async ({
     apiSdk,
   }) => {
     const { data: roomAdminData } = await apiSdk.addMember(

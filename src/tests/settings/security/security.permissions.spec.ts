@@ -4,7 +4,7 @@ import { test } from "@/src/fixtures/index";
 const PRODUCT_ID_ALL = "00000000-0000-0000-0000-000000000000";
 
 test.describe("PUT /settings/security/administrator - access control", () => {
-  test.skip("PUT /settings/security/administrator - DocSpace admin cannot demote another DocSpace admin", async ({
+  test.fail("PUT /settings/security/administrator - DocSpace admin cannot demote another DocSpace admin", async ({
     apiSdk,
     paymentsApi,
   }) => {
