@@ -492,7 +492,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
   });
 
   // Bug 80574: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
-  test.skip("GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
+  test.fail("GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
     apiSdk,
   }) => {
     const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
@@ -508,7 +508,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
   });
 
   // Bug 80574: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
-  test.skip("GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
+  test.fail("GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
     apiSdk,
   }) => {
     const { api: userApi } = await apiSdk.addAuthenticatedMember(
@@ -524,7 +524,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
   });
 
   // Bug 80574: getBackupsServiceState returns 200 for RoomAdmin/User/Guest instead of 403
-  test.skip("GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
+  test.fail("GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
     apiSdk,
   }) => {
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(
@@ -612,7 +612,7 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
   });
 
   // Bug XXXXX: deleteBackup returns 500 instead of 402/404 for non-existent backup ID
-  test.skip("DELETE /api/2.0/backup/deletebackup - Delete backup without paid plan", async ({
+  test.fail("DELETE /api/2.0/backup/deletebackup - Delete backup without paid plan", async ({
     apiSdk,
   }) => {
     test.skip(
@@ -631,7 +631,7 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
   });
 
   // Bug XXXXX: deleteBackup returns 500 instead of 404 for non-existent backup ID
-  test.skip("DELETE /api/2.0/backup/deletebackup - Delete non-existent backup", async ({
+  test.fail("DELETE /api/2.0/backup/deletebackup - Delete non-existent backup", async ({
     apiSdk,
     paymentsApi,
   }) => {

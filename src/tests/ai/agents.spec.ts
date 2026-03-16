@@ -121,7 +121,7 @@ test.describe("POST /ai/agents - Room Admin creates AI agent", () => {
 });
 
 test.describe("POST /ai/agents - Create AI agent with invalid modelId", () => {
-  test.skip("BUG 80650: POST /ai/agents - Missing validation for modelId parameter", async ({
+  test.fail("BUG 80650: POST /ai/agents - Missing validation for modelId parameter", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -174,6 +174,103 @@ test.describe("POST /ai/agents - Create AI agent with invalid modelId", () => {
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
+  });
+});
+
+test.describe("GET /ai/agents - Get AI agents", () => {
+  test("GET /ai/agents - Owner creates an agent and verifies it in agent list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+    const ownerDisplayName = ownerProfile.response!.displayName!;
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Get Agents",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const { data, status } = await ownerApi.agents.getAgents();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+
+    const agent = (data.response?.folders as any[])?.find(
+      (f: any) => f.id === agentId,
+    );
+    expect(agent).toBeDefined();
+    expect(agent.logo.color).toBe("FF5733");
+    expect(agent.logo.cover.id).toBe("layers");
+    expect(agent.chatSettings.modelId).toBe(aiProviders.openAi.modelId);
+    expect(agent.id).toBe(agentId);
+    expect(agent.ownedBy.id).toBe(ownerId);
+    expect(agent.ownedBy.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /ai/agents - DocSpace Admin sees an agent created by Owner", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+    const ownerDisplayName = ownerProfile.response!.displayName!;
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Get Agents Admin",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data, status } = await adminApi.agents.getAgents();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+
+    const agent = (data.response?.folders as any[])?.find(
+      (f: any) => f.id === agentId,
+    );
+    expect(agent).toBeDefined();
+    expect(agent.logo.color).toBe("FF5733");
+    expect(agent.logo.cover.id).toBe("layers");
+    expect(agent.chatSettings.modelId).toBe(aiProviders.openAi.modelId);
+    expect(agent.id).toBe(agentId);
+    expect(agent.ownedBy.id).toBe(ownerId);
+    expect(agent.ownedBy.displayName).toBe(ownerDisplayName);
   });
 });
 

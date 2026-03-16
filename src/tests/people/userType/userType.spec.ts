@@ -252,7 +252,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
   });
 
   // Incorrect answer, you need to check the code and describe the bug if there is one.
-  test.skip("DocSpace admin terminates user type update started by Owner", async ({
+  test.fail("DocSpace admin terminates user type update started by Owner", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");

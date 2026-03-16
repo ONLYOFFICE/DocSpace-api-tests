@@ -194,7 +194,7 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
     expect(operation.error).toBe("");
   });
 
-  test.skip("DocSpaceAdmin can delete a room", async ({ apiSdk }) => {
+  test.fail("DocSpaceAdmin can delete a room", async ({ apiSdk }) => {
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "DocSpaceAdmin",
@@ -215,7 +215,7 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
     expect(operation.error).toBe("");
   });
 
-  test.skip("User cannot delete a room", async ({ apiSdk }) => {
+  test.fail("User cannot delete a room", async ({ apiSdk }) => {
     const { api: userApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "User",
@@ -239,7 +239,7 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
     );
   });
 
-  test.skip("Guest cannot delete a room", async ({ apiSdk }) => {
+  test.fail("Guest cannot delete a room", async ({ apiSdk }) => {
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "Guest",

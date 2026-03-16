@@ -217,7 +217,7 @@ test.describe("POST /portal/backup/start - Start backup", () => {
     expect(data.response!.error).toBeFalsy();
   });
 
-  test.skip("Owner creates backup to Custom cloud storage", async ({
+  test.fail("Owner creates backup to Custom cloud storage", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -237,7 +237,7 @@ test.describe("POST /portal/backup/start - Start backup", () => {
     expect(data.response!.error).toBeFalsy();
   });
 
-  test.skip("DocSpaceAdmin creates backup to Custom cloud storage", async ({
+  test.fail("DocSpaceAdmin creates backup to Custom cloud storage", async ({
     apiSdk,
     paymentsApi,
   }) => {
