@@ -1,486 +1,81 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { ProviderType } from "@onlyoffice/docspace-api-sdk";
-import config from "@/config";
+import { aiProviders } from "@/src/helpers/ai-providers";
 
 test.describe("POST /ai/agents - User cannot create AI agent", () => {
-  test("POST /ai/agents - User cannot create an agent with OpenAI provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+  for (const [key, provider] of Object.entries(aiProviders)) {
+    test(`POST /ai/agents - User cannot create an agent with ${provider.title} provider`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.OpenAi,
-      title: "OpenAI",
-      key: config.OPENAI_API_KEY,
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      });
+      const providerId = providerData.response!.id!;
+
+      await apiSdk.addAuthenticatedMember("owner", "User");
+      const userApi = apiSdk.forRole("user");
+
+      const { data, status } = await userApi.agents.createAgent({
+        title: `Autotest ${provider.title} Agent`,
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest", key],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: `You are a test assistant powered by ${provider.title}`,
+        },
+      });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have enough permission to create",
+      );
     });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.createAgent({
-      title: "Autotest OpenAI Agent",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest", "openai"],
-      chatSettings: {
-        providerId,
-        modelId: "gpt-5.2-2025-12-11",
-        prompt: "You are a test assistant powered by OpenAI",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - User cannot create an agent with Anthropic provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.Anthropic,
-      title: "Anthropic",
-      key: config.ANTHROPIC_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.createAgent({
-      title: "Autotest Anthropic Agent",
-      color: "D4A574",
-      cover: "layers",
-      tags: ["autotest", "anthropic"],
-      chatSettings: {
-        providerId,
-        modelId: "claude-opus-4-5-20251101",
-        prompt: "You are a test assistant powered by Anthropic",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - User cannot create an agent with DeepSeek provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.DeepSeek,
-      title: "DeepSeek",
-      key: config.DEEPSEEK_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.createAgent({
-      title: "Autotest DeepSeek Agent",
-      color: "4A90D9",
-      cover: "layers",
-      tags: ["autotest", "deepseek"],
-      chatSettings: {
-        providerId,
-        modelId: "deepseek-chat",
-        prompt: "You are a test assistant powered by DeepSeek",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - User cannot create an agent with xAI provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.XAi,
-      title: "xAI",
-      key: config.XAI_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.createAgent({
-      title: "Autotest xAI Agent",
-      color: "1A1A2E",
-      cover: "layers",
-      tags: ["autotest", "xai"],
-      chatSettings: {
-        providerId,
-        modelId: "grok-4-1-fast-reasoning",
-        prompt: "You are a test assistant powered by xAI",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - User cannot create an agent with Google AI provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.GoogleAi,
-      title: "Google AI",
-      key: config.GOOGLE_AI_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.createAgent({
-      title: "Autotest Google AI Agent",
-      color: "34A853",
-      cover: "layers",
-      tags: ["autotest", "google"],
-      chatSettings: {
-        providerId,
-        modelId: "models/gemini-3-pro-preview",
-        prompt: "You are a test assistant powered by Google AI",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - User cannot create an agent with OpenRouter provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.OpenRouter,
-      title: "OpenRouter",
-      key: config.OPENROUTER_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.createAgent({
-      title: "Autotest OpenRouter Agent",
-      color: "6C5CE7",
-      cover: "layers",
-      tags: ["autotest", "openrouter"],
-      chatSettings: {
-        providerId,
-        modelId: "openai/gpt-5.2",
-        prompt: "You are a test assistant powered by OpenRouter",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - User cannot create an agent with Together AI provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.TogetherAi,
-      title: "Together AI",
-      key: config.TOGETHER_AI_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.createAgent({
-      title: "Autotest Together AI Agent",
-      color: "E17055",
-      cover: "layers",
-      tags: ["autotest", "togetherai"],
-      chatSettings: {
-        providerId,
-        modelId: "deepseek-ai/DeepSeek-V3.1",
-        prompt: "You are a test assistant powered by Together AI",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
+  }
 });
 
 test.describe("POST /ai/agents - Guest cannot create AI agent", () => {
-  test("POST /ai/agents - Guest cannot create an agent with OpenAI provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+  for (const [key, provider] of Object.entries(aiProviders)) {
+    test(`POST /ai/agents - Guest cannot create an agent with ${provider.title} provider`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.OpenAi,
-      title: "OpenAI",
-      key: config.OPENAI_API_KEY,
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      });
+      const providerId = providerData.response!.id!;
+
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+      const guestApi = apiSdk.forRole("guest");
+
+      const { data, status } = await guestApi.agents.createAgent({
+        title: `Autotest ${provider.title} Agent`,
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest", key],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: `You are a test assistant powered by ${provider.title}`,
+        },
+      });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have enough permission to create",
+      );
     });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.createAgent({
-      title: "Autotest OpenAI Agent",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest", "openai"],
-      chatSettings: {
-        providerId,
-        modelId: "gpt-5.2-2025-12-11",
-        prompt: "You are a test assistant powered by OpenAI",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - Guest cannot create an agent with Anthropic provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.Anthropic,
-      title: "Anthropic",
-      key: config.ANTHROPIC_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.createAgent({
-      title: "Autotest Anthropic Agent",
-      color: "D4A574",
-      cover: "layers",
-      tags: ["autotest", "anthropic"],
-      chatSettings: {
-        providerId,
-        modelId: "claude-opus-4-5-20251101",
-        prompt: "You are a test assistant powered by Anthropic",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - Guest cannot create an agent with DeepSeek provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.DeepSeek,
-      title: "DeepSeek",
-      key: config.DEEPSEEK_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.createAgent({
-      title: "Autotest DeepSeek Agent",
-      color: "4A90D9",
-      cover: "layers",
-      tags: ["autotest", "deepseek"],
-      chatSettings: {
-        providerId,
-        modelId: "deepseek-chat",
-        prompt: "You are a test assistant powered by DeepSeek",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - Guest cannot create an agent with xAI provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.XAi,
-      title: "xAI",
-      key: config.XAI_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.createAgent({
-      title: "Autotest xAI Agent",
-      color: "1A1A2E",
-      cover: "layers",
-      tags: ["autotest", "xai"],
-      chatSettings: {
-        providerId,
-        modelId: "grok-4-1-fast-reasoning",
-        prompt: "You are a test assistant powered by xAI",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - Guest cannot create an agent with Google AI provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.GoogleAi,
-      title: "Google AI",
-      key: config.GOOGLE_AI_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.createAgent({
-      title: "Autotest Google AI Agent",
-      color: "34A853",
-      cover: "layers",
-      tags: ["autotest", "google"],
-      chatSettings: {
-        providerId,
-        modelId: "models/gemini-3-pro-preview",
-        prompt: "You are a test assistant powered by Google AI",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - Guest cannot create an agent with OpenRouter provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.OpenRouter,
-      title: "OpenRouter",
-      key: config.OPENROUTER_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.createAgent({
-      title: "Autotest OpenRouter Agent",
-      color: "6C5CE7",
-      cover: "layers",
-      tags: ["autotest", "openrouter"],
-      chatSettings: {
-        providerId,
-        modelId: "openai/gpt-5.2",
-        prompt: "You are a test assistant powered by OpenRouter",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-
-  test("POST /ai/agents - Guest cannot create an agent with Together AI provider", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: ProviderType.TogetherAi,
-      title: "Together AI",
-      key: config.TOGETHER_AI_API_KEY,
-    });
-    const providerId = providerData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.createAgent({
-      title: "Autotest Together AI Agent",
-      color: "E17055",
-      cover: "layers",
-      tags: ["autotest", "togetherai"],
-      chatSettings: {
-        providerId,
-        modelId: "deepseek-ai/DeepSeek-V3.1",
-        prompt: "You are a test assistant powered by Together AI",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
+  }
 });
 
 test.describe("POST /ai/agents - Anonymous cannot create AI agent", () => {
@@ -496,11 +91,191 @@ test.describe("POST /ai/agents - Anonymous cannot create AI agent", () => {
       tags: ["autotest"],
       chatSettings: {
         providerId: 1,
-        modelId: "gpt-5.2-2025-12-11",
+        modelId: aiProviders.openAi.modelId,
         prompt: "You are a test assistant",
       },
     });
 
     expect(status).toBe(401);
+  });
+});
+
+test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
+  test.skip("DELETE /ai/agents/:id - User cannot delete an agent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent to Delete",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const userApi = apiSdk.forRole("user");
+
+    const { data, status } = await userApi.agents.deleteAgent(agentId, {
+      deleteAfter: false,
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test.skip("DELETE /ai/agents/:id - Guest cannot delete an agent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent to Delete",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestApi = apiSdk.forRole("guest");
+
+    const { data, status } = await guestApi.agents.deleteAgent(agentId, {
+      deleteAfter: false,
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("DELETE /ai/agents/:id - Anonymous cannot delete an agent without authorization", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent to Delete",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.agents.deleteAgent(agentId, {
+      deleteAfter: false,
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test.skip("DELETE /ai/agents/:id - DocSpace Admin cannot delete an agent created by Owner", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent to Delete",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data, status } = await adminApi.agents.deleteAgent(agentId, {
+      deleteAfter: false,
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test.skip("DELETE /ai/agents/:id - Room Admin cannot delete an agent created by Owner", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent to Delete",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data, status } = await roomAdminApi.agents.deleteAgent(agentId, {
+      deleteAfter: false,
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
   });
 });
