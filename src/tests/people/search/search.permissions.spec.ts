@@ -1,6 +1,10 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType, FileShare, EmployeeStatus } from "@onlyoffice/docspace-api-sdk";
+import {
+  RoomType,
+  FileShare,
+  EmployeeStatus,
+} from "@onlyoffice/docspace-api-sdk";
 
 test.describe("GET /accounts/file/:id/search - Permissions", () => {
   test("GET /accounts/file/:id/search - User cannot search accounts for file", async ({
@@ -860,7 +864,10 @@ test.describe("GET /people/status/:status/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: userData } = await apiSdk.addAuthenticatedMember("owner", "User");
+    const { data: userData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
     const userId = userData.response!.id!;
     const userEmail = userData.response!.email!;
     const userApi = apiSdk.forRole("user");
@@ -877,11 +884,10 @@ test.describe("GET /people/status/:status/search - Permissions", () => {
       userIds: [userId],
     });
 
-    const { data, status } =
-      await userApi.peopleSearch.searchUsersByStatus(
-        EmployeeStatus.Terminated,
-        userEmail,
-      );
+    const { data, status } = await userApi.peopleSearch.searchUsersByStatus(
+      EmployeeStatus.Terminated,
+      userEmail,
+    );
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -910,11 +916,10 @@ test.describe("GET /people/status/:status/search - Permissions", () => {
       userIds: [userId],
     });
 
-    const { data, status } =
-      await guestApi.peopleSearch.searchUsersByStatus(
-        EmployeeStatus.Terminated,
-        userEmail,
-      );
+    const { data, status } = await guestApi.peopleSearch.searchUsersByStatus(
+      EmployeeStatus.Terminated,
+      userEmail,
+    );
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });

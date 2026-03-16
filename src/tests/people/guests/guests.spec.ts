@@ -63,7 +63,8 @@ test.describe("DELETE /people/guests - Delete guests", () => {
     expect(body.statusCode).toBe(200);
 
     // Verify guest is no longer in the people list
-    const { data: allProfiles } = await docSpaceAdminApi.profiles.getAllProfiles();
+    const { data: allProfiles } =
+      await docSpaceAdminApi.profiles.getAllProfiles();
     const people = (allProfiles as any).response ?? [];
     const foundGuest = people.find((p: any) => p.id === guestId);
 

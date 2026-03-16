@@ -82,7 +82,7 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } =
+    const { data } =
       await adminApi.peopleSearch.getAccountsEntriesWithFilesShared(
         fileId,
         undefined,

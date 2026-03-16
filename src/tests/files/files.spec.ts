@@ -312,7 +312,10 @@ test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
   test.skip("POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder", async ({
     apiSdk,
   }) => {
-    test.skip(true, "Requires Document Server able to download files from DocSpace (DS ↔ DocSpace connectivity)");
+    test.skip(
+      true,
+      "Requires Document Server able to download files from DocSpace (DS ↔ DocSpace connectivity)",
+    );
 
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
