@@ -11,10 +11,6 @@ export class PaymentApi {
   private pKey: string;
 
   constructor(apiContext: APIRequestContext, portalSetupApi: Apisystem) {
-    if (!config.MACHINEKEY)
-      throw new Error("MACHINEKEY is not set in environment variables");
-    if (!config.PKEY)
-      throw new Error("PKEY is not set in environment variables");
     this.apiContext = apiContext;
     this.portalSetupApi = portalSetupApi;
     this.machineKey = config.MACHINEKEY;
@@ -71,6 +67,9 @@ export class PaymentApi {
   }
 
   async makePortalPayment(tenantId: string, quantity = 10) {
+    if (!this.machineKey)
+      throw new Error("MACHINEKEY is not set in environment variables");
+    if (!this.pKey) throw new Error("PKEY is not set in environment variables");
     const token = this.createToken();
     const region = process.env.AWS_REGION;
     const portalId =

@@ -32,6 +32,21 @@ DOCSPACE_OWNER_EMAIL=your-email@example.com
 DOCSPACE_OWNER_PASSWORD=your-password
 ```
 
+See `.env.example` for the full list of variables.
+
+## Running Against a Local Build
+
+Set `LOCAL_PORTAL_DOMAIN` to your local DocSpace instance (e.g. `localhost` or `192.168.1.1`):
+
+```
+LOCAL_PORTAL_DOMAIN=localhost
+```
+
+When set:
+- Tests run against the local instance
+- Tests expecting 402 (no paid plan) are skipped — local builds don't enforce payments, so these tests would always fail
+- `MACHINEKEY` and `PKEY` are not required — payment activation is a no-op on local
+
 ## Running Tests
 
 ```bash
