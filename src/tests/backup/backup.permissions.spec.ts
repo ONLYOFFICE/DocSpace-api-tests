@@ -7,6 +7,72 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
 
+test.describe("POST /api/2.0/backup/cancelbackup - access control", () => {
+  test("POST /api/2.0/backup/cancelbackup - Cancel backup without authorization", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.backup.cancelBackup();
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/backup/cancelbackup - RoomAdmin cancels backup", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.backup.cancelBackup();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/backup/cancelbackup - User cancels backup", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.backup.cancelBackup();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/backup/cancelbackup - Guest cancels backup", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.backup.cancelBackup();
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
+
 test.describe("POST /portal/backup/start - access control", () => {
   test("POST /portal/backup/start - Start backup without authorization", async ({
     apiSdk,
@@ -495,50 +561,54 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect(status).toBe(401);
   });
 
-  test.fail("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
-    apiSdk,
-  }) => {
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "RoomAdmin",
-    );
+  test.fail(
+    "BUG 80574: GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state",
+    async ({ apiSdk }) => {
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
 
-    const { data, status } = await roomAdminApi.backup.getBackupsServiceState();
+      const { data, status } =
+        await roomAdminApi.backup.getBackupsServiceState();
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
 
-  test.fail("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
-    apiSdk,
-  }) => {
-    const { api: userApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
+  test.fail(
+    "BUG 80574: GET /api/2.0/backup/getbackupsservicestate - User gets service state",
+    async ({ apiSdk }) => {
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
 
-    const { data, status } = await userApi.backup.getBackupsServiceState();
+      const { data, status } = await userApi.backup.getBackupsServiceState();
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
 
-  test.fail("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
-    apiSdk,
-  }) => {
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
+  test.fail(
+    "BUG 80574: GET /api/2.0/backup/getbackupsservicestate - Guest gets service state",
+    async ({ apiSdk }) => {
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
 
-    const { data, status } = await guestApi.backup.getBackupsServiceState();
+      const { data, status } = await guestApi.backup.getBackupsServiceState();
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
 });
 
 // Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.
@@ -612,41 +682,42 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
     expect(status).toBe(401);
   });
 
-  test.fail("BUG 80608: DELETE /api/2.0/backup/deletebackup - Delete backup without paid plan", async ({
-    apiSdk,
-  }) => {
-    test.fail(
-      !!config.LOCAL_PORTAL_DOMAIN,
-      "Payment checks are not enforced on local instances",
-    );
-    const ownerApi = apiSdk.forRole("owner");
+  test.fail(
+    "BUG 80608: DELETE /api/2.0/backup/deletebackup - Delete backup without paid plan",
+    async ({ apiSdk }) => {
+      test.fail(
+        !!config.LOCAL_PORTAL_DOMAIN,
+        "Payment checks are not enforced on local instances",
+      );
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.backup.deleteBackup(
-      "00000000-0000-0000-0000-000000000000",
-    );
+      const { data, status } = await ownerApi.backup.deleteBackup(
+        "00000000-0000-0000-0000-000000000000",
+      );
 
-    expect(status).toBe(402);
-    expect(data.statusCode).toBe(402);
-    expect((data as any).error.message).toBe(
-      "Your pricing plan does not support this option",
-    );
-  });
+      expect(status).toBe(402);
+      expect(data.statusCode).toBe(402);
+      expect((data as any).error.message).toBe(
+        "Your pricing plan does not support this option",
+      );
+    },
+  );
 
-  test.fail("BUG 80605: DELETE /api/2.0/backup/deletebackup - Delete non-existent backup", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
+  test.fail(
+    "BUG 80605: DELETE /api/2.0/backup/deletebackup - Delete non-existent backup",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.backup.deleteBackup(
-      "00000000-0000-0000-0000-000000000000",
-    );
+      const { data, status } = await ownerApi.backup.deleteBackup(
+        "00000000-0000-0000-0000-000000000000",
+      );
 
-    expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
-    expect((data as any).error).toBeDefined();
-  });
+      expect(status).toBe(404);
+      expect(data.statusCode).toBe(404);
+      expect((data as any).error).toBeDefined();
+    },
+  );
 
   test("DELETE /api/2.0/backup/deletebackup - RoomAdmin deletes backup", async ({
     apiSdk,
@@ -803,6 +874,68 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
+});
+
+// Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.
+test.describe("GET /api/2.0/backup/getrestoreprogress - access control", () => {
+  test.fail(
+    "BUG 79676: GET /api/2.0/backup/getrestoreprogress - Get restore progress without authorization",
+    async ({ apiSdk }) => {
+      const anonApi = apiSdk.forAnonymous();
+
+      const { status } = await anonApi.backup.getRestoreProgress();
+
+      expect(status).toBe(401);
+    },
+  );
+
+  test.fail(
+    "BUG 79676: GET /api/2.0/backup/getrestoreprogress - RoomAdmin gets restore progress",
+    async ({ apiSdk }) => {
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+
+      const { data, status } = await roomAdminApi.backup.getRestoreProgress();
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG 79676: GET /api/2.0/backup/getrestoreprogress - User gets restore progress",
+    async ({ apiSdk }) => {
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+
+      const { data, status } = await userApi.backup.getRestoreProgress();
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG 79676: GET /api/2.0/backup/getrestoreprogress - Guest gets restore progress",
+    async ({ apiSdk }) => {
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
+
+      const { data, status } = await guestApi.backup.getRestoreProgress();
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
 });
 
 // Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.

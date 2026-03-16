@@ -217,31 +217,84 @@ test.describe("POST /portal/backup/start - Start backup", () => {
     expect(data.response!.error).toBeFalsy();
   });
 
-  test.fail("Owner creates backup to Custom cloud storage", async ({
+  test.fail(
+    "Owner creates backup to Custom cloud storage",
+    async ({ apiSdk, paymentsApi }) => {
+      // Requires cloud storage credentials (e.g. AWS S3, Azure Blob, GCS) configured in the environment
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.CustomCloud,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
+    },
+  );
+
+  test.fail(
+    "DocSpaceAdmin creates backup to Custom cloud storage",
+    async ({ apiSdk, paymentsApi }) => {
+      // Requires cloud storage credentials (e.g. AWS S3, Azure Blob, GCS) configured in the environment
+      await paymentsApi.setupPayment();
+
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data, status } = await adminApi.backup.startBackup({
+        storageType: BackupStorageType.CustomCloud,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
+    },
+  );
+});
+
+test.describe("POST /api/2.0/backup/cancelbackup - Cancel backup", () => {
+  test("Owner cancels backup while backup is in progress", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Requires cloud storage credentials (e.g. AWS S3, Azure Blob, GCS) configured in the environment
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.CustomCloud,
+    await test.step("POST startbackup - start backup", async () => {
+      await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
     });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
+    await test.step("POST cancelbackup - cancel backup", async () => {
+      const { data, status } = await ownerApi.backup.cancelBackup();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    await test.step("GET getbackupprogress - verify backup was canceled", async () => {
+      const { data } = await ownerApi.backup.getBackupProgress();
+
+      expect(data.response!.status).toBe(DistributedTaskStatus.Canceled);
+    });
   });
 
-  test.fail("DocSpaceAdmin creates backup to Custom cloud storage", async ({
+  test("DocSpaceAdmin cancels backup while backup is in progress", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Requires cloud storage credentials (e.g. AWS S3, Azure Blob, GCS) configured in the environment
     await paymentsApi.setupPayment();
 
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
@@ -249,16 +302,25 @@ test.describe("POST /portal/backup/start - Start backup", () => {
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.backup.startBackup({
-      storageType: BackupStorageType.CustomCloud,
+    await test.step("POST startbackup - start backup", async () => {
+      await adminApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
     });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
+    await test.step("POST cancelbackup - cancel backup", async () => {
+      const { data, status } = await adminApi.backup.cancelBackup();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    await test.step("GET getbackupprogress - verify backup was canceled", async () => {
+      const { data } = await adminApi.backup.getBackupProgress();
+
+      expect(data.response!.status).toBe(DistributedTaskStatus.Canceled);
+    });
   });
 });
 
@@ -1030,6 +1092,43 @@ test.describe("DELETE /api/2.0/backup/deletebackuphistory - Delete backup histor
       expect(data.response).toEqual([]);
       expect(data.count).toBe(0);
     });
+  });
+});
+
+// Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.
+test.describe("GET /api/2.0/backup/getrestoreprogress - Get restore progress", () => {
+  test("Owner gets restore progress when no restore has been started", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.backup.getRestoreProgress();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.count).toBe(0);
+    expect(data.response).toBeUndefined();
+  });
+
+  test("DocSpaceAdmin gets restore progress when no restore has been started", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.backup.getRestoreProgress();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.count).toBe(0);
+    expect(data.response).toBeUndefined();
   });
 });
 
