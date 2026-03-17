@@ -498,7 +498,534 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
       expect(data.statusCode).toBe(403);
     },
   );
+});
 
+test.describe("GET /ai/agents/news - Get AI agents new items access control", () => {
+  test("GET /ai/agents/news - Anonymous cannot get agents new items without authorization", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.agents.getAgentsNewItems();
+
+    expect(status).toBe(401);
+  });
+});
+
+const QUOTA_MINIMAL_BYTES = 104857600; // 100 MB
+const DEFAULT_QUOTA_AGENT_BYTES = 524288000; // 500 MB
+
+test.describe("PUT /ai/agents/agentquota - access control", () => {
+  test("PUT /ai/agents/agentquota - Room Admin cannot change agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data, status } = await roomAdminApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to rename the folder",
+    );
+  });
+
+  test("PUT /ai/agents/agentquota - User cannot change agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const userApi = apiSdk.forRole("user");
+
+    const { data, status } = await userApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to rename the folder",
+    );
+  });
+
+  test("PUT /ai/agents/agentquota - Guest cannot change agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestApi = apiSdk.forRole("guest");
+
+    const { data, status } = await guestApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to rename the folder",
+    );
+  });
+
+  test("PUT /ai/agents/agentquota - DocSpace Admin cannot change agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data, status } = await adminApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to rename the folder",
+    );
+  });
+
+  test("PUT /ai/agents/agentquota - Anonymous cannot change agent quota limit without authorization", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /ai/agents/agentquota - Owner changes agent quota limit to a value higher than the total storage size", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Quota Oversize",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const OVER_SIZE_BYTES = 999999999999999; // exceeds total storage
+
+    const { data } = await ownerApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: OVER_SIZE_BYTES,
+    });
+    console.log(data);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe(
+      "Failed to set quota per room. The entered value is greater than the total DocSpace storage.",
+    );
+  });
+});
+
+test.describe("PUT /ai/agents/resetagentquota - access control", () => {
+  test("PUT /ai/agents/resetagentquota - Room Admin cannot reset agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Reset Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await ownerApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data, status } = await roomAdminApi.agents.resetAgentsQuota({
+      roomIds: [agentId] as any,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to rename the folder",
+    );
+  });
+
+  test("PUT /ai/agents/resetagentquota - User cannot reset agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Reset Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await ownerApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const userApi = apiSdk.forRole("user");
+
+    const { data, status } = await userApi.agents.resetAgentsQuota({
+      roomIds: [agentId] as any,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to rename the folder",
+    );
+  });
+
+  test("PUT /ai/agents/resetagentquota - Guest cannot reset agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Reset Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await ownerApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestApi = apiSdk.forRole("guest");
+
+    const { data, status } = await guestApi.agents.resetAgentsQuota({
+      roomIds: [agentId] as any,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to rename the folder",
+    );
+  });
+
+  test("PUT /ai/agents/resetagentquota - DocSpace Admin cannot reset agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Reset Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await ownerApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data, status } = await adminApi.agents.resetAgentsQuota({
+      roomIds: [agentId] as any,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to rename the folder",
+    );
+  });
+
+  test("PUT /ai/agents/resetagentquota - Anonymous cannot reset agent quota limit without authorization", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      enableQuota: true,
+      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent Reset Quota Perm",
+      color: "FF5733",
+      cover: "layers",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    await ownerApi.agents.updateAgentsQuota({
+      roomIds: [agentId] as any,
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.agents.resetAgentsQuota({
+      roomIds: [agentId] as any,
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued)", () => {
   test.fail(
     "BUG 80654: DELETE /ai/agents/:id - Room Admin cannot delete an agent created by Owner",
     async ({ apiSdk }) => {
