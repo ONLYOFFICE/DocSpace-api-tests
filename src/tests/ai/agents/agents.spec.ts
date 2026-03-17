@@ -1177,7 +1177,7 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
   });
 
   test.fail(
-    "BUG: PUT /ai/agents/agentquota - Room Admin changes own agent quota limit",
+    "BUG 80674: PUT /ai/agents/agentquota - Room Admin changes own agent quota limit",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       const ownerApi = apiSdk.forRole("owner");
@@ -1388,7 +1388,7 @@ test.describe("PUT /ai/agents/resetagentquota - Reset AI agent quota", () => {
   });
 
   test.fail(
-    "BUG: PUT /ai/agents/resetagentquota - Room Admin resets own agent quota limit",
+    "BUG 80674: PUT /ai/agents/resetagentquota - Room Admin resets own agent quota limit",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       const ownerApi = apiSdk.forRole("owner");
@@ -1437,4 +1437,162 @@ test.describe("PUT /ai/agents/resetagentquota - Reset AI agent quota", () => {
       expect((data.response as any)[0].isCustomQuota).toBe(false);
     },
   );
+});
+
+test.describe("PUT /ai/agents/:id - Update AI agent", () => {
+  test("PUT /ai/agents/:id - Owner updates agent name, tag, provider and prompt", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: provider1Data } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const provider1Id = provider1Data.response!.id!;
+
+    const { data: provider2Data } = await ownerApi.providers.addProvider({
+      type: aiProviders.anthropic.type,
+      title: aiProviders.anthropic.title,
+      key: aiProviders.anthropic.key,
+    });
+    const provider2Id = provider2Data.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Original Agent",
+      tags: ["original-tag"],
+      chatSettings: {
+        providerId: provider1Id,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "Original prompt",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const { data, status } = await ownerApi.agents.updateAgent(agentId, {
+      title: "Updated Agent",
+      tags: ["updated-tag"],
+      chatSettings: {
+        providerId: provider2Id,
+        modelId: aiProviders.anthropic.modelId,
+        prompt: "Updated prompt",
+      },
+    });
+    console.log(data);
+    expect(status).toBe(200);
+    expect(data.response?.title).toBe("Updated Agent");
+    expect(data.response?.tags).toContain("updated-tag");
+    expect(data.response?.tags).not.toContain("original-tag");
+    expect(data.response?.chatSettings?.modelId).toBe(
+      aiProviders.anthropic.modelId,
+    );
+    expect(data.response?.chatSettings?.prompt).toBe("Updated prompt");
+  });
+
+  test("PUT /ai/agents/:id - DocSpace Admin updates agent name, tag, provider and prompt", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: provider1Data } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const provider1Id = provider1Data.response!.id!;
+
+    const { data: provider2Data } = await ownerApi.providers.addProvider({
+      type: aiProviders.anthropic.type,
+      title: aiProviders.anthropic.title,
+      key: aiProviders.anthropic.key,
+    });
+    const provider2Id = provider2Data.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data: agentData } = await adminApi.agents.createAgent({
+      title: "Original Agent",
+      tags: ["original-tag"],
+      chatSettings: {
+        providerId: provider1Id,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "Original prompt",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const { data, status } = await adminApi.agents.updateAgent(agentId, {
+      title: "Updated Agent",
+      tags: ["updated-tag"],
+      chatSettings: {
+        providerId: provider2Id,
+        modelId: aiProviders.anthropic.modelId,
+        prompt: "Updated prompt",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.title).toBe("Updated Agent");
+    expect(data.response?.tags).toContain("updated-tag");
+    expect(data.response?.tags).not.toContain("original-tag");
+    expect(data.response?.chatSettings?.modelId).toBe(
+      aiProviders.anthropic.modelId,
+    );
+    expect(data.response?.chatSettings?.prompt).toBe("Updated prompt");
+  });
+
+  test("PUT /ai/agents/:id - Room Admin updates agent name, tag, provider and prompt", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: provider1Data } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const provider1Id = provider1Data.response!.id!;
+
+    const { data: provider2Data } = await ownerApi.providers.addProvider({
+      type: aiProviders.anthropic.type,
+      title: aiProviders.anthropic.title,
+      key: aiProviders.anthropic.key,
+    });
+    const provider2Id = provider2Data.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data: agentData } = await roomAdminApi.agents.createAgent({
+      title: "Original Agent",
+      tags: ["original-tag"],
+      chatSettings: {
+        providerId: provider1Id,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "Original prompt",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const { data, status } = await roomAdminApi.agents.updateAgent(agentId, {
+      title: "Updated Agent",
+      tags: ["updated-tag"],
+      chatSettings: {
+        providerId: provider2Id,
+        modelId: aiProviders.anthropic.modelId,
+        prompt: "Updated prompt",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.title).toBe("Updated Agent");
+    expect(data.response?.tags).toContain("updated-tag");
+    expect(data.response?.tags).not.toContain("original-tag");
+    expect(data.response?.chatSettings?.modelId).toBe(
+      aiProviders.anthropic.modelId,
+    );
+    expect(data.response?.chatSettings?.prompt).toBe("Updated prompt");
+  });
 });

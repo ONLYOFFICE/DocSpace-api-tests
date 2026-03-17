@@ -51,7 +51,7 @@ export function createPlaywrightAdapter(request: APIRequestContext) {
 
     const playwrightResponse = await request.fetch(url, {
       method,
-      headers,
+      headers: { ...headers, Cookie: "" },
       ...(multipart !== undefined ? { multipart } : {}),
       ...(data !== undefined ? { data } : {}),
     });
