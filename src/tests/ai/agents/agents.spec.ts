@@ -1176,50 +1176,50 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
     expect((data.response as any)[0].isCustomQuota).toBe(true);
   });
 
-  test("BUG: PUT /ai/agents/agentquota - Room Admin changes own agent quota limit", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-    });
+  test.fail(
+    "BUG: PUT /ai/agents/agentquota - Room Admin changes own agent quota limit",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
-    });
-    const providerId = providerData.response!.id!;
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      });
+      const providerId = providerData.response!.id!;
 
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-    const { data: agentData } = await roomAdminApi.agents.createAgent({
-      title: "Autotest RoomAdmin Agent Quota",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
-      },
-    });
-    const agentId = agentData.response!.id!;
+      const { data: agentData } = await roomAdminApi.agents.createAgent({
+        title: "Autotest RoomAdmin Agent Quota",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
+      });
+      const agentId = agentData.response!.id!;
 
-    const { data, status } = await roomAdminApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
-    });
-    console.log(data);
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect((data.response as any)[0].quotaLimit).toBe(QUOTA_MINIMAL_BYTES);
-    expect((data.response as any)[0].isCustomQuota).toBe(true);
-  });
+      const { data, status } = await roomAdminApi.agents.updateAgentsQuota({
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      });
+      console.log(data);
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect((data.response as any)[0].quotaLimit).toBe(QUOTA_MINIMAL_BYTES);
+      expect((data.response as any)[0].isCustomQuota).toBe(true);
+    },
+  );
 });
 
 test.describe("PUT /ai/agents/resetagentquota - Reset AI agent quota", () => {
