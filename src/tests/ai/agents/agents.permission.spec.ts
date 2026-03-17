@@ -516,7 +516,7 @@ const QUOTA_MINIMAL_BYTES = 104857600; // 100 MB
 const DEFAULT_QUOTA_AGENT_BYTES = 524288000; // 500 MB
 
 test.describe("PUT /ai/agents/agentquota - access control", () => {
-  test("PUT /ai/agents/agentquota - Room Admin cannot change agent quota limit", async ({
+  test("BUG : PUT /ai/agents/agentquota - Room Admin cannot change agent quota limit", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -783,7 +783,7 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
 });
 
 test.describe("PUT /ai/agents/resetagentquota - access control", () => {
-  test("PUT /ai/agents/resetagentquota - Room Admin cannot reset agent quota limit", async ({
+  test("BUG : PUT /ai/agents/resetagentquota - Room Admin cannot reset agent quota limit", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -825,7 +825,7 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
     const { data, status } = await roomAdminApi.agents.resetAgentsQuota({
       roomIds: [agentId] as any,
     });
-
+    console.log(data);
     expect(status).toBe(403);
     expect((data as any).error.message).toBe(
       "You don't have enough permission to rename the folder",
@@ -1022,6 +1022,414 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
     });
 
     expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
+  test("PUT /ai/agents/:id - Non-owner roles cannot update an agent created by Owner", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const { userData: adminUserData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { userData: roomAdminUserData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { userData: userUserData } = await apiSdk.addMember("owner", "User");
+    const { userData: guestUserData } = await apiSdk.addMember(
+      "owner",
+      "Guest",
+    );
+
+    const updateBody = {
+      title: "Updated Agent",
+      tags: ["updated-tag"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "Updated prompt",
+      },
+    };
+
+    await test.step("DocSpace Admin cannot update agent", async () => {
+      const adminApi = await apiSdk.authenticateMember(
+        adminUserData,
+        "DocSpaceAdmin",
+      );
+      const { data, status } = await adminApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
+
+    await test.step("Room Admin cannot update agent", async () => {
+      const roomAdminApi = await apiSdk.authenticateMember(
+        roomAdminUserData,
+        "RoomAdmin",
+      );
+      const { data, status } = await roomAdminApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
+
+    await test.step("User cannot update agent", async () => {
+      const userApi = await apiSdk.authenticateMember(userUserData, "User");
+      const { data, status } = await userApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
+
+    await test.step("Guest cannot update agent", async () => {
+      const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
+      const { data, status } = await guestApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
+  });
+
+  test("PUT /ai/agents/:id - Anonymous cannot update an agent without authorization", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      title: "Autotest Agent",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.agents.updateAgent(agentId, {
+      title: "Updated Agent",
+      tags: ["updated-tag"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "Updated prompt",
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /ai/agents/:id - Non-admin roles and Owner cannot update an agent created by DocSpace Admin", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data: agentData } = await adminApi.agents.createAgent({
+      title: "Autotest Agent",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const { userData: roomAdminUserData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { userData: userUserData } = await apiSdk.addMember("owner", "User");
+    const { userData: guestUserData } = await apiSdk.addMember(
+      "owner",
+      "Guest",
+    );
+
+    const updateBody = {
+      title: "Updated Agent",
+      tags: ["updated-tag"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "Updated prompt",
+      },
+    };
+
+    await test.step("Room Admin cannot update agent", async () => {
+      const roomAdminApi = await apiSdk.authenticateMember(
+        roomAdminUserData,
+        "RoomAdmin",
+      );
+      const { data, status } = await roomAdminApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
+
+    await test.step("User cannot update agent", async () => {
+      const userApi = await apiSdk.authenticateMember(userUserData, "User");
+      const { data, status } = await userApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
+
+    await test.step("Guest cannot update agent", async () => {
+      const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
+      const { data, status } = await guestApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
+  });
+
+  test("PUT /ai/agents/:id - Owner cannot update an agent created by DocSpace Admin", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data: agentData } = await adminApi.agents.createAgent({
+      title: "Autotest Agent",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const { data, status } = await ownerApi.agents.updateAgent(agentId, {
+      title: "Updated Agent",
+      tags: ["updated-tag"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "Updated prompt",
+      },
+    });
+    console.log(data);
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have permission to edit the room",
+    );
+  });
+
+  test("PUT /ai/agents/:id - Owner cannot update an agent created by Room Admin", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data: agentData } = await roomAdminApi.agents.createAgent({
+      title: "Autotest Agent",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const { data, status } = await ownerApi.agents.updateAgent(agentId, {
+      title: "Updated Agent",
+      tags: ["updated-tag"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "Updated prompt",
+      },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have permission to edit the room",
+    );
+  });
+
+  test("PUT /ai/agents/:id - Other roles cannot update an agent created by Room Admin", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      type: aiProviders.openAi.type,
+      title: aiProviders.openAi.title,
+      key: aiProviders.openAi.key,
+    });
+    const providerId = providerData.response!.id!;
+
+    const { userData: adminUserData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { userData: userUserData } = await apiSdk.addMember("owner", "User");
+    const { userData: guestUserData } = await apiSdk.addMember(
+      "owner",
+      "Guest",
+    );
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data: agentData } = await roomAdminApi.agents.createAgent({
+      title: "Autotest Agent",
+      tags: ["autotest"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "You are a test assistant",
+      },
+    });
+    const agentId = agentData.response!.id!;
+
+    const updateBody = {
+      title: "Updated Agent",
+      tags: ["updated-tag"],
+      chatSettings: {
+        providerId,
+        modelId: aiProviders.openAi.modelId,
+        prompt: "Updated prompt",
+      },
+    };
+
+    await test.step("DocSpace Admin cannot update agent", async () => {
+      const adminApi = await apiSdk.authenticateMember(
+        adminUserData,
+        "DocSpaceAdmin",
+      );
+      const { data, status } = await adminApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
+
+    await test.step("User cannot update agent", async () => {
+      const userApi = await apiSdk.authenticateMember(userUserData, "User");
+      const { data, status } = await userApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
+
+    await test.step("Guest cannot update agent", async () => {
+      const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
+      const { data, status } = await guestApi.agents.updateAgent(
+        agentId,
+        updateBody,
+      );
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe(
+        "You don't have permission to edit the room",
+      );
+    });
   });
 });
 
