@@ -516,7 +516,7 @@ const QUOTA_MINIMAL_BYTES = 104857600; // 100 MB
 const DEFAULT_QUOTA_AGENT_BYTES = 524288000; // 500 MB
 
 test.describe("PUT /ai/agents/agentquota - access control", () => {
-  test("BUG : PUT /ai/agents/agentquota - Room Admin cannot change agent quota limit", async ({
+  test("BUG 80679: PUT /ai/agents/agentquota - Room Admin cannot change agent quota limit", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -774,7 +774,7 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       roomIds: [agentId] as any,
       quota: OVER_SIZE_BYTES,
     });
-    console.log(data);
+
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe(
       "Failed to set quota per room. The entered value is greater than the total DocSpace storage.",
@@ -783,7 +783,7 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
 });
 
 test.describe("PUT /ai/agents/resetagentquota - access control", () => {
-  test("BUG : PUT /ai/agents/resetagentquota - Room Admin cannot reset agent quota limit", async ({
+  test("BUG 80680: PUT /ai/agents/resetagentquota - Room Admin cannot reset agent quota limit", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -825,7 +825,7 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
     const { data, status } = await roomAdminApi.agents.resetAgentsQuota({
       roomIds: [agentId] as any,
     });
-    console.log(data);
+
     expect(status).toBe(403);
     expect((data as any).error.message).toBe(
       "You don't have enough permission to rename the folder",
@@ -1294,7 +1294,7 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         prompt: "Updated prompt",
       },
     });
-    console.log(data);
+
     expect(status).toBe(403);
     expect((data as any).error.message).toBe(
       "You don't have permission to edit the room",

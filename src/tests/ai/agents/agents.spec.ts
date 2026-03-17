@@ -1169,7 +1169,7 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
       roomIds: [agentId] as any,
       quota: QUOTA_MINIMAL_BYTES,
     });
-    console.log(data);
+
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect((data.response as any)[0].quotaLimit).toBe(QUOTA_MINIMAL_BYTES);
@@ -1213,7 +1213,7 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
         roomIds: [agentId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       });
-      console.log(data);
+
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect((data.response as any)[0].quotaLimit).toBe(QUOTA_MINIMAL_BYTES);
@@ -1479,7 +1479,7 @@ test.describe("PUT /ai/agents/:id - Update AI agent", () => {
         prompt: "Updated prompt",
       },
     });
-    console.log(data);
+
     expect(status).toBe(200);
     expect(data.response?.title).toBe("Updated Agent");
     expect(data.response?.tags).toContain("updated-tag");
