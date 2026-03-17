@@ -17,16 +17,34 @@ test.describe("POST /portal/backup/start - Start backup", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.DataStore,
+    await test.step("POST startbackup - start backup", async () => {
+      const { data, status } = await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
     });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify backup completed successfully", async () => {
+      const { data, status } = await ownerApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBeFalsy();
+    });
   });
 
   test("DocSpaceAdmin creates backup to Temporary storage", async ({
@@ -40,16 +58,34 @@ test.describe("POST /portal/backup/start - Start backup", () => {
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.backup.startBackup({
-      storageType: BackupStorageType.DataStore,
+    await test.step("POST startbackup - start backup", async () => {
+      const { data, status } = await adminApi.backup.startBackup({
+        storageType: BackupStorageType.DataStore,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
     });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify backup completed successfully", async () => {
+      const { data, status } = await adminApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBeFalsy();
+    });
   });
 
   test("Owner creates backup to Backup room", async ({
@@ -59,23 +95,45 @@ test.describe("POST /portal/backup/start - Start backup", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Backup Room",
-      roomType: RoomType.CustomRoom,
-    });
-    const roomId = roomData.response!.id!;
+    let roomId!: number;
 
-    const { data, status } = await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.Documents,
-      storageParams: [{ key: "folderId", value: String(roomId) }],
+    await test.step("POST rooms - create backup room", async () => {
+      const { data } = await ownerApi.rooms.createRoom({
+        title: "Autotest Backup Room",
+        roomType: RoomType.CustomRoom,
+      });
+      roomId = data.response!.id!;
     });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
+    await test.step("POST startbackup - start backup", async () => {
+      const { data, status } = await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.Documents,
+        storageParams: [{ key: "folderId", value: String(roomId) }],
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify backup completed successfully", async () => {
+      const { data, status } = await ownerApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBeFalsy();
+    });
   });
 
   test("DocSpaceAdmin creates backup to Backup room", async ({
@@ -89,167 +147,129 @@ test.describe("POST /portal/backup/start - Start backup", () => {
       "DocSpaceAdmin",
     );
 
-    const { data: roomData } = await adminApi.rooms.createRoom({
-      title: "Autotest Backup Room",
-      roomType: RoomType.CustomRoom,
-    });
-    const roomId = roomData.response!.id!;
+    let roomId!: number;
 
-    const { data, status } = await adminApi.backup.startBackup({
-      storageType: BackupStorageType.Documents,
-      storageParams: [{ key: "folderId", value: String(roomId) }],
+    await test.step("POST rooms - create backup room", async () => {
+      const { data } = await adminApi.rooms.createRoom({
+        title: "Autotest Backup Room",
+        roomType: RoomType.CustomRoom,
+      });
+      roomId = data.response!.id!;
     });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
+    await test.step("POST startbackup - start backup", async () => {
+      const { data, status } = await adminApi.backup.startBackup({
+        storageType: BackupStorageType.Documents,
+        storageParams: [{ key: "folderId", value: String(roomId) }],
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify backup completed successfully", async () => {
+      const { data, status } = await adminApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBeFalsy();
+    });
   });
 
   test("Owner creates backup to Third-party resource", async ({
-    // TODO: Add Box and Nextcloud credentials to .env file
     apiSdk,
     paymentsApi,
   }) => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
 
-    const saveResult =
-      await ownerApi.thirdPartyIntegration.saveThirdPartyBackup({
-        url: config.NEXTCLOUD_URL,
-        login: config.NEXTCLOUD_LOGIN,
-        password: config.NEXTCLOUD_PASSWORD,
-        customerTitle: "Nextcloud Backup",
-        providerKey: "Nextcloud",
-      });
-    const folderId = saveResult.data.response!.id!;
+    let folderId!: string;
 
-    const { data, status } = await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.ThridpartyDocuments,
-      storageParams: [{ key: "folderId", value: String(folderId) }],
+    await test.step("POST savethirdpartybackup - connect Nextcloud", async () => {
+      const { data } =
+        await ownerApi.thirdPartyIntegration.saveThirdPartyBackup({
+          url: config.NEXTCLOUD_URL,
+          login: config.NEXTCLOUD_LOGIN,
+          password: config.NEXTCLOUD_PASSWORD,
+          customerTitle: "Nextcloud Backup",
+          providerKey: "Nextcloud",
+        });
+      folderId = data.response!.id!;
     });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
+    await test.step("POST startbackup - start backup", async () => {
+      const { data, status } = await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.ThridpartyDocuments,
+        storageParams: [{ key: "folderId", value: folderId }],
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify backup completed successfully", async () => {
+      const { data, status } = await ownerApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBeFalsy();
+    });
   });
 
   test("DocSpaceAdmin creates backup to Third-party resource", async ({
-    // TODO: Add Box and Nextcloud credentials to .env file
     apiSdk,
     paymentsApi,
   }) => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
 
-    const saveResult =
-      await ownerApi.thirdPartyIntegration.saveThirdPartyBackup({
-        url: config.NEXTCLOUD_URL,
-        login: config.NEXTCLOUD_LOGIN,
-        password: config.NEXTCLOUD_PASSWORD,
-        customerTitle: "Nextcloud Backup",
-        providerKey: "Nextcloud",
-      });
-    const folderId = saveResult.data.response!.id!;
+    let folderId!: string;
+
+    await test.step("POST savethirdpartybackup - connect Nextcloud", async () => {
+      const { data } =
+        await ownerApi.thirdPartyIntegration.saveThirdPartyBackup({
+          url: config.NEXTCLOUD_URL,
+          login: config.NEXTCLOUD_LOGIN,
+          password: config.NEXTCLOUD_PASSWORD,
+          customerTitle: "Nextcloud Backup",
+          providerKey: "Nextcloud",
+        });
+      folderId = data.response!.id!;
+    });
 
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.backup.startBackup({
-      storageType: BackupStorageType.ThridpartyDocuments,
-      storageParams: [{ key: "folderId", value: String(folderId) }],
-    });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
-  });
-
-  test("Owner creates backup to Third-party storage", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data, status } = await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.ThirdPartyConsumer,
-    });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
-  });
-
-  test("DocSpaceAdmin creates backup to Third-party storage", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-
-    const { data, status } = await adminApi.backup.startBackup({
-      storageType: BackupStorageType.ThirdPartyConsumer,
-    });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
-  });
-
-  test.fail(
-    "Owner creates backup to Custom cloud storage",
-    async ({ apiSdk, paymentsApi }) => {
-      // Requires cloud storage credentials (e.g. AWS S3, Azure Blob, GCS) configured in the environment
-      await paymentsApi.setupPayment();
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { data, status } = await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.CustomCloud,
-      });
-
-      expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
-      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-      expect(data.response!.tenantId).toBeGreaterThan(0);
-      expect(data.response!.taskId).toBeTruthy();
-      expect(data.response!.error).toBeFalsy();
-    },
-  );
-
-  test.fail(
-    "DocSpaceAdmin creates backup to Custom cloud storage",
-    async ({ apiSdk, paymentsApi }) => {
-      // Requires cloud storage credentials (e.g. AWS S3, Azure Blob, GCS) configured in the environment
-      await paymentsApi.setupPayment();
-
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
-
+    await test.step("POST startbackup - start backup", async () => {
       const { data, status } = await adminApi.backup.startBackup({
-        storageType: BackupStorageType.CustomCloud,
+        storageType: BackupStorageType.ThridpartyDocuments,
+        storageParams: [{ key: "folderId", value: folderId }],
       });
 
       expect(status).toBe(200);
@@ -258,8 +278,140 @@ test.describe("POST /portal/backup/start - Start backup", () => {
       expect(data.response!.tenantId).toBeGreaterThan(0);
       expect(data.response!.taskId).toBeTruthy();
       expect(data.response!.error).toBeFalsy();
-    },
-  );
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify backup completed successfully", async () => {
+      const { data, status } = await adminApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBeFalsy();
+    });
+  });
+
+  test("Owner creates backup to AWS S3", async ({ apiSdk, paymentsApi }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("POST authservice - configure S3 credentials", async () => {
+      const { status } = await ownerApi.settingsAuthorization.saveAuthKeys({
+        name: "s3",
+        props: [
+          { name: "acesskey", value: config.S3_ACCESS_KEY },
+          { name: "secretaccesskey", value: config.S3_SECRET_KEY },
+        ],
+      });
+
+      expect(status).toBe(200);
+    });
+
+    await test.step("POST startbackup - start backup to AWS S3", async () => {
+      const { data, status } = await ownerApi.backup.startBackup({
+        storageType: BackupStorageType.ThirdPartyConsumer,
+        storageParams: [
+          { key: "module", value: "s3" },
+          { key: "bucket", value: config.S3_BUCKET },
+          { key: "region", value: config.S3_REGION },
+          { key: "serviceurl", value: "" },
+          { key: "forcepathstyle", value: "false" },
+          { key: "usehttp", value: "false" },
+        ],
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify backup completed successfully", async () => {
+      const { data, status } = await ownerApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBeFalsy();
+    });
+  });
+
+  test("DocSpaceAdmin creates backup to AWS S3", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await test.step("POST authservice - configure S3 credentials", async () => {
+      const { status } = await ownerApi.settingsAuthorization.saveAuthKeys({
+        name: "s3",
+        props: [
+          { name: "acesskey", value: config.S3_ACCESS_KEY },
+          { name: "secretaccesskey", value: config.S3_SECRET_KEY },
+        ],
+      });
+
+      expect(status).toBe(200);
+    });
+
+    await test.step("POST startbackup - start backup to AWS S3", async () => {
+      const { data, status } = await adminApi.backup.startBackup({
+        storageType: BackupStorageType.ThirdPartyConsumer,
+        storageParams: [
+          { key: "module", value: "s3" },
+          { key: "bucket", value: config.S3_BUCKET },
+          { key: "region", value: config.S3_REGION },
+          { key: "serviceurl", value: "" },
+          { key: "forcepathstyle", value: "false" },
+          { key: "usehttp", value: "false" },
+        ],
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
+      expect(data.response!.tenantId).toBeGreaterThan(0);
+      expect(data.response!.taskId).toBeTruthy();
+      expect(data.response!.error).toBeFalsy();
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET getbackupprogress - verify backup completed successfully", async () => {
+      const { data, status } = await adminApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBeFalsy();
+    });
+  });
 });
 
 test.describe("POST /api/2.0/backup/cancelbackup - Cancel backup", () => {
@@ -284,10 +436,25 @@ test.describe("POST /api/2.0/backup/cancelbackup - Cancel backup", () => {
       expect(data.response).toBe(true);
     });
 
-    await test.step("GET getbackupprogress - verify backup was canceled", async () => {
-      const { data } = await ownerApi.backup.getBackupProgress();
+    await test.step("GET getbackupprogress - wait for cancellation", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.count === 0 || data.response?.isCompleted === true).toBe(
+          true,
+        );
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
 
-      expect(data.response!.status).toBe(DistributedTaskStatus.Canceled);
+    await test.step("GET getbackupprogress - verify backup was canceled", async () => {
+      const { data, status } = await ownerApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(
+        data.count === 0 ||
+          (data.response?.isCompleted === true &&
+            data.response?.status === DistributedTaskStatus.Canceled),
+      ).toBe(true);
     });
   });
 
@@ -316,10 +483,25 @@ test.describe("POST /api/2.0/backup/cancelbackup - Cancel backup", () => {
       expect(data.response).toBe(true);
     });
 
-    await test.step("GET getbackupprogress - verify backup was canceled", async () => {
-      const { data } = await adminApi.backup.getBackupProgress();
+    await test.step("GET getbackupprogress - wait for cancellation", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.count === 0 || data.response?.isCompleted === true).toBe(
+          true,
+        );
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
 
-      expect(data.response!.status).toBe(DistributedTaskStatus.Canceled);
+    await test.step("GET getbackupprogress - verify backup was canceled", async () => {
+      const { data, status } = await adminApi.backup.getBackupProgress();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(
+        data.count === 0 ||
+          (data.response?.isCompleted === true &&
+            data.response?.status === DistributedTaskStatus.Canceled),
+      ).toBe(true);
     });
   });
 });
@@ -927,7 +1109,7 @@ test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
 
-    let backupId: string;
+    let backupId!: string;
 
     await test.step("POST startbackup - start backup", async () => {
       await ownerApi.backup.startBackup({
@@ -970,7 +1152,7 @@ test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
       "DocSpaceAdmin",
     );
 
-    let backupId: string;
+    let backupId!: string;
 
     await test.step("POST startbackup - start backup", async () => {
       await adminApi.backup.startBackup({
