@@ -15,6 +15,7 @@ import {
   PeopleQuotaApi,
   EmailApi,
   BackupApi,
+  SettingsAuthorizationApi,
   ThirdPartyIntegrationApi,
   EmployeeFullWrapper,
   GuestsApi,
@@ -96,6 +97,11 @@ export class ApiSDK {
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
       email: new EmailApi(config, undefined, axiosInstance),
       backup: new BackupApi(config, undefined, axiosInstance),
+      settingsAuthorization: new SettingsAuthorizationApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
       thirdPartyIntegration: new ThirdPartyIntegrationApi(
         config,
         undefined,
