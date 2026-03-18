@@ -247,12 +247,14 @@ export class ApiSDK {
     return this.forRole(credentialRole);
   }
 
-  async authenticateOwner(): Promise<ReturnType<ApiSDK["forRole"]>> {
+  async authenticateOwner(
+    email?: string,
+  ): Promise<ReturnType<ApiSDK["forRole"]>> {
     const authResponse = await this.request.post(
       `${this.tokenStore.portalBaseUrl}/api/2.0/authentication`,
       {
         data: {
-          userName: config.DOCSPACE_OWNER_EMAIL,
+          userName: email ?? config.DOCSPACE_OWNER_EMAIL,
           password: config.DOCSPACE_OWNER_PASSWORD,
         },
         headers: {
