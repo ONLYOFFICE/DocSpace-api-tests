@@ -99,7 +99,10 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST rooms - create backup room", async () => {
       const { data } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: { title: "Autotest Backup Room", roomType: RoomType.CustomRoom },
+        createRoomRequestDto: {
+          title: "Autotest Backup Room",
+          roomType: RoomType.CustomRoom,
+        },
       });
       roomId = data.response!.id!;
     });
@@ -152,7 +155,10 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST rooms - create backup room", async () => {
       const { data } = await adminApi.rooms.createRoom({
-        createRoomRequestDto: { title: "Autotest Backup Room", roomType: RoomType.CustomRoom },
+        createRoomRequestDto: {
+          title: "Autotest Backup Room",
+          roomType: RoomType.CustomRoom,
+        },
       });
       roomId = data.response!.id!;
     });
@@ -598,7 +604,10 @@ test.describe("GET /api/2.0/backup/getbackupschedule - Get backup schedule", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: { title: "Autotest Get Schedule Room", roomType: RoomType.CustomRoom },
+      createRoomRequestDto: {
+        title: "Autotest Get Schedule Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
@@ -669,7 +678,10 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: { title: "Autotest Backup Schedule Room", roomType: RoomType.CustomRoom },
+      createRoomRequestDto: {
+        title: "Autotest Backup Schedule Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 

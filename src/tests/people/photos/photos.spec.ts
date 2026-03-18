@@ -14,9 +14,9 @@ test.fail(
       type: "image/png",
     });
 
-    const { data, status } = await ownerApi.photos.uploadMemberPhoto(userId, [
+    const { data, status } = await ownerApi.photos.uploadMemberPhoto({ userid: userId, formCollection: [
       file,
-    ] as any);
+    ] as any });
 
     expect(status).toBe(200);
     expect(data.response?.success).toBe(true);
@@ -133,7 +133,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     await apiSdk.uploadMemberPhoto("owner", userId, createTestImageBuffer());
 
-    const { data } = await ownerApi.photos.deleteMemberPhoto(userId);
+    const { data } = await ownerApi.photos.deleteMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -156,7 +156,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     const { data } = await apiSdk
       .forRole("docSpaceAdmin")
-      .photos.deleteMemberPhoto(userId);
+      .photos.deleteMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -179,7 +179,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     const { data } = await apiSdk
       .forRole("roomAdmin")
-      .photos.deleteMemberPhoto(userId);
+      .photos.deleteMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -198,7 +198,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     const { data } = await apiSdk
       .forRole("user")
-      .photos.deleteMemberPhoto(userId);
+      .photos.deleteMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -217,7 +217,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     const { data } = await apiSdk
       .forRole("guest")
-      .photos.deleteMemberPhoto(userId);
+      .photos.deleteMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -232,7 +232,7 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
     const { data: profile } = await ownerApi.profiles.getSelfProfile();
     const userId = profile.response!.id!;
 
-    const { data } = await ownerApi.photos.getMemberPhoto(userId);
+    const { data } = await ownerApi.photos.getMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -249,7 +249,7 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
 
     const { data } = await apiSdk
       .forRole("docSpaceAdmin")
-      .photos.getMemberPhoto(userId);
+      .photos.getMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -266,7 +266,7 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
 
     const { data } = await apiSdk
       .forRole("roomAdmin")
-      .photos.getMemberPhoto(userId);
+      .photos.getMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -281,7 +281,7 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
     );
     const userId = memberData.response!.id!;
 
-    const { data } = await apiSdk.forRole("user").photos.getMemberPhoto(userId);
+    const { data } = await apiSdk.forRole("user").photos.getMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -298,12 +298,169 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
 
     const { data } = await apiSdk
       .forRole("guest")
-      .photos.getMemberPhoto(userId);
+      .photos.getMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
   });
 });
+
+test.describe("GET /people/:userid/photo - Get other users photo", () => {
+  test("GET /people/:userid/photo - Owner gets all users photo", async ({
+    apiSdk,
+  }) => {
+    const { data: adminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminId = adminData.response!.id!;
+
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const roomAdminId = roomAdminData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await test.step("Owner gets DocSpaceAdmin photo", async () => {
+      const { data } = await apiSdk
+        .forRole("owner")
+        .photos.getMemberPhoto({ userid: adminId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+
+    await test.step("Owner gets RoomAdmin photo", async () => {
+      const { data } = await apiSdk
+        .forRole("owner")
+        .photos.getMemberPhoto({ userid: roomAdminId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+
+    await test.step("Owner gets User photo", async () => {
+      const { data } = await apiSdk
+        .forRole("owner")
+        .photos.getMemberPhoto({ userid: userId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+
+    await test.step("Owner gets Guest photo", async () => {
+      const { data } = await apiSdk
+        .forRole("owner")
+        .photos.getMemberPhoto({ userid: guestId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+  });
+
+  test("GET /people/:userid/photo - DocSpace admin gets all users photo", async ({
+    apiSdk,
+  }) => {
+    const { data: ownerProfile } = await apiSdk
+      .forRole("owner")
+      .profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const roomAdminId = roomAdminData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    await test.step("DocSpace admin gets Owner photo", async () => {
+      const { data } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .photos.getMemberPhoto({ userid: ownerId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+
+    await test.step("DocSpace admin gets RoomAdmin photo", async () => {
+      const { data } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .photos.getMemberPhoto({ userid: roomAdminId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+
+    await test.step("DocSpace admin gets User photo", async () => {
+      const { data } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .photos.getMemberPhoto({ userid: userId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+
+    await test.step("DocSpace admin gets Guest photo", async () => {
+      const { data } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .photos.getMemberPhoto({ userid: guestId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+  });
+
+  test("GET /people/:userid/photo - Room admin gets users photo", async ({
+    apiSdk,
+  }) => {
+    const { data: ownerProfile } = await apiSdk
+      .forRole("owner")
+      .profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: adminData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminId = adminData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    await test.step("Room admin gets Owner photo", async () => {
+      const { data } = await apiSdk
+        .forRole("roomAdmin")
+        .photos.getMemberPhoto({ userid: ownerId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+
+    await test.step("Room admin gets DocSpaceAdmin photo", async () => {
+      const { data } = await apiSdk
+        .forRole("roomAdmin")
+        .photos.getMemberPhoto({ userid: adminId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+
+    await test.step("Room admin gets User photo", async () => {
+      const { data } = await apiSdk
+        .forRole("roomAdmin")
+        .photos.getMemberPhoto({ userid: userId });
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(1);
+    });
+  });
+
+});
+
 
 // SDK methods updateMemberPhoto (PUT /people/{userid}/photo) and
 // createMemberPhotoThumbnails (POST /people/{userid}/photo/thumbnails)

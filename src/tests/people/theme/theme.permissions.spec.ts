@@ -13,7 +13,7 @@ test.describe("PUT /people/theme - Edge cases", () => {
   test("PUT /people/theme - 401 when unauthorized", async ({ apiSdk }) => {
     const { status } = await apiSdk
       .forAnonymous()
-      .theme.changePortalTheme({ theme: "Dark" });
+      .theme.changePortalTheme({ darkThemeSettingsRequestDto: { theme: "Dark" } });
 
     expect(status).toBe(401);
   });

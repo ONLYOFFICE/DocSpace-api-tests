@@ -14,10 +14,10 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
       const { data: userData } = await apiSdk.addMember("owner", "User");
       const userId = userData.response!.id!;
 
-      const { data } = await adminApi.userType.updateUserType(
-        EmployeeType.DocSpaceAdmin,
-        { userIds: [userId] },
-      );
+      const { data } = await adminApi.userType.updateUserType({
+        type: EmployeeType.DocSpaceAdmin,
+        updateMembersRequestDto: { userIds: [userId] },
+      });
       console.log(data as any); // delete this string after fixing the bug
       // BUG: API returns 200, expected 403
       expect(data.statusCode).toBe(403);
@@ -35,10 +35,10 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
       );
       const guestId = (guestData as any).response.id as string;
 
-      const { data } = await roomAdminApi.userType.updateUserType(
-        EmployeeType.User,
-        { userIds: [guestId] },
-      );
+      const { data } = await roomAdminApi.userType.updateUserType({
+        type: EmployeeType.User,
+        updateMembersRequestDto: { userIds: [guestId] },
+      });
       console.log(data as any); // delete this string after fixing the bug
       // BUG: API returns 200, expected 403
       expect(data.statusCode).toBe(403);
@@ -56,17 +56,17 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
     );
     const userId = (userData as any).response.id as string;
 
-    const { data } = await roomAdminApi.userType.updateUserType(
-      EmployeeType.RoomAdmin,
-      { userIds: [userId] },
-    );
+    const { data } = await roomAdminApi.userType.updateUserType({
+      type: EmployeeType.RoomAdmin,
+      updateMembersRequestDto: { userIds: [userId] },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
 
-    const { data: data2 } = await roomAdminApi.userType.updateUserType(
-      EmployeeType.DocSpaceAdmin,
-      { userIds: [userId] },
-    );
+    const { data: data2 } = await roomAdminApi.userType.updateUserType({
+      type: EmployeeType.DocSpaceAdmin,
+      updateMembersRequestDto: { userIds: [userId] },
+    });
     expect(data2.statusCode).toBe(403);
     expect((data2 as any).error.message).toBe("Access denied");
   });
@@ -81,17 +81,17 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
     );
     const userId = (userData as any).response.id as string;
 
-    const { data } = await roomAdminApi.userType.updateUserType(
-      EmployeeType.RoomAdmin,
-      { userIds: [userId] },
-    );
+    const { data } = await roomAdminApi.userType.updateUserType({
+      type: EmployeeType.RoomAdmin,
+      updateMembersRequestDto: { userIds: [userId] },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
 
-    const { data: data2 } = await roomAdminApi.userType.updateUserType(
-      EmployeeType.DocSpaceAdmin,
-      { userIds: [userId] },
-    );
+    const { data: data2 } = await roomAdminApi.userType.updateUserType({
+      type: EmployeeType.DocSpaceAdmin,
+      updateMembersRequestDto: { userIds: [userId] },
+    });
     expect(data2.statusCode).toBe(403);
     expect((data2 as any).error.message).toBe("Access denied");
   });
@@ -106,10 +106,10 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
     );
     const guestId = (guestData as any).response.id as string;
 
-    const { data } = await roomAdminApi.userType.updateUserType(
-      EmployeeType.User,
-      { userIds: [guestId] },
-    );
+    const { data } = await roomAdminApi.userType.updateUserType({
+      type: EmployeeType.User,
+      updateMembersRequestDto: { userIds: [guestId] },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -121,8 +121,9 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
     const anonApi = apiSdk.forAnonymous();
     const guestId = (guestData as any).response.id as string;
 
-    const response = await anonApi.userType.updateUserType(EmployeeType.User, {
-      userIds: [guestId],
+    const response = await anonApi.userType.updateUserType({
+      type: EmployeeType.User,
+      updateMembersRequestDto: { userIds: [guestId] },
     });
     expect(response.status).toBe(401);
   });
@@ -134,10 +135,10 @@ test.describe("PUT /people/type - Start user type update (permissions)", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data } = await ownerApi.userType.starUserTypetUpdate({
+    const { data } = await ownerApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.Guest,
       userId: "00000000-0000-0000-0000-000000000000",
-    });
+    }});
     expect(data.statusCode).toBe(400);
     expect((data as any).error.message).toBe("Can not update type");
   });
@@ -152,10 +153,11 @@ test.describe("PUT /people/type - Start user type update (permissions)", () => {
     );
     const userId = (userData as any).response.id as string;
 
-    const { data } = await roomAdminApi.userType.starUserTypetUpdate({
+    const { data } = await roomAdminApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.Guest,
       userId: userId,
-    });
+    }});
+    console.log(data);
     expect(data.statusCode).toBe(200);
     expect((data as any).response.isCompleted).toBe(false);
     expect((data as any).response.error).toBe(
@@ -181,14 +183,14 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
       "RoomAdmin",
     );
 
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.User,
       userId: adminId,
-    });
+    }});
 
     // Room admin tries to check progress
     const { data: progressData } =
-      await roomAdminApi.userType.getUserTypeUpdateProgress(adminId);
+      await roomAdminApi.userType.getUserTypeUpdateProgress({ userid: adminId });
     expect(progressData.statusCode).toBe(403);
     expect((progressData as any).error.message).toBe("Access denied");
   });
@@ -209,14 +211,14 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
       "User",
     );
 
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.User,
       userId: adminId,
-    });
+    }});
 
     // User tries to check progress
     const { data: progressData } =
-      await userApi.userType.getUserTypeUpdateProgress(adminId);
+      await userApi.userType.getUserTypeUpdateProgress({ userid: adminId });
     expect(progressData.statusCode).toBe(403);
     expect((progressData as any).error.message).toBe("Access denied");
   });
@@ -237,14 +239,14 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
       "Guest",
     );
 
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.User,
       userId: adminId,
-    });
+    }});
 
     // Guest tries to check progress
     const { data: progressData } =
-      await guestApi.userType.getUserTypeUpdateProgress(adminId);
+      await guestApi.userType.getUserTypeUpdateProgress({ userid: adminId });
     expect(progressData.statusCode).toBe(403);
     expect((progressData as any).error.message).toBe("Access denied");
   });
@@ -268,14 +270,14 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // DocSpace admin starts demotion User -> Guest
-    await adminApi.userType.starUserTypetUpdate({
+    await adminApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.Guest,
       userId: userId,
-    });
+    }});
 
     // Room admin tries to terminate the process
     const { data: terminateData } =
-      await roomAdminApi.userType.terminateUserTypeUpdate({ userId: userId });
+      await roomAdminApi.userType.terminateUserTypeUpdate({ terminateRequestDto: { userId: userId } });
     expect(terminateData.statusCode).toBe(403);
     expect((terminateData as any).error.message).toBe("Access denied");
   });
@@ -294,14 +296,14 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // Owner starts demotion User -> Guest
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.Guest,
       userId: userId,
-    });
+    }});
 
     // Guest tries to terminate the process
     const { data: terminateData } =
-      await guestApi.userType.terminateUserTypeUpdate({ userId: userId });
+      await guestApi.userType.terminateUserTypeUpdate({ terminateRequestDto: { userId: userId } });
     expect(terminateData.statusCode).toBe(403);
     expect((terminateData as any).error.message).toBe("Access denied");
   });
@@ -323,14 +325,14 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // DocSpace admin starts demotion User -> Guest
-    await adminApi.userType.starUserTypetUpdate({
+    await adminApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.Guest,
       userId: userId,
-    });
+    }});
 
     // Guest tries to terminate the process
     const { data: terminateData } =
-      await guestApi.userType.terminateUserTypeUpdate({ userId: userId });
+      await guestApi.userType.terminateUserTypeUpdate({ terminateRequestDto: { userId: userId } });
     expect(terminateData.statusCode).toBe(403);
     expect((terminateData as any).error.message).toBe("Access denied");
   });
@@ -349,14 +351,14 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // Owner starts demotion RoomAdmin -> User
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.User,
       userId: memberId,
-    });
+    }});
 
     // User tries to terminate the process
     const { data: terminateData } =
-      await userApi.userType.terminateUserTypeUpdate({ userId: memberId });
+      await userApi.userType.terminateUserTypeUpdate({ terminateRequestDto: { userId: memberId } });
     expect(terminateData.statusCode).toBe(403);
     expect((terminateData as any).error.message).toBe("Access denied");
   });
@@ -378,14 +380,14 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // DocSpace admin starts demotion RoomAdmin -> User
-    await adminApi.userType.starUserTypetUpdate({
+    await adminApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.User,
       userId: memberId,
-    });
+    }});
 
     // User tries to terminate the process
     const { data: terminateData } =
-      await userApi.userType.terminateUserTypeUpdate({ userId: memberId });
+      await userApi.userType.terminateUserTypeUpdate({ terminateRequestDto: { userId: memberId } });
     expect(terminateData.statusCode).toBe(403);
     expect((terminateData as any).error.message).toBe("Access denied");
   });
@@ -404,14 +406,14 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // Owner starts demotion RoomAdmin -> User
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
       type: EmployeeType.User,
       userId: memberId,
-    });
+    }});
 
     // Room admin tries to terminate the process
     const { data: terminateData } =
-      await roomAdminApi.userType.terminateUserTypeUpdate({ userId: memberId });
+      await roomAdminApi.userType.terminateUserTypeUpdate({ terminateRequestDto: { userId: memberId } });
     expect(terminateData.statusCode).toBe(403);
     expect((terminateData as any).error.message).toBe("Access denied");
   });
@@ -435,10 +437,10 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
       );
 
       // First DocSpace admin starts demotion RoomAdmin -> User
-      await admin1Api.userType.starUserTypetUpdate({
+      await admin1Api.userType.starUserTypetUpdate({ startUpdateUserTypeDto: {
         type: EmployeeType.User,
         userId: roomAdminId,
-      });
+      }});
 
       // Create and authenticate second DocSpace admin (overwrites token)
       const admin2Api = await apiSdk.authenticateMember(
@@ -448,9 +450,9 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
 
       // Second DocSpace admin tries to terminate the process
       const { data: terminateData } =
-        await admin2Api.userType.terminateUserTypeUpdate({
+        await admin2Api.userType.terminateUserTypeUpdate({ terminateRequestDto: {
           userId: roomAdminId,
-        });
+        }});
       console.log(terminateData as any);
     },
   );

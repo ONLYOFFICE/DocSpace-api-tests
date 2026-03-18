@@ -15,13 +15,14 @@ test.describe("DELETE /people/guests - Delete guests", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     // Deactivate the guest before deletion
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [guestId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [guestId] },
     });
 
     // Delete the guest
     const { data, status } = await ownerApi.guests.deleteGuests({
-      userIds: [guestId],
+      updateMembersRequestDto: { userIds: [guestId] },
     });
     const body = data as any;
 
@@ -45,8 +46,9 @@ test.describe("DELETE /people/guests - Delete guests", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     // Deactivate the guest before deletion
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [guestId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [guestId] },
     });
 
     // Authenticate DocSpaceAdmin
@@ -55,7 +57,7 @@ test.describe("DELETE /people/guests - Delete guests", () => {
 
     // DocSpaceAdmin deletes the guest
     const { data, status } = await docSpaceAdminApi.guests.deleteGuests({
-      userIds: [guestId],
+      updateMembersRequestDto: { userIds: [guestId] },
     });
     const body = data as any;
 
