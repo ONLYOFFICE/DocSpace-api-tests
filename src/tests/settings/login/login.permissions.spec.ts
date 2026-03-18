@@ -1,20 +1,19 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 
-test.describe("POST /api/2.0/settings/greetingsettings - access control", () => {
-  test("POST /api/2.0/settings/greetingsettings - Save greeting settings without authorization", async ({
+test.describe("GET /api/2.0/settings/security/loginsettings - access control", () => {
+  test("GET /api/2.0/settings/security/loginsettings - anonymous cannot get login settings", async ({
     apiSdk,
   }) => {
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.greetingSettings.saveGreetingSettings({
-      title: "Unauthorized Title",
-    });
+    const { status } = await anonApi.loginSettings.getLoginSettings();
 
+    console.log("anonymous getLoginSettings status:", status);
     expect(status).toBe(401);
   });
 
-  test("POST /api/2.0/settings/greetingsettings - RoomAdmin saves greeting settings", async ({
+  test("GET /api/2.0/settings/security/loginsettings - RoomAdmin cannot get login settings", async ({
     apiSdk,
   }) => {
     const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
@@ -23,16 +22,20 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
     );
 
     const { data, status } =
-      await roomAdminApi.greetingSettings.saveGreetingSettings({
-        title: "RoomAdmin Title",
-      });
+      await roomAdminApi.loginSettings.getLoginSettings();
 
+    console.log(
+      "RoomAdmin getLoginSettings status:",
+      status,
+      "body:",
+      JSON.stringify(data),
+    );
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  test("POST /api/2.0/settings/greetingsettings - User saves greeting settings", async ({
+  test("GET /api/2.0/settings/security/loginsettings - User cannot get login settings", async ({
     apiSdk,
   }) => {
     const { api: userApi } = await apiSdk.addAuthenticatedMember(
@@ -40,17 +43,20 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
       "User",
     );
 
-    const { data, status } =
-      await userApi.greetingSettings.saveGreetingSettings({
-        title: "User Title",
-      });
+    const { data, status } = await userApi.loginSettings.getLoginSettings();
 
+    console.log(
+      "User getLoginSettings status:",
+      status,
+      "body:",
+      JSON.stringify(data),
+    );
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  test("POST /api/2.0/settings/greetingsettings - Guest saves greeting settings", async ({
+  test("GET /api/2.0/settings/security/loginsettings - Guest cannot get login settings", async ({
     apiSdk,
   }) => {
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(
@@ -58,71 +64,14 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
       "Guest",
     );
 
-    const { data, status } =
-      await guestApi.greetingSettings.saveGreetingSettings({
-        title: "Guest Title",
-      });
+    const { data, status } = await guestApi.loginSettings.getLoginSettings();
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-});
-
-test.describe("POST /api/2.0/settings/greetingsettings/restore - access control", () => {
-  test("POST /api/2.0/settings/greetingsettings/restore - Restore greeting settings without authorization", async ({
-    apiSdk,
-  }) => {
-    const anonApi = apiSdk.forAnonymous();
-
-    const { status } = await anonApi.greetingSettings.restoreGreetingSettings();
-
-    expect(status).toBe(401);
-  });
-
-  test("POST /api/2.0/settings/greetingsettings/restore - RoomAdmin restores greeting settings", async ({
-    apiSdk,
-  }) => {
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "RoomAdmin",
+    console.log(
+      "Guest getLoginSettings status:",
+      status,
+      "body:",
+      JSON.stringify(data),
     );
-
-    const { data, status } =
-      await roomAdminApi.greetingSettings.restoreGreetingSettings();
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-
-  test("POST /api/2.0/settings/greetingsettings/restore - User restores greeting settings", async ({
-    apiSdk,
-  }) => {
-    const { api: userApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
-
-    const { data, status } =
-      await userApi.greetingSettings.restoreGreetingSettings();
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-
-  test("POST /api/2.0/settings/greetingsettings/restore - Guest restores greeting settings", async ({
-    apiSdk,
-  }) => {
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-
-    const { data, status } =
-      await guestApi.greetingSettings.restoreGreetingSettings();
-
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
