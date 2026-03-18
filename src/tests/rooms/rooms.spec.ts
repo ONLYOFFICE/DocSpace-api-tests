@@ -248,37 +248,38 @@ test.describe("API rooms methods", () => {
     });
 
     // TODO: Need clarification — should API reject VDR-only fields on non-VDR rooms or is this expected behavior?
-    test.fail("PUT /files/rooms/:id - Set VDR-only fields on CustomRoom", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: createData } = await ownerApi.rooms.createRoom({
-        title: "Autotest Custom Room",
-        roomType: RoomType.CustomRoom,
-      });
-      const roomId = createData.response!.id!;
+    test.fail(
+      "PUT /files/rooms/:id - Set VDR-only fields on CustomRoom",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: createData } = await ownerApi.rooms.createRoom({
+          title: "Autotest Custom Room",
+          roomType: RoomType.CustomRoom,
+        });
+        const roomId = createData.response!.id!;
 
-      const { data, status } = await ownerApi.rooms.updateRoom(roomId, {
-        indexing: true,
-        denyDownload: true,
-        lifetime: {
-          deletePermanently: true,
-          period: 0,
-          value: 30,
-          enabled: true,
-        },
-        watermark: {
-          enabled: true,
-          additions: 1,
-          text: "Confidential",
-          rotate: 0,
-          imageScale: 100,
-        },
-      });
-      expect(status).toBe(200);
-      expect(data.response!.indexing).toBe(true);
-      expect(data.response!.denyDownload).toBe(true);
-    });
+        const { data, status } = await ownerApi.rooms.updateRoom(roomId, {
+          indexing: true,
+          denyDownload: true,
+          lifetime: {
+            deletePermanently: true,
+            period: 0,
+            value: 30,
+            enabled: true,
+          },
+          watermark: {
+            enabled: true,
+            additions: 1,
+            text: "Confidential",
+            rotate: 0,
+            imageScale: 100,
+          },
+        });
+        expect(status).toBe(200);
+        expect(data.response!.indexing).toBe(true);
+        expect(data.response!.denyDownload).toBe(true);
+      },
+    );
 
     test("PUT /files/rooms/:id - Update room with empty title", async ({
       apiSdk,

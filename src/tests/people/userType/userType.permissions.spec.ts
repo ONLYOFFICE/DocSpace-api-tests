@@ -417,40 +417,41 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
   });
 
   // Incorrect answer, you need to check the code and describe the bug if there is one.
-  test.fail("Second DocSpace admin tries to terminate user type update started by first DocSpace admin.", async ({
-    apiSdk,
-  }) => {
-    const { data: roomAdminData } = await apiSdk.addMember(
-      "owner",
-      "RoomAdmin",
-    );
-    const roomAdminId = roomAdminData.response!.id!;
-    const admin2Base = await apiSdk.addMember("owner", "DocSpaceAdmin");
+  test.fail(
+    "Second DocSpace admin tries to terminate user type update started by first DocSpace admin.",
+    async ({ apiSdk }) => {
+      const { data: roomAdminData } = await apiSdk.addMember(
+        "owner",
+        "RoomAdmin",
+      );
+      const roomAdminId = roomAdminData.response!.id!;
+      const admin2Base = await apiSdk.addMember("owner", "DocSpaceAdmin");
 
-    // Create and authenticate first DocSpace admin
-    const admin1Base = await apiSdk.addMember("owner", "DocSpaceAdmin");
-    const admin1Api = await apiSdk.authenticateMember(
-      admin1Base.userData,
-      "DocSpaceAdmin",
-    );
+      // Create and authenticate first DocSpace admin
+      const admin1Base = await apiSdk.addMember("owner", "DocSpaceAdmin");
+      const admin1Api = await apiSdk.authenticateMember(
+        admin1Base.userData,
+        "DocSpaceAdmin",
+      );
 
-    // First DocSpace admin starts demotion RoomAdmin -> User
-    await admin1Api.userType.starUserTypetUpdate({
-      type: EmployeeType.User,
-      userId: roomAdminId,
-    });
-
-    // Create and authenticate second DocSpace admin (overwrites token)
-    const admin2Api = await apiSdk.authenticateMember(
-      admin2Base.userData,
-      "DocSpaceAdmin",
-    );
-
-    // Second DocSpace admin tries to terminate the process
-    const { data: terminateData } =
-      await admin2Api.userType.terminateUserTypeUpdate({
+      // First DocSpace admin starts demotion RoomAdmin -> User
+      await admin1Api.userType.starUserTypetUpdate({
+        type: EmployeeType.User,
         userId: roomAdminId,
       });
-    console.log(terminateData as any);
-  });
+
+      // Create and authenticate second DocSpace admin (overwrites token)
+      const admin2Api = await apiSdk.authenticateMember(
+        admin2Base.userData,
+        "DocSpaceAdmin",
+      );
+
+      // Second DocSpace admin tries to terminate the process
+      const { data: terminateData } =
+        await admin2Api.userType.terminateUserTypeUpdate({
+          userId: roomAdminId,
+        });
+      console.log(terminateData as any);
+    },
+  );
 });
