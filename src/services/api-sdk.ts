@@ -133,7 +133,11 @@ export class ApiSDK {
       providers: new ProvidersApi(config, undefined, axiosInstance),
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
-      settingsMessages: new SettingsMessagesApi(config, undefined, axiosInstance),
+      settingsMessages: new SettingsMessagesApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
     };
   }
 
@@ -179,7 +183,11 @@ export class ApiSDK {
       agents: new AgentsApi(config, undefined, axiosInstance),
       providers: new ProvidersApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
-      settingsMessages: new SettingsMessagesApi(config, undefined, axiosInstance),
+      settingsMessages: new SettingsMessagesApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
     };
   }
 
