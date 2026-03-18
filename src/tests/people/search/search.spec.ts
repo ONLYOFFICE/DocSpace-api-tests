@@ -610,6 +610,7 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
       id: folderId,
       filterValue: userName,
     });
+
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -2064,25 +2065,28 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
     // Bug 80587: API returns isAdmin: true for Owner, expected isAdmin: false
-    await test.step.skip("DocSpace admin searches Owner", async () => {
-      await expect(async () => {
-        const { data, status } =
-          await adminApi.peopleSearch.searchUsersByExtendedFilter({
-            filterValue: ownerName,
-          });
-        expect(status).toBe(200);
-        const owner = (data.response as any[]).find(
-          (u: any) => u.id === ownerId,
-        );
-        expect(owner).toBeDefined();
-        expect(owner.displayName).toBe(ownerName);
-        expect(owner.isOwner).toBe(true);
-        expect(owner.isAdmin).toBe(false);
-        expect(owner.isRoomAdmin).toBe(false);
-        expect(owner.isVisitor).toBe(false);
-        expect(owner.isCollaborator).toBe(false);
-      }).toPass({ intervals: [2_000, 3_000, 5_000], timeout: 15_000 });
-    });
+    await test.step.skip(
+      "BUG 80587: DocSpace admin searches Owner",
+      async () => {
+        await expect(async () => {
+          const { data, status } =
+            await adminApi.peopleSearch.searchUsersByExtendedFilter({
+              filterValue: ownerName,
+            });
+          expect(status).toBe(200);
+          const owner = (data.response as any[]).find(
+            (u: any) => u.id === ownerId,
+          );
+          expect(owner).toBeDefined();
+          expect(owner.displayName).toBe(ownerName);
+          expect(owner.isOwner).toBe(true);
+          expect(owner.isAdmin).toBe(false);
+          expect(owner.isRoomAdmin).toBe(false);
+          expect(owner.isVisitor).toBe(false);
+          expect(owner.isCollaborator).toBe(false);
+        }).toPass({ intervals: [2_000, 3_000, 5_000], timeout: 15_000 });
+      },
+    );
 
     await test.step("DocSpace admin searches RoomAdmin", async () => {
       await expect(async () => {

@@ -161,7 +161,7 @@ test.describe("PUT /people/type - Start user type update (permissions)", () => {
         userId: userId,
       },
     });
-    console.log(data);
+
     expect(data.statusCode).toBe(200);
     expect((data as any).response.isCompleted).toBe(false);
     expect((data as any).response.error).toBe(

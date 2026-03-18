@@ -1,21 +1,20 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { faker } from "@faker-js/faker";
-import config from "@/config";
 
 test.describe("API email methods", () => {
   test("POST /people/email - Owner sent himself instructions on how to change his email address", async ({
     apiSdk,
-    api,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: ownerData } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerData.response!.id!;
 
+    const newEmail = faker.internet.email();
     const { data } = await ownerApi.email.sendEmailChangeInstructions({
       updateMemberRequestDto: {
         userId: ownerId,
-        email: faker.internet.email(),
+        email: newEmail,
       },
     });
     expect(data.statusCode).toBe(200);
@@ -23,13 +22,7 @@ test.describe("API email methods", () => {
       "The email change instructions have been successfully sent",
     );
 
-    await ownerApi.email.sendEmailChangeInstructions({
-      updateMemberRequestDto: {
-        userId: ownerId,
-        email: config.DOCSPACE_OWNER_EMAIL,
-      },
-    });
-    await api.auth.authenticateOwner();
+    await apiSdk.authenticateOwner(newEmail);
   });
 
   test("POST /people/email - Owner sent DocSpace admin user instructions on how to change his email address", async ({
