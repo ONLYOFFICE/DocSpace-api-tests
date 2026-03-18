@@ -165,7 +165,9 @@ test.describe("API rooms methods", () => {
       });
 
       await test.step("GET /files/rooms/:id - confirms title changed", async () => {
-        const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        const { data, status } = await ownerApi.rooms.getRoomInfo({
+          id: roomId,
+        });
 
         expect(status).toBe(200);
         expect(data.response!.title).toBe("Autotest Room After Update");
@@ -230,7 +232,9 @@ test.describe("API rooms methods", () => {
       });
 
       await test.step("GET /files/rooms/:id - verify all fields saved", async () => {
-        const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        const { data, status } = await ownerApi.rooms.getRoomInfo({
+          id: roomId,
+        });
 
         expect(status).toBe(200);
         expect(data.response!.title).toBe("Updated VDR Room");
@@ -252,42 +256,43 @@ test.describe("API rooms methods", () => {
     });
 
     // TODO: Need clarification — should API reject VDR-only fields on non-VDR rooms or is this expected behavior?
-    test.fail("PUT /files/rooms/:id - Set VDR-only fields on CustomRoom", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: createData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Custom Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = createData.response!.id!;
+    test.fail(
+      "PUT /files/rooms/:id - Set VDR-only fields on CustomRoom",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: createData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Custom Room",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = createData.response!.id!;
 
-      const { data, status } = await ownerApi.rooms.updateRoom({
-        id: roomId,
-        updateRoomRequest: {
-          indexing: true,
-          denyDownload: true,
-          lifetime: {
-            deletePermanently: true,
-            period: 0,
-            value: 30,
-            enabled: true,
+        const { data, status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: {
+            indexing: true,
+            denyDownload: true,
+            lifetime: {
+              deletePermanently: true,
+              period: 0,
+              value: 30,
+              enabled: true,
+            },
+            watermark: {
+              enabled: true,
+              additions: 1,
+              text: "Confidential",
+              rotate: 0,
+              imageScale: 100,
+            },
           },
-          watermark: {
-            enabled: true,
-            additions: 1,
-            text: "Confidential",
-            rotate: 0,
-            imageScale: 100,
-          },
-        },
-      });
-      expect(status).toBe(200);
-      expect(data.response!.indexing).toBe(true);
-      expect(data.response!.denyDownload).toBe(true);
-    });
+        });
+        expect(status).toBe(200);
+        expect(data.response!.indexing).toBe(true);
+        expect(data.response!.denyDownload).toBe(true);
+      },
+    );
 
     test("PUT /files/rooms/:id - Update room with empty title", async ({
       apiSdk,
@@ -455,8 +460,9 @@ test.describe("API rooms methods", () => {
       const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
       await test.step("GET /files/roomtemplate/:id/public - check default is false", async () => {
-        const { data, status } =
-          await ownerApi.rooms.getPublicSettings({ id: templateId });
+        const { data, status } = await ownerApi.rooms.getPublicSettings({
+          id: templateId,
+        });
 
         expect(status).toBe(200);
         expect(data.response).toBe(false);
@@ -474,8 +480,9 @@ test.describe("API rooms methods", () => {
       });
 
       await test.step("GET /files/roomtemplate/:id/public - verify changed to true", async () => {
-        const { data, status } =
-          await ownerApi.rooms.getPublicSettings({ id: templateId });
+        const { data, status } = await ownerApi.rooms.getPublicSettings({
+          id: templateId,
+        });
 
         expect(status).toBe(200);
         expect(data.response).toBe(true);
@@ -561,8 +568,9 @@ test.describe("API rooms methods", () => {
       });
 
       await test.step("GET /files/rooms/:id/share - verify access rights", async () => {
-        const { data, status } =
-          await ownerApi.rooms.getRoomSecurityInfo({ id: roomId });
+        const { data, status } = await ownerApi.rooms.getRoomSecurityInfo({
+          id: roomId,
+        });
 
         expect(status).toBe(200);
         // TODO(sdk): getRoomSecurityInfo returns untyped response — ArrayWrapper<RoomSecurityDto> missing
@@ -612,8 +620,9 @@ test.describe("API rooms methods", () => {
       });
 
       await test.step("GET /files/rooms/:id/share - verify access revoked", async () => {
-        const { data, status } =
-          await ownerApi.rooms.getRoomSecurityInfo({ id: roomId });
+        const { data, status } = await ownerApi.rooms.getRoomSecurityInfo({
+          id: roomId,
+        });
 
         expect(status).toBe(200);
         // TODO(sdk): getRoomSecurityInfo returns untyped response — ArrayWrapper<RoomSecurityDto> missing
@@ -734,8 +743,12 @@ test.describe("API rooms methods", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.rooms.createRoomTag({ createTagRequestDto: { name: "Tag1" } });
-    await ownerApi.rooms.createRoomTag({ createTagRequestDto: { name: "Tag2" } });
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Tag1" },
+    });
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Tag2" },
+    });
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {

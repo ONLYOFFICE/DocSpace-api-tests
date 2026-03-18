@@ -1001,8 +1001,9 @@ test.describe("GET /ai/agents/news - Get AI agents new items", () => {
 
     // Step 3: Find Result Storage folder (type 33) via GET /api/2.0/files/{parentId}
     const agentParentId = (agentData.response as any).parentId;
-    const { data: parentContent } =
-      await ownerApi.folders.getFolderByFolderId({ folderId: agentParentId });
+    const { data: parentContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: agentParentId,
+    });
     const folders = (parentContent as any).response?.folders ?? [];
     const resultStorageFolder = (folders as any[]).find(
       (f: any) => f.type === 33 && f.parentId === agentId,

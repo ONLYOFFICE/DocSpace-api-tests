@@ -11,7 +11,10 @@ test.describe("Share link privacy - no user data leakage", () => {
 
       // Step 1: Owner creates a room and a file in it
       const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: { title: "Autotest Share Link Privacy Room", roomType: RoomType.CustomRoom },
+        createRoomRequestDto: {
+          title: "Autotest Share Link Privacy Room",
+          roomType: RoomType.CustomRoom,
+        },
       });
       const roomId = roomData.response!.id!;
 

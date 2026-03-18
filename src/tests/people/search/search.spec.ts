@@ -16,24 +16,35 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
     const userId = memberData.response!.id!;
     const userName = memberData.response!.displayName!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Search File Shared",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Search File Shared",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
-      title: "Autotest Search File",
-    }});
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Search File",
+      },
+    });
     const fileId = fileData.response!.id!;
 
     const { data } =
-      await ownerApi.peopleSearch.getAccountsEntriesWithFilesShared({ id: fileId, filterValue: userName });
+      await ownerApi.peopleSearch.getAccountsEntriesWithFilesShared({
+        id: fileId,
+        filterValue: userName,
+      });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -56,27 +67,38 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
     const adminMemberId = adminMemberData.response!.id!;
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Search Admin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Search Admin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: adminMemberId, access: FileShare.RoomManager },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: adminMemberId, access: FileShare.RoomManager },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
-      title: "Autotest Search File",
-    }});
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Search File",
+      },
+    });
     const fileId = fileData.response!.id!;
 
     const { data } =
-      await adminApi.peopleSearch.getAccountsEntriesWithFilesShared({ id: fileId, filterValue: userName });
+      await adminApi.peopleSearch.getAccountsEntriesWithFilesShared({
+        id: fileId,
+        filterValue: userName,
+      });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -99,27 +121,38 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
     const roomAdminId = roomAdminData.response!.id!;
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Search RoomAdmin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Search RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: roomAdminId, access: FileShare.RoomManager },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminId, access: FileShare.RoomManager },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
-      title: "Autotest Search File",
-    }});
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Search File",
+      },
+    });
     const fileId = fileData.response!.id!;
 
     const { data } =
-      await roomAdminApi.peopleSearch.getAccountsEntriesWithFilesShared({ id: fileId, filterValue: userName });
+      await roomAdminApi.peopleSearch.getAccountsEntriesWithFilesShared({
+        id: fileId,
+        filterValue: userName,
+      });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -137,23 +170,34 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     const userId = memberData.response!.id!;
     const userName = memberData.response!.displayName!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users File Owner",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users File Owner",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
-      title: "Autotest Users File",
-    }});
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Users File",
+      },
+    });
     const fileId = fileData.response!.id!;
 
-    const { data } = await ownerApi.peopleSearch.getUsersWithFilesShared({ id: fileId, filterValue: userName });
+    const { data } = await ownerApi.peopleSearch.getUsersWithFilesShared({
+      id: fileId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -172,23 +216,34 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users File Admin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users File Admin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
-      title: "Autotest Users File",
-    }});
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Users File",
+      },
+    });
     const fileId = fileData.response!.id!;
 
-    const { data } = await adminApi.peopleSearch.getUsersWithFilesShared({ id: fileId, filterValue: userName });
+    const { data } = await adminApi.peopleSearch.getUsersWithFilesShared({
+      id: fileId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -211,26 +266,37 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     const roomAdminId = roomAdminData.response!.id!;
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users File RoomAdmin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users File RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: roomAdminId, access: FileShare.RoomManager },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminId, access: FileShare.RoomManager },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
-      title: "Autotest Users File",
-    }});
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Users File",
+      },
+    });
     const fileId = fileData.response!.id!;
 
-    const { data } = await roomAdminApi.peopleSearch.getUsersWithFilesShared({ id: fileId, filterValue: userName });
+    const { data } = await roomAdminApi.peopleSearch.getUsersWithFilesShared({
+      id: fileId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -256,26 +322,37 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     const userMemberId = userMemberData.response!.id!;
     const userApi = await apiSdk.authenticateMember(userData, "User");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users File User",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users File User",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: userMemberId, access: FileShare.Editing },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: userMemberId, access: FileShare.Editing },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
-      title: "Autotest Users File",
-    }});
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Users File",
+      },
+    });
     const fileId = fileData.response!.id!;
 
-    const { data } = await userApi.peopleSearch.getUsersWithFilesShared({ id: fileId, filterValue: userName });
+    const { data } = await userApi.peopleSearch.getUsersWithFilesShared({
+      id: fileId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -301,26 +378,37 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     const guestMemberId = guestMemberData.response!.id!;
     const guestApi = await apiSdk.authenticateMember(userData, "Guest");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users File Guest",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users File Guest",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: guestMemberId, access: FileShare.Editing },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: guestMemberId, access: FileShare.Editing },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
-      title: "Autotest Users File",
-    }});
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Users File",
+      },
+    });
     const fileId = fileData.response!.id!;
 
-    const { data } = await guestApi.peopleSearch.getUsersWithFilesShared({ id: fileId, filterValue: userName });
+    const { data } = await guestApi.peopleSearch.getUsersWithFilesShared({
+      id: fileId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -338,25 +426,36 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
     const userId = memberData.response!.id!;
     const userName = memberData.response!.displayName!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Search Folder Shared",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Search Folder Shared",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
-      title: "Autotest Search Folder",
-    }});
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: {
+        title: "Autotest Search Folder",
+      },
+    });
     const folderId = folderData.response!.id!;
 
     await expect(async () => {
       const { data } =
-        await ownerApi.peopleSearch.getAccountsEntriesWithFoldersShared({ id: folderId, filterValue: userName });
+        await ownerApi.peopleSearch.getAccountsEntriesWithFoldersShared({
+          id: folderId,
+          filterValue: userName,
+        });
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
       expect((data.response as any[])[0].id).toBe(userId);
@@ -380,27 +479,38 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
     const adminMemberId = adminMemberData.response!.id!;
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Search Folder Admin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Search Folder Admin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: adminMemberId, access: FileShare.RoomManager },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: adminMemberId, access: FileShare.RoomManager },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
-      title: "Autotest Search Folder",
-    }});
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: {
+        title: "Autotest Search Folder",
+      },
+    });
     const folderId = folderData.response!.id!;
 
     const { data } =
-      await adminApi.peopleSearch.getAccountsEntriesWithFoldersShared({ id: folderId, filterValue: userName });
+      await adminApi.peopleSearch.getAccountsEntriesWithFoldersShared({
+        id: folderId,
+        filterValue: userName,
+      });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -423,27 +533,38 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
     const roomAdminId = roomAdminData.response!.id!;
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Search Folder RoomAdmin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Search Folder RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: roomAdminId, access: FileShare.RoomManager },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminId, access: FileShare.RoomManager },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
-      title: "Autotest Search Folder",
-    }});
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: {
+        title: "Autotest Search Folder",
+      },
+    });
     const folderId = folderData.response!.id!;
 
     const { data } =
-      await roomAdminApi.peopleSearch.getAccountsEntriesWithFoldersShared({ id: folderId, filterValue: userName });
+      await roomAdminApi.peopleSearch.getAccountsEntriesWithFoldersShared({
+        id: folderId,
+        filterValue: userName,
+      });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -461,23 +582,34 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     const userId = memberData.response!.id!;
     const userName = memberData.response!.displayName!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Folder Owner",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Folder Owner",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
-      title: "Autotest Users Folder",
-    }});
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: {
+        title: "Autotest Users Folder",
+      },
+    });
     const folderId = folderData.response!.id!;
 
-    const { data } = await ownerApi.peopleSearch.getUsersWithFoldersShared({ id: folderId, filterValue: userName });
+    const { data } = await ownerApi.peopleSearch.getUsersWithFoldersShared({
+      id: folderId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -496,23 +628,34 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Folder Admin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Folder Admin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
-      title: "Autotest Users Folder",
-    }});
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: {
+        title: "Autotest Users Folder",
+      },
+    });
     const folderId = folderData.response!.id!;
 
-    const { data } = await adminApi.peopleSearch.getUsersWithFoldersShared({ id: folderId, filterValue: userName });
+    const { data } = await adminApi.peopleSearch.getUsersWithFoldersShared({
+      id: folderId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -535,26 +678,37 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     const roomAdminId = roomAdminData.response!.id!;
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Folder RoomAdmin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Folder RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: roomAdminId, access: FileShare.RoomManager },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminId, access: FileShare.RoomManager },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
-      title: "Autotest Users Folder",
-    }});
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: {
+        title: "Autotest Users Folder",
+      },
+    });
     const folderId = folderData.response!.id!;
 
-    const { data } = await roomAdminApi.peopleSearch.getUsersWithFoldersShared({ id: folderId, filterValue: userName });
+    const { data } = await roomAdminApi.peopleSearch.getUsersWithFoldersShared({
+      id: folderId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -580,26 +734,37 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     const userMemberId = userMemberData.response!.id!;
     const userApi = await apiSdk.authenticateMember(userData, "User");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Folder User",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Folder User",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: userMemberId, access: FileShare.Editing },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: userMemberId, access: FileShare.Editing },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
-      title: "Autotest Users Folder",
-    }});
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: {
+        title: "Autotest Users Folder",
+      },
+    });
     const folderId = folderData.response!.id!;
 
-    const { data } = await userApi.peopleSearch.getUsersWithFoldersShared({ id: folderId, filterValue: userName });
+    const { data } = await userApi.peopleSearch.getUsersWithFoldersShared({
+      id: folderId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -625,26 +790,37 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     const guestMemberId = guestMemberData.response!.id!;
     const guestApi = await apiSdk.authenticateMember(userData, "Guest");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Folder Guest",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Folder Guest",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: guestMemberId, access: FileShare.Editing },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: guestMemberId, access: FileShare.Editing },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
-      title: "Autotest Users Folder",
-    }});
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: {
+        title: "Autotest Users Folder",
+      },
+    });
     const folderId = folderData.response!.id!;
 
-    const { data } = await guestApi.peopleSearch.getUsersWithFoldersShared({ id: folderId, filterValue: userName });
+    const { data } = await guestApi.peopleSearch.getUsersWithFoldersShared({
+      id: folderId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -662,19 +838,27 @@ test.describe("GET /accounts/room/:id/search - Search accounts for room sharing"
     const userId = memberData.response!.id!;
     const userName = memberData.response!.displayName!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Search Room Shared",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Search Room Shared",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
     const { data } =
-      await ownerApi.peopleSearch.getAccountsEntriesWithRoomsShared({ id: roomId, filterValue: userName });
+      await ownerApi.peopleSearch.getAccountsEntriesWithRoomsShared({
+        id: roomId,
+        filterValue: userName,
+      });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -697,22 +881,30 @@ test.describe("GET /accounts/room/:id/search - Search accounts for room sharing"
     const adminMemberId = adminMemberData.response!.id!;
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Search Room Admin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Search Room Admin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: adminMemberId, access: FileShare.RoomManager },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: adminMemberId, access: FileShare.RoomManager },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
     const { data } =
-      await adminApi.peopleSearch.getAccountsEntriesWithRoomsShared({ id: roomId, filterValue: userName });
+      await adminApi.peopleSearch.getAccountsEntriesWithRoomsShared({
+        id: roomId,
+        filterValue: userName,
+      });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -735,22 +927,30 @@ test.describe("GET /accounts/room/:id/search - Search accounts for room sharing"
     const roomAdminId = roomAdminData.response!.id!;
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Search Room RoomAdmin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Search Room RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: roomAdminId, access: FileShare.RoomManager },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminId, access: FileShare.RoomManager },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
     const { data } =
-      await roomAdminApi.peopleSearch.getAccountsEntriesWithRoomsShared({ id: roomId, filterValue: userName });
+      await roomAdminApi.peopleSearch.getAccountsEntriesWithRoomsShared({
+        id: roomId,
+        filterValue: userName,
+      });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -768,18 +968,26 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
     const userId = memberData.response!.id!;
     const userName = memberData.response!.displayName!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Room Owner",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Room Owner",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-    const { data } = await ownerApi.peopleSearch.getUsersWithRoomShared({ id: roomId, filterValue: userName });
+    const { data } = await ownerApi.peopleSearch.getUsersWithRoomShared({
+      id: roomId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -798,18 +1006,26 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Room Admin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Room Admin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-    const { data } = await adminApi.peopleSearch.getUsersWithRoomShared({ id: roomId, filterValue: userName });
+    const { data } = await adminApi.peopleSearch.getUsersWithRoomShared({
+      id: roomId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -832,21 +1048,29 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
     const roomAdminId = roomAdminData.response!.id!;
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Room RoomAdmin",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Room RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: roomAdminId, access: FileShare.RoomManager },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminId, access: FileShare.RoomManager },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data } = await roomAdminApi.peopleSearch.getUsersWithRoomShared({ id: roomId, filterValue: userName });
+    const { data } = await roomAdminApi.peopleSearch.getUsersWithRoomShared({
+      id: roomId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -872,21 +1096,29 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
     const userMemberId = userMemberData.response!.id!;
     const userApi = await apiSdk.authenticateMember(userData, "User");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Room User",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Room User",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: userMemberId, access: FileShare.Editing },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: userMemberId, access: FileShare.Editing },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data } = await userApi.peopleSearch.getUsersWithRoomShared({ id: roomId, filterValue: userName });
+    const { data } = await userApi.peopleSearch.getUsersWithRoomShared({
+      id: roomId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -912,21 +1144,29 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
     const guestMemberId = guestMemberData.response!.id!;
     const guestApi = await apiSdk.authenticateMember(userData, "Guest");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
-      title: "Autotest Users Room Guest",
-      roomType: RoomType.CustomRoom,
-    }});
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Users Room Guest",
+        roomType: RoomType.CustomRoom,
+      },
+    });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
-      invitations: [
-        { id: guestMemberId, access: FileShare.Editing },
-        { id: userId, access: FileShare.Editing },
-      ],
-      notify: false,
-    }});
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: guestMemberId, access: FileShare.Editing },
+          { id: userId, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
 
-    const { data } = await guestApi.peopleSearch.getUsersWithRoomShared({ id: roomId, filterValue: userName });
+    const { data } = await guestApi.peopleSearch.getUsersWithRoomShared({
+      id: roomId,
+      filterValue: userName,
+    });
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -963,7 +1203,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     const guestName = guestData.response!.displayName!;
 
     await test.step("Owner searches DocSpaceAdmin by email", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({ query: adminEmail });
+      const { data } = await ownerApi.peopleSearch.getSearch({
+        query: adminEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === adminEmail),
@@ -971,7 +1213,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches DocSpaceAdmin by name", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({ query: adminName });
+      const { data } = await ownerApi.peopleSearch.getSearch({
+        query: adminName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === adminName),
@@ -979,7 +1223,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches RoomAdmin by email", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({ query: roomAdminEmail });
+      const { data } = await ownerApi.peopleSearch.getSearch({
+        query: roomAdminEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
@@ -987,7 +1233,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches RoomAdmin by name", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({ query: roomAdminName });
+      const { data } = await ownerApi.peopleSearch.getSearch({
+        query: roomAdminName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -997,7 +1245,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches User by email", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({ query: userEmail });
+      const { data } = await ownerApi.peopleSearch.getSearch({
+        query: userEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === userEmail),
@@ -1005,7 +1255,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches User by name", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({ query: userName });
+      const { data } = await ownerApi.peopleSearch.getSearch({
+        query: userName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === userName),
@@ -1013,7 +1265,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches Guest by email", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({ query: guestEmail });
+      const { data } = await ownerApi.peopleSearch.getSearch({
+        query: guestEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === guestEmail),
@@ -1021,7 +1275,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches Guest by name", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({ query: guestName });
+      const { data } = await ownerApi.peopleSearch.getSearch({
+        query: guestName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === guestName),
@@ -1057,7 +1313,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
     await test.step("DocSpace admin searches Owner by email", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({ query: ownerEmail });
+      const { data } = await adminApi.peopleSearch.getSearch({
+        query: ownerEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === ownerEmail),
@@ -1065,7 +1323,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches Owner by name", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({ query: ownerName });
+      const { data } = await adminApi.peopleSearch.getSearch({
+        query: ownerName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === ownerName),
@@ -1073,7 +1333,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches RoomAdmin by email", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({ query: roomAdminEmail });
+      const { data } = await adminApi.peopleSearch.getSearch({
+        query: roomAdminEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
@@ -1081,7 +1343,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches RoomAdmin by name", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({ query: roomAdminName });
+      const { data } = await adminApi.peopleSearch.getSearch({
+        query: roomAdminName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1091,7 +1355,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches User by email", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({ query: userEmail });
+      const { data } = await adminApi.peopleSearch.getSearch({
+        query: userEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === userEmail),
@@ -1099,7 +1365,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches User by name", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({ query: userName });
+      const { data } = await adminApi.peopleSearch.getSearch({
+        query: userName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === userName),
@@ -1107,7 +1375,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches Guest by email", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({ query: guestEmail });
+      const { data } = await adminApi.peopleSearch.getSearch({
+        query: guestEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === guestEmail),
@@ -1115,7 +1385,9 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches Guest by name", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({ query: guestName });
+      const { data } = await adminApi.peopleSearch.getSearch({
+        query: guestName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === guestName),
@@ -1153,8 +1425,9 @@ test.describe("GET /people/search - Search users by query", () => {
     const guestName = guestData.response!.displayName!;
 
     await test.step("Owner searches DocSpaceAdmin by email", async () => {
-      const { data } =
-        await ownerApi.peopleSearch.searchUsersByQuery({ query: adminEmail });
+      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+        query: adminEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === adminEmail),
@@ -1162,8 +1435,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches DocSpaceAdmin by name", async () => {
-      const { data } =
-        await ownerApi.peopleSearch.searchUsersByQuery({ query: adminName });
+      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+        query: adminName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === adminName),
@@ -1171,8 +1445,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches RoomAdmin by email", async () => {
-      const { data } =
-        await ownerApi.peopleSearch.searchUsersByQuery({ query: roomAdminEmail });
+      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+        query: roomAdminEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
@@ -1180,8 +1455,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches RoomAdmin by name", async () => {
-      const { data } =
-        await ownerApi.peopleSearch.searchUsersByQuery({ query: roomAdminName });
+      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+        query: roomAdminName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1191,8 +1467,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches User by email", async () => {
-      const { data } =
-        await ownerApi.peopleSearch.searchUsersByQuery({ query: userEmail });
+      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+        query: userEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === userEmail),
@@ -1200,7 +1477,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches User by name", async () => {
-      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({ query: userName });
+      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+        query: userName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === userName),
@@ -1208,8 +1487,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches Guest by email", async () => {
-      const { data } =
-        await ownerApi.peopleSearch.searchUsersByQuery({ query: guestEmail });
+      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+        query: guestEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === guestEmail),
@@ -1217,8 +1497,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches Guest by name", async () => {
-      const { data } =
-        await ownerApi.peopleSearch.searchUsersByQuery({ query: guestName });
+      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+        query: guestName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === guestName),
@@ -1254,8 +1535,9 @@ test.describe("GET /people/search - Search users by query", () => {
     const guestName = guestData.response!.displayName!;
 
     await test.step("DocSpace admin searches Owner by email", async () => {
-      const { data } =
-        await adminApi.peopleSearch.searchUsersByQuery({ query: ownerEmail });
+      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+        query: ownerEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === ownerEmail),
@@ -1263,8 +1545,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches Owner by name", async () => {
-      const { data } =
-        await adminApi.peopleSearch.searchUsersByQuery({ query: ownerName });
+      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+        query: ownerName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === ownerName),
@@ -1272,8 +1555,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches RoomAdmin by email", async () => {
-      const { data } =
-        await adminApi.peopleSearch.searchUsersByQuery({ query: roomAdminEmail });
+      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+        query: roomAdminEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
@@ -1281,8 +1565,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches RoomAdmin by name", async () => {
-      const { data } =
-        await adminApi.peopleSearch.searchUsersByQuery({ query: roomAdminName });
+      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+        query: roomAdminName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1292,8 +1577,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches User by email", async () => {
-      const { data } =
-        await adminApi.peopleSearch.searchUsersByQuery({ query: userEmail });
+      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+        query: userEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === userEmail),
@@ -1301,7 +1587,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches User by name", async () => {
-      const { data } = await adminApi.peopleSearch.searchUsersByQuery({ query: userName });
+      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+        query: userName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === userName),
@@ -1309,8 +1597,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches Guest by email", async () => {
-      const { data } =
-        await adminApi.peopleSearch.searchUsersByQuery({ query: guestEmail });
+      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+        query: guestEmail,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === guestEmail),
@@ -1318,8 +1607,9 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches Guest by name", async () => {
-      const { data } =
-        await adminApi.peopleSearch.searchUsersByQuery({ query: guestName });
+      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+        query: guestName,
+      });
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === guestName),
@@ -1339,7 +1629,10 @@ test.describe("GET /people/status/:status/search - Search users by status", () =
     const userEmail = userData.response!.email!;
 
     const { data: activeData, status: activeStatus } =
-      await ownerApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Active, query: userEmail });
+      await ownerApi.peopleSearch.searchUsersByStatus({
+        status: EmployeeStatus.Active,
+        query: userEmail,
+      });
     expect(activeStatus).toBe(200);
     expect(
       (activeData.response as any[]).some(
@@ -1347,12 +1640,18 @@ test.describe("GET /people/status/:status/search - Search users by status", () =
       ),
     ).toBe(true);
 
-    await ownerApi.userStatus.updateUserStatus({ status: EmployeeStatus.Terminated, updateMembersRequestDto: {
-      userIds: [userId],
-    }});
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [userId],
+      },
+    });
 
     const { data: terminatedData, status: terminatedStatus } =
-      await ownerApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Terminated, query: userEmail });
+      await ownerApi.peopleSearch.searchUsersByStatus({
+        status: EmployeeStatus.Terminated,
+        query: userEmail,
+      });
     expect(terminatedStatus).toBe(200);
     expect(
       (terminatedData.response as any[]).some(
@@ -1374,7 +1673,10 @@ test.describe("GET /people/status/:status/search - Search users by status", () =
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
     const { data: activeData, status: activeStatus } =
-      await adminApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Active, query: userEmail });
+      await adminApi.peopleSearch.searchUsersByStatus({
+        status: EmployeeStatus.Active,
+        query: userEmail,
+      });
     expect(activeStatus).toBe(200);
     expect(
       (activeData.response as any[]).some(
@@ -1382,12 +1684,18 @@ test.describe("GET /people/status/:status/search - Search users by status", () =
       ),
     ).toBe(true);
 
-    await ownerApi.userStatus.updateUserStatus({ status: EmployeeStatus.Terminated, updateMembersRequestDto: {
-      userIds: [userId],
-    }});
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [userId],
+      },
+    });
 
     const { data: terminatedData, status: terminatedStatus } =
-      await adminApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Terminated, query: userEmail });
+      await adminApi.peopleSearch.searchUsersByStatus({
+        status: EmployeeStatus.Terminated,
+        query: userEmail,
+      });
     expect(terminatedStatus).toBe(200);
     expect(
       (terminatedData.response as any[]).some(
@@ -1430,7 +1738,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
     const guestName = guestData.response!.displayName!;
 
     await test.step("Owner searches DocSpaceAdmin", async () => {
-      const { data, status } = await ownerApi.peopleSearch.getSimpleByFilter({ filterValue: adminName });
+      const { data, status } = await ownerApi.peopleSearch.getSimpleByFilter({
+        filterValue: adminName,
+      });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1440,7 +1750,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
     });
 
     await test.step("Owner searches RoomAdmin", async () => {
-      const { data, status } = await ownerApi.peopleSearch.getSimpleByFilter({ filterValue: roomAdminName });
+      const { data, status } = await ownerApi.peopleSearch.getSimpleByFilter({
+        filterValue: roomAdminName,
+      });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1450,7 +1762,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
     });
 
     await test.step("Owner searches User", async () => {
-      const { data, status } = await ownerApi.peopleSearch.getSimpleByFilter({ filterValue: userName });
+      const { data, status } = await ownerApi.peopleSearch.getSimpleByFilter({
+        filterValue: userName,
+      });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1460,7 +1774,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
     });
 
     await test.step("Owner searches Guest", async () => {
-      const { data, status } = await ownerApi.peopleSearch.getSimpleByFilter({ filterValue: guestName });
+      const { data, status } = await ownerApi.peopleSearch.getSimpleByFilter({
+        filterValue: guestName,
+      });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1502,7 +1818,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
     const guestName = guestData.response!.displayName!;
 
     await test.step("DocSpace admin searches Owner", async () => {
-      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({ filterValue: ownerName });
+      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
+        filterValue: ownerName,
+      });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1512,7 +1830,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
     });
 
     await test.step("DocSpace admin searches RoomAdmin", async () => {
-      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({ filterValue: roomAdminName });
+      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
+        filterValue: roomAdminName,
+      });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1522,7 +1842,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
     });
 
     await test.step("DocSpace admin searches User", async () => {
-      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({ filterValue: userName });
+      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
+        filterValue: userName,
+      });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1532,7 +1854,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
     });
 
     await test.step("DocSpace admin searches Guest", async () => {
-      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({ filterValue: guestName });
+      const { data, status } = await adminApi.peopleSearch.getSimpleByFilter({
+        filterValue: guestName,
+      });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1567,7 +1891,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
 
     await test.step("Room admin searches Owner", async () => {
       const { data, status } =
-        await roomAdminApi.peopleSearch.getSimpleByFilter({ filterValue: ownerName });
+        await roomAdminApi.peopleSearch.getSimpleByFilter({
+          filterValue: ownerName,
+        });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1578,7 +1904,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
 
     await test.step("Room admin searches DocSpaceAdmin", async () => {
       const { data, status } =
-        await roomAdminApi.peopleSearch.getSimpleByFilter({ filterValue: adminName });
+        await roomAdminApi.peopleSearch.getSimpleByFilter({
+          filterValue: adminName,
+        });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1589,7 +1917,9 @@ test.describe("GET /people/simple/filter - Simple filter accounts", () => {
 
     await test.step("Room admin searches User", async () => {
       const { data, status } =
-        await roomAdminApi.peopleSearch.getSimpleByFilter({ filterValue: userName });
+        await roomAdminApi.peopleSearch.getSimpleByFilter({
+          filterValue: userName,
+        });
       expect(status).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1630,7 +1960,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step("Owner searches DocSpaceAdmin", async () => {
       await expect(async () => {
         const { data, status } =
-          await ownerApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: adminName });
+          await ownerApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: adminName,
+          });
         expect(status).toBe(200);
         const admin = (data.response as any[]).find(
           (u: any) => u.id === adminId,
@@ -1648,7 +1980,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step("Owner searches RoomAdmin", async () => {
       await expect(async () => {
         const { data, status } =
-          await ownerApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: roomAdminName });
+          await ownerApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: roomAdminName,
+          });
         expect(status).toBe(200);
         const roomAdmin = (data.response as any[]).find(
           (u: any) => u.id === roomAdminId,
@@ -1666,7 +2000,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step("Owner searches User", async () => {
       await expect(async () => {
         const { data, status } =
-          await ownerApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: userName });
+          await ownerApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: userName,
+          });
         expect(status).toBe(200);
         const user = (data.response as any[]).find((u: any) => u.id === userId);
         expect(user).toBeDefined();
@@ -1682,7 +2018,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step("Owner searches Guest", async () => {
       await expect(async () => {
         const { data, status } =
-          await ownerApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: guestName });
+          await ownerApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: guestName,
+          });
         expect(status).toBe(200);
         const guest = (data.response as any[]).find(
           (u: any) => u.id === guestId,
@@ -1729,7 +2067,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step.skip("DocSpace admin searches Owner", async () => {
       await expect(async () => {
         const { data, status } =
-          await adminApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: ownerName });
+          await adminApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: ownerName,
+          });
         expect(status).toBe(200);
         const owner = (data.response as any[]).find(
           (u: any) => u.id === ownerId,
@@ -1747,7 +2087,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step("DocSpace admin searches RoomAdmin", async () => {
       await expect(async () => {
         const { data, status } =
-          await adminApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: roomAdminName });
+          await adminApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: roomAdminName,
+          });
         expect(status).toBe(200);
         const roomAdmin = (data.response as any[]).find(
           (u: any) => u.id === roomAdminId,
@@ -1765,7 +2107,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step("DocSpace admin searches User", async () => {
       await expect(async () => {
         const { data, status } =
-          await adminApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: userName });
+          await adminApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: userName,
+          });
         expect(status).toBe(200);
         const user = (data.response as any[]).find((u: any) => u.id === userId);
         expect(user).toBeDefined();
@@ -1781,7 +2125,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step("DocSpace admin searches Guest", async () => {
       await expect(async () => {
         const { data, status } =
-          await adminApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: guestName });
+          await adminApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: guestName,
+          });
         expect(status).toBe(200);
         const guest = (data.response as any[]).find(
           (u: any) => u.id === guestId,
@@ -1824,7 +2170,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step.skip("Room admin searches Owner", async () => {
       await expect(async () => {
         const { data, status } =
-          await roomAdminApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: ownerName });
+          await roomAdminApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: ownerName,
+          });
         expect(status).toBe(200);
         const owner = (data.response as any[]).find(
           (u: any) => u.id === ownerId,
@@ -1842,7 +2190,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step("Room admin searches DocSpaceAdmin", async () => {
       await expect(async () => {
         const { data, status } =
-          await roomAdminApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: adminName });
+          await roomAdminApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: adminName,
+          });
         expect(status).toBe(200);
         const dsAdmin = (data.response as any[]).find(
           (u: any) => u.id === adminId,
@@ -1860,7 +2210,9 @@ test.describe("GET /people/filter - Extended filter accounts", () => {
     await test.step("Room admin searches User", async () => {
       await expect(async () => {
         const { data, status } =
-          await roomAdminApi.peopleSearch.searchUsersByExtendedFilter({ filterValue: userName });
+          await roomAdminApi.peopleSearch.searchUsersByExtendedFilter({
+            filterValue: userName,
+          });
         expect(status).toBe(200);
         const user = (data.response as any[]).find((u: any) => u.id === userId);
         expect(user).toBeDefined();

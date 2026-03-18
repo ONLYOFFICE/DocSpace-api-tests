@@ -16,7 +16,10 @@ test.describe("POST /files/folder/:folderId - Create folder", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: { title: "Autotest Room For Folder Creation", roomType: RoomType.CustomRoom },
+      createRoomRequestDto: {
+        title: "Autotest Room For Folder Creation",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
@@ -82,7 +85,11 @@ test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () =>
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: { title: "Autotest Room For Order", roomType: RoomType.CustomRoom, indexing: true },
+      createRoomRequestDto: {
+        title: "Autotest Room For Order",
+        roomType: RoomType.CustomRoom,
+        indexing: true,
+      },
     });
     const roomId = roomData.response!.id!;
 
@@ -98,8 +105,14 @@ test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () =>
     });
     const folderB = folderBData.response!;
 
-    await ownerApi.folders.setFolderOrder({ folderId: folderA.id!, orderRequestDto: { order: 2 } });
-    await ownerApi.folders.setFolderOrder({ folderId: folderB.id!, orderRequestDto: { order: 1 } });
+    await ownerApi.folders.setFolderOrder({
+      folderId: folderA.id!,
+      orderRequestDto: { order: 2 },
+    });
+    await ownerApi.folders.setFolderOrder({
+      folderId: folderB.id!,
+      orderRequestDto: { order: 1 },
+    });
 
     const { data } = await getFolderSortedByCustomOrder(
       ownerApi.folders,

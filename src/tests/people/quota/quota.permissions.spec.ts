@@ -17,7 +17,10 @@ test.describe("PUT /people/userquota - access control", () => {
     const roomAdminId = roomAdminData.response!.id!;
 
     const { data } = await roomAdminApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [roomAdminId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [roomAdminId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -49,7 +52,10 @@ test.describe("PUT /people/userquota - access control", () => {
       "RoomAdmin",
     );
     const { data } = await roomAdminApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [ownerId, docSpaceAdminId, userId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [ownerId, docSpaceAdminId, userId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -84,7 +90,10 @@ test.describe("PUT /people/userquota - access control", () => {
       "User",
     );
     const { data } = await userApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [ownerId, docSpaceAdminId, roomAdminId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [ownerId, docSpaceAdminId, roomAdminId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -122,7 +131,10 @@ test.describe("PUT /people/userquota - access control", () => {
       "Guest",
     );
     const { data } = await guestApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [ownerId, docSpaceAdminId, roomAdminId, userId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [ownerId, docSpaceAdminId, roomAdminId, userId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -144,7 +156,10 @@ test.describe("PUT /people/userquota - access control", () => {
     const roomAdminId = roomAdminData.response!.id!;
 
     const { status } = await anonApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [roomAdminId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [roomAdminId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(status).toBe(401);
@@ -167,7 +182,10 @@ test.describe("PUT /people/resetquota - access control", () => {
     const roomAdminId = roomAdminData.response!.id!;
 
     await ownerApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [roomAdminId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [roomAdminId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
     const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
@@ -203,7 +221,10 @@ test.describe("PUT /people/resetquota - access control", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [ownerId, docSpaceAdminId, userId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [ownerId, docSpaceAdminId, userId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
     const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
@@ -211,7 +232,9 @@ test.describe("PUT /people/resetquota - access control", () => {
     );
 
     const { data } = await roomAdminApi.peopleQuota.resetUsersQuota({
-      updateMembersQuotaRequestDto: { userIds: [ownerId, docSpaceAdminId, userId] },
+      updateMembersQuotaRequestDto: {
+        userIds: [ownerId, docSpaceAdminId, userId],
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -242,7 +265,10 @@ test.describe("PUT /people/resetquota - access control", () => {
     const roomAdminId = roomAdminData.response!.id!;
 
     await ownerApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [ownerId, docSpaceAdminId, roomAdminId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [ownerId, docSpaceAdminId, roomAdminId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     const { api: userApi } = await apiSdk.addAuthenticatedMember(
@@ -251,7 +277,9 @@ test.describe("PUT /people/resetquota - access control", () => {
     );
 
     const { data } = await userApi.peopleQuota.resetUsersQuota({
-      updateMembersQuotaRequestDto: { userIds: [ownerId, docSpaceAdminId, roomAdminId] },
+      updateMembersQuotaRequestDto: {
+        userIds: [ownerId, docSpaceAdminId, roomAdminId],
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -285,7 +313,10 @@ test.describe("PUT /people/resetquota - access control", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [ownerId, docSpaceAdminId, roomAdminId, userId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [ownerId, docSpaceAdminId, roomAdminId, userId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(
@@ -294,7 +325,9 @@ test.describe("PUT /people/resetquota - access control", () => {
     );
 
     const { data } = await guestApi.peopleQuota.resetUsersQuota({
-      updateMembersQuotaRequestDto: { userIds: [ownerId, docSpaceAdminId, roomAdminId, userId] },
+      updateMembersQuotaRequestDto: {
+        userIds: [ownerId, docSpaceAdminId, roomAdminId, userId],
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -317,7 +350,10 @@ test.describe("PUT /people/resetquota - access control", () => {
     const roomAdminId = roomAdminData.response!.id!;
 
     await ownerApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [roomAdminId], quota: QUOTA_MINIMAL_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [roomAdminId],
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     const { status } = await anonApi.peopleQuota.resetUsersQuota({
@@ -344,7 +380,10 @@ test.describe("PUT /people/resetquota - access control", () => {
     const OVER_SIZE_BYTES = 999999999999999; // exceeds total storage
 
     const { data } = await ownerApi.peopleQuota.updateUserQuota({
-      updateMembersQuotaRequestDto: { userIds: [docspaceAdminId], quota: OVER_SIZE_BYTES },
+      updateMembersQuotaRequestDto: {
+        userIds: [docspaceAdminId],
+        quota: OVER_SIZE_BYTES,
+      },
     });
     expect(data.statusCode).toBe(400);
     expect((data as any).error.message).toBe(
