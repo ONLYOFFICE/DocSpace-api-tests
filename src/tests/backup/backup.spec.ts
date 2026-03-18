@@ -1174,7 +1174,9 @@ test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
     });
 
     await test.step("DELETE deletebackup - delete backup by ID", async () => {
-      const { data, status } = await ownerApi.backup.deleteBackup({ id: backupId });
+      const { data, status } = await ownerApi.backup.deleteBackup({
+        id: backupId,
+      });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -1217,7 +1219,9 @@ test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
     });
 
     await test.step("DELETE deletebackup - delete backup by ID", async () => {
-      const { data, status } = await adminApi.backup.deleteBackup({ id: backupId });
+      const { data, status } = await adminApi.backup.deleteBackup({
+        id: backupId,
+      });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);

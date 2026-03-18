@@ -14,9 +14,10 @@ test.fail(
       type: "image/png",
     });
 
-    const { data, status } = await ownerApi.photos.uploadMemberPhoto({ userid: userId, formCollection: [
-      file,
-    ] as any });
+    const { data, status } = await ownerApi.photos.uploadMemberPhoto({
+      userid: userId,
+      formCollection: [file] as any,
+    });
 
     expect(status).toBe(200);
     expect(data.response?.success).toBe(true);
@@ -133,7 +134,9 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     await apiSdk.uploadMemberPhoto("owner", userId, createTestImageBuffer());
 
-    const { data } = await ownerApi.photos.deleteMemberPhoto({ userid: userId });
+    const { data } = await ownerApi.photos.deleteMemberPhoto({
+      userid: userId,
+    });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -281,7 +284,9 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
     );
     const userId = memberData.response!.id!;
 
-    const { data } = await apiSdk.forRole("user").photos.getMemberPhoto({ userid: userId });
+    const { data } = await apiSdk
+      .forRole("user")
+      .photos.getMemberPhoto({ userid: userId });
 
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
@@ -458,9 +463,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
       expect(data.count).toBe(1);
     });
   });
-
 });
-
 
 // SDK methods updateMemberPhoto (PUT /people/{userid}/photo) and
 // createMemberPhotoThumbnails (POST /people/{userid}/photo/thumbnails)

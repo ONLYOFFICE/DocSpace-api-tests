@@ -9,12 +9,10 @@ test.describe("DELETE /people/guests - Permissions", () => {
       const { data: guestData } = await apiSdk.addMember("owner", "Guest");
       const guestId = guestData.response!.id!;
 
-      await apiSdk
-        .forRole("owner")
-        .userStatus.updateUserStatus({
-          status: EmployeeStatus.Terminated,
-          updateMembersRequestDto: { userIds: [guestId] },
-        });
+      await apiSdk.forRole("owner").userStatus.updateUserStatus({
+        status: EmployeeStatus.Terminated,
+        updateMembersRequestDto: { userIds: [guestId] },
+      });
 
       const { userData: roomAdminData } = await apiSdk.addMember(
         "owner",
@@ -22,9 +20,9 @@ test.describe("DELETE /people/guests - Permissions", () => {
       );
       await apiSdk.authenticateMember(roomAdminData, "RoomAdmin");
 
-      const { data } = await apiSdk
-        .forRole("roomAdmin")
-        .guests.deleteGuests({ updateMembersRequestDto: { userIds: [guestId] } });
+      const { data } = await apiSdk.forRole("roomAdmin").guests.deleteGuests({
+        updateMembersRequestDto: { userIds: [guestId] },
+      });
 
       expect((data as any).statusCode).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
@@ -43,9 +41,9 @@ test.describe("DELETE /people/guests - Permissions", () => {
       );
       await apiSdk.authenticateMember(roomAdminData, "RoomAdmin");
 
-      const { data } = await apiSdk
-        .forRole("roomAdmin")
-        .guests.deleteGuests({ updateMembersRequestDto: { userIds: [guestId] } });
+      const { data } = await apiSdk.forRole("roomAdmin").guests.deleteGuests({
+        updateMembersRequestDto: { userIds: [guestId] },
+      });
 
       expect((data as any).statusCode).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
@@ -58,12 +56,10 @@ test.describe("DELETE /people/guests - Permissions", () => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
     const guestId = guestData.response!.id!;
 
-    await apiSdk
-      .forRole("owner")
-      .userStatus.updateUserStatus({
-        status: EmployeeStatus.Terminated,
-        updateMembersRequestDto: { userIds: [guestId] },
-      });
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [guestId] },
+    });
 
     const { userData: userData } = await apiSdk.addMember("owner", "User");
     await apiSdk.authenticateMember(userData, "User");
@@ -82,12 +78,10 @@ test.describe("DELETE /people/guests - Permissions", () => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
     const guestId = guestData.response!.id!;
 
-    await apiSdk
-      .forRole("owner")
-      .userStatus.updateUserStatus({
-        status: EmployeeStatus.Terminated,
-        updateMembersRequestDto: { userIds: [guestId] },
-      });
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [guestId] },
+    });
 
     const { userData: guestAttackerData } = await apiSdk.addMember(
       "owner",
@@ -105,7 +99,9 @@ test.describe("DELETE /people/guests - Permissions", () => {
 
   test("DELETE /people/guests - 401 when unauthorized", async ({ apiSdk }) => {
     const { status } = await apiSdk.forAnonymous().guests.deleteGuests({
-      updateMembersRequestDto: { userIds: ["00000000-0000-0000-0000-000000000000"] },
+      updateMembersRequestDto: {
+        userIds: ["00000000-0000-0000-0000-000000000000"],
+      },
     });
 
     expect(status).toBe(401);

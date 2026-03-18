@@ -12,19 +12,23 @@ test.describe("API email methods", () => {
     const { data: ownerData } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerData.response!.id!;
 
-    const { data } = await ownerApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: ownerId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await ownerApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",
     );
 
-    await ownerApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: ownerId,
-      email: config.DOCSPACE_OWNER_EMAIL,
-    } });
+    await ownerApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: config.DOCSPACE_OWNER_EMAIL,
+      },
+    });
     await api.auth.authenticateOwner();
   });
 
@@ -38,10 +42,12 @@ test.describe("API email methods", () => {
     );
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
-    const { data } = await ownerApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await ownerApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",
@@ -58,10 +64,12 @@ test.describe("API email methods", () => {
     );
     const roomAdminId = roomAdminData.response!.id!;
 
-    const { data } = await ownerApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: roomAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await ownerApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: roomAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",
@@ -75,10 +83,12 @@ test.describe("API email methods", () => {
     const { data: userData } = await apiSdk.addMember("owner", "User");
     const userId = userData.response!.id!;
 
-    const { data } = await ownerApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await ownerApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",
@@ -92,10 +102,12 @@ test.describe("API email methods", () => {
       await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
-    const { data } = await adminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await adminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",
@@ -115,10 +127,12 @@ test.describe("API email methods", () => {
     );
     const roomAdminId = roomAdminData.response!.id!;
 
-    const { data } = await adminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: roomAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await adminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: roomAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",
@@ -135,10 +149,12 @@ test.describe("API email methods", () => {
     const { data: userData } = await apiSdk.addMember("owner", "User");
     const userId = userData.response!.id!;
 
-    const { data } = await adminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await adminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",
@@ -152,10 +168,12 @@ test.describe("API email methods", () => {
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdminId = roomAdminData.response!.id!;
 
-    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: roomAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: roomAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",
@@ -169,10 +187,12 @@ test.describe("API email methods", () => {
       await apiSdk.addAuthenticatedMember("owner", "User");
     const userId = userData.response!.id!;
 
-    const { data } = await userApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await userApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",
@@ -186,10 +206,12 @@ test.describe("API email methods", () => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
     const userId = userData.response!.id!;
 
-    const { data } = await guestApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await guestApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(
       "The email change instructions have been successfully sent",

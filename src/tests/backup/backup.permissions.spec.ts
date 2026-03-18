@@ -248,7 +248,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
   }) => {
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.backup.createBackupSchedule({ backupScheduleDto: scheduleDto });
+    const { status } = await anonApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(401);
   });
@@ -262,8 +264,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
     );
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } =
-      await ownerApi.backup.createBackupSchedule({ backupScheduleDto: scheduleDto });
+    const { data, status } = await ownerApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(402);
     expect(data.statusCode).toBe(402);
@@ -283,8 +286,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
       "RoomAdmin",
     );
 
-    const { data, status } =
-      await roomAdminApi.backup.createBackupSchedule({ backupScheduleDto: scheduleDto });
+    const { data, status } = await roomAdminApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -302,8 +306,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
       "User",
     );
 
-    const { data, status } =
-      await userApi.backup.createBackupSchedule({ backupScheduleDto: scheduleDto });
+    const { data, status } = await userApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -321,8 +326,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
       "Guest",
     );
 
-    const { data, status } =
-      await guestApi.backup.createBackupSchedule({ backupScheduleDto: scheduleDto });
+    const { data, status } = await guestApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);

@@ -10,10 +10,12 @@ test.describe("API email tests for access rights", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const userId = faker.string.uuid();
-    const { data } = await ownerApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await ownerApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(404);
     expect((data as any).error.message).toContain(
       "The user could not be found",
@@ -28,10 +30,12 @@ test.describe("API email tests for access rights", () => {
     const userId = userData.response!.id!;
     const incorrectEmail = apiSdk.faker.generateString(20);
 
-    const { data } = await ownerApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: incorrectEmail,
-    } });
+    const { data } = await ownerApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: incorrectEmail,
+      },
+    });
     expect((data as any).response.status).toBe(400);
     expect((data as any).response.title).toContain(
       "One or more validation errors occurred.",
@@ -57,10 +61,12 @@ test.describe("API email tests for access rights", () => {
       "DocSpaceAdmin",
     );
 
-    const { data } = await adminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await adminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -76,10 +82,12 @@ test.describe("API email tests for access rights", () => {
       "DocSpaceAdmin",
     );
 
-    const { data } = await adminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: ownerId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await adminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -95,10 +103,12 @@ test.describe("API email tests for access rights", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: ownerId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -116,10 +126,12 @@ test.describe("API email tests for access rights", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -137,10 +149,12 @@ test.describe("API email tests for access rights", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: roomAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: roomAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -155,10 +169,12 @@ test.describe("API email tests for access rights", () => {
     const { data: userData } = await apiSdk.addMember("owner", "User");
     const userId = userData.response!.id!;
 
-    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await roomAdminApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -174,10 +190,12 @@ test.describe("API email tests for access rights", () => {
       "User",
     );
 
-    const { data } = await userApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: ownerId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await userApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -193,10 +211,12 @@ test.describe("API email tests for access rights", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: ownerId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await guestApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -214,10 +234,12 @@ test.describe("API email tests for access rights", () => {
       "User",
     );
 
-    const { data } = await userApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await userApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -235,10 +257,12 @@ test.describe("API email tests for access rights", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await guestApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -256,10 +280,12 @@ test.describe("API email tests for access rights", () => {
       "User",
     );
 
-    const { data } = await userApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: roomAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await userApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: roomAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -277,10 +303,12 @@ test.describe("API email tests for access rights", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: roomAdminId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await guestApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: roomAdminId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -295,10 +323,12 @@ test.describe("API email tests for access rights", () => {
       "User",
     );
 
-    const { data } = await userApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await userApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -313,10 +343,12 @@ test.describe("API email tests for access rights", () => {
       "User",
     );
 
-    const { data } = await userApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await userApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -331,10 +363,12 @@ test.describe("API email tests for access rights", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: userId,
-      email: faker.internet.email(),
-    } });
+    const { data } = await guestApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
+    });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -347,10 +381,12 @@ test.describe("API email tests for access rights", () => {
     const { data: ownerData } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerData.response!.id!;
 
-    const { status } = await anonApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: ownerId,
-      email: faker.internet.email(),
-    } });
+    const { status } = await anonApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
+    });
     expect(status).toBe(401);
   });
 
@@ -365,10 +401,12 @@ test.describe("API email tests for access rights", () => {
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
     const veryLongEmail = apiSdk.faker.generateEmailWithLength(260);
 
-    const { data } = await ownerApi.email.sendEmailChangeInstructions({ updateMemberRequestDto: {
-      userId: docSpaceAdminId,
-      email: veryLongEmail,
-    } });
+    const { data } = await ownerApi.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: veryLongEmail,
+      },
+    });
     expect((data as any).response.status).toBe(400);
     expect((data as any).response.title).toContain(
       "One or more validation errors occurred.",
