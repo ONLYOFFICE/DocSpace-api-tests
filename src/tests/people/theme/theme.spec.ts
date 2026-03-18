@@ -57,27 +57,27 @@ test.describe("PUT /people/theme - Change portal theme", () => {
     apiSdk,
   }) => {
     await test.step("Owner changes theme to Base", async () => {
-      const { data } = await apiSdk
-        .forRole("owner")
-        .theme.changePortalTheme({ theme: "Base" });
+      const { data } = await apiSdk.forRole("owner").theme.changePortalTheme({
+        darkThemeSettingsRequestDto: { theme: "Base" },
+      });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Base");
     });
 
     await test.step("Owner changes theme to Dark", async () => {
-      const { data } = await apiSdk
-        .forRole("owner")
-        .theme.changePortalTheme({ theme: "Dark" });
+      const { data } = await apiSdk.forRole("owner").theme.changePortalTheme({
+        darkThemeSettingsRequestDto: { theme: "Dark" },
+      });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Dark");
     });
 
     await test.step("Owner changes theme to System", async () => {
-      const { data } = await apiSdk
-        .forRole("owner")
-        .theme.changePortalTheme({ theme: "System" });
+      const { data } = await apiSdk.forRole("owner").theme.changePortalTheme({
+        darkThemeSettingsRequestDto: { theme: "System" },
+      });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("System");
@@ -92,7 +92,9 @@ test.describe("PUT /people/theme - Change portal theme", () => {
     await test.step("DocSpace admin changes theme to Base", async () => {
       const { data } = await apiSdk
         .forRole("docSpaceAdmin")
-        .theme.changePortalTheme({ theme: "Base" });
+        .theme.changePortalTheme({
+          darkThemeSettingsRequestDto: { theme: "Base" },
+        });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Base");
@@ -101,7 +103,9 @@ test.describe("PUT /people/theme - Change portal theme", () => {
     await test.step("DocSpace admin changes theme to Dark", async () => {
       const { data } = await apiSdk
         .forRole("docSpaceAdmin")
-        .theme.changePortalTheme({ theme: "Dark" });
+        .theme.changePortalTheme({
+          darkThemeSettingsRequestDto: { theme: "Dark" },
+        });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Dark");
@@ -110,7 +114,9 @@ test.describe("PUT /people/theme - Change portal theme", () => {
     await test.step("DocSpace admin changes theme to System", async () => {
       const { data } = await apiSdk
         .forRole("docSpaceAdmin")
-        .theme.changePortalTheme({ theme: "System" });
+        .theme.changePortalTheme({
+          darkThemeSettingsRequestDto: { theme: "System" },
+        });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("System");
@@ -125,7 +131,9 @@ test.describe("PUT /people/theme - Change portal theme", () => {
     await test.step("Room admin changes theme to Base", async () => {
       const { data } = await apiSdk
         .forRole("roomAdmin")
-        .theme.changePortalTheme({ theme: "Base" });
+        .theme.changePortalTheme({
+          darkThemeSettingsRequestDto: { theme: "Base" },
+        });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Base");
@@ -134,7 +142,9 @@ test.describe("PUT /people/theme - Change portal theme", () => {
     await test.step("Room admin changes theme to Dark", async () => {
       const { data } = await apiSdk
         .forRole("roomAdmin")
-        .theme.changePortalTheme({ theme: "Dark" });
+        .theme.changePortalTheme({
+          darkThemeSettingsRequestDto: { theme: "Dark" },
+        });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Dark");
@@ -143,7 +153,9 @@ test.describe("PUT /people/theme - Change portal theme", () => {
     await test.step("Room admin changes theme to System", async () => {
       const { data } = await apiSdk
         .forRole("roomAdmin")
-        .theme.changePortalTheme({ theme: "System" });
+        .theme.changePortalTheme({
+          darkThemeSettingsRequestDto: { theme: "System" },
+        });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("System");
@@ -156,27 +168,27 @@ test.describe("PUT /people/theme - Change portal theme", () => {
     await apiSdk.addAuthenticatedMember("owner", "User");
 
     await test.step("User changes theme to Base", async () => {
-      const { data } = await apiSdk
-        .forRole("user")
-        .theme.changePortalTheme({ theme: "Base" });
+      const { data } = await apiSdk.forRole("user").theme.changePortalTheme({
+        darkThemeSettingsRequestDto: { theme: "Base" },
+      });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Base");
     });
 
     await test.step("User changes theme to Dark", async () => {
-      const { data } = await apiSdk
-        .forRole("user")
-        .theme.changePortalTheme({ theme: "Dark" });
+      const { data } = await apiSdk.forRole("user").theme.changePortalTheme({
+        darkThemeSettingsRequestDto: { theme: "Dark" },
+      });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Dark");
     });
 
     await test.step("User changes theme to System", async () => {
-      const { data } = await apiSdk
-        .forRole("user")
-        .theme.changePortalTheme({ theme: "System" });
+      const { data } = await apiSdk.forRole("user").theme.changePortalTheme({
+        darkThemeSettingsRequestDto: { theme: "System" },
+      });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("System");
@@ -189,27 +201,27 @@ test.describe("PUT /people/theme - Change portal theme", () => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
     await test.step("Guest changes theme to Base", async () => {
-      const { data } = await apiSdk
-        .forRole("guest")
-        .theme.changePortalTheme({ theme: "Base" });
+      const { data } = await apiSdk.forRole("guest").theme.changePortalTheme({
+        darkThemeSettingsRequestDto: { theme: "Base" },
+      });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Base");
     });
 
     await test.step("Guest changes theme to Dark", async () => {
-      const { data } = await apiSdk
-        .forRole("guest")
-        .theme.changePortalTheme({ theme: "Dark" });
+      const { data } = await apiSdk.forRole("guest").theme.changePortalTheme({
+        darkThemeSettingsRequestDto: { theme: "Dark" },
+      });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("Dark");
     });
 
     await test.step("Guest changes theme to System", async () => {
-      const { data } = await apiSdk
-        .forRole("guest")
-        .theme.changePortalTheme({ theme: "System" });
+      const { data } = await apiSdk.forRole("guest").theme.changePortalTheme({
+        darkThemeSettingsRequestDto: { theme: "System" },
+      });
 
       expect(data.statusCode).toBe(200);
       expect(data.response?.theme).toBe("System");

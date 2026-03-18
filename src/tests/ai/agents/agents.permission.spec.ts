@@ -10,9 +10,11 @@ test.describe("POST /ai/agents - User cannot create AI agent", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
       });
       const providerId = providerData.response!.id!;
 
@@ -20,14 +22,16 @@ test.describe("POST /ai/agents - User cannot create AI agent", () => {
       const userApi = apiSdk.forRole("user");
 
       const { data, status } = await userApi.agents.createAgent({
-        title: `Autotest ${provider.title} Agent`,
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest", key],
-        chatSettings: {
-          providerId,
-          modelId: provider.modelId,
-          prompt: `You are a test assistant powered by ${provider.title}`,
+        createAgentRequestDto: {
+          title: `Autotest ${provider.title} Agent`,
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest", key],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt: `You are a test assistant powered by ${provider.title}`,
+          },
         },
       });
 
@@ -48,9 +52,11 @@ test.describe("POST /ai/agents - Guest cannot create AI agent", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
       });
       const providerId = providerData.response!.id!;
 
@@ -58,14 +64,16 @@ test.describe("POST /ai/agents - Guest cannot create AI agent", () => {
       const guestApi = apiSdk.forRole("guest");
 
       const { data, status } = await guestApi.agents.createAgent({
-        title: `Autotest ${provider.title} Agent`,
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest", key],
-        chatSettings: {
-          providerId,
-          modelId: provider.modelId,
-          prompt: `You are a test assistant powered by ${provider.title}`,
+        createAgentRequestDto: {
+          title: `Autotest ${provider.title} Agent`,
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest", key],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt: `You are a test assistant powered by ${provider.title}`,
+          },
         },
       });
 
@@ -85,14 +93,16 @@ test.describe("POST /ai/agents - Anonymous cannot create AI agent", () => {
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.agents.createAgent({
-      title: "Autotest Unauthorized Agent",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId: 1,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Unauthorized Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId: 1,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
 
@@ -107,21 +117,25 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        type: aiProviders.openAi.type,
-        title: aiProviders.openAi.title,
-        key: aiProviders.openAi.key,
+        createProviderRequestDto: {
+          type: aiProviders.openAi.type,
+          title: aiProviders.openAi.title,
+          key: aiProviders.openAi.key,
+        },
       });
       const providerId = providerData.response!.id!;
 
       await ownerApi.agents.createAgent({
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
-          prompt: "You are a test assistant",
+        createAgentRequestDto: {
+          title: "Autotest Hidden Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: aiProviders.openAi.modelId,
+            prompt: "You are a test assistant",
+          },
         },
       });
 
@@ -140,21 +154,25 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        type: aiProviders.openAi.type,
-        title: aiProviders.openAi.title,
-        key: aiProviders.openAi.key,
+        createProviderRequestDto: {
+          type: aiProviders.openAi.type,
+          title: aiProviders.openAi.title,
+          key: aiProviders.openAi.key,
+        },
       });
       const providerId = providerData.response!.id!;
 
       await ownerApi.agents.createAgent({
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
-          prompt: "You are a test assistant",
+        createAgentRequestDto: {
+          title: "Autotest Hidden Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: aiProviders.openAi.modelId,
+            prompt: "You are a test assistant",
+          },
         },
       });
 
@@ -173,21 +191,25 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        type: aiProviders.openAi.type,
-        title: aiProviders.openAi.title,
-        key: aiProviders.openAi.key,
+        createProviderRequestDto: {
+          type: aiProviders.openAi.type,
+          title: aiProviders.openAi.title,
+          key: aiProviders.openAi.key,
+        },
       });
       const providerId = providerData.response!.id!;
 
       await ownerApi.agents.createAgent({
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
-          prompt: "You are a test assistant",
+        createAgentRequestDto: {
+          title: "Autotest Hidden Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: aiProviders.openAi.modelId,
+            prompt: "You are a test assistant",
+          },
         },
       });
 
@@ -218,21 +240,25 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Hidden Agent",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Hidden Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -240,7 +266,9 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-    const { data, status } = await roomAdminApi.agents.getAgentInfo(agentId);
+    const { data, status } = await roomAdminApi.agents.getAgentInfo({
+      id: agentId,
+    });
 
     expect(status).toBe(403);
     expect((data as any).error.message).toBe(
@@ -254,21 +282,25 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Hidden Agent",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Hidden Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -276,7 +308,7 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
     await apiSdk.addAuthenticatedMember("owner", "User");
     const userApi = apiSdk.forRole("user");
 
-    const { data, status } = await userApi.agents.getAgentInfo(agentId);
+    const { data, status } = await userApi.agents.getAgentInfo({ id: agentId });
 
     expect(status).toBe(403);
     expect((data as any).error.message).toBe(
@@ -290,21 +322,25 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Hidden Agent",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Hidden Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -312,7 +348,9 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
     const guestApi = apiSdk.forRole("guest");
 
-    const { data, status } = await guestApi.agents.getAgentInfo(agentId);
+    const { data, status } = await guestApi.agents.getAgentInfo({
+      id: agentId,
+    });
 
     expect(status).toBe(403);
     expect((data as any).error.message).toBe(
@@ -326,28 +364,32 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Hidden Agent",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Hidden Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.agents.getAgentInfo(agentId);
+    const { status } = await anonApi.agents.getAgentInfo({ id: agentId });
 
     expect(status).toBe(401);
   });
@@ -360,21 +402,25 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        type: aiProviders.openAi.type,
-        title: aiProviders.openAi.title,
-        key: aiProviders.openAi.key,
+        createProviderRequestDto: {
+          type: aiProviders.openAi.type,
+          title: aiProviders.openAi.title,
+          key: aiProviders.openAi.key,
+        },
       });
       const providerId = providerData.response!.id!;
 
       const { data: agentData } = await ownerApi.agents.createAgent({
-        title: "Autotest Agent to Delete",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
-          prompt: "You are a test assistant",
+        createAgentRequestDto: {
+          title: "Autotest Agent to Delete",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: aiProviders.openAi.modelId,
+            prompt: "You are a test assistant",
+          },
         },
       });
       const agentId = agentData.response!.id!;
@@ -382,8 +428,9 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
       await apiSdk.addAuthenticatedMember("owner", "User");
       const userApi = apiSdk.forRole("user");
 
-      const { data, status } = await userApi.agents.deleteAgent(agentId, {
-        deleteAfter: false,
+      const { data, status } = await userApi.agents.deleteAgent({
+        id: agentId,
+        deleteRoomRequest: { deleteAfter: false },
       });
 
       expect(status).toBe(403);
@@ -397,21 +444,25 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        type: aiProviders.openAi.type,
-        title: aiProviders.openAi.title,
-        key: aiProviders.openAi.key,
+        createProviderRequestDto: {
+          type: aiProviders.openAi.type,
+          title: aiProviders.openAi.title,
+          key: aiProviders.openAi.key,
+        },
       });
       const providerId = providerData.response!.id!;
 
       const { data: agentData } = await ownerApi.agents.createAgent({
-        title: "Autotest Agent to Delete",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
-          prompt: "You are a test assistant",
+        createAgentRequestDto: {
+          title: "Autotest Agent to Delete",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: aiProviders.openAi.modelId,
+            prompt: "You are a test assistant",
+          },
         },
       });
       const agentId = agentData.response!.id!;
@@ -419,8 +470,9 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
       const guestApi = apiSdk.forRole("guest");
 
-      const { data, status } = await guestApi.agents.deleteAgent(agentId, {
-        deleteAfter: false,
+      const { data, status } = await guestApi.agents.deleteAgent({
+        id: agentId,
+        deleteRoomRequest: { deleteAfter: false },
       });
 
       expect(status).toBe(403);
@@ -434,29 +486,34 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent to Delete",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent to Delete",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.agents.deleteAgent(agentId, {
-      deleteAfter: false,
+    const { status } = await anonApi.agents.deleteAgent({
+      id: agentId,
+      deleteRoomRequest: { deleteAfter: false },
     });
 
     expect(status).toBe(401);
@@ -468,21 +525,25 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        type: aiProviders.openAi.type,
-        title: aiProviders.openAi.title,
-        key: aiProviders.openAi.key,
+        createProviderRequestDto: {
+          type: aiProviders.openAi.type,
+          title: aiProviders.openAi.title,
+          key: aiProviders.openAi.key,
+        },
       });
       const providerId = providerData.response!.id!;
 
       const { data: agentData } = await ownerApi.agents.createAgent({
-        title: "Autotest Agent to Delete",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
-          prompt: "You are a test assistant",
+        createAgentRequestDto: {
+          title: "Autotest Agent to Delete",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: aiProviders.openAi.modelId,
+            prompt: "You are a test assistant",
+          },
         },
       });
       const agentId = agentData.response!.id!;
@@ -490,8 +551,9 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
       await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
       const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-      const { data, status } = await adminApi.agents.deleteAgent(agentId, {
-        deleteAfter: false,
+      const { data, status } = await adminApi.agents.deleteAgent({
+        id: agentId,
+        deleteRoomRequest: { deleteAfter: false },
       });
 
       expect(status).toBe(403);
@@ -523,26 +585,32 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -551,8 +619,10 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
     const { data, status } = await roomAdminApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(status).toBe(403);
@@ -568,26 +638,32 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -596,8 +672,10 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     const userApi = apiSdk.forRole("user");
 
     const { data, status } = await userApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(status).toBe(403);
@@ -613,26 +691,32 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -641,8 +725,10 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     const guestApi = apiSdk.forRole("guest");
 
     const { data, status } = await guestApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(status).toBe(403);
@@ -658,26 +744,32 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -686,8 +778,10 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
     const { data, status } = await adminApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(status).toBe(403);
@@ -703,26 +797,32 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -730,8 +830,10 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     expect(status).toBe(401);
@@ -744,26 +846,32 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Quota Oversize",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Quota Oversize",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -771,8 +879,10 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
     const OVER_SIZE_BYTES = 999999999999999; // exceeds total storage
 
     const { data } = await ownerApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: OVER_SIZE_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: OVER_SIZE_BYTES,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -790,40 +900,48 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Reset Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Reset Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
     await ownerApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
     const { data, status } = await roomAdminApi.agents.resetAgentsQuota({
-      roomIds: [agentId] as any,
+      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
     });
 
     expect(status).toBe(403);
@@ -839,40 +957,48 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Reset Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Reset Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
     await ownerApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     await apiSdk.addAuthenticatedMember("owner", "User");
     const userApi = apiSdk.forRole("user");
 
     const { data, status } = await userApi.agents.resetAgentsQuota({
-      roomIds: [agentId] as any,
+      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
     });
 
     expect(status).toBe(403);
@@ -888,40 +1014,48 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Reset Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Reset Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
     await ownerApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     await apiSdk.addAuthenticatedMember("owner", "Guest");
     const guestApi = apiSdk.forRole("guest");
 
     const { data, status } = await guestApi.agents.resetAgentsQuota({
-      roomIds: [agentId] as any,
+      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
     });
 
     expect(status).toBe(403);
@@ -937,40 +1071,48 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Reset Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Reset Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
     await ownerApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
     const { data, status } = await adminApi.agents.resetAgentsQuota({
-      roomIds: [agentId] as any,
+      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
     });
 
     expect(status).toBe(403);
@@ -986,39 +1128,47 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      enableQuota: true,
-      defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
     });
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent Reset Quota Perm",
-      color: "FF5733",
-      cover: "layers",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent Reset Quota Perm",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
     await ownerApi.agents.updateAgentsQuota({
-      roomIds: [agentId] as any,
-      quota: QUOTA_MINIMAL_BYTES,
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
     });
 
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.agents.resetAgentsQuota({
-      roomIds: [agentId] as any,
+      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
     });
 
     expect(status).toBe(401);
@@ -1032,19 +1182,23 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -1078,10 +1232,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         adminUserData,
         "DocSpaceAdmin",
       );
-      const { data, status } = await adminApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await adminApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1094,10 +1248,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         roomAdminUserData,
         "RoomAdmin",
       );
-      const { data, status } = await roomAdminApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await roomAdminApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1107,10 +1261,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
     await test.step("User cannot update agent", async () => {
       const userApi = await apiSdk.authenticateMember(userUserData, "User");
-      const { data, status } = await userApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await userApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1120,10 +1274,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
     await test.step("Guest cannot update agent", async () => {
       const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-      const { data, status } = await guestApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await guestApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1138,32 +1292,39 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
-      title: "Autotest Agent",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.agents.updateAgent(agentId, {
-      title: "Updated Agent",
-      tags: ["updated-tag"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "Updated prompt",
+    const { status } = await anonApi.agents.updateAgent({
+      id: agentId,
+      updateRoomRequest: {
+        title: "Updated Agent",
+        tags: ["updated-tag"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "Updated prompt",
+        },
       },
     });
 
@@ -1176,9 +1337,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
@@ -1186,12 +1349,14 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
     const { data: agentData } = await adminApi.agents.createAgent({
-      title: "Autotest Agent",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -1221,10 +1386,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         roomAdminUserData,
         "RoomAdmin",
       );
-      const { data, status } = await roomAdminApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await roomAdminApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1234,10 +1399,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
     await test.step("User cannot update agent", async () => {
       const userApi = await apiSdk.authenticateMember(userUserData, "User");
-      const { data, status } = await userApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await userApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1247,10 +1412,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
     await test.step("Guest cannot update agent", async () => {
       const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-      const { data, status } = await guestApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await guestApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1265,9 +1430,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
@@ -1275,23 +1442,28 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
     const { data: agentData } = await adminApi.agents.createAgent({
-      title: "Autotest Agent",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
-    const { data, status } = await ownerApi.agents.updateAgent(agentId, {
-      title: "Updated Agent",
-      tags: ["updated-tag"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "Updated prompt",
+    const { data, status } = await ownerApi.agents.updateAgent({
+      id: agentId,
+      updateRoomRequest: {
+        title: "Updated Agent",
+        tags: ["updated-tag"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "Updated prompt",
+        },
       },
     });
 
@@ -1307,9 +1479,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
@@ -1317,23 +1491,28 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
     const { data: agentData } = await roomAdminApi.agents.createAgent({
-      title: "Autotest Agent",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
 
-    const { data, status } = await ownerApi.agents.updateAgent(agentId, {
-      title: "Updated Agent",
-      tags: ["updated-tag"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "Updated prompt",
+    const { data, status } = await ownerApi.agents.updateAgent({
+      id: agentId,
+      updateRoomRequest: {
+        title: "Updated Agent",
+        tags: ["updated-tag"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "Updated prompt",
+        },
       },
     });
 
@@ -1349,9 +1528,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      type: aiProviders.openAi.type,
-      title: aiProviders.openAi.title,
-      key: aiProviders.openAi.key,
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
     });
     const providerId = providerData.response!.id!;
 
@@ -1369,12 +1550,14 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
     const { data: agentData } = await roomAdminApi.agents.createAgent({
-      title: "Autotest Agent",
-      tags: ["autotest"],
-      chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
-        prompt: "You are a test assistant",
+      createAgentRequestDto: {
+        title: "Autotest Agent",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
+        },
       },
     });
     const agentId = agentData.response!.id!;
@@ -1394,10 +1577,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         adminUserData,
         "DocSpaceAdmin",
       );
-      const { data, status } = await adminApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await adminApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1407,10 +1590,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
     await test.step("User cannot update agent", async () => {
       const userApi = await apiSdk.authenticateMember(userUserData, "User");
-      const { data, status } = await userApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await userApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1420,10 +1603,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
     await test.step("Guest cannot update agent", async () => {
       const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-      const { data, status } = await guestApi.agents.updateAgent(
-        agentId,
-        updateBody,
-      );
+      const { data, status } = await guestApi.agents.updateAgent({
+        id: agentId,
+        updateRoomRequest: updateBody,
+      });
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe(
@@ -1440,21 +1623,25 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        type: aiProviders.openAi.type,
-        title: aiProviders.openAi.title,
-        key: aiProviders.openAi.key,
+        createProviderRequestDto: {
+          type: aiProviders.openAi.type,
+          title: aiProviders.openAi.title,
+          key: aiProviders.openAi.key,
+        },
       });
       const providerId = providerData.response!.id!;
 
       const { data: agentData } = await ownerApi.agents.createAgent({
-        title: "Autotest Agent to Delete",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
-          prompt: "You are a test assistant",
+        createAgentRequestDto: {
+          title: "Autotest Agent to Delete",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: aiProviders.openAi.modelId,
+            prompt: "You are a test assistant",
+          },
         },
       });
       const agentId = agentData.response!.id!;
@@ -1462,8 +1649,9 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
       const roomAdminApi = apiSdk.forRole("roomAdmin");
 
-      const { data, status } = await roomAdminApi.agents.deleteAgent(agentId, {
-        deleteAfter: false,
+      const { data, status } = await roomAdminApi.agents.deleteAgent({
+        id: agentId,
+        deleteRoomRequest: { deleteAfter: false },
       });
 
       expect(status).toBe(403);

@@ -162,18 +162,26 @@ test.describe("POST /people/reassign/start - Permissions", () => {
 
     // Target creates a room and a file
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Reassign Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Reassign Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, {
-      title: "Autotest Reassign File",
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Reassign File",
+      },
     });
 
     // Re-authenticate owner to deactivate target user
     const ownerApi = await apiSdk.authenticateOwner();
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     // Create another RoomAdmin who will attempt reassignment
@@ -190,8 +198,10 @@ test.describe("POST /people/reassign/start - Permissions", () => {
     const roomAdminId = roomAdminProfile.response!.id!;
 
     const { data } = await roomAdminApi.userData.startReassign({
-      fromUserId: targetUserId,
-      toUserId: roomAdminId,
+      startReassignRequestDto: {
+        fromUserId: targetUserId,
+        toUserId: roomAdminId,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -214,18 +224,26 @@ test.describe("POST /people/reassign/start - Permissions", () => {
 
     // Target creates a room and a file
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Reassign Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Reassign Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, {
-      title: "Autotest Reassign File",
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Reassign File",
+      },
     });
 
     // Re-authenticate owner to deactivate target user
     const ownerApi = await apiSdk.authenticateOwner();
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     // Create User who will attempt reassignment
@@ -235,8 +253,10 @@ test.describe("POST /people/reassign/start - Permissions", () => {
     const userId = userProfile.response!.id!;
 
     const { data } = await userApi.userData.startReassign({
-      fromUserId: targetUserId,
-      toUserId: userId,
+      startReassignRequestDto: {
+        fromUserId: targetUserId,
+        toUserId: userId,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -259,18 +279,26 @@ test.describe("POST /people/reassign/start - Permissions", () => {
 
     // Target creates a room and a file
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Reassign Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Reassign Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, {
-      title: "Autotest Reassign File",
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Reassign File",
+      },
     });
 
     // Re-authenticate owner to deactivate target user
     const ownerApi = await apiSdk.authenticateOwner();
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     // Create Guest who will attempt reassignment
@@ -283,8 +311,10 @@ test.describe("POST /people/reassign/start - Permissions", () => {
     const guestId = guestProfile.response!.id!;
 
     const { data } = await guestApi.userData.startReassign({
-      fromUserId: targetUserId,
-      toUserId: guestId,
+      startReassignRequestDto: {
+        fromUserId: targetUserId,
+        toUserId: guestId,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -302,8 +332,10 @@ test.describe("POST /people/reassign/start - Permissions", () => {
     const ownerId = ownerProfile.response!.id!;
 
     const { data } = await ownerApi.userData.startReassign({
-      fromUserId: roomAdminId,
-      toUserId: ownerId,
+      startReassignRequestDto: {
+        fromUserId: roomAdminId,
+        toUserId: ownerId,
+      },
     });
 
     expect(data.statusCode).toBe(400);
@@ -314,8 +346,10 @@ test.describe("POST /people/reassign/start - Permissions", () => {
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().userData.startReassign({
-      fromUserId: "00000000-0000-0000-0000-000000000000",
-      toUserId: "00000000-0000-0000-0000-000000000000",
+      startReassignRequestDto: {
+        fromUserId: "00000000-0000-0000-0000-000000000000",
+        toUserId: "00000000-0000-0000-0000-000000000000",
+      },
     });
 
     expect(status).toBe(401);
@@ -338,8 +372,9 @@ test.describe("GET /people/reassign/progress - Permissions", () => {
       "RoomAdmin",
     );
 
-    const { data } =
-      await roomAdminApi.userData.getReassignProgress(targetUserId);
+    const { data } = await roomAdminApi.userData.getReassignProgress({
+      userid: targetUserId,
+    });
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -354,7 +389,9 @@ test.describe("GET /people/reassign/progress - Permissions", () => {
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
-    const { data } = await userApi.userData.getReassignProgress(targetUserId);
+    const { data } = await userApi.userData.getReassignProgress({
+      userid: targetUserId,
+    });
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -372,7 +409,9 @@ test.describe("GET /people/reassign/progress - Permissions", () => {
     );
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
-    const { data } = await guestApi.userData.getReassignProgress(targetUserId);
+    const { data } = await guestApi.userData.getReassignProgress({
+      userid: targetUserId,
+    });
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -383,7 +422,9 @@ test.describe("GET /people/reassign/progress - Permissions", () => {
   }) => {
     const { status } = await apiSdk
       .forAnonymous()
-      .userData.getReassignProgress("00000000-0000-0000-0000-000000000000");
+      .userData.getReassignProgress({
+        userid: "00000000-0000-0000-0000-000000000000",
+      });
 
     expect(status).toBe(401);
   });
@@ -405,12 +446,17 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
 
     // Target creates a room and a file
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Reassign Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Reassign Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, {
-      title: "Autotest Reassign File",
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Reassign File",
+      },
     });
 
     // Re-authenticate owner to deactivate target and start reassignment
@@ -418,13 +464,18 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerProfile.response!.id!;
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     await ownerApi.userData.startReassign({
-      fromUserId: targetUserId,
-      toUserId: ownerId,
+      startReassignRequestDto: {
+        fromUserId: targetUserId,
+        toUserId: ownerId,
+      },
     });
 
     // Create another RoomAdmin who will attempt to terminate
@@ -438,7 +489,9 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     );
 
     const { data } = await roomAdminApi.userData.terminateReassign({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -460,12 +513,17 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
 
     // Target creates a room and a file
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Reassign Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Reassign Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, {
-      title: "Autotest Reassign File",
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Reassign File",
+      },
     });
 
     // Re-authenticate owner to deactivate target and start reassignment
@@ -473,13 +531,18 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerProfile.response!.id!;
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     await ownerApi.userData.startReassign({
-      fromUserId: targetUserId,
-      toUserId: ownerId,
+      startReassignRequestDto: {
+        fromUserId: targetUserId,
+        toUserId: ownerId,
+      },
     });
 
     // Create User who will attempt to terminate
@@ -487,7 +550,9 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
     const { data } = await userApi.userData.terminateReassign({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -509,12 +574,17 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
 
     // Target creates a room and a file
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Reassign Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Reassign Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, {
-      title: "Autotest Reassign File",
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Reassign File",
+      },
     });
 
     // Re-authenticate owner to deactivate target and start reassignment
@@ -522,13 +592,18 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerProfile.response!.id!;
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     await ownerApi.userData.startReassign({
-      fromUserId: targetUserId,
-      toUserId: ownerId,
+      startReassignRequestDto: {
+        fromUserId: targetUserId,
+        toUserId: ownerId,
+      },
     });
 
     // Create Guest who will attempt to terminate
@@ -539,7 +614,9 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
     const { data } = await guestApi.userData.terminateReassign({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -550,7 +627,9 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().userData.terminateReassign({
-      userId: "00000000-0000-0000-0000-000000000000",
+      terminateRequestDto: {
+        userId: "00000000-0000-0000-0000-000000000000",
+      },
     });
 
     expect(status).toBe(401);
@@ -571,15 +650,23 @@ test.describe("POST /people/remove/start - Permissions", () => {
     );
 
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Remove Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Remove Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, { title: "Autotest Remove File" });
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Remove File" },
+    });
 
     const ownerApi = await apiSdk.authenticateOwner();
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     const { userData: roomAdminUserData } = await apiSdk.addMember(
@@ -592,7 +679,9 @@ test.describe("POST /people/remove/start - Permissions", () => {
     );
 
     const { data } = await roomAdminApi.userData.startRemove({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -612,22 +701,32 @@ test.describe("POST /people/remove/start - Permissions", () => {
     );
 
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Remove Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Remove Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, { title: "Autotest Remove File" });
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Remove File" },
+    });
 
     const ownerApi = await apiSdk.authenticateOwner();
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
     const { data } = await userApi.userData.startRemove({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -647,15 +746,23 @@ test.describe("POST /people/remove/start - Permissions", () => {
     );
 
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Remove Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Remove Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, { title: "Autotest Remove File" });
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Remove File" },
+    });
 
     const ownerApi = await apiSdk.authenticateOwner();
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     const { userData: guestUserData } = await apiSdk.addMember(
@@ -665,7 +772,9 @@ test.describe("POST /people/remove/start - Permissions", () => {
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
     const { data } = await guestApi.userData.startRemove({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -676,7 +785,9 @@ test.describe("POST /people/remove/start - Permissions", () => {
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().userData.startRemove({
-      userId: "00000000-0000-0000-0000-000000000000",
+      terminateRequestDto: {
+        userId: "00000000-0000-0000-0000-000000000000",
+      },
     });
 
     expect(status).toBe(401);
@@ -699,8 +810,9 @@ test.describe("GET /people/remove/progress - Permissions", () => {
       "RoomAdmin",
     );
 
-    const { data } =
-      await roomAdminApi.userData.getRemoveProgress(targetUserId);
+    const { data } = await roomAdminApi.userData.getRemoveProgress({
+      userid: targetUserId,
+    });
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -715,7 +827,9 @@ test.describe("GET /people/remove/progress - Permissions", () => {
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
-    const { data } = await userApi.userData.getRemoveProgress(targetUserId);
+    const { data } = await userApi.userData.getRemoveProgress({
+      userid: targetUserId,
+    });
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -733,7 +847,9 @@ test.describe("GET /people/remove/progress - Permissions", () => {
     );
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
-    const { data } = await guestApi.userData.getRemoveProgress(targetUserId);
+    const { data } = await guestApi.userData.getRemoveProgress({
+      userid: targetUserId,
+    });
 
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -742,9 +858,9 @@ test.describe("GET /people/remove/progress - Permissions", () => {
   test("GET /people/remove/progress/:userid - 401 when unauthorized", async ({
     apiSdk,
   }) => {
-    const { status } = await apiSdk
-      .forAnonymous()
-      .userData.getRemoveProgress("00000000-0000-0000-0000-000000000000");
+    const { status } = await apiSdk.forAnonymous().userData.getRemoveProgress({
+      userid: "00000000-0000-0000-0000-000000000000",
+    });
 
     expect(status).toBe(401);
   });
@@ -764,19 +880,29 @@ test.describe("PUT /people/remove/terminate - Permissions", () => {
     );
 
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Remove Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Remove Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, { title: "Autotest Remove File" });
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Remove File" },
+    });
 
     const ownerApi = await apiSdk.authenticateOwner();
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     await ownerApi.userData.startRemove({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
 
     const { userData: roomAdminUserData } = await apiSdk.addMember(
@@ -789,7 +915,9 @@ test.describe("PUT /people/remove/terminate - Permissions", () => {
     );
 
     const { data } = await roomAdminApi.userData.terminateRemove({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
     const body = data as any;
 
@@ -810,26 +938,38 @@ test.describe("PUT /people/remove/terminate - Permissions", () => {
     );
 
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Remove Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Remove Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, { title: "Autotest Remove File" });
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Remove File" },
+    });
 
     const ownerApi = await apiSdk.authenticateOwner();
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     await ownerApi.userData.startRemove({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
 
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
     const { data } = await userApi.userData.terminateRemove({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
     const body = data as any;
 
@@ -850,19 +990,29 @@ test.describe("PUT /people/remove/terminate - Permissions", () => {
     );
 
     const { data: roomData } = await targetApi.rooms.createRoom({
-      title: "Autotest Remove Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Remove Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
-    await targetApi.files.createFile(roomId, { title: "Autotest Remove File" });
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Remove File" },
+    });
 
     const ownerApi = await apiSdk.authenticateOwner();
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [targetUserId],
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [targetUserId],
+      },
     });
 
     await ownerApi.userData.startRemove({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
 
     const { userData: guestUserData } = await apiSdk.addMember(
@@ -872,7 +1022,9 @@ test.describe("PUT /people/remove/terminate - Permissions", () => {
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
     const { data } = await guestApi.userData.terminateRemove({
-      userId: targetUserId,
+      terminateRequestDto: {
+        userId: targetUserId,
+      },
     });
     const body = data as any;
 
@@ -884,7 +1036,9 @@ test.describe("PUT /people/remove/terminate - Permissions", () => {
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().userData.terminateRemove({
-      userId: "00000000-0000-0000-0000-000000000000",
+      terminateRequestDto: {
+        userId: "00000000-0000-0000-0000-000000000000",
+      },
     });
 
     expect(status).toBe(401);

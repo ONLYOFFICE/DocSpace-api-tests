@@ -9,7 +9,7 @@ test.describe("POST /people/password - Send password reminder", () => {
     const ownerApi = apiSdk.forRole("owner");
     const email = config.DOCSPACE_OWNER_EMAIL;
     const { data, status } = await ownerApi.password.sendUserPassword({
-      email,
+      emailMemberRequestDto: { email },
     });
 
     expect(status).toBe(200);
@@ -27,7 +27,7 @@ test.describe("POST /people/password - Send password reminder", () => {
     const email = memberData.response!.email!;
 
     const { data, status } = await adminApi.password.sendUserPassword({
-      email,
+      emailMemberRequestDto: { email },
     });
 
     expect(status).toBe(200);
@@ -45,7 +45,7 @@ test.describe("POST /people/password - Send password reminder", () => {
     const email = memberData.response!.email!;
 
     const { data, status } = await roomAdminApi.password.sendUserPassword({
-      email,
+      emailMemberRequestDto: { email },
     });
 
     expect(status).toBe(200);
@@ -62,7 +62,9 @@ test.describe("POST /people/password - Send password reminder", () => {
       await apiSdk.addAuthenticatedMember("owner", "User");
     const email = memberData.response!.email!;
 
-    const { data, status } = await userApi.password.sendUserPassword({ email });
+    const { data, status } = await userApi.password.sendUserPassword({
+      emailMemberRequestDto: { email },
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -79,7 +81,7 @@ test.describe("POST /people/password - Send password reminder", () => {
     const email = memberData.response!.email!;
 
     const { data, status } = await guestApi.password.sendUserPassword({
-      email,
+      emailMemberRequestDto: { email },
     });
 
     expect(status).toBe(200);
@@ -103,7 +105,7 @@ test.describe("POST /people/password - Send password reminder", () => {
       "DocSpaceAdmin",
     );
     const { data, status } = await adminApi.password.sendUserPassword({
-      email,
+      emailMemberRequestDto: { email },
     });
 
     expect(status).toBe(200);
@@ -124,7 +126,7 @@ test.describe("POST /people/password - Send password reminder", () => {
       "DocSpaceAdmin",
     );
     const { data, status } = await adminApi.password.sendUserPassword({
-      email,
+      emailMemberRequestDto: { email },
     });
 
     expect(status).toBe(200);
@@ -145,7 +147,7 @@ test.describe("POST /people/password - Send password reminder", () => {
       "DocSpaceAdmin",
     );
     const { data, status } = await adminApi.password.sendUserPassword({
-      email,
+      emailMemberRequestDto: { email },
     });
 
     expect(status).toBe(200);
@@ -160,7 +162,9 @@ test.describe("POST /people/password - Send password reminder", () => {
   }) => {
     const anonApi = apiSdk.forAnonymous();
     const email = config.DOCSPACE_OWNER_EMAIL;
-    const { data, status } = await anonApi.password.sendUserPassword({ email });
+    const { data, status } = await anonApi.password.sendUserPassword({
+      emailMemberRequestDto: { email },
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);

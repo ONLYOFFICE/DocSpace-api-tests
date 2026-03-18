@@ -11,8 +11,10 @@ test.describe("API email tests for access rights", () => {
     const ownerApi = apiSdk.forRole("owner");
     const userId = faker.string.uuid();
     const { data } = await ownerApi.email.sendEmailChangeInstructions({
-      userId: userId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(404);
     expect((data as any).error.message).toContain(
@@ -29,8 +31,10 @@ test.describe("API email tests for access rights", () => {
     const incorrectEmail = apiSdk.faker.generateString(20);
 
     const { data } = await ownerApi.email.sendEmailChangeInstructions({
-      userId: userId,
-      email: incorrectEmail,
+      updateMemberRequestDto: {
+        userId: userId,
+        email: incorrectEmail,
+      },
     });
     expect((data as any).response.status).toBe(400);
     expect((data as any).response.title).toContain(
@@ -58,8 +62,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await adminApi.email.sendEmailChangeInstructions({
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -77,8 +83,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await adminApi.email.sendEmailChangeInstructions({
-      userId: ownerId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -96,8 +104,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await roomAdminApi.email.sendEmailChangeInstructions({
-      userId: ownerId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -117,8 +127,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await roomAdminApi.email.sendEmailChangeInstructions({
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -138,8 +150,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await roomAdminApi.email.sendEmailChangeInstructions({
-      userId: roomAdminId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: roomAdminId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -156,8 +170,10 @@ test.describe("API email tests for access rights", () => {
     const userId = userData.response!.id!;
 
     const { data } = await roomAdminApi.email.sendEmailChangeInstructions({
-      userId: userId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -175,8 +191,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await userApi.email.sendEmailChangeInstructions({
-      userId: ownerId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -194,8 +212,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await guestApi.email.sendEmailChangeInstructions({
-      userId: ownerId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -215,8 +235,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await userApi.email.sendEmailChangeInstructions({
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -236,8 +258,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await guestApi.email.sendEmailChangeInstructions({
-      userId: docSpaceAdminId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -257,8 +281,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await userApi.email.sendEmailChangeInstructions({
-      userId: roomAdminId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: roomAdminId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -278,8 +304,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await guestApi.email.sendEmailChangeInstructions({
-      userId: roomAdminId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: roomAdminId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -296,8 +324,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await userApi.email.sendEmailChangeInstructions({
-      userId: userId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -314,8 +344,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await userApi.email.sendEmailChangeInstructions({
-      userId: userId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -332,8 +364,10 @@ test.describe("API email tests for access rights", () => {
     );
 
     const { data } = await guestApi.email.sendEmailChangeInstructions({
-      userId: userId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: userId,
+        email: faker.internet.email(),
+      },
     });
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
@@ -348,8 +382,10 @@ test.describe("API email tests for access rights", () => {
     const ownerId = ownerData.response!.id!;
 
     const { status } = await anonApi.email.sendEmailChangeInstructions({
-      userId: ownerId,
-      email: faker.internet.email(),
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: faker.internet.email(),
+      },
     });
     expect(status).toBe(401);
   });
@@ -366,8 +402,10 @@ test.describe("API email tests for access rights", () => {
     const veryLongEmail = apiSdk.faker.generateEmailWithLength(260);
 
     const { data } = await ownerApi.email.sendEmailChangeInstructions({
-      userId: docSpaceAdminId,
-      email: veryLongEmail,
+      updateMemberRequestDto: {
+        userId: docSpaceAdminId,
+        email: veryLongEmail,
+      },
     });
     expect((data as any).response.status).toBe(400);
     expect((data as any).response.title).toContain(

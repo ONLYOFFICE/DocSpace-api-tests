@@ -13,7 +13,9 @@ export async function createAllRoomTypes(apiSdk: ApiSDK, role: Role) {
 
   const rooms: { id: number; title: string; roomType: number }[] = [];
   for (const cfg of configs) {
-    const { data } = await apiSdk.forRole(role).rooms.createRoom(cfg);
+    const { data } = await apiSdk.forRole(role).rooms.createRoom({
+      createRoomRequestDto: cfg,
+    });
     rooms.push({
       id: data.response!.id!,
       title: data.response!.title!,

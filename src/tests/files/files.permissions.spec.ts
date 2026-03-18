@@ -11,13 +11,16 @@ test.describe("Share link privacy - no user data leakage", () => {
 
       // Step 1: Owner creates a room and a file in it
       const { data: roomData } = await ownerApi.rooms.createRoom({
-        title: "Autotest Share Link Privacy Room",
-        roomType: RoomType.CustomRoom,
+        createRoomRequestDto: {
+          title: "Autotest Share Link Privacy Room",
+          roomType: RoomType.CustomRoom,
+        },
       });
       const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile(roomId, {
-        title: "Autotest Share Link Privacy File",
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Share Link Privacy File" },
       });
       const fileId = fileData.response!.id!;
 
@@ -29,13 +32,13 @@ test.describe("Share link privacy - no user data leakage", () => {
       );
       const userId = memberData.response!.id!;
 
-      const { status: securityStatus } = await ownerApi.rooms.setRoomSecurity(
-        roomId,
-        {
+      const { status: securityStatus } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
           invitations: [{ id: userId, access: FileShare.RoomManager }],
           notify: false,
         },
-      );
+      });
 
       expect(securityStatus).toBe(200);
 
@@ -45,8 +48,9 @@ test.describe("Share link privacy - no user data leakage", () => {
 
       // POST /api/2.0/files/file/:fileId/link
       const { data: linkData, status: linkStatus } =
-        await userApi.files.createFilePrimaryExternalLink(fileId, {
-          access: FileShare.Read,
+        await userApi.files.createFilePrimaryExternalLink({
+          id: fileId,
+          fileLinkRequest: { access: FileShare.Read },
         });
 
       expect(linkStatus).toBe(200);

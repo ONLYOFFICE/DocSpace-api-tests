@@ -44,10 +44,10 @@ test.describe("PUT /people/status/:status - Change user status", () => {
       resendAll: false,
     };
 
-    const { data } = await ownerApi.userStatus.updateUserStatus(
-      EmployeeStatus.Terminated,
-      requestData,
-    );
+    const { data } = await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: requestData,
+    });
 
     expect(data.statusCode).toBe(200);
     const guestInfo = data.response![0];
@@ -99,15 +99,15 @@ test.describe("PUT /people/status/:status - Change user status", () => {
       resendAll: false,
     };
 
-    await ownerApi.userStatus.updateUserStatus(
-      EmployeeStatus.Terminated,
-      requestData,
-    );
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: requestData,
+    });
 
-    const { data } = await ownerApi.userStatus.updateUserStatus(
-      EmployeeStatus.Active,
-      requestData,
-    );
+    const { data } = await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Active,
+      updateMembersRequestDto: requestData,
+    });
 
     expect(data.statusCode).toBe(200);
     const guestInfo = data.response![0];
@@ -155,10 +155,10 @@ test.describe("PUT /people/status/:status - Change user status", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.userStatus.updateUserStatus(
-      EmployeeStatus.Terminated,
-      requestData,
-    );
+    const { data } = await adminApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: requestData,
+    });
 
     expect(data.statusCode).toBe(200);
     expect(data.response![0].isVisitor).toBe(true);
@@ -190,19 +190,19 @@ test.describe("PUT /people/status/:status - Change user status", () => {
       resendAll: false,
     };
 
-    await ownerApi.userStatus.updateUserStatus(
-      EmployeeStatus.Terminated,
-      requestData,
-    );
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: requestData,
+    });
 
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.userStatus.updateUserStatus(
-      EmployeeStatus.Active,
-      requestData,
-    );
+    const { data } = await adminApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Active,
+      updateMembersRequestDto: requestData,
+    });
 
     expect(data.statusCode).toBe(200);
     expect(data.response![0].isCollaborator).toBe(true);
@@ -233,9 +233,9 @@ test.describe("GET /people/status/:status - Get profiles by status", () => {
       "Guest",
     );
 
-    const { data } = await ownerApi.userStatus.getByStatus(
-      EmployeeStatus.Active,
-    );
+    const { data } = await ownerApi.userStatus.getByStatus({
+      status: EmployeeStatus.Active,
+    });
     const body = data as { response: UsersListItem[] };
 
     const docSpaceAdminData = body.response.find(
@@ -317,14 +317,17 @@ test.describe("GET /people/status/:status - Get profiles by status", () => {
     const guestId = guestData.response!.id!;
     const guestEmail = guestData.response!.email!;
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [docSpaceAdminId, roomAdminId, userId, guestId],
-      resendAll: false,
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [docSpaceAdminId, roomAdminId, userId, guestId],
+        resendAll: false,
+      },
     });
 
-    const { data } = await ownerApi.userStatus.getByStatus(
-      EmployeeStatus.Terminated,
-    );
+    const { data } = await ownerApi.userStatus.getByStatus({
+      status: EmployeeStatus.Terminated,
+    });
     const body = data as { response: UsersListItem[] };
 
     const docSpaceAdminInfo = body.response.find(
@@ -391,9 +394,9 @@ test.describe("GET /people/status/:status - Get profiles by status", () => {
       "Guest",
     );
 
-    const { data } = await adminApi.userStatus.getByStatus(
-      EmployeeStatus.Active,
-    );
+    const { data } = await adminApi.userStatus.getByStatus({
+      status: EmployeeStatus.Active,
+    });
     const body = data as { response: UsersListItem[] };
 
     const docSpaceAdminData = body.response.find(
@@ -475,18 +478,21 @@ test.describe("GET /people/status/:status - Get profiles by status", () => {
     const guestId = guestData.response!.id!;
     const guestEmail = guestData.response!.email!;
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [docSpaceAdminId, roomAdminId, userId, guestId],
-      resendAll: false,
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [docSpaceAdminId, roomAdminId, userId, guestId],
+        resendAll: false,
+      },
     });
 
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.userStatus.getByStatus(
-      EmployeeStatus.Terminated,
-    );
+    const { data } = await adminApi.userStatus.getByStatus({
+      status: EmployeeStatus.Terminated,
+    });
     const body = data as { response: UsersListItem[] };
 
     const docSpaceAdminInfo = body.response.find(
@@ -549,9 +555,9 @@ test.describe("GET /people/status/:status - Get profiles by status", () => {
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
 
-    const { data } = await roomAdminApi.userStatus.getByStatus(
-      EmployeeStatus.Active,
-    );
+    const { data } = await roomAdminApi.userStatus.getByStatus({
+      status: EmployeeStatus.Active,
+    });
     const body = data as { response: UsersListItem[] };
 
     const docSpaceAdminData = body.response.find(
@@ -616,18 +622,21 @@ test.describe("GET /people/status/:status - Get profiles by status", () => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
     const guestId = guestData.response!.id!;
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [docSpaceAdminId, roomAdminId, userId, guestId],
-      resendAll: false,
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [docSpaceAdminId, roomAdminId, userId, guestId],
+        resendAll: false,
+      },
     });
 
     const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.userStatus.getByStatus(
-      EmployeeStatus.Terminated,
-    );
+    const { data } = await roomAdminApi.userStatus.getByStatus({
+      status: EmployeeStatus.Terminated,
+    });
     const responseData = data as Record<string, unknown>;
 
     expect(responseData.statusCode).toBe(200);

@@ -7,8 +7,10 @@ test.describe("POST /files/rooms - access control", () => {
   test("Owner can create a room", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { status } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
 
     expect(status).toBe(200);
@@ -20,8 +22,10 @@ test.describe("POST /files/rooms - access control", () => {
       "DocSpaceAdmin",
     );
     const { status } = await adminApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
 
     expect(status).toBe(200);
@@ -33,8 +37,10 @@ test.describe("POST /files/rooms - access control", () => {
       "User",
     );
     const { status } = await userApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
 
     expect(status).toBe(403);
@@ -46,8 +52,10 @@ test.describe("POST /files/rooms - access control", () => {
       "Guest",
     );
     const { data } = await guestApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -61,13 +69,18 @@ test.describe("PUT /files/rooms/:id - access control", () => {
   test("Owner can update own room", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: createData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
 
-    const { data, status } = await ownerApi.rooms.updateRoom(roomId, {
-      title: "Updated Room",
+    const { data, status } = await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        title: "Updated Room",
+      },
     });
 
     expect(status).toBe(200);
@@ -80,13 +93,18 @@ test.describe("PUT /files/rooms/:id - access control", () => {
       "DocSpaceAdmin",
     );
     const { data: createData } = await adminApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
 
-    const { data, status } = await adminApi.rooms.updateRoom(roomId, {
-      title: "Updated Room",
+    const { data, status } = await adminApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        title: "Updated Room",
+      },
     });
 
     expect(status).toBe(200);
@@ -96,8 +114,10 @@ test.describe("PUT /files/rooms/:id - access control", () => {
   test("DocSpaceAdmin cannot update other's room", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: createData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
 
@@ -105,8 +125,11 @@ test.describe("PUT /files/rooms/:id - access control", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.rooms.updateRoom(roomId, {
-      title: "Updated Room",
+    const { data } = await adminApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        title: "Updated Room",
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -115,8 +138,10 @@ test.describe("PUT /files/rooms/:id - access control", () => {
   test("User without room access cannot update room", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: createData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
 
@@ -124,8 +149,11 @@ test.describe("PUT /files/rooms/:id - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.rooms.updateRoom(roomId, {
-      title: "Updated by User",
+    const { data } = await userApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        title: "Updated by User",
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -134,16 +162,21 @@ test.describe("PUT /files/rooms/:id - access control", () => {
   test("Guest without room access cannot update room", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: createData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.rooms.updateRoom(roomId, {
-      title: "Updated by Guest",
+    const { data } = await guestApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        title: "Updated by Guest",
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -156,13 +189,18 @@ test.describe("PUT /files/rooms/:id - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
     const anonApi = apiSdk.forAnonymous();
     const { data: createData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
 
-    const { status } = await anonApi.rooms.updateRoom(roomId, {
-      title: "Updated without auth",
+    const { status } = await anonApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        title: "Updated without auth",
+      },
     });
 
     expect(status).toBe(401);
@@ -179,13 +217,16 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
   test("Owner can delete a room", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: createData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room to Delete",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room to Delete",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
 
-    const { status } = await ownerApi.rooms.deleteRoom(roomId, {
-      deleteAfter: false,
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
     });
     const operation = await waitForOperation(ownerApi.operations);
 
@@ -200,13 +241,16 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
       "DocSpaceAdmin",
     );
     const { data: createData } = await adminApi.rooms.createRoom({
-      title: "Autotest Room to Delete",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room to Delete",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
 
-    const { status } = await adminApi.rooms.deleteRoom(roomId, {
-      deleteAfter: false,
+    const { status } = await adminApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
     });
     const operation = await waitForOperation(adminApi.operations);
 
@@ -223,13 +267,16 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
 
     const ownerApi = apiSdk.forRole("owner");
     const { data: createData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room to Delete",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room to Delete",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
 
-    const { status } = await userApi.rooms.deleteRoom(roomId, {
-      deleteAfter: false,
+    const { status } = await userApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
     });
     const operation = await waitForOperation(userApi.operations);
     expect(status).toBe(200);
@@ -247,13 +294,16 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
 
     const ownerApi = apiSdk.forRole("owner");
     const { data: createData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room to Delete",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room to Delete",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = createData.response!.id!;
 
-    const { status } = await guestApi.rooms.deleteRoom(roomId, {
-      deleteAfter: false,
+    const { status } = await guestApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
     });
     const operation = await waitForOperation(guestApi.operations);
     expect(status).toBe(200);
@@ -268,7 +318,7 @@ test.describe("POST /files/tags - access control", () => {
   test("Owner can create a tag", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data, status } = await ownerApi.rooms.createRoomTag({
-      name: "Autotest Tag",
+      createTagRequestDto: { name: "Autotest Tag" },
     });
 
     expect(status).toBe(200);
@@ -283,7 +333,7 @@ test.describe("POST /files/tags - access control", () => {
       "DocSpaceAdmin",
     );
     const { data, status } = await adminApi.rooms.createRoomTag({
-      name: "Autotest Tag",
+      createTagRequestDto: { name: "Autotest Tag" },
     });
 
     expect(status).toBe(200);
@@ -298,7 +348,7 @@ test.describe("POST /files/tags - access control", () => {
       "User",
     );
     const { data } = await userApi.rooms.createRoomTag({
-      name: "Autotest Tag",
+      createTagRequestDto: { name: "Autotest Tag" },
     });
 
     expect(data.statusCode).toBe(403);
@@ -311,7 +361,7 @@ test.describe("POST /files/tags - access control", () => {
       "Guest",
     );
     const { data } = await guestApi.rooms.createRoomTag({
-      name: "Autotest Tag",
+      createTagRequestDto: { name: "Autotest Tag" },
     });
 
     expect(data.statusCode).toBe(403);
@@ -326,14 +376,19 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
     const userId = memberData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Share Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await ownerApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
+    const { data, status } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
     });
 
     expect(status).toBe(200);
@@ -353,14 +408,19 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
     const userId = memberData.response!.id!;
 
     const { data: roomData } = await adminApi.rooms.createRoom({
-      title: "Autotest Share Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await adminApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
+    const { data, status } = await adminApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
     });
 
     expect(status).toBe(200);
@@ -376,8 +436,10 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
     const userId = memberData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Share Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
@@ -385,9 +447,12 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
+    const { data } = await adminApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -396,8 +461,10 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
   test("User cannot set room access rights", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Share Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
@@ -405,9 +472,12 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       await apiSdk.addAuthenticatedMember("owner", "User");
     const userId = memberData.response!.id!;
 
-    const { data } = await userApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
+    const { data } = await userApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
     });
 
     expect(data.statusCode).toBe(403);
@@ -416,8 +486,10 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
   test("Guest cannot set room access rights", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Share Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
@@ -425,9 +497,12 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
     const userId = memberData.response!.id!;
 
-    const { data } = await guestApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: userId, access: FileShare.Editing }],
-      notify: false,
+    const { data } = await guestApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
     });
 
     expect(data.statusCode).toBe(403);

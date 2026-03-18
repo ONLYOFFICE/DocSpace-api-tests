@@ -80,7 +80,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.backup.startBackup({
-      storageType: BackupStorageType.DataStore,
+      backupDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(401);
@@ -96,7 +96,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.DataStore,
+      backupDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(402);
@@ -118,7 +118,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     );
 
     const { data, status } = await roomAdminApi.backup.startBackup({
-      storageType: BackupStorageType.DataStore,
+      backupDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(403);
@@ -138,7 +138,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     );
 
     const { data, status } = await userApi.backup.startBackup({
-      storageType: BackupStorageType.DataStore,
+      backupDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(403);
@@ -158,7 +158,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     );
 
     const { data, status } = await guestApi.backup.startBackup({
-      storageType: BackupStorageType.DataStore,
+      backupDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(403);
@@ -174,8 +174,10 @@ test.describe("POST /portal/backup/start - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.Documents,
-      storageParams: [{ key: "folderId", value: "99999999" }],
+      backupDto: {
+        storageType: BackupStorageType.Documents,
+        storageParams: [{ key: "folderId", value: "99999999" }],
+      },
     });
 
     expect(status).toBe(404);
@@ -191,14 +193,18 @@ test.describe("POST /portal/backup/start - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
     const { data, status } = await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.ThridpartyDocuments,
-      storageParams: [{ key: "folderId", value: String(roomId) }],
+      backupDto: {
+        storageType: BackupStorageType.ThridpartyDocuments,
+        storageParams: [{ key: "folderId", value: String(roomId) }],
+      },
     });
 
     expect(status).toBe(400);
@@ -218,8 +224,10 @@ test.describe("POST /portal/backup/start - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.DataStore,
-      dump: true,
+      backupDto: {
+        storageType: BackupStorageType.DataStore,
+        dump: true,
+      },
     });
 
     expect(status).toBe(403);
@@ -240,7 +248,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
   }) => {
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.backup.createBackupSchedule(scheduleDto);
+    const { status } = await anonApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(401);
   });
@@ -254,8 +264,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
     );
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } =
-      await ownerApi.backup.createBackupSchedule(scheduleDto);
+    const { data, status } = await ownerApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(402);
     expect(data.statusCode).toBe(402);
@@ -275,8 +286,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
       "RoomAdmin",
     );
 
-    const { data, status } =
-      await roomAdminApi.backup.createBackupSchedule(scheduleDto);
+    const { data, status } = await roomAdminApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -294,8 +306,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
       "User",
     );
 
-    const { data, status } =
-      await userApi.backup.createBackupSchedule(scheduleDto);
+    const { data, status } = await userApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -313,8 +326,9 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
       "Guest",
     );
 
-    const { data, status } =
-      await guestApi.backup.createBackupSchedule(scheduleDto);
+    const { data, status } = await guestApi.backup.createBackupSchedule({
+      backupScheduleDto: scheduleDto,
+    });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -675,9 +689,9 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
   }) => {
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.backup.deleteBackup(
-      "00000000-0000-0000-0000-000000000000",
-    );
+    const { status } = await anonApi.backup.deleteBackup({
+      id: "00000000-0000-0000-0000-000000000000",
+    });
 
     expect(status).toBe(401);
   });
@@ -691,9 +705,9 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
       );
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.backup.deleteBackup(
-        "00000000-0000-0000-0000-000000000000",
-      );
+      const { data, status } = await ownerApi.backup.deleteBackup({
+        id: "00000000-0000-0000-0000-000000000000",
+      });
 
       expect(status).toBe(402);
       expect(data.statusCode).toBe(402);
@@ -709,9 +723,9 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
       await paymentsApi.setupPayment();
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.backup.deleteBackup(
-        "00000000-0000-0000-0000-000000000000",
-      );
+      const { data, status } = await ownerApi.backup.deleteBackup({
+        id: "00000000-0000-0000-0000-000000000000",
+      });
 
       expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
@@ -730,9 +744,9 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.backup.deleteBackup(
-      "00000000-0000-0000-0000-000000000000",
-    );
+    const { data, status } = await roomAdminApi.backup.deleteBackup({
+      id: "00000000-0000-0000-0000-000000000000",
+    });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -750,9 +764,9 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
       "User",
     );
 
-    const { data, status } = await userApi.backup.deleteBackup(
-      "00000000-0000-0000-0000-000000000000",
-    );
+    const { data, status } = await userApi.backup.deleteBackup({
+      id: "00000000-0000-0000-0000-000000000000",
+    });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -770,9 +784,9 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
       "Guest",
     );
 
-    const { data, status } = await guestApi.backup.deleteBackup(
-      "00000000-0000-0000-0000-000000000000",
-    );
+    const { data, status } = await guestApi.backup.deleteBackup({
+      id: "00000000-0000-0000-0000-000000000000",
+    });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
@@ -801,8 +815,10 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.startBackupRestore({
-      backupId: "00000000-0000-0000-0000-000000000000",
-      storageType: BackupStorageType.DataStore,
+      backupRestoreDto: {
+        backupId: "00000000-0000-0000-0000-000000000000",
+        storageType: BackupStorageType.DataStore,
+      },
     });
 
     expect(status).toBe(402);
@@ -824,8 +840,10 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
     );
 
     const { data, status } = await roomAdminApi.backup.startBackupRestore({
-      backupId: "00000000-0000-0000-0000-000000000000",
-      storageType: BackupStorageType.DataStore,
+      backupRestoreDto: {
+        backupId: "00000000-0000-0000-0000-000000000000",
+        storageType: BackupStorageType.DataStore,
+      },
     });
 
     expect(status).toBe(403);
@@ -845,8 +863,10 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
     );
 
     const { data, status } = await userApi.backup.startBackupRestore({
-      backupId: "00000000-0000-0000-0000-000000000000",
-      storageType: BackupStorageType.DataStore,
+      backupRestoreDto: {
+        backupId: "00000000-0000-0000-0000-000000000000",
+        storageType: BackupStorageType.DataStore,
+      },
     });
 
     expect(status).toBe(403);
@@ -866,8 +886,10 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
     );
 
     const { data, status } = await guestApi.backup.startBackupRestore({
-      backupId: "00000000-0000-0000-0000-000000000000",
-      storageType: BackupStorageType.DataStore,
+      backupRestoreDto: {
+        backupId: "00000000-0000-0000-0000-000000000000",
+        storageType: BackupStorageType.DataStore,
+      },
     });
 
     expect(status).toBe(403);
