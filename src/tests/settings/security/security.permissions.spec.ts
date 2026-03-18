@@ -23,9 +23,11 @@ test.describe("PUT /settings/security/administrator - access control", () => {
 
     // DocSpace admin tries to demote another DocSpace admin — only Owner can do this
     const { data } = await admin1Api.security.setProductAdministrator({
-      productId: PRODUCT_ID_ALL,
-      userId: admin2Id,
-      administrator: false,
+      securityRequestsDto: {
+        productId: PRODUCT_ID_ALL,
+        userId: admin2Id,
+        administrator: false,
+      },
     });
     // BUG: API returns 200, expected 403
     expect(data.statusCode).toBe(403);
@@ -51,9 +53,11 @@ test.describe("PUT /settings/security/administrator - access control", () => {
 
     // DocSpace admin tries to promote Room admin to administrator — only Owner can do this
     const { data } = await adminApi.security.setProductAdministrator({
-      productId: PRODUCT_ID_ALL,
-      userId: roomAdminId,
-      administrator: true,
+      securityRequestsDto: {
+        productId: PRODUCT_ID_ALL,
+        userId: roomAdminId,
+        administrator: true,
+      },
     });
 
     expect(data.statusCode).toBe(403);

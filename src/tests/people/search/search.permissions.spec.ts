@@ -12,15 +12,15 @@ test.describe("GET /accounts/file/:id/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Search User Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile(roomId, {
+    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
       title: "Autotest Search File",
-    });
+    }});
     const fileId = fileData.response!.id!;
 
     const { data: userMemberData } = await apiSdk.addAuthenticatedMember(
@@ -29,14 +29,48 @@ test.describe("GET /accounts/file/:id/search - Permissions", () => {
     );
     const userMemberId = userMemberData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity(roomId, {
+    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
       invitations: [{ id: userMemberId, access: FileShare.Editing }],
       notify: false,
-    });
+    }});
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .peopleSearch.getAccountsEntriesWithFilesShared(fileId);
+      .peopleSearch.getAccountsEntriesWithFilesShared({ id: fileId });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test("GET /accounts/file/:id/search - DocSpace admin cannot search accounts for file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
+      title: "Autotest Search DocSpaceAdmin Permissions",
+      roomType: RoomType.CustomRoom,
+    }});
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
+      invitations: [{ id: userId, access: FileShare.Editing }],
+      notify: false,
+    }});
+
+    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
+      title: "Autotest Search File",
+    }});
+    const fileId = fileData.response!.id!;
+
+    const { data, status } =
+      await adminApi.peopleSearch.getAccountsEntriesWithFilesShared({ id: fileId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -47,15 +81,15 @@ test.describe("GET /accounts/file/:id/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Search Guest Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile(roomId, {
+    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
       title: "Autotest Search File",
-    });
+    }});
     const fileId = fileData.response!.id!;
 
     const { data: guestMemberData } = await apiSdk.addAuthenticatedMember(
@@ -64,14 +98,14 @@ test.describe("GET /accounts/file/:id/search - Permissions", () => {
     );
     const guestMemberId = guestMemberData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity(roomId, {
+    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
       invitations: [{ id: guestMemberId, access: FileShare.Editing }],
       notify: false,
-    });
+    }});
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .peopleSearch.getAccountsEntriesWithFilesShared(fileId);
+      .peopleSearch.getAccountsEntriesWithFilesShared({ id: fileId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -82,20 +116,20 @@ test.describe("GET /accounts/file/:id/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Search Unauthorized",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile(roomId, {
+    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
       title: "Autotest Search File",
-    });
+    }});
     const fileId = fileData.response!.id!;
 
     const { status } = await apiSdk
       .forAnonymous()
-      .peopleSearch.getAccountsEntriesWithFilesShared(fileId);
+      .peopleSearch.getAccountsEntriesWithFilesShared({ id: fileId });
 
     expect(status).toBe(401);
   });
@@ -107,31 +141,22 @@ test.describe("GET /people/file/:id - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Users File User Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile(roomId, {
+    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
       title: "Autotest Users File",
-    });
+    }});
     const fileId = fileData.response!.id!;
 
-    const { data: userMemberData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
-    const userMemberId = userMemberData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: userMemberId, access: FileShare.Editing }],
-      notify: false,
-    });
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .peopleSearch.getUsersWithFilesShared(fileId);
+      .peopleSearch.getUsersWithFilesShared({ id: fileId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -142,31 +167,22 @@ test.describe("GET /people/file/:id - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Users File Guest Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile(roomId, {
+    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
       title: "Autotest Users File",
-    });
+    }});
     const fileId = fileData.response!.id!;
 
-    const { data: guestMemberData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-    const guestMemberId = guestMemberData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: guestMemberId, access: FileShare.Editing }],
-      notify: false,
-    });
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .peopleSearch.getUsersWithFilesShared(fileId);
+      .peopleSearch.getUsersWithFilesShared({ id: fileId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -175,20 +191,20 @@ test.describe("GET /people/file/:id - Permissions", () => {
   test("GET /people/file/:id - 401 when unauthorized", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Users File Unauthorized",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile(roomId, {
+    const { data: fileData } = await ownerApi.files.createFile({ folderId: roomId, createFileJsonElement: {
       title: "Autotest Users File",
-    });
+    }});
     const fileId = fileData.response!.id!;
 
     const { status } = await apiSdk
       .forAnonymous()
-      .peopleSearch.getUsersWithFilesShared(fileId);
+      .peopleSearch.getUsersWithFilesShared({ id: fileId });
 
     expect(status).toBe(401);
   });
@@ -200,15 +216,15 @@ test.describe("GET /accounts/folder/:id/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Search Folder User Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: folderData } = await ownerApi.folders.createFolder(roomId, {
+    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
       title: "Autotest Search Folder",
-    });
+    }});
     const folderId = folderData.response!.id!;
 
     const { data: userMemberData } = await apiSdk.addAuthenticatedMember(
@@ -217,14 +233,14 @@ test.describe("GET /accounts/folder/:id/search - Permissions", () => {
     );
     const userMemberId = userMemberData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity(roomId, {
+    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
       invitations: [{ id: userMemberId, access: FileShare.Editing }],
       notify: false,
-    });
+    }});
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .peopleSearch.getAccountsEntriesWithFoldersShared(folderId);
+      .peopleSearch.getAccountsEntriesWithFoldersShared({ id: folderId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -235,15 +251,15 @@ test.describe("GET /accounts/folder/:id/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Search Folder Guest Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: folderData } = await ownerApi.folders.createFolder(roomId, {
+    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
       title: "Autotest Search Folder",
-    });
+    }});
     const folderId = folderData.response!.id!;
 
     const { data: guestMemberData } = await apiSdk.addAuthenticatedMember(
@@ -252,14 +268,14 @@ test.describe("GET /accounts/folder/:id/search - Permissions", () => {
     );
     const guestMemberId = guestMemberData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity(roomId, {
+    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
       invitations: [{ id: guestMemberId, access: FileShare.Editing }],
       notify: false,
-    });
+    }});
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .peopleSearch.getAccountsEntriesWithFoldersShared(folderId);
+      .peopleSearch.getAccountsEntriesWithFoldersShared({ id: folderId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -270,20 +286,20 @@ test.describe("GET /accounts/folder/:id/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Search Folder Unauthorized",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: folderData } = await ownerApi.folders.createFolder(roomId, {
+    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
       title: "Autotest Search Folder",
-    });
+    }});
     const folderId = folderData.response!.id!;
 
     const { status } = await apiSdk
       .forAnonymous()
-      .peopleSearch.getAccountsEntriesWithFoldersShared(folderId);
+      .peopleSearch.getAccountsEntriesWithFoldersShared({ id: folderId });
 
     expect(status).toBe(401);
   });
@@ -295,31 +311,22 @@ test.describe("GET /people/folder/:id - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Users Folder User Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: folderData } = await ownerApi.folders.createFolder(roomId, {
+    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
       title: "Autotest Users Folder",
-    });
+    }});
     const folderId = folderData.response!.id!;
 
-    const { data: userMemberData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
-    const userMemberId = userMemberData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: userMemberId, access: FileShare.Editing }],
-      notify: false,
-    });
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .peopleSearch.getUsersWithFoldersShared(folderId);
+      .peopleSearch.getUsersWithFoldersShared({ id: folderId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -330,31 +337,22 @@ test.describe("GET /people/folder/:id - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Users Folder Guest Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: folderData } = await ownerApi.folders.createFolder(roomId, {
+    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
       title: "Autotest Users Folder",
-    });
+    }});
     const folderId = folderData.response!.id!;
 
-    const { data: guestMemberData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-    const guestMemberId = guestMemberData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: guestMemberId, access: FileShare.Editing }],
-      notify: false,
-    });
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .peopleSearch.getUsersWithFoldersShared(folderId);
+      .peopleSearch.getUsersWithFoldersShared({ id: folderId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -363,20 +361,20 @@ test.describe("GET /people/folder/:id - Permissions", () => {
   test("GET /people/folder/:id - 401 when unauthorized", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Users Folder Unauthorized",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: folderData } = await ownerApi.folders.createFolder(roomId, {
+    const { data: folderData } = await ownerApi.folders.createFolder({ folderId: roomId, createFolder: {
       title: "Autotest Users Folder",
-    });
+    }});
     const folderId = folderData.response!.id!;
 
     const { status } = await apiSdk
       .forAnonymous()
-      .peopleSearch.getUsersWithFoldersShared(folderId);
+      .peopleSearch.getUsersWithFoldersShared({ id: folderId });
 
     expect(status).toBe(401);
   });
@@ -388,10 +386,10 @@ test.describe("GET /accounts/room/:id/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Search Room User Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
     const { data: userMemberData } = await apiSdk.addAuthenticatedMember(
@@ -400,14 +398,14 @@ test.describe("GET /accounts/room/:id/search - Permissions", () => {
     );
     const userMemberId = userMemberData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity(roomId, {
+    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
       invitations: [{ id: userMemberId, access: FileShare.Editing }],
       notify: false,
-    });
+    }});
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .peopleSearch.getAccountsEntriesWithRoomsShared(roomId);
+      .peopleSearch.getAccountsEntriesWithRoomsShared({ id: roomId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -418,10 +416,10 @@ test.describe("GET /accounts/room/:id/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Search Room Guest Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
     const { data: guestMemberData } = await apiSdk.addAuthenticatedMember(
@@ -430,14 +428,14 @@ test.describe("GET /accounts/room/:id/search - Permissions", () => {
     );
     const guestMemberId = guestMemberData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity(roomId, {
+    await ownerApi.rooms.setRoomSecurity({ id: roomId, roomInvitationRequest: {
       invitations: [{ id: guestMemberId, access: FileShare.Editing }],
       notify: false,
-    });
+    }});
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .peopleSearch.getAccountsEntriesWithRoomsShared(roomId);
+      .peopleSearch.getAccountsEntriesWithRoomsShared({ id: roomId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -448,15 +446,15 @@ test.describe("GET /accounts/room/:id/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Search Room Unauthorized",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
     const { status } = await apiSdk
       .forAnonymous()
-      .peopleSearch.getAccountsEntriesWithRoomsShared(roomId);
+      .peopleSearch.getAccountsEntriesWithRoomsShared({ id: roomId });
 
     expect(status).toBe(401);
   });
@@ -468,26 +466,17 @@ test.describe("GET /people/room/:id - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Users Room User Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: userMemberData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
-    const userMemberId = userMemberData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: userMemberId, access: FileShare.Editing }],
-      notify: false,
-    });
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .peopleSearch.getUsersWithRoomShared(roomId);
+      .peopleSearch.getUsersWithRoomShared({ id: roomId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -498,26 +487,17 @@ test.describe("GET /people/room/:id - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Users Room Guest Permissions",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
-    const { data: guestMemberData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-    const guestMemberId = guestMemberData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity(roomId, {
-      invitations: [{ id: guestMemberId, access: FileShare.Editing }],
-      notify: false,
-    });
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .peopleSearch.getUsersWithRoomShared(roomId);
+      .peopleSearch.getUsersWithRoomShared({ id: roomId });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -526,15 +506,15 @@ test.describe("GET /people/room/:id - Permissions", () => {
   test("GET /people/room/:id - 401 when unauthorized", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({ createRoomRequestDto: {
       title: "Autotest Users Room Unauthorized",
       roomType: RoomType.CustomRoom,
-    });
+    }});
     const roomId = roomData.response!.id!;
 
     const { status } = await apiSdk
       .forAnonymous()
-      .peopleSearch.getUsersWithRoomShared(roomId);
+      .peopleSearch.getUsersWithRoomShared({ id: roomId });
 
     expect(status).toBe(401);
   });
@@ -569,28 +549,28 @@ test.describe("GET /accounts/search - Permissions", () => {
 
     await test.step("RoomAdmin searches for Owner", async () => {
       const { data, status } =
-        await roomAdminApi.peopleSearch.getSearch(ownerEmail);
+        await roomAdminApi.peopleSearch.getSearch({ query: ownerEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
 
     await test.step("RoomAdmin searches for DocSpaceAdmin", async () => {
       const { data, status } =
-        await roomAdminApi.peopleSearch.getSearch(adminEmail);
+        await roomAdminApi.peopleSearch.getSearch({ query: adminEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
 
     await test.step("RoomAdmin searches for User", async () => {
       const { data, status } =
-        await roomAdminApi.peopleSearch.getSearch(userEmail);
+        await roomAdminApi.peopleSearch.getSearch({ query: userEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
 
     await test.step("RoomAdmin searches for Guest", async () => {
       const { data, status } =
-        await roomAdminApi.peopleSearch.getSearch(guestEmail);
+        await roomAdminApi.peopleSearch.getSearch({ query: guestEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
@@ -626,26 +606,26 @@ test.describe("GET /accounts/search - Permissions", () => {
     const userApi = apiSdk.forRole("user");
 
     await test.step("User searches for Owner", async () => {
-      const { data, status } = await userApi.peopleSearch.getSearch(ownerEmail);
+      const { data, status } = await userApi.peopleSearch.getSearch({ query: ownerEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
 
     await test.step("User searches for DocSpaceAdmin", async () => {
-      const { data, status } = await userApi.peopleSearch.getSearch(adminEmail);
+      const { data, status } = await userApi.peopleSearch.getSearch({ query: adminEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
 
     await test.step("User searches for RoomAdmin", async () => {
       const { data, status } =
-        await userApi.peopleSearch.getSearch(roomAdminEmail);
+        await userApi.peopleSearch.getSearch({ query: roomAdminEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
 
     await test.step("User searches for Guest", async () => {
-      const { data, status } = await userApi.peopleSearch.getSearch(guestEmail);
+      const { data, status } = await userApi.peopleSearch.getSearch({ query: guestEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
@@ -679,27 +659,27 @@ test.describe("GET /accounts/search - Permissions", () => {
 
     await test.step("Guest searches for Owner", async () => {
       const { data, status } =
-        await guestApi.peopleSearch.getSearch(ownerEmail);
+        await guestApi.peopleSearch.getSearch({ query: ownerEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
 
     await test.step("Guest searches for DocSpaceAdmin", async () => {
       const { data, status } =
-        await guestApi.peopleSearch.getSearch(adminEmail);
+        await guestApi.peopleSearch.getSearch({ query: adminEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
 
     await test.step("Guest searches for RoomAdmin", async () => {
       const { data, status } =
-        await guestApi.peopleSearch.getSearch(roomAdminEmail);
+        await guestApi.peopleSearch.getSearch({ query: roomAdminEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
 
     await test.step("Guest searches for User", async () => {
-      const { data, status } = await guestApi.peopleSearch.getSearch(userEmail);
+      const { data, status } = await guestApi.peopleSearch.getSearch({ query: userEmail });
       expect(status).toBe(403);
       expect((data as any).error?.message).toContain("Access denied");
     });
@@ -734,27 +714,27 @@ test.describe("GET /accounts/search - Permissions", () => {
     const anonApi = apiSdk.forAnonymous();
 
     await test.step("Anonymous searches for Owner", async () => {
-      const { status } = await anonApi.peopleSearch.getSearch(ownerEmail);
+      const { status } = await anonApi.peopleSearch.getSearch({ query: ownerEmail });
       expect(status).toBe(401);
     });
 
     await test.step("Anonymous searches for DocSpaceAdmin", async () => {
-      const { status } = await anonApi.peopleSearch.getSearch(adminEmail);
+      const { status } = await anonApi.peopleSearch.getSearch({ query: adminEmail });
       expect(status).toBe(401);
     });
 
     await test.step("Anonymous searches for RoomAdmin", async () => {
-      const { status } = await anonApi.peopleSearch.getSearch(roomAdminEmail);
+      const { status } = await anonApi.peopleSearch.getSearch({ query: roomAdminEmail });
       expect(status).toBe(401);
     });
 
     await test.step("Anonymous searches for User", async () => {
-      const { status } = await anonApi.peopleSearch.getSearch(userEmail);
+      const { status } = await anonApi.peopleSearch.getSearch({ query: userEmail });
       expect(status).toBe(401);
     });
 
     await test.step("Anonymous searches for Guest", async () => {
-      const { status } = await anonApi.peopleSearch.getSearch(guestEmail);
+      const { status } = await anonApi.peopleSearch.getSearch({ query: guestEmail });
       expect(status).toBe(401);
     });
   });
@@ -773,7 +753,7 @@ test.describe("GET /people/search - Permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .peopleSearch.searchUsersByQuery(ownerEmail);
+      .peopleSearch.searchUsersByQuery({ query: ownerEmail });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -789,7 +769,7 @@ test.describe("GET /people/search - Permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .peopleSearch.searchUsersByQuery(ownerEmail);
+      .peopleSearch.searchUsersByQuery({ query: ownerEmail });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -805,7 +785,7 @@ test.describe("GET /people/search - Permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .peopleSearch.searchUsersByQuery(ownerEmail);
+      .peopleSearch.searchUsersByQuery({ query: ownerEmail });
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
@@ -819,7 +799,7 @@ test.describe("GET /people/search - Permissions", () => {
 
     const { status } = await apiSdk
       .forAnonymous()
-      .peopleSearch.searchUsersByQuery(ownerEmail);
+      .peopleSearch.searchUsersByQuery({ query: ownerEmail });
 
     expect(status).toBe(401);
   });
@@ -839,22 +819,16 @@ test.describe("GET /people/status/:status/search - Permissions", () => {
     const roomAdminApi = apiSdk.forRole("roomAdmin");
 
     const { data: activeData, status: activeStatus } =
-      await roomAdminApi.peopleSearch.searchUsersByStatus(
-        EmployeeStatus.Active,
-        userEmail,
-      );
+      await roomAdminApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Active, query: userEmail });
     expect(activeStatus).toBe(403);
     expect((activeData as any).error?.message).toContain("Access denied");
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
+    await ownerApi.userStatus.updateUserStatus({ status: EmployeeStatus.Terminated, updateMembersRequestDto: {
       userIds: [userId],
-    });
+    }});
 
     const { data, status } =
-      await roomAdminApi.peopleSearch.searchUsersByStatus(
-        EmployeeStatus.Terminated,
-        userEmail,
-      );
+      await roomAdminApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Terminated, query: userEmail });
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -864,30 +838,26 @@ test.describe("GET /people/status/:status/search - Permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: userData } = await apiSdk.addAuthenticatedMember(
+    const { data: searchableUserData } = await apiSdk.addMember(
       "owner",
       "User",
     );
-    const userId = userData.response!.id!;
-    const userEmail = userData.response!.email!;
+    const searchableUserId = searchableUserData.response!.id!;
+    const searchableUserEmail = searchableUserData.response!.email!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
     const userApi = apiSdk.forRole("user");
 
     const { data: activeData, status: activeStatus } =
-      await userApi.peopleSearch.searchUsersByStatus(
-        EmployeeStatus.Active,
-        userEmail,
-      );
+      await userApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Active, query: searchableUserEmail });
     expect(activeStatus).toBe(403);
     expect((activeData as any).error?.message).toContain("Access denied");
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
-      userIds: [userId],
-    });
+    await ownerApi.userStatus.updateUserStatus({ status: EmployeeStatus.Terminated, updateMembersRequestDto: {
+      userIds: [searchableUserId],
+    }});
 
-    const { data, status } = await userApi.peopleSearch.searchUsersByStatus(
-      EmployeeStatus.Terminated,
-      userEmail,
-    );
+    const { data, status } = await userApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Terminated, query: searchableUserEmail });
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -905,21 +875,15 @@ test.describe("GET /people/status/:status/search - Permissions", () => {
     const guestApi = apiSdk.forRole("guest");
 
     const { data: activeData, status: activeStatus } =
-      await guestApi.peopleSearch.searchUsersByStatus(
-        EmployeeStatus.Active,
-        userEmail,
-      );
+      await guestApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Active, query: userEmail });
     expect(activeStatus).toBe(403);
     expect((activeData as any).error?.message).toContain("Access denied");
 
-    await ownerApi.userStatus.updateUserStatus(EmployeeStatus.Terminated, {
+    await ownerApi.userStatus.updateUserStatus({ status: EmployeeStatus.Terminated, updateMembersRequestDto: {
       userIds: [userId],
-    });
+    }});
 
-    const { data, status } = await guestApi.peopleSearch.searchUsersByStatus(
-      EmployeeStatus.Terminated,
-      userEmail,
-    );
+    const { data, status } = await guestApi.peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Terminated, query: userEmail });
     expect(status).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -934,7 +898,7 @@ test.describe("GET /people/status/:status/search - Permissions", () => {
 
     const { status } = await apiSdk
       .forAnonymous()
-      .peopleSearch.searchUsersByStatus(EmployeeStatus.Active, ownerEmail);
+      .peopleSearch.searchUsersByStatus({ status: EmployeeStatus.Active, query: ownerEmail });
 
     expect(status).toBe(401);
   });
@@ -951,28 +915,7 @@ test.describe("GET /people/simple/filter - Permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .peopleSearch.getSimpleByFilter(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        guestName,
-      );
+      .peopleSearch.getSimpleByFilter({ filterValue: guestName });
 
     expect(status).toBe(200);
     expect(
@@ -1028,28 +971,7 @@ test.describe("GET /people/filter - Permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .peopleSearch.searchUsersByExtendedFilter(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        guestName,
-      );
+      .peopleSearch.searchUsersByExtendedFilter({ filterValue: guestName });
 
     expect(status).toBe(200);
     expect(

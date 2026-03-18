@@ -19,7 +19,7 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST startbackup - start backup", async () => {
       const { data, status } = await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
 
       expect(status).toBe(200);
@@ -60,7 +60,7 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST startbackup - start backup", async () => {
       const { data, status } = await adminApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
 
       expect(status).toBe(200);
@@ -99,16 +99,20 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST rooms - create backup room", async () => {
       const { data } = await ownerApi.rooms.createRoom({
-        title: "Autotest Backup Room",
-        roomType: RoomType.CustomRoom,
+        createRoomRequestDto: {
+          title: "Autotest Backup Room",
+          roomType: RoomType.CustomRoom,
+        },
       });
       roomId = data.response!.id!;
     });
 
     await test.step("POST startbackup - start backup", async () => {
       const { data, status } = await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.Documents,
-        storageParams: [{ key: "folderId", value: String(roomId) }],
+        backupDto: {
+          storageType: BackupStorageType.Documents,
+          storageParams: [{ key: "folderId", value: String(roomId) }],
+        },
       });
 
       expect(status).toBe(200);
@@ -151,16 +155,20 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST rooms - create backup room", async () => {
       const { data } = await adminApi.rooms.createRoom({
-        title: "Autotest Backup Room",
-        roomType: RoomType.CustomRoom,
+        createRoomRequestDto: {
+          title: "Autotest Backup Room",
+          roomType: RoomType.CustomRoom,
+        },
       });
       roomId = data.response!.id!;
     });
 
     await test.step("POST startbackup - start backup", async () => {
       const { data, status } = await adminApi.backup.startBackup({
-        storageType: BackupStorageType.Documents,
-        storageParams: [{ key: "folderId", value: String(roomId) }],
+        backupDto: {
+          storageType: BackupStorageType.Documents,
+          storageParams: [{ key: "folderId", value: String(roomId) }],
+        },
       });
 
       expect(status).toBe(200);
@@ -200,19 +208,23 @@ test.describe("POST /portal/backup/start - Start backup", () => {
     await test.step("POST savethirdpartybackup - connect Nextcloud", async () => {
       const { data } =
         await ownerApi.thirdPartyIntegration.saveThirdPartyBackup({
-          url: config.NEXTCLOUD_URL,
-          login: config.NEXTCLOUD_LOGIN,
-          password: config.NEXTCLOUD_PASSWORD,
-          customerTitle: "Nextcloud Backup",
-          providerKey: "Nextcloud",
+          thirdPartyBackupRequestDto: {
+            url: config.NEXTCLOUD_URL,
+            login: config.NEXTCLOUD_LOGIN,
+            password: config.NEXTCLOUD_PASSWORD,
+            customerTitle: "Nextcloud Backup",
+            providerKey: "Nextcloud",
+          },
         });
       folderId = data.response!.id!;
     });
 
     await test.step("POST startbackup - start backup", async () => {
       const { data, status } = await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.ThridpartyDocuments,
-        storageParams: [{ key: "folderId", value: folderId }],
+        backupDto: {
+          storageType: BackupStorageType.ThridpartyDocuments,
+          storageParams: [{ key: "folderId", value: folderId }],
+        },
       });
 
       expect(status).toBe(200);
@@ -252,11 +264,13 @@ test.describe("POST /portal/backup/start - Start backup", () => {
     await test.step("POST savethirdpartybackup - connect Nextcloud", async () => {
       const { data } =
         await ownerApi.thirdPartyIntegration.saveThirdPartyBackup({
-          url: config.NEXTCLOUD_URL,
-          login: config.NEXTCLOUD_LOGIN,
-          password: config.NEXTCLOUD_PASSWORD,
-          customerTitle: "Nextcloud Backup",
-          providerKey: "Nextcloud",
+          thirdPartyBackupRequestDto: {
+            url: config.NEXTCLOUD_URL,
+            login: config.NEXTCLOUD_LOGIN,
+            password: config.NEXTCLOUD_PASSWORD,
+            customerTitle: "Nextcloud Backup",
+            providerKey: "Nextcloud",
+          },
         });
       folderId = data.response!.id!;
     });
@@ -268,8 +282,10 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST startbackup - start backup", async () => {
       const { data, status } = await adminApi.backup.startBackup({
-        storageType: BackupStorageType.ThridpartyDocuments,
-        storageParams: [{ key: "folderId", value: folderId }],
+        backupDto: {
+          storageType: BackupStorageType.ThridpartyDocuments,
+          storageParams: [{ key: "folderId", value: folderId }],
+        },
       });
 
       expect(status).toBe(200);
@@ -303,11 +319,13 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST authservice - configure S3 credentials", async () => {
       const { status } = await ownerApi.settingsAuthorization.saveAuthKeys({
-        name: "s3",
-        props: [
-          { name: "acesskey", value: config.S3_ACCESS_KEY },
-          { name: "secretaccesskey", value: config.S3_SECRET_KEY },
-        ],
+        authServiceRequestsDto: {
+          name: "s3",
+          props: [
+            { name: "acesskey", value: config.S3_ACCESS_KEY },
+            { name: "secretaccesskey", value: config.S3_SECRET_KEY },
+          ],
+        },
       });
 
       expect(status).toBe(200);
@@ -315,15 +333,17 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST startbackup - start backup to AWS S3", async () => {
       const { data, status } = await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.ThirdPartyConsumer,
-        storageParams: [
-          { key: "module", value: "s3" },
-          { key: "bucket", value: config.S3_BUCKET },
-          { key: "region", value: config.S3_REGION },
-          { key: "serviceurl", value: "" },
-          { key: "forcepathstyle", value: "false" },
-          { key: "usehttp", value: "false" },
-        ],
+        backupDto: {
+          storageType: BackupStorageType.ThirdPartyConsumer,
+          storageParams: [
+            { key: "module", value: "s3" },
+            { key: "bucket", value: config.S3_BUCKET },
+            { key: "region", value: config.S3_REGION },
+            { key: "serviceurl", value: "" },
+            { key: "forcepathstyle", value: "false" },
+            { key: "usehttp", value: "false" },
+          ],
+        },
       });
 
       expect(status).toBe(200);
@@ -365,11 +385,13 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST authservice - configure S3 credentials", async () => {
       const { status } = await ownerApi.settingsAuthorization.saveAuthKeys({
-        name: "s3",
-        props: [
-          { name: "acesskey", value: config.S3_ACCESS_KEY },
-          { name: "secretaccesskey", value: config.S3_SECRET_KEY },
-        ],
+        authServiceRequestsDto: {
+          name: "s3",
+          props: [
+            { name: "acesskey", value: config.S3_ACCESS_KEY },
+            { name: "secretaccesskey", value: config.S3_SECRET_KEY },
+          ],
+        },
       });
 
       expect(status).toBe(200);
@@ -377,15 +399,17 @@ test.describe("POST /portal/backup/start - Start backup", () => {
 
     await test.step("POST startbackup - start backup to AWS S3", async () => {
       const { data, status } = await adminApi.backup.startBackup({
-        storageType: BackupStorageType.ThirdPartyConsumer,
-        storageParams: [
-          { key: "module", value: "s3" },
-          { key: "bucket", value: config.S3_BUCKET },
-          { key: "region", value: config.S3_REGION },
-          { key: "serviceurl", value: "" },
-          { key: "forcepathstyle", value: "false" },
-          { key: "usehttp", value: "false" },
-        ],
+        backupDto: {
+          storageType: BackupStorageType.ThirdPartyConsumer,
+          storageParams: [
+            { key: "module", value: "s3" },
+            { key: "bucket", value: config.S3_BUCKET },
+            { key: "region", value: config.S3_REGION },
+            { key: "serviceurl", value: "" },
+            { key: "forcepathstyle", value: "false" },
+            { key: "usehttp", value: "false" },
+          ],
+        },
       });
 
       expect(status).toBe(200);
@@ -424,7 +448,7 @@ test.describe("POST /api/2.0/backup/cancelbackup - Cancel backup", () => {
 
     await test.step("POST startbackup - start backup", async () => {
       await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -471,7 +495,7 @@ test.describe("POST /api/2.0/backup/cancelbackup - Cancel backup", () => {
 
     await test.step("POST startbackup - start backup", async () => {
       await adminApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -517,9 +541,11 @@ test.describe("GET /api/2.0/backup/getbackupschedule - Get backup schedule", () 
 
     await test.step("POST createbackupschedule - create schedule", async () => {
       await ownerApi.backup.createBackupSchedule({
-        storageType: BackupStorageType.DataStore,
-        backupsStored: 7,
-        cronParams: { period: BackupPeriod.EveryWeek, hour: 5, day: 2 },
+        backupScheduleDto: {
+          storageType: BackupStorageType.DataStore,
+          backupsStored: 7,
+          cronParams: { period: BackupPeriod.EveryWeek, hour: 5, day: 2 },
+        },
       });
     });
 
@@ -549,9 +575,11 @@ test.describe("GET /api/2.0/backup/getbackupschedule - Get backup schedule", () 
 
     await test.step("POST createbackupschedule - create schedule", async () => {
       await adminApi.backup.createBackupSchedule({
-        storageType: BackupStorageType.DataStore,
-        backupsStored: 3,
-        cronParams: { period: BackupPeriod.EveryMonth, hour: 1, day: 15 },
+        backupScheduleDto: {
+          storageType: BackupStorageType.DataStore,
+          backupsStored: 3,
+          cronParams: { period: BackupPeriod.EveryMonth, hour: 1, day: 15 },
+        },
       });
     });
 
@@ -576,17 +604,21 @@ test.describe("GET /api/2.0/backup/getbackupschedule - Get backup schedule", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Get Schedule Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Get Schedule Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
     await test.step("POST createbackupschedule - create schedule with room", async () => {
       await ownerApi.backup.createBackupSchedule({
-        storageType: BackupStorageType.Documents,
-        storageParams: [{ key: "folderId", value: String(roomId) }],
-        backupsStored: 4,
-        cronParams: { period: BackupPeriod.EveryDay, hour: 0 },
+        backupScheduleDto: {
+          storageType: BackupStorageType.Documents,
+          storageParams: [{ key: "folderId", value: String(roomId) }],
+          backupsStored: 4,
+          cronParams: { period: BackupPeriod.EveryDay, hour: 0 },
+        },
       });
     });
 
@@ -614,9 +646,11 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
 
     await test.step("POST createbackupschedule - create schedule", async () => {
       const { data, status } = await ownerApi.backup.createBackupSchedule({
-        storageType: BackupStorageType.DataStore,
-        backupsStored: 5,
-        cronParams: { period: BackupPeriod.EveryDay, hour: 3 },
+        backupScheduleDto: {
+          storageType: BackupStorageType.DataStore,
+          backupsStored: 5,
+          cronParams: { period: BackupPeriod.EveryDay, hour: 3 },
+        },
       });
 
       expect(status).toBe(200);
@@ -644,17 +678,21 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Backup Schedule Room",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: {
+        title: "Autotest Backup Schedule Room",
+        roomType: RoomType.CustomRoom,
+      },
     });
     const roomId = roomData.response!.id!;
 
     await test.step("POST createbackupschedule - create schedule", async () => {
       const { data, status } = await ownerApi.backup.createBackupSchedule({
-        storageType: BackupStorageType.Documents,
-        storageParams: [{ key: "folderId", value: String(roomId) }],
-        backupsStored: 3,
-        cronParams: { period: BackupPeriod.EveryWeek, hour: 2, day: 1 },
+        backupScheduleDto: {
+          storageType: BackupStorageType.Documents,
+          storageParams: [{ key: "folderId", value: String(roomId) }],
+          backupsStored: 3,
+          cronParams: { period: BackupPeriod.EveryWeek, hour: 2, day: 1 },
+        },
       });
 
       expect(status).toBe(200);
@@ -688,9 +726,11 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
 
     await test.step("POST createbackupschedule - create schedule", async () => {
       const { data, status } = await adminApi.backup.createBackupSchedule({
-        storageType: BackupStorageType.DataStore,
-        backupsStored: 10,
-        cronParams: { period: BackupPeriod.EveryMonth, hour: 0, day: 1 },
+        backupScheduleDto: {
+          storageType: BackupStorageType.DataStore,
+          backupsStored: 10,
+          cronParams: { period: BackupPeriod.EveryMonth, hour: 0, day: 1 },
+        },
       });
 
       expect(status).toBe(200);
@@ -722,7 +762,7 @@ test.describe("GET /api/2.0/backup/getbackupscount - Get backups count", () => {
 
     await test.step("POST startbackup - start backup", async () => {
       await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -749,10 +789,10 @@ test.describe("GET /api/2.0/backup/getbackupscount - Get backups count", () => {
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.backup.getBackupsCount(
-      "2000-01-01",
-      "2000-01-31",
-    );
+    const { data, status } = await ownerApi.backup.getBackupsCount({
+      from: "2000-01-01",
+      to: "2000-01-31",
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -772,7 +812,7 @@ test.describe("GET /api/2.0/backup/getbackupscount - Get backups count", () => {
 
     await test.step("POST startbackup - start backup", async () => {
       await adminApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -818,7 +858,7 @@ test.describe("GET /api/2.0/backup/getbackupprogress - Get backup progress", () 
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.backup.startBackup({
-      storageType: BackupStorageType.DataStore,
+      backupDto: { storageType: BackupStorageType.DataStore },
     });
 
     const { data, status } = await ownerApi.backup.getBackupProgress();
@@ -845,7 +885,7 @@ test.describe("GET /api/2.0/backup/getbackupprogress - Get backup progress", () 
 
     await test.step("POST startbackup - start backup", async () => {
       await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -884,7 +924,7 @@ test.describe("GET /api/2.0/backup/getbackupprogress - Get backup progress", () 
 
     await test.step("POST startbackup - start backup", async () => {
       await adminApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -937,7 +977,7 @@ test.describe("GET /api/2.0/backup/getbackuphistory - Get backup history", () =>
 
     await test.step("POST startbackup - start backup", async () => {
       await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -974,7 +1014,7 @@ test.describe("GET /api/2.0/backup/getbackuphistory - Get backup history", () =>
 
     await test.step("POST startbackup - start first backup", async () => {
       await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -993,7 +1033,7 @@ test.describe("GET /api/2.0/backup/getbackuphistory - Get backup history", () =>
 
     await test.step("POST startbackup - start second backup", async () => {
       await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -1026,7 +1066,7 @@ test.describe("GET /api/2.0/backup/getbackuphistory - Get backup history", () =>
 
     await test.step("POST startbackup - start backup", async () => {
       await adminApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -1060,9 +1100,11 @@ test.describe("DELETE /api/2.0/backup/deletebackupschedule - Delete backup sched
 
     await test.step("POST createbackupschedule - create schedule", async () => {
       await ownerApi.backup.createBackupSchedule({
-        storageType: BackupStorageType.DataStore,
-        backupsStored: 5,
-        cronParams: { period: BackupPeriod.EveryDay, hour: 3 },
+        backupScheduleDto: {
+          storageType: BackupStorageType.DataStore,
+          backupsStored: 5,
+          cronParams: { period: BackupPeriod.EveryDay, hour: 3 },
+        },
       });
     });
 
@@ -1088,9 +1130,11 @@ test.describe("DELETE /api/2.0/backup/deletebackupschedule - Delete backup sched
 
     await test.step("POST createbackupschedule - create schedule", async () => {
       await adminApi.backup.createBackupSchedule({
-        storageType: BackupStorageType.DataStore,
-        backupsStored: 3,
-        cronParams: { period: BackupPeriod.EveryWeek, hour: 1, day: 5 },
+        backupScheduleDto: {
+          storageType: BackupStorageType.DataStore,
+          backupsStored: 3,
+          cronParams: { period: BackupPeriod.EveryWeek, hour: 1, day: 5 },
+        },
       });
     });
 
@@ -1113,7 +1157,7 @@ test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
 
     await test.step("POST startbackup - start backup", async () => {
       await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -1130,7 +1174,7 @@ test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
     });
 
     await test.step("DELETE deletebackup - delete backup by ID", async () => {
-      const { data, status } = await ownerApi.backup.deleteBackup(backupId);
+      const { data, status } = await ownerApi.backup.deleteBackup({ id: backupId });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -1156,7 +1200,7 @@ test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
 
     await test.step("POST startbackup - start backup", async () => {
       await adminApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -1173,7 +1217,7 @@ test.describe("DELETE /api/2.0/backup/deletebackup - Delete backup", () => {
     });
 
     await test.step("DELETE deletebackup - delete backup by ID", async () => {
-      const { data, status } = await adminApi.backup.deleteBackup(backupId);
+      const { data, status } = await adminApi.backup.deleteBackup({ id: backupId });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -1195,7 +1239,7 @@ test.describe("DELETE /api/2.0/backup/deletebackuphistory - Delete backup histor
 
     await test.step("POST startbackup - start backup", async () => {
       await ownerApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 
@@ -1242,7 +1286,7 @@ test.describe("DELETE /api/2.0/backup/deletebackuphistory - Delete backup histor
 
     await test.step("POST startbackup - start backup", async () => {
       await adminApi.backup.startBackup({
-        storageType: BackupStorageType.DataStore,
+        backupDto: { storageType: BackupStorageType.DataStore },
       });
     });
 

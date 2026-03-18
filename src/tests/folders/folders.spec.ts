@@ -3,25 +3,11 @@ import { test } from "@/src/fixtures/index";
 import { FoldersApi, RoomType, SortOrder } from "@onlyoffice/docspace-api-sdk";
 
 function getFolderSortedByCustomOrder(folders: FoldersApi, folderId: number) {
-  // TODO(sdk): getFolderByFolderId has 17 positional params — sortBy/sortOrder are near the end.
-  // Fix: set useSingleRequestParameter=true in the openapi-generator config to generate an options object instead.
-  return folders.getFolderByFolderId(
+  return folders.getFolderByFolderId({
     folderId,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    "10", // sortBy: CustomOrder
-    SortOrder.Ascending,
-  );
+    sortBy: "10", // sortBy: CustomOrder
+    sortOrder: SortOrder.Ascending,
+  });
 }
 
 test.describe("POST /files/folder/:folderId - Create folder", () => {
@@ -30,13 +16,13 @@ test.describe("POST /files/folder/:folderId - Create folder", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room For Folder Creation",
-      roomType: RoomType.CustomRoom,
+      createRoomRequestDto: { title: "Autotest Room For Folder Creation", roomType: RoomType.CustomRoom },
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await ownerApi.folders.createFolder(roomId, {
-      title: "Autotest Folder",
+    const { data, status } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder" },
     });
 
     expect(status).toBe(200);
@@ -53,10 +39,10 @@ test.describe("POST /files/folder/:folderId - Create folder", () => {
     const { data: myDocsData } = await ownerApi.folders.getMyFolder();
     const myDocsFolderId = myDocsData.response!.current!.id!;
 
-    const { data, status } = await ownerApi.folders.createFolder(
-      myDocsFolderId,
-      { title: "Autotest Folder In My Docs" },
-    );
+    const { data, status } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder In My Docs" },
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -74,14 +60,15 @@ test.describe("PUT /files/folder/:folderId/order - Set folder order", () => {
     const { data: myDocsData } = await ownerApi.folders.getMyFolder();
     const myDocsFolderId = myDocsData.response!.current!.id!;
 
-    const { data: folderData } = await ownerApi.folders.createFolder(
-      myDocsFolderId,
-      { title: "Autotest Folder For Order" },
-    );
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder For Order" },
+    });
     const folderId = folderData.response!.id!;
 
-    const { data, status } = await ownerApi.folders.setFolderOrder(folderId, {
-      order: 1,
+    const { data, status } = await ownerApi.folders.setFolderOrder({
+      folderId,
+      orderRequestDto: { order: 1 },
     });
 
     expect(status).toBe(200);
@@ -95,24 +82,24 @@ test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () =>
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
-      title: "Autotest Room For Order",
-      roomType: RoomType.CustomRoom,
-      indexing: true,
+      createRoomRequestDto: { title: "Autotest Room For Order", roomType: RoomType.CustomRoom, indexing: true },
     });
     const roomId = roomData.response!.id!;
 
-    const { data: folderAData } = await ownerApi.folders.createFolder(roomId, {
-      title: "Autotest Folder A",
+    const { data: folderAData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder A" },
     });
     const folderA = folderAData.response!;
 
-    const { data: folderBData } = await ownerApi.folders.createFolder(roomId, {
-      title: "Autotest Folder B",
+    const { data: folderBData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder B" },
     });
     const folderB = folderBData.response!;
 
-    await ownerApi.folders.setFolderOrder(folderA.id!, { order: 2 });
-    await ownerApi.folders.setFolderOrder(folderB.id!, { order: 1 });
+    await ownerApi.folders.setFolderOrder({ folderId: folderA.id!, orderRequestDto: { order: 2 } });
+    await ownerApi.folders.setFolderOrder({ folderId: folderB.id!, orderRequestDto: { order: 1 } });
 
     const { data } = await getFolderSortedByCustomOrder(
       ownerApi.folders,
