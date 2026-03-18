@@ -9,7 +9,6 @@ test.describe("GET /api/2.0/settings/security/loginsettings - access control", (
 
     const { status } = await anonApi.loginSettings.getLoginSettings();
 
-    console.log("anonymous getLoginSettings status:", status);
     expect(status).toBe(401);
   });
 
@@ -24,12 +23,6 @@ test.describe("GET /api/2.0/settings/security/loginsettings - access control", (
     const { data, status } =
       await roomAdminApi.loginSettings.getLoginSettings();
 
-    console.log(
-      "RoomAdmin getLoginSettings status:",
-      status,
-      "body:",
-      JSON.stringify(data),
-    );
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -45,12 +38,6 @@ test.describe("GET /api/2.0/settings/security/loginsettings - access control", (
 
     const { data, status } = await userApi.loginSettings.getLoginSettings();
 
-    console.log(
-      "User getLoginSettings status:",
-      status,
-      "body:",
-      JSON.stringify(data),
-    );
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -66,12 +53,6 @@ test.describe("GET /api/2.0/settings/security/loginsettings - access control", (
 
     const { data, status } = await guestApi.loginSettings.getLoginSettings();
 
-    console.log(
-      "Guest getLoginSettings status:",
-      status,
-      "body:",
-      JSON.stringify(data),
-    );
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
