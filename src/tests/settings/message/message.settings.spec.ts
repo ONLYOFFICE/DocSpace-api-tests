@@ -145,63 +145,57 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
 });
 
 test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", () => {
-  test("POST /api/2.0/settings/sendjoininvite - Owner sends join invite mail", async ({
-    apiSdk,
-  }) => {
-    test.fail(true, "BUG: sendJoinInviteMail returns 500 Method not available");
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - Owner sends join invite mail",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { email } = apiSdk.faker.generateUser();
 
-    const ownerApi = apiSdk.forRole("owner");
-    const { email } = apiSdk.faker.generateUser();
+      const { data, status } =
+        await ownerApi.settingsMessages.sendJoinInviteMail({ email });
 
-    const { data, status } = await ownerApi.settingsMessages.sendJoinInviteMail(
-      { email },
-    );
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(typeof (data.response as unknown as string)).toBe("string");
+    },
+  );
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
-    expect(typeof (data.response as unknown as string)).toBe("string");
-  });
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - Owner sends join invite mail with culture specified",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { email } = apiSdk.faker.generateUser();
 
-  test("POST /api/2.0/settings/sendjoininvite - Owner sends join invite mail with culture specified", async ({
-    apiSdk,
-  }) => {
-    test.fail(true, "BUG: sendJoinInviteMail returns 500 Method not available");
+      const { data, status } =
+        await ownerApi.settingsMessages.sendJoinInviteMail({
+          email,
+          culture: "en-US",
+        });
 
-    const ownerApi = apiSdk.forRole("owner");
-    const { email } = apiSdk.faker.generateUser();
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(typeof (data.response as unknown as string)).toBe("string");
+    },
+  );
 
-    const { data, status } = await ownerApi.settingsMessages.sendJoinInviteMail(
-      {
-        email,
-        culture: "en-US",
-      },
-    );
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - DocSpaceAdmin sends join invite mail",
+    async ({ apiSdk }) => {
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+      const { email } = apiSdk.faker.generateUser();
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
-    expect(typeof (data.response as unknown as string)).toBe("string");
-  });
+      const { data, status } =
+        await adminApi.settingsMessages.sendJoinInviteMail({ email });
 
-  test("POST /api/2.0/settings/sendjoininvite - DocSpaceAdmin sends join invite mail", async ({
-    apiSdk,
-  }) => {
-    test.fail(true, "BUG: sendJoinInviteMail returns 500 Method not available");
-
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-    const { email } = apiSdk.faker.generateUser();
-
-    const { data, status } = await adminApi.settingsMessages.sendJoinInviteMail(
-      { email },
-    );
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
-    expect(typeof (data.response as unknown as string)).toBe("string");
-  });
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(typeof (data.response as unknown as string)).toBe("string");
+    },
+  );
 });

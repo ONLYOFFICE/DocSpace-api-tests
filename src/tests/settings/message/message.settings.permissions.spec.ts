@@ -71,77 +71,71 @@ test.describe("POST /api/2.0/settings/messages/enable - access control", () => {
 });
 
 test.describe("POST /api/2.0/settings/sendjoininvite - access control", () => {
-  test("POST /api/2.0/settings/sendjoininvite - anonymous cannot send join invite mail", async ({
-    apiSdk,
-  }) => {
-    test.fail(true, "BUG: sendJoinInviteMail returns 500 Method not available");
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - anonymous cannot send join invite mail",
+    async ({ apiSdk }) => {
+      const anonApi = apiSdk.forAnonymous();
+      const { email } = apiSdk.faker.generateUser();
 
-    const anonApi = apiSdk.forAnonymous();
-    const { email } = apiSdk.faker.generateUser();
+      const { status } = await anonApi.settingsMessages.sendJoinInviteMail({
+        email,
+      });
 
-    const { status } = await anonApi.settingsMessages.sendJoinInviteMail({
-      email,
-    });
+      expect(status).toBe(401);
+    },
+  );
 
-    expect(status).toBe(401);
-  });
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - RoomAdmin cannot send join invite mail",
+    async ({ apiSdk }) => {
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+      const { email } = apiSdk.faker.generateUser();
 
-  test("POST /api/2.0/settings/sendjoininvite - RoomAdmin cannot send join invite mail", async ({
-    apiSdk,
-  }) => {
-    test.fail(true, "BUG: sendJoinInviteMail returns 500 Method not available");
+      const { data, status } =
+        await roomAdminApi.settingsMessages.sendJoinInviteMail({ email });
 
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "RoomAdmin",
-    );
-    const { email } = apiSdk.faker.generateUser();
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
 
-    const { data, status } =
-      await roomAdminApi.settingsMessages.sendJoinInviteMail({ email });
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - User cannot send join invite mail",
+    async ({ apiSdk }) => {
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+      const { email } = apiSdk.faker.generateUser();
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
+      const { data, status } =
+        await userApi.settingsMessages.sendJoinInviteMail({ email });
 
-  test("POST /api/2.0/settings/sendjoininvite - User cannot send join invite mail", async ({
-    apiSdk,
-  }) => {
-    test.fail(true, "BUG: sendJoinInviteMail returns 500 Method not available");
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
 
-    const { api: userApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
-    const { email } = apiSdk.faker.generateUser();
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - Guest cannot send join invite mail",
+    async ({ apiSdk }) => {
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
+      const { email } = apiSdk.faker.generateUser();
 
-    const { data, status } = await userApi.settingsMessages.sendJoinInviteMail({
-      email,
-    });
+      const { data, status } =
+        await guestApi.settingsMessages.sendJoinInviteMail({ email });
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-
-  test("POST /api/2.0/settings/sendjoininvite - Guest cannot send join invite mail", async ({
-    apiSdk,
-  }) => {
-    test.fail(true, "BUG: sendJoinInviteMail returns 500 Method not available");
-
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-    const { email } = apiSdk.faker.generateUser();
-
-    const { data, status } = await guestApi.settingsMessages.sendJoinInviteMail(
-      { email },
-    );
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
 });
