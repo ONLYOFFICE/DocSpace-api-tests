@@ -8,7 +8,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.greetingSettings.saveGreetingSettings({
-      title: "Unauthorized Title",
+      greetingSettingsRequestsDto: { title: "Unauthorized Title" },
     });
 
     expect(status).toBe(401);
@@ -24,7 +24,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
 
     const { data, status } =
       await roomAdminApi.greetingSettings.saveGreetingSettings({
-        title: "RoomAdmin Title",
+        greetingSettingsRequestsDto: { title: "RoomAdmin Title" },
       });
 
     expect(status).toBe(403);
@@ -42,7 +42,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
 
     const { data, status } =
       await userApi.greetingSettings.saveGreetingSettings({
-        title: "User Title",
+        greetingSettingsRequestsDto: { title: "User Title" },
       });
 
     expect(status).toBe(403);
@@ -60,7 +60,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
 
     const { data, status } =
       await guestApi.greetingSettings.saveGreetingSettings({
-        title: "Guest Title",
+        greetingSettingsRequestsDto: { title: "Guest Title" },
       });
 
     expect(status).toBe(403);
@@ -136,9 +136,11 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - access control", (
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.loginSettings.updateLoginSettings({
-      attemptCount: 3,
-      blockTime: 10,
-      checkPeriod: 60,
+      loginSettingsRequestDto: {
+        attemptCount: 3,
+        blockTime: 10,
+        checkPeriod: 60,
+      },
     });
 
     expect(status).toBe(401);
@@ -154,9 +156,11 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - access control", (
 
     const { data, status } =
       await roomAdminApi.loginSettings.updateLoginSettings({
-        attemptCount: 3,
-        blockTime: 10,
-        checkPeriod: 60,
+        loginSettingsRequestDto: {
+          attemptCount: 3,
+          blockTime: 10,
+          checkPeriod: 60,
+        },
       });
 
     expect(status).toBe(403);
@@ -173,9 +177,11 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - access control", (
     );
 
     const { data, status } = await userApi.loginSettings.updateLoginSettings({
-      attemptCount: 3,
-      blockTime: 10,
-      checkPeriod: 60,
+      loginSettingsRequestDto: {
+        attemptCount: 3,
+        blockTime: 10,
+        checkPeriod: 60,
+      },
     });
 
     expect(status).toBe(403);
@@ -192,9 +198,11 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - access control", (
     );
 
     const { data, status } = await guestApi.loginSettings.updateLoginSettings({
-      attemptCount: 3,
-      blockTime: 10,
-      checkPeriod: 60,
+      loginSettingsRequestDto: {
+        attemptCount: 3,
+        blockTime: 10,
+        checkPeriod: 60,
+      },
     });
 
     expect(status).toBe(403);

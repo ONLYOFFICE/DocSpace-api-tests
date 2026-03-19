@@ -52,3 +52,13 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     modelId: "deepseek-ai/DeepSeek-V3.1",
   },
 };
+
+export const expectedAvailableProviders = [
+  { type: 1, url: "https://api.openai.com/v1" },
+  { type: 2, url: "https://api.together.xyz/v1" },
+  { type: 4, url: "https://api.anthropic.com/v1" },
+  { type: 5, url: "https://openrouter.ai/api/v1" },
+  { type: 6, url: "https://api.deepseek.com" },
+  { type: 7, url: "https://api.x.ai/v1" },
+  { type: 8, url: "https://generativelanguage.googleapis.com/v1beta" },
+];
