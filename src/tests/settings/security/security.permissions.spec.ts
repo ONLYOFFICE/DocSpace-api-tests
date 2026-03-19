@@ -4,33 +4,35 @@ import { test } from "@/src/fixtures/index";
 const PRODUCT_ID_ALL = "00000000-0000-0000-0000-000000000000";
 
 test.describe("PUT /settings/security/administrator - access control", () => {
-  test.fail(
-    "PUT /settings/security/administrator - DocSpace admin cannot demote another DocSpace admin",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment(4);
+  test.fail("PUT /settings/security/administrator - DocSpace admin cannot demote another DocSpace admin", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment(4);
 
-      const { data: admin2Data } = await apiSdk.addMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
-      const admin2Id = admin2Data.response!.id!;
+    const { data: admin2Data } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const admin2Id = admin2Data.response!.id!;
 
-      const { api: admin1Api } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
+    const { api: admin1Api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
 
-      // DocSpace admin tries to demote another DocSpace admin — only Owner can do this
-      const { data } = await admin1Api.security.setProductAdministrator({
+    // DocSpace admin tries to demote another DocSpace admin — only Owner can do this
+    const { data } = await admin1Api.security.setProductAdministrator({
+      securityRequestsDto: {
         productId: PRODUCT_ID_ALL,
         userId: admin2Id,
         administrator: false,
-      });
-      // BUG: API returns 200, expected 403
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message as string).toContain("Access denied");
-    },
-  );
+      },
+    });
+    // BUG: API returns 200, expected 403
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message as string).toContain("Access denied");
+  });
 
   test("PUT /settings/security/administrator - DocSpace admin cannot promote Room admin to DocSpace admin", async ({
     apiSdk,
@@ -51,9 +53,11 @@ test.describe("PUT /settings/security/administrator - access control", () => {
 
     // DocSpace admin tries to promote Room admin to administrator — only Owner can do this
     const { data } = await adminApi.security.setProductAdministrator({
-      productId: PRODUCT_ID_ALL,
-      userId: roomAdminId,
-      administrator: true,
+      securityRequestsDto: {
+        productId: PRODUCT_ID_ALL,
+        userId: roomAdminId,
+        administrator: true,
+      },
     });
 
     expect(data.statusCode).toBe(403);

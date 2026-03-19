@@ -10,7 +10,7 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
     await test.step("POST messages/enable - enable admin messages (turnOn: true)", async () => {
       const { data, status } =
         await ownerApi.settingsMessages.enableAdminMessageSettings({
-          turnOn: true,
+          turnOnAdminMessageSettingsRequestDto: { turnOn: true },
         });
 
       expect(status).toBe(200);
@@ -25,7 +25,7 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
     await test.step("POST messages/enable - cleanup: disable admin messages (turnOn: false)", async () => {
       const { status } =
         await ownerApi.settingsMessages.enableAdminMessageSettings({
-          turnOn: false,
+          turnOnAdminMessageSettingsRequestDto: { turnOn: false },
         });
 
       expect(status).toBe(200);
@@ -39,7 +39,7 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
 
     const { data, status } =
       await ownerApi.settingsMessages.enableAdminMessageSettings({
-        turnOn: false,
+        turnOnAdminMessageSettingsRequestDto: { turnOn: false },
       });
 
     expect(status).toBe(200);
@@ -59,7 +59,7 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
     await test.step("POST messages/enable - enable (turnOn: true)", async () => {
       const { data, status } =
         await ownerApi.settingsMessages.enableAdminMessageSettings({
-          turnOn: true,
+          turnOnAdminMessageSettingsRequestDto: { turnOn: true },
         });
 
       expect(status).toBe(200);
@@ -74,7 +74,7 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
     await test.step("POST messages/enable - disable (turnOn: false)", async () => {
       const { data, status } =
         await ownerApi.settingsMessages.enableAdminMessageSettings({
-          turnOn: false,
+          turnOnAdminMessageSettingsRequestDto: { turnOn: false },
         });
 
       expect(status).toBe(200);
@@ -99,7 +99,7 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
     await test.step("POST messages/enable - DocSpaceAdmin enables admin messages (turnOn: true)", async () => {
       const { data, status } =
         await adminApi.settingsMessages.enableAdminMessageSettings({
-          turnOn: true,
+          turnOnAdminMessageSettingsRequestDto: { turnOn: true },
         });
 
       expect(status).toBe(200);
@@ -114,7 +114,7 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
     await test.step("POST messages/enable - cleanup: disable admin messages (turnOn: false)", async () => {
       const { status } =
         await ownerApi.settingsMessages.enableAdminMessageSettings({
-          turnOn: false,
+          turnOnAdminMessageSettingsRequestDto: { turnOn: false },
         });
 
       expect(status).toBe(200);
@@ -131,7 +131,7 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
 
     const { data, status } =
       await adminApi.settingsMessages.enableAdminMessageSettings({
-        turnOn: false,
+        turnOnAdminMessageSettingsRequestDto: { turnOn: false },
       });
 
     expect(status).toBe(200);
@@ -152,7 +152,9 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
       const { email } = apiSdk.faker.generateUser();
 
       const { data, status } =
-        await ownerApi.settingsMessages.sendJoinInviteMail({ email });
+        await ownerApi.settingsMessages.sendJoinInviteMail({
+          adminMessageBaseSettingsRequestsDto: { email },
+        });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -169,8 +171,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
 
       const { data, status } =
         await ownerApi.settingsMessages.sendJoinInviteMail({
-          email,
-          culture: "en-US",
+          adminMessageBaseSettingsRequestsDto: { email, culture: "en-US" },
         });
 
       expect(status).toBe(200);
@@ -190,7 +191,9 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
       const { email } = apiSdk.faker.generateUser();
 
       const { data, status } =
-        await adminApi.settingsMessages.sendJoinInviteMail({ email });
+        await adminApi.settingsMessages.sendJoinInviteMail({
+          adminMessageBaseSettingsRequestsDto: { email },
+        });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);

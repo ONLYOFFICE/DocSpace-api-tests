@@ -9,7 +9,7 @@ test.describe("POST /api/2.0/settings/messages/enable - access control", () => {
 
     const { status } =
       await anonApi.settingsMessages.enableAdminMessageSettings({
-        turnOn: true,
+        turnOnAdminMessageSettingsRequestDto: { turnOn: true },
       });
 
     expect(status).toBe(401);
@@ -25,7 +25,7 @@ test.describe("POST /api/2.0/settings/messages/enable - access control", () => {
 
     const { data, status } =
       await roomAdminApi.settingsMessages.enableAdminMessageSettings({
-        turnOn: true,
+        turnOnAdminMessageSettingsRequestDto: { turnOn: true },
       });
 
     expect(status).toBe(403);
@@ -43,7 +43,7 @@ test.describe("POST /api/2.0/settings/messages/enable - access control", () => {
 
     const { data, status } =
       await userApi.settingsMessages.enableAdminMessageSettings({
-        turnOn: true,
+        turnOnAdminMessageSettingsRequestDto: { turnOn: true },
       });
 
     expect(status).toBe(403);
@@ -61,7 +61,7 @@ test.describe("POST /api/2.0/settings/messages/enable - access control", () => {
 
     const { data, status } =
       await guestApi.settingsMessages.enableAdminMessageSettings({
-        turnOn: true,
+        turnOnAdminMessageSettingsRequestDto: { turnOn: true },
       });
 
     expect(status).toBe(403);
@@ -78,7 +78,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - access control", () => {
       const { email } = apiSdk.faker.generateUser();
 
       const { status } = await anonApi.settingsMessages.sendJoinInviteMail({
-        email,
+        adminMessageBaseSettingsRequestsDto: { email },
       });
 
       expect(status).toBe(401);
@@ -95,7 +95,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - access control", () => {
       const { email } = apiSdk.faker.generateUser();
 
       const { data, status } =
-        await roomAdminApi.settingsMessages.sendJoinInviteMail({ email });
+        await roomAdminApi.settingsMessages.sendJoinInviteMail({ adminMessageBaseSettingsRequestsDto: { email } });
 
       expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
@@ -113,7 +113,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - access control", () => {
       const { email } = apiSdk.faker.generateUser();
 
       const { data, status } =
-        await userApi.settingsMessages.sendJoinInviteMail({ email });
+        await userApi.settingsMessages.sendJoinInviteMail({ adminMessageBaseSettingsRequestsDto: { email } });
 
       expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
@@ -131,7 +131,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - access control", () => {
       const { email } = apiSdk.faker.generateUser();
 
       const { data, status } =
-        await guestApi.settingsMessages.sendJoinInviteMail({ email });
+        await guestApi.settingsMessages.sendJoinInviteMail({ adminMessageBaseSettingsRequestsDto: { email } });
 
       expect(status).toBe(403);
       expect(data.statusCode).toBe(403);

@@ -75,7 +75,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - Save greeting settings"
     await test.step("POST greetingsettings - save custom greeting title", async () => {
       const { data, status } =
         await ownerApi.greetingSettings.saveGreetingSettings({
-          title: customTitle,
+          greetingSettingsRequestsDto: { title: customTitle },
         });
 
       expect(status).toBe(200);
@@ -119,7 +119,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - Save greeting settings"
     await test.step("POST greetingsettings - save custom greeting title", async () => {
       const { data, status } =
         await adminApi.greetingSettings.saveGreetingSettings({
-          title: customTitle,
+          greetingSettingsRequestsDto: { title: customTitle },
         });
 
       expect(status).toBe(200);
@@ -152,7 +152,7 @@ test.describe("POST /api/2.0/settings/greetingsettings/restore - Restore greetin
 
     await test.step("POST greetingsettings - save custom greeting title", async () => {
       const { status } = await ownerApi.greetingSettings.saveGreetingSettings({
-        title: "Temporary Title",
+        greetingSettingsRequestsDto: { title: "Temporary Title" },
       });
 
       expect(status).toBe(200);
@@ -194,7 +194,7 @@ test.describe("POST /api/2.0/settings/greetingsettings/restore - Restore greetin
 
     await test.step("POST greetingsettings - save custom greeting title", async () => {
       const { status } = await adminApi.greetingSettings.saveGreetingSettings({
-        title: "Temporary Admin Title",
+        greetingSettingsRequestsDto: { title: "Temporary Admin Title" },
       });
 
       expect(status).toBe(200);
