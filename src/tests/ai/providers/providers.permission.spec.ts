@@ -61,7 +61,7 @@ test.describe("AI Providers - Permissions", () => {
         key: provider.key,
       },
     });
-    console.log(data);
+
     expect(status).toBe(400);
     expect((data as any).error.message).toBe("Provider name already exists");
   });
