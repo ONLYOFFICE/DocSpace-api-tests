@@ -75,7 +75,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - Save greeting settings"
     await test.step("POST greetingsettings - save custom greeting title", async () => {
       const { data, status } =
         await ownerApi.greetingSettings.saveGreetingSettings({
-          title: customTitle,
+          greetingSettingsRequestsDto: { title: customTitle },
         });
 
       expect(status).toBe(200);
@@ -119,7 +119,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - Save greeting settings"
     await test.step("POST greetingsettings - save custom greeting title", async () => {
       const { data, status } =
         await adminApi.greetingSettings.saveGreetingSettings({
-          title: customTitle,
+          greetingSettingsRequestsDto: { title: customTitle },
         });
 
       expect(status).toBe(200);
@@ -152,7 +152,7 @@ test.describe("POST /api/2.0/settings/greetingsettings/restore - Restore greetin
 
     await test.step("POST greetingsettings - save custom greeting title", async () => {
       const { status } = await ownerApi.greetingSettings.saveGreetingSettings({
-        title: "Temporary Title",
+        greetingSettingsRequestsDto: { title: "Temporary Title" },
       });
 
       expect(status).toBe(200);
@@ -194,7 +194,7 @@ test.describe("POST /api/2.0/settings/greetingsettings/restore - Restore greetin
 
     await test.step("POST greetingsettings - save custom greeting title", async () => {
       const { status } = await adminApi.greetingSettings.saveGreetingSettings({
-        title: "Temporary Admin Title",
+        greetingSettingsRequestsDto: { title: "Temporary Admin Title" },
       });
 
       expect(status).toBe(200);
@@ -265,7 +265,9 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - Update login setti
 
     await test.step("PUT loginsettings - update with custom values", async () => {
       const { data, status } =
-        await ownerApi.loginSettings.updateLoginSettings(customSettings);
+        await ownerApi.loginSettings.updateLoginSettings({
+          loginSettingsRequestDto: customSettings,
+        });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -305,7 +307,9 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - Update login setti
 
     await test.step("PUT loginsettings - update with custom values", async () => {
       const { data, status } =
-        await adminApi.loginSettings.updateLoginSettings(customSettings);
+        await adminApi.loginSettings.updateLoginSettings({
+          loginSettingsRequestDto: customSettings,
+        });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -341,9 +345,11 @@ test.describe("DELETE /api/2.0/settings/security/loginsettings - Restore default
 
     await test.step("PUT loginsettings - change settings from default", async () => {
       const { status } = await ownerApi.loginSettings.updateLoginSettings({
-        attemptCount: 3,
-        blockTime: 5,
-        checkPeriod: 30,
+        loginSettingsRequestDto: {
+          attemptCount: 3,
+          blockTime: 5,
+          checkPeriod: 30,
+        },
       });
 
       expect(status).toBe(200);
@@ -390,9 +396,11 @@ test.describe("DELETE /api/2.0/settings/security/loginsettings - Restore default
 
     await test.step("PUT loginsettings - change settings from default", async () => {
       const { status } = await adminApi.loginSettings.updateLoginSettings({
-        attemptCount: 4,
-        blockTime: 8,
-        checkPeriod: 45,
+        loginSettingsRequestDto: {
+          attemptCount: 4,
+          blockTime: 8,
+          checkPeriod: 45,
+        },
       });
 
       expect(status).toBe(200);
