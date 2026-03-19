@@ -46,8 +46,11 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - Update login setti
     const customSettings = { attemptCount: 3, blockTime: 15, checkPeriod: 60 };
 
     await test.step("PUT loginsettings - update with custom values", async () => {
-      const { data, status } =
-        await ownerApi.loginSettings.updateLoginSettings(customSettings);
+      const { data, status } = await ownerApi.loginSettings.updateLoginSettings(
+        {
+          loginSettingsRequestDto: customSettings,
+        },
+      );
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -86,8 +89,11 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - Update login setti
     const customSettings = { attemptCount: 7, blockTime: 20, checkPeriod: 120 };
 
     await test.step("PUT loginsettings - update with custom values", async () => {
-      const { data, status } =
-        await adminApi.loginSettings.updateLoginSettings(customSettings);
+      const { data, status } = await adminApi.loginSettings.updateLoginSettings(
+        {
+          loginSettingsRequestDto: customSettings,
+        },
+      );
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -123,9 +129,11 @@ test.describe("DELETE /api/2.0/settings/security/loginsettings - Restore default
 
     await test.step("PUT loginsettings - change settings from default", async () => {
       const { status } = await ownerApi.loginSettings.updateLoginSettings({
-        attemptCount: 3,
-        blockTime: 5,
-        checkPeriod: 30,
+        loginSettingsRequestDto: {
+          attemptCount: 3,
+          blockTime: 5,
+          checkPeriod: 30,
+        },
       });
 
       expect(status).toBe(200);
@@ -172,9 +180,11 @@ test.describe("DELETE /api/2.0/settings/security/loginsettings - Restore default
 
     await test.step("PUT loginsettings - change settings from default", async () => {
       const { status } = await adminApi.loginSettings.updateLoginSettings({
-        attemptCount: 4,
-        blockTime: 8,
-        checkPeriod: 45,
+        loginSettingsRequestDto: {
+          attemptCount: 4,
+          blockTime: 8,
+          checkPeriod: 45,
+        },
       });
 
       expect(status).toBe(200);
