@@ -32,6 +32,8 @@ import {
   ProvidersApi,
   ChatApi,
   SettingsQuotaApi,
+  SettingsMessagesApi,
+  CommonSettingsApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
@@ -132,6 +134,12 @@ export class ApiSDK {
       providers: new ProvidersApi(config, undefined, axiosInstance),
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
+      settingsMessages: new SettingsMessagesApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      commonSettings: new CommonSettingsApi(config, undefined, axiosInstance),
     };
   }
 
@@ -177,6 +185,12 @@ export class ApiSDK {
       agents: new AgentsApi(config, undefined, axiosInstance),
       providers: new ProvidersApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
+      settingsMessages: new SettingsMessagesApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      commonSettings: new CommonSettingsApi(config, undefined, axiosInstance),
     };
   }
 
