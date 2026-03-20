@@ -32,6 +32,7 @@ import {
   ProvidersApi,
   ChatApi,
   SettingsQuotaApi,
+  PaymentApi as SdkPaymentApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
@@ -132,6 +133,7 @@ export class ApiSDK {
       providers: new ProvidersApi(config, undefined, axiosInstance),
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
+      payment: new SdkPaymentApi(config, undefined, axiosInstance),
     };
   }
 

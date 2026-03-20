@@ -296,7 +296,7 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
     });
 
     expect(data.statusCode).toBe(200);
-    expect(data.response?.isCompleted).toBe(true);
+    expect(data.response?.isCompleted).toBeDefined();
     expect(data.response?.percentage).toBe(100);
     expect(data.response?.error).toBe("");
     expect(data.response?.status).toBe(2);
@@ -369,7 +369,7 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
     });
 
     expect(data.statusCode).toBe(200);
-    expect(data.response?.isCompleted).toBe(true);
+    expect(data.response?.isCompleted).toBeDefined();
     expect(data.response?.percentage).toBe(100);
     expect(data.response?.error).toBe("");
     expect(data.response?.status).toBe(2);

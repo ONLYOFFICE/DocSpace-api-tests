@@ -53,6 +53,12 @@ export const aiProviders: Record<string, AiProviderConfig> = {
   },
 };
 
+export const onlyofficeAiProvider = {
+  providerId: -1,
+  defaultModel: "gpt-5.2",
+  providerTitle: "ONLYOFFICE AI",
+} as const;
+
 export const expectedAvailableProviders = [
   { type: 1, url: "https://api.openai.com/v1" },
   { type: 2, url: "https://api.together.xyz/v1" },
