@@ -52,8 +52,7 @@ test.describe("GET /api/2.0/settings - Get portal settings", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } =
-      await ownerApi.commonSettings.getPortalSettings();
+    const { data, status } = await ownerApi.commonSettings.getPortalSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -93,8 +92,7 @@ test.describe("GET /api/2.0/settings - Get portal settings", () => {
       "DocSpaceAdmin",
     );
 
-    const { data, status } =
-      await adminApi.commonSettings.getPortalSettings();
+    const { data, status } = await adminApi.commonSettings.getPortalSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -132,8 +130,7 @@ test.describe("GET /api/2.0/settings - Get portal settings", () => {
       "User",
     );
 
-    const { data, status } =
-      await userApi.commonSettings.getPortalSettings();
+    const { data, status } = await userApi.commonSettings.getPortalSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -151,8 +148,7 @@ test.describe("GET /api/2.0/settings - Get portal settings", () => {
       "Guest",
     );
 
-    const { data, status } =
-      await guestApi.commonSettings.getPortalSettings();
+    const { data, status } = await guestApi.commonSettings.getPortalSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);

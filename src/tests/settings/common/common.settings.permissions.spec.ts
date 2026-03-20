@@ -91,8 +91,7 @@ test.describe("GET /api/2.0/settings - Get portal settings (permissions)", () =>
   }) => {
     const anonApi = apiSdk.forAnonymous();
 
-    const { data, status } =
-      await anonApi.commonSettings.getPortalSettings();
+    const { data, status } = await anonApi.commonSettings.getPortalSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -115,8 +114,7 @@ test.describe("GET /api/2.0/settings - Get portal settings (permissions)", () =>
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } =
-      await ownerApi.commonSettings.getPortalSettings();
+    const { data, status } = await ownerApi.commonSettings.getPortalSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
