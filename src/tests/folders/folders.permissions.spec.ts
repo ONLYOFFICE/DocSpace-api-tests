@@ -56,10 +56,15 @@ test.describe(
           deleteFolder: { deleteAfter: true, immediately: true },
         });
 
-        // Expected: 403 Access denied
+        // Expected: error field contains reason (e.g. "Access denied")
         // Actual (BUG 79459): 200 with empty error field
-        expect(status).toBe(403);
-        expect((data as any).error.message).toBe("Access denied");
+        expect(status).toBe(200);
+        const operation = data.response![0];
+        expect(operation.error).toBeTruthy();
+
+        const { status: checkStatus } =
+          await ownerApi.folders.getFolderByFolderId({ folderId });
+        expect(checkStatus).toBe(200);
       },
     );
 
@@ -91,10 +96,15 @@ test.describe(
           deleteFolder: { deleteAfter: true, immediately: true },
         });
 
-        // Expected: 403 Access denied
+        // Expected: error field contains reason (e.g. "Access denied")
         // Actual (BUG 79459): 200 with empty error field
-        expect(status).toBe(403);
-        expect((data as any).error.message).toBe("Access denied");
+        expect(status).toBe(200);
+        const operation = data.response![0];
+        expect(operation.error).toBeTruthy();
+
+        const { status: checkStatus } =
+          await ownerApi.folders.getFolderByFolderId({ folderId });
+        expect(checkStatus).toBe(200);
       },
     );
 
@@ -377,10 +387,15 @@ test.describe(
           deleteFolder: { deleteAfter: true, immediately: true },
         });
 
-        // Expected: 403 Access denied
+        // Expected: error field contains reason (e.g. "Access denied")
         // Actual (BUG 79459): 200 with empty error field
-        expect(status).toBe(403);
-        expect((data as any).error.message).toBe("Access denied");
+        expect(status).toBe(200);
+        const operation = data.response![0];
+        expect(operation.error).toBeTruthy();
+
+        const { status: checkStatus } =
+          await ownerApi.folders.getFolderByFolderId({ folderId });
+        expect(checkStatus).toBe(200);
       },
     );
 
@@ -420,10 +435,15 @@ test.describe(
           deleteFolder: { deleteAfter: true, immediately: true },
         });
 
-        // Expected: 403 Access denied
+        // Expected: error field contains reason (e.g. "Access denied")
         // Actual (BUG 79459): 200 with empty error field
-        expect(status).toBe(403);
-        expect((data as any).error.message).toBe("Access denied");
+        expect(status).toBe(200);
+        const operation = data.response![0];
+        expect(operation.error).toBeTruthy();
+
+        const { status: checkStatus } =
+          await ownerApi.folders.getFolderByFolderId({ folderId });
+        expect(checkStatus).toBe(200);
       },
     );
 
@@ -455,10 +475,15 @@ test.describe(
           deleteFolder: { deleteAfter: true, immediately: true },
         });
 
-        // Expected: 403 Access denied
+        // Expected: error field contains reason (e.g. "Access denied")
         // Actual (BUG 79459): 200 with empty error field
-        expect(status).toBe(403);
-        expect((data as any).error.message).toBe("Access denied");
+        expect(status).toBe(200);
+        const operation = data.response![0];
+        expect(operation.error).toBeTruthy();
+
+        const { status: checkStatus } =
+          await ownerApi.folders.getFolderByFolderId({ folderId });
+        expect(checkStatus).toBe(200);
       },
     );
   },

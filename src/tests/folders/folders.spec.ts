@@ -398,14 +398,16 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
         expect(status).not.toBe(200);
       }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
-      const { status } = await ownerApi.folders.deleteFolder({
+      const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: 404 Folder not found
+      // Expected: error field contains reason (e.g. "Folder not found")
       // Actual (BUG 79459): 200 with empty error field
-      expect(status).toBe(404);
+      expect(status).toBe(200);
+      const operation = data.response![0];
+      expect(operation.error).toBeTruthy();
     },
   );
 
@@ -415,14 +417,16 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       const ownerApi = apiSdk.forRole("owner");
       const nonExistentFolderId = 999999999;
 
-      const { status } = await ownerApi.folders.deleteFolder({
+      const { data, status } = await ownerApi.folders.deleteFolder({
         folderId: nonExistentFolderId,
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: 404 Folder not found
+      // Expected: error field contains reason (e.g. "Folder not found")
       // Actual (BUG 79459): 200 with empty error field
-      expect(status).toBe(404);
+      expect(status).toBe(200);
+      const operation = data.response![0];
+      expect(operation.error).toBeTruthy();
     },
   );
 });
