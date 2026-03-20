@@ -32,6 +32,7 @@ import {
   ProvidersApi,
   ChatApi,
   SettingsQuotaApi,
+  PaymentApi as SdkPaymentApi,
   SettingsMessagesApi,
   CommonSettingsApi,
 } from "@onlyoffice/docspace-api-sdk";
@@ -134,6 +135,7 @@ export class ApiSDK {
       providers: new ProvidersApi(config, undefined, axiosInstance),
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
+      payment: new SdkPaymentApi(config, undefined, axiosInstance),
       settingsMessages: new SettingsMessagesApi(
         config,
         undefined,
