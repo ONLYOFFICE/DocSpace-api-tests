@@ -90,12 +90,14 @@ test.describe("AI Settings - setVectorizationSettings", () => {
       },
     });
 
-    const { data, status } = await ownerApi.aiSettings.setVectorizationSettings({
-      setEmbeddingConfigRequestBody: {
-        type: EmbeddingProviderType.OpenAi,
-        key: provider.key,
+    const { data, status } = await ownerApi.aiSettings.setVectorizationSettings(
+      {
+        setEmbeddingConfigRequestBody: {
+          type: EmbeddingProviderType.OpenAi,
+          key: provider.key,
+        },
       },
-    });
+    );
 
     expect(status).toBe(200);
 
@@ -122,12 +124,14 @@ test.describe("AI Settings - setVectorizationSettings", () => {
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.aiSettings.setVectorizationSettings({
-      setEmbeddingConfigRequestBody: {
-        type: EmbeddingProviderType.OpenAi,
-        key: provider.key,
+    const { data, status } = await adminApi.aiSettings.setVectorizationSettings(
+      {
+        setEmbeddingConfigRequestBody: {
+          type: EmbeddingProviderType.OpenAi,
+          key: provider.key,
+        },
       },
-    });
+    );
 
     expect(status).toBe(200);
 
@@ -301,8 +305,7 @@ test.describe("AI Settings - getWebSearchSettings", () => {
       },
     });
 
-    const { data, status } =
-      await ownerApi.aiSettings.getWebSearchSettings();
+    const { data, status } = await ownerApi.aiSettings.getWebSearchSettings();
 
     expect(status).toBe(200);
 
@@ -338,8 +341,7 @@ test.describe("AI Settings - getWebSearchSettings", () => {
       "DocSpaceAdmin",
     );
 
-    const { data, status } =
-      await adminApi.aiSettings.getWebSearchSettings();
+    const { data, status } = await adminApi.aiSettings.getWebSearchSettings();
 
     expect(status).toBe(200);
 

@@ -161,8 +161,7 @@ test.describe("AI Settings - getWebSearchSettings Permissions", () => {
     }) => {
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
 
-      const { data, status } =
-        await api.aiSettings.getWebSearchSettings();
+      const { data, status } = await api.aiSettings.getWebSearchSettings();
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
