@@ -1,12 +1,15 @@
 # DocSpace API Tests — Claude Instructions
 
 ## Project purpose
+
 API test suite for ONLYOFFICE DocSpace. Tests cover REST API endpoints for rooms, files, folders, and people management.
 
 ## How to write a test
 
 ### 1. Find the right file
+
 Tests are in `src/tests/` grouped by feature:
+
 ```
 src/tests/
 ├── files/
@@ -25,6 +28,7 @@ src/tests/
 Add tests to the relevant existing file. Create a new file only if the feature doesn't fit anywhere.
 
 ### 2. Test structure
+
 Always use the custom `test` from fixtures — it handles portal creation/cleanup automatically:
 
 ```ts
@@ -42,7 +46,9 @@ test("POST /files/rooms - Owner creates a Custom room", async ({ apiSdk }) => {
 ```
 
 ### 3. Available roles
+
 `apiSdk.forRole(role)` returns an authenticated API client. Roles:
+
 - `"owner"` — portal owner
 - `"docSpaceAdmin"` — DocSpace administrator
 - `"roomAdmin"` — room administrator
@@ -50,6 +56,7 @@ test("POST /files/rooms - Owner creates a Custom room", async ({ apiSdk }) => {
 - `"guest"` — guest
 
 ### 4. Creating test users
+
 ```ts
 // Create user and get their credentials
 const { data: userData } = await apiSdk.addMember("owner", "User");
@@ -62,7 +69,9 @@ const { member, sdk } = await apiSdk.addAuthenticatedMember("owner", "User");
 User types: `"DocSpaceAdmin"`, `"RoomAdmin"`, `"User"`, `"Guest"`
 
 ### 5. Available API clients
+
 Each role client exposes:
+
 - `.rooms` — room operations
 - `.files` — file operations
 - `.folders` — folder operations
@@ -73,27 +82,32 @@ Each role client exposes:
 - `.sharing` — sharing/security settings
 
 ### 6. Assertions
+
 The SDK never throws on HTTP errors (`validateStatus: () => true`), so always assert status explicitly:
 
 ```ts
-expect(status).toBe(200);          // success
-expect(status).toBe(403);          // forbidden
+expect(status).toBe(200); // success
+expect(status).toBe(403); // forbidden
 expect(data.response?.id).toBeDefined();
 expect(data.response?.title).toBe("Expected Title");
 ```
 
 ### 7. Async operations (rooms archive, delete, etc.)
+
 Some API calls return an async operation. Use `waitForOperation`:
 
 ```ts
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
-const { status } = await apiSdk.forRole("owner").rooms.archiveRoom(roomId, { deleteAfter: false });
+const { status } = await apiSdk
+  .forRole("owner")
+  .rooms.archiveRoom(roomId, { deleteAfter: false });
 const operation = await waitForOperation(apiSdk.forRole("owner").operations);
 expect(operation.finished).toBe(true);
 ```
 
 Or use the shorthand methods on apiSdk:
+
 ```ts
 await apiSdk.archiveRoom("owner", roomId);
 await apiSdk.unarchiveRoom("owner", roomId);
@@ -101,19 +115,23 @@ await apiSdk.deleteRoom("owner", roomId);
 ```
 
 ### 8. Random test data
+
 Use the built-in faker:
+
 ```ts
 const title = apiSdk.faker.title();
 const user = apiSdk.faker.generateUser();
 ```
 
 ## Conventions
+
 - Test name = HTTP method + path + description, e.g. `"POST /files/rooms - Owner creates a Custom room"`
 - Permission tests go in `*.permissions.spec.ts`
 - Use `test.step("description", async () => { ... })` for multi-step tests
 - Mark known bugs with `test.fail("BUG XXXXX: description")` — the test runs and is expected to fail while the bug is open. When the bug is fixed, the test will report "unexpected pass", signaling it's time to remove `test.fail` and keep the test as a regular passing test.
 
 ## Running tests
+
 ```bash
 # Run all tests
 npm test
@@ -146,9 +164,11 @@ test("PUT /files/rooms/:id - Owner updates room title", async ({ apiSdk }) => {
   const roomId = created.response!.id!;
 
   // Action
-  const { data, status } = await apiSdk.forRole("owner").rooms.updateRoom(roomId, {
-    title: "Updated Title",
-  });
+  const { data, status } = await apiSdk
+    .forRole("owner")
+    .rooms.updateRoom(roomId, {
+      title: "Updated Title",
+    });
 
   // Assert
   expect(status).toBe(200);
