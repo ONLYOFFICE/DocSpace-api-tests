@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "@/src/fixtures/index";
+import { test } from "@/src/fixtures";
 import { FoldersApi, RoomType, SortOrder } from "@onlyoffice/docspace-api-sdk";
 
 function getFolderSortedByCustomOrder(folders: FoldersApi, folderId: number) {
@@ -398,16 +398,14 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
         expect(status).not.toBe(200);
       }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
-      const { data, status } = await ownerApi.folders.deleteFolder({
+      const { status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: error field contains reason (e.g. "Folder not found")
+      // Expected: 404 Folder not found
       // Actual (BUG 79459): 200 with empty error field
-      expect(status).toBe(200);
-      const operation = data.response![0];
-      expect(operation.error).toBeTruthy();
+      expect(status).toBe(404);
     },
   );
 
@@ -417,16 +415,14 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       const ownerApi = apiSdk.forRole("owner");
       const nonExistentFolderId = 999999999;
 
-      const { data, status } = await ownerApi.folders.deleteFolder({
+      const { status } = await ownerApi.folders.deleteFolder({
         folderId: nonExistentFolderId,
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: error field contains reason (e.g. "Folder not found")
+      // Expected: 404 Folder not found
       // Actual (BUG 79459): 200 with empty error field
-      expect(status).toBe(200);
-      const operation = data.response![0];
-      expect(operation.error).toBeTruthy();
+      expect(status).toBe(404);
     },
   );
 });
