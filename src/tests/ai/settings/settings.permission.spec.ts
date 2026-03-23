@@ -17,7 +17,7 @@ test.describe("AI Settings - getAiSettings Permissions", () => {
         const { api } = await apiSdk.addAuthenticatedMember("owner", role);
 
         const { data, status } = await api.aiSettings.getAiSettings();
-
+        console.log(data);
         expect(status).toBe(403);
         expect((data as any).error.message).toBe("Access denied");
       },
