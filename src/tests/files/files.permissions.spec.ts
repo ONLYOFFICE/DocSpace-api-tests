@@ -3,6 +3,165 @@ import { test } from "@/src/fixtures/index";
 import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
 
+test.describe("GET /files/file/:fileId - Get file info permissions", () => {
+  test("GET /files/file/:fileId - DocSpace admin can get file info", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Admin File Info",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Admin Get File Info" },
+    });
+    const fileId = created.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.files.getFileInfo({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  test("GET /files/file/:fileId - Room admin can get info of a file in their room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For File Info Permissions",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileCreated } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Room Admin File Info" },
+    });
+    const fileId = fileCreated.response!.id!;
+
+    const { api: roomAdminApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await roomAdminApi.files.getFileInfo({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.folderId).toBe(roomId);
+  });
+
+  test("GET /files/file/:fileId - Regular user can get info of a file in their room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For User File Info",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileCreated } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest User File Info" },
+    });
+    const fileId = fileCreated.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.getFileInfo({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  test("GET /files/file/:fileId - User without room access cannot get file info", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Forbidden File Info",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileCreated } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Forbidden File Info" },
+    });
+    const fileId = fileCreated.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.files.getFileInfo({ fileId });
+
+    expect(status).toBe(403);
+  });
+
+  test.fail(
+    "BUG XXXX: GET /files/file/:fileId - Unauthenticated user gets 403 instead of 401",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room For Unauthenticated File Info",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileCreated } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Unauthenticated File Info" },
+      });
+      const fileId = fileCreated.response!.id!;
+
+      const { status } = await apiSdk
+        .forAnonymous()
+        .files.getFileInfo({ fileId });
+
+      expect(status).toBe(401);
+    },
+  );
+});
+
 test.describe("Share link privacy - no user data leakage", () => {
   test.fail(
     "BUG 80495: External file share link response does not expose room creator and link creator data",
