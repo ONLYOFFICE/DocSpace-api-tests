@@ -49,7 +49,7 @@ test.describe("POST /files/@my/file", () => {
 
   // Bug 80324: enableExternalExt: true returns 403 with NullReferenceException
   test.fail(
-    "POST /files/@my/file - Title with .md extension and enableExternalExt keeps original extension",
+    "BUG 80324: POST /files/@my/file - Title with .md extension and enableExternalExt keeps original extension",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data, status } = await ownerApi.files.createFileInMyDocuments({
@@ -122,43 +122,42 @@ test.describe("POST /files/:folderId/html - Create HTML file", () => {
     expect(data.response!.id!).toBeGreaterThan(0);
   });
 
-  // Bug: createNewIfExist logic is inverted
-  test.fail(
-    "POST /files/:folderId/html - createNewIfExist: false returns existing file when title already exists",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For HTML Dedup",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
+  // Note: createNewIfExist logic is inverted — true returns the existing file, false creates a new one with a suffix
+  test("POST /files/:folderId/html - createNewIfExist: true returns existing file when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For HTML Dedup",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
 
-      const { data: firstData } = await ownerApi.files.createHtmlFile({
-        folderId,
-        createTextOrHtmlFile: {
-          title: "Autotest HTML Dedup",
-          content: "some text",
-          createNewIfExist: false,
-        },
-      });
-      const firstId = firstData.response!.id!;
+    const { data: firstData } = await ownerApi.files.createHtmlFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Autotest HTML Dedup",
+        content: "some text",
+        createNewIfExist: false,
+      },
+    });
+    const firstId = firstData.response!.id!;
 
-      const { data: secondData, status } = await ownerApi.files.createHtmlFile({
-        folderId,
-        createTextOrHtmlFile: {
-          title: "Autotest HTML Dedup",
-          content: "some text",
-          createNewIfExist: false,
-        },
-      });
+    const { data: secondData, status } = await ownerApi.files.createHtmlFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Autotest HTML Dedup",
+        content: "some text",
+        createNewIfExist: true,
+      },
+    });
 
-      expect(status).toBe(200);
-      expect(secondData.statusCode).toBe(200);
-      expect(secondData.response!.id).toBe(firstId);
-    },
-  );
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).toBe(firstId);
+  });
 });
 
 test.describe("POST /files/:folderId/text - Create text file", () => {
@@ -190,43 +189,42 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     expect(data.response!.id!).toBeGreaterThan(0);
   });
 
-  // Bug: createNewIfExist logic is inverted
-  test.fail(
-    "POST /files/:folderId/text - createNewIfExist: false returns existing file when title already exists",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Text Dedup",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
+  // Note: createNewIfExist logic is inverted — true returns the existing file, false creates a new one with a suffix
+  test("POST /files/:folderId/text - createNewIfExist: true returns existing file when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Text Dedup",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
 
-      const { data: firstData } = await ownerApi.files.createTextFile({
-        folderId,
-        createTextOrHtmlFile: {
-          title: "Autotest Text Dedup",
-          content: "some text",
-          createNewIfExist: false,
-        },
-      });
-      const firstId = firstData.response!.id!;
+    const { data: firstData } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text Dedup",
+        content: "some text",
+        createNewIfExist: false,
+      },
+    });
+    const firstId = firstData.response!.id!;
 
-      const { data: secondData, status } = await ownerApi.files.createTextFile({
-        folderId,
-        createTextOrHtmlFile: {
-          title: "Autotest Text Dedup",
-          content: "some text",
-          createNewIfExist: false,
-        },
-      });
+    const { data: secondData, status } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text Dedup",
+        content: "some text",
+        createNewIfExist: true,
+      },
+    });
 
-      expect(status).toBe(200);
-      expect(secondData.statusCode).toBe(200);
-      expect(secondData.response!.id).toBe(firstId);
-    },
-  );
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).toBe(firstId);
+  });
 });
 
 test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
@@ -292,41 +290,40 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
   });
 
   // TODO: requires a password-protected source file — no API method available to create one yet
+  test.skip("POST /files/file/:fileId/copyas - Copies file with password", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Source File For Password" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Password Copy",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data } = await ownerApi.files.copyFileAs({
+      fileId,
+      copyAsJsonElement: {
+        destTitle: "Autotest Password Copy.docx",
+        destFolderId,
+        password: "TestPassword123",
+      },
+    });
+
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.title).toBe("Autotest Password Copy.docx");
+    expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
+  });
+
+  // BUG 80745: copyFileAs with enableExternalExt: true returns 500 System.Exception — requires DS ↔ DocSpace connectivity
   test.fail(
-    "POST /files/file/:fileId/copyas - Copies file with password",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Source File For Password" },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Password Copy",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
-
-      const { data } = await ownerApi.files.copyFileAs({
-        fileId,
-        copyAsJsonElement: {
-          destTitle: "Autotest Password Copy.docx",
-          destFolderId,
-          password: "TestPassword123",
-        },
-      });
-
-      expect(data.statusCode).toBe(200);
-      expect(data.response!.title).toBe("Autotest Password Copy.docx");
-      expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
-    },
-  );
-
-  // Requires Document Server able to download files from DocSpace (DS ↔ DocSpace connectivity)
-  test.fail(
-    "POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)",
+    "BUG 80745: POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
@@ -359,14 +356,10 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
 });
 
 test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
+  // BUG 80743: saveaspdf returns 403 System.InvalidOperationException — requires DS ↔ DocSpace connectivity
   test.fail(
-    "POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder",
+    "BUG 80743: POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder",
     async ({ apiSdk }) => {
-      test.skip(
-        true,
-        "Requires Document Server able to download files from DocSpace (DS ↔ DocSpace connectivity)",
-      );
-
       const ownerApi = apiSdk.forRole("owner");
       const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
         createFileJsonElement: { title: "Autotest Source File For PDF" },
@@ -432,5 +425,68 @@ test.describe("GET /files/favorites/:fileId - Change favorite status", () => {
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(false);
+  });
+});
+
+test.describe("GET /files/file/:fileId - Get file info", () => {
+  test("GET /files/file/:fileId - Returns correct file metadata for a file in My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Get File Info" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFileInfo({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Get File Info.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+    expect(data.response!.version).toBe(1);
+    expect(data.response!.id!).toBeGreaterThan(0);
+  });
+
+  test("GET /files/file/:fileId - Returns correct folderId for a file in a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Get File Info",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Room File Info" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFileInfo({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Room File Info.docx");
+    expect(data.response!.folderId).toBe(folderId);
+  });
+
+  // Note: API returns 403 (not 404) for non-existent files — does not distinguish "not found" from "no access"
+  test("GET /files/file/:fileId - Returns 403 for non-existent file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getFileInfo({
+      fileId: 999999999,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("The required file was not found");
   });
 });
