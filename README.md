@@ -10,22 +10,26 @@ API-only test suite for [ONLYOFFICE DocSpace](https://www.onlyoffice.com/docspac
 ## Setup
 
 1. Clone the repository:
+
 ```bash
 git clone https://git.onlyoffice.com/ONLYOFFICE/DocSpace-api-tests.git
 cd Docspace-api-tests
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Create `.env` file from the example:
+
 ```bash
 cp .env.example .env
 ```
 
 4. Fill in the environment variables:
+
 ```
 PORTAL_REGISTRATION_URL=https://onlyoffice.io/apisystem/portal
 DOCSPACE_OWNER_EMAIL=your-email@example.com
@@ -43,6 +47,7 @@ LOCAL_PORTAL_DOMAIN=localhost
 ```
 
 When set:
+
 - Tests run against the local instance
 - Tests expecting 402 (no paid plan) are skipped — local builds don't enforce payments, so these tests would always fail
 - `MACHINEKEY` and `PKEY` are not required — payment activation is a no-op on local
@@ -78,6 +83,7 @@ Pre-push hooks (via Lefthook) automatically run `tsc` and `lint` checks.
 ## Test Organization
 
 Each API area has up to two spec files:
+
 - `*.spec.ts` — functional tests
 - `*.permissions.spec.ts` — permission/authorization tests
 
@@ -86,9 +92,12 @@ Each API area has up to two spec files:
 Tests for known bugs are marked with `test.fail`:
 
 ```ts
-test.fail("BUG 80474: DocSpace admin should not be able to promote User to DocSpace admin", async ({ apiSdk }) => {
-  // test body runs and is expected to fail
-});
+test.fail(
+  "BUG 80474: DocSpace admin should not be able to promote User to DocSpace admin",
+  async ({ apiSdk }) => {
+    // test body runs and is expected to fail
+  },
+);
 ```
 
 - The test runs and fails as expected while the bug is open — shown as **passed** in the report
@@ -96,6 +105,7 @@ test.fail("BUG 80474: DocSpace admin should not be able to promote User to DocSp
 - That's the signal to remove `test.fail` and keep the test as a regular passing test
 
 To check the status of a specific bug:
+
 ```bash
 npx playwright test --grep "BUG 80474"
 ```
