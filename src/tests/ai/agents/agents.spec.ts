@@ -133,37 +133,37 @@ test.describe("POST /ai/agents - Room Admin creates AI agent", () => {
 });
 
 test.describe("POST /ai/agents - Create AI agent with invalid modelId", () => {
-  test.fail(
-    "BUG 80650: POST /ai/agents - Missing validation for modelId parameter",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80650: POST /ai/agents - Missing validation for modelId parameter", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: aiProviders.openAi.type,
-          title: aiProviders.openAi.title,
-          key: aiProviders.openAi.key,
-        },
-      });
-      const providerId = providerData.response!.id!;
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
 
-      const { status } = await ownerApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: "Autotest Invalid Model Agent",
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest"],
-          chatSettings: {
-            providerId,
-            modelId: "invalid-nonexistent-model-123",
-            prompt: "You are a test assistant",
-          },
+    const { data, status } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Invalid Model Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: "invalid-nonexistent-model-123",
+          prompt: "You are a test assistant",
         },
-      });
-      // Change expect after bug fix
-      expect(status).not.toBe(200);
-    },
-  );
+      },
+    });
+
+    expect(status).toBe(400);
+    expect((data as any).error.message).toBe("ModelId");
+  });
 
   test("POST /ai/agents - Owner cannot create an agent with empty modelId", async ({
     apiSdk,
@@ -1327,58 +1327,58 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
     expect((data.response as any)[0].isCustomQuota).toBe(true);
   });
 
-  test.fail(
-    "BUG 80674: PUT /ai/agents/agentquota - Room Admin changes own agent quota limit",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      const ownerApi = apiSdk.forRole("owner");
-      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: {
-          enableQuota: true,
-          defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+  test("BUG 80674: PUT /ai/agents/agentquota - Room Admin changes own agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data: agentData } = await roomAdminApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest RoomAdmin Agent Quota",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
         },
-      });
+      },
+    });
+    const agentId = agentData.response!.id!;
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: aiProviders.openAi.type,
-          title: aiProviders.openAi.title,
-          key: aiProviders.openAi.key,
-        },
-      });
-      const providerId = providerData.response!.id!;
+    const { data, status } = await roomAdminApi.agents.updateAgentsQuota({
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
+    });
 
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-      const roomAdminApi = apiSdk.forRole("roomAdmin");
-
-      const { data: agentData } = await roomAdminApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: "Autotest RoomAdmin Agent Quota",
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest"],
-          chatSettings: {
-            providerId,
-            modelId: aiProviders.openAi.modelId,
-            prompt: "You are a test assistant",
-          },
-        },
-      });
-      const agentId = agentData.response!.id!;
-
-      const { data, status } = await roomAdminApi.agents.updateAgentsQuota({
-        updateRoomsQuotaRequestDtoInteger: {
-          roomIds: [agentId] as any,
-          quota: QUOTA_MINIMAL_BYTES,
-        },
-      });
-
-      expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
-      expect((data.response as any)[0].quotaLimit).toBe(QUOTA_MINIMAL_BYTES);
-      expect((data.response as any)[0].isCustomQuota).toBe(true);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect((data.response as any)[0].quotaLimit).toBe(QUOTA_MINIMAL_BYTES);
+    expect((data.response as any)[0].isCustomQuota).toBe(true);
+  });
 });
 
 test.describe("PUT /ai/agents/resetagentquota - Reset AI agent quota", () => {
@@ -1578,66 +1578,66 @@ test.describe("PUT /ai/agents/resetagentquota - Reset AI agent quota", () => {
     expect((data.response as any)[0].isCustomQuota).toBe(false);
   });
 
-  test.fail(
-    "BUG 80674: PUT /ai/agents/resetagentquota - Room Admin resets own agent quota limit",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      const ownerApi = apiSdk.forRole("owner");
-      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: {
-          enableQuota: true,
-          defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+  test("BUG 80674: PUT /ai/agents/resetagentquota - Room Admin resets own agent quota limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
+    });
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: aiProviders.openAi.type,
+        title: aiProviders.openAi.title,
+        key: aiProviders.openAi.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data: agentData } = await roomAdminApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest RoomAdmin Agent Reset Quota",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: aiProviders.openAi.modelId,
+          prompt: "You are a test assistant",
         },
-      });
+      },
+    });
+    const agentId = agentData.response!.id!;
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: aiProviders.openAi.type,
-          title: aiProviders.openAi.title,
-          key: aiProviders.openAi.key,
-        },
-      });
-      const providerId = providerData.response!.id!;
+    await roomAdminApi.agents.updateAgentsQuota({
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [agentId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
+    });
 
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-      const roomAdminApi = apiSdk.forRole("roomAdmin");
+    const { data, status } = await roomAdminApi.agents.resetAgentsQuota({
+      updateRoomsRoomIdsRequestDtoInteger: {
+        roomIds: [agentId] as any,
+      },
+    });
 
-      const { data: agentData } = await roomAdminApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: "Autotest RoomAdmin Agent Reset Quota",
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest"],
-          chatSettings: {
-            providerId,
-            modelId: aiProviders.openAi.modelId,
-            prompt: "You are a test assistant",
-          },
-        },
-      });
-      const agentId = agentData.response!.id!;
-
-      await roomAdminApi.agents.updateAgentsQuota({
-        updateRoomsQuotaRequestDtoInteger: {
-          roomIds: [agentId] as any,
-          quota: QUOTA_MINIMAL_BYTES,
-        },
-      });
-
-      const { data, status } = await roomAdminApi.agents.resetAgentsQuota({
-        updateRoomsRoomIdsRequestDtoInteger: {
-          roomIds: [agentId] as any,
-        },
-      });
-
-      expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
-      expect((data.response as any)[0].quotaLimit).toBe(
-        DEFAULT_QUOTA_AGENT_BYTES,
-      );
-      expect((data.response as any)[0].isCustomQuota).toBe(false);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect((data.response as any)[0].quotaLimit).toBe(
+      DEFAULT_QUOTA_AGENT_BYTES,
+    );
+    expect((data.response as any)[0].isCustomQuota).toBe(false);
+  });
 });
 
 test.describe("PUT /ai/agents/:id - Update AI agent", () => {
