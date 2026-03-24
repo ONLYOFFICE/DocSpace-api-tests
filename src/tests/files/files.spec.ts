@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 test.describe("POST /files/@my/file", () => {
   // No extension → .docx added
@@ -245,7 +246,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     });
     const destFolderId = roomData.response!.id!;
 
-    const { data } = await ownerApi.files.copyFileAs({
+    const { data, status } = await ownerApi.files.copyFileAs({
       fileId,
       copyAsJsonElement: {
         destTitle: "Autotest Copied File.docx",
@@ -253,6 +254,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
       },
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Copied File.docx");
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
@@ -275,7 +277,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     });
     const destFolderId = roomData.response!.id!;
 
-    const { data } = await ownerApi.files.copyFileAs({
+    const { data, status } = await ownerApi.files.copyFileAs({
       fileId,
       copyAsJsonElement: {
         destTitle: "Autotest Converted Form.docxf",
@@ -284,6 +286,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
       },
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Converted Form.docxf");
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
@@ -488,5 +491,333 @@ test.describe("GET /files/file/:fileId - Get file info", () => {
 
     expect(status).toBe(403);
     expect((data as any).error.message).toBe("The required file was not found");
+  });
+});
+
+test.describe("PUT /files/file/:fileId - Update file", () => {
+  test("PUT /files/file/:fileId - Owner renames a file", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Update File Original" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest Update File Renamed" },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Update File Renamed.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+    expect(data.response!.version).toBe(1);
+  });
+
+  test("PUT /files/file/:fileId - Title without extension keeps .docx extension", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest No Ext Original" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest No Ext Renamed" },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe("Autotest No Ext Renamed.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+  });
+
+  test("PUT /files/file/:fileId - Title with extension updates correctly", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest With Ext Original" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest With Ext Renamed.docx" },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe("Autotest With Ext Renamed.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+  });
+
+  test.fail(
+    "BUG XXXX: PUT /files/file/:fileId - Returns 403 instead of 404 for non-existent file",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.files.updateFile({
+        fileId: 999999999,
+        updateFile: { title: "Autotest Non-existent" },
+      });
+
+      // Bug: API crashes with NullReferenceException and returns 403 instead of 404
+      expect(status).toBe(404);
+    },
+  );
+
+  // Note: updateFile cannot change the file extension — the original extension (.docx) is always preserved
+  // and appended after the new title, e.g. "Renamed.txt" becomes "Renamed.txt.docx"
+  test("PUT /files/file/:fileId - Renaming with a different extension does not change fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Change Ext Original" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest Change Ext Renamed.txt" },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe("Autotest Change Ext Renamed.txt.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+  });
+
+  test.fail(
+    "BUG XXXX: PUT /files/file/:fileId - Empty title returns 200 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Empty Title Original" },
+      });
+      const fileId = created.response!.id!;
+
+      const { status } = await ownerApi.files.updateFile({
+        fileId,
+        updateFile: { title: "" },
+      });
+
+      // Bug: API silently ignores empty title and returns 200 with unchanged filename
+      // Expected: 400 with validation error "Title cannot be empty"
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXX: PUT /files/file/:fileId - Whitespace-only title returns 200 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Spaces Title Original" },
+      });
+      const fileId = created.response!.id!;
+
+      const { status } = await ownerApi.files.updateFile({
+        fileId,
+        updateFile: { title: "   " },
+      });
+
+      // Bug: API silently ignores whitespace-only title and returns 200 with unchanged filename
+      // Expected: 400 with validation error "Title cannot be empty"
+      expect(status).toBe(400);
+    },
+  );
+
+  // Note: max title length is 165 characters — API returns 400 for longer titles
+  test("PUT /files/file/:fileId - Title longer than 165 characters returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Long Title Original" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "A".repeat(166) },
+    });
+
+    expect(status).toBe(400);
+    expect((data as any).response.errors["File.Title"][0]).toBe(
+      "The field Title must be a string with a maximum length of 165.",
+    );
+  });
+
+  test.fail(
+    "BUG XXXX: PUT /files/file/:fileId - lastVersion equal to current version returns 500 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest LastVersion Original" },
+      });
+      const fileId = created.response!.id!;
+
+      const { status } = await ownerApi.files.updateFile({
+        fileId,
+        updateFile: { title: "Autotest LastVersion Renamed", lastVersion: 1 },
+      });
+
+      // Bug: API returns 500 with "The new version cannot be the same as the current one"
+      // when lastVersion equals the current file version. Expected: 400 Bad Request.
+      expect(status).toBe(400);
+    },
+  );
+
+  test("PUT /files/file/:fileId - Title with ampersand is accepted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Special Chars Original" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest A & B" },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe("Autotest A & B.docx");
+  });
+
+  test("PUT /files/file/:fileId - Title with forward slash", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Slash Original" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest A/B" },
+    });
+
+    // Forward slash is an invalid filename character — API sanitizes it by replacing with underscore
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe("Autotest A_B.docx");
+  });
+});
+
+test.describe("DELETE /files/file/:fileId - Delete file", () => {
+  test("DELETE /files/file/:fileId - Owner moves a file to Trash", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Delete Trash File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: false },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+    expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
+
+    // Delete is an async operation — wait for it to complete
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.progress).toBe(100);
+    expect(operation.processed).toBe("1");
+    expect(operation.error).toBeFalsy();
+  });
+
+  test("DELETE /files/file/:fileId - Owner deletes a file immediately", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Delete Immediate File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
+
+    // Delete is an async operation — wait for it to complete
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.progress).toBe(100);
+    expect(operation.processed).toBe("1");
+    expect(operation.error).toBeFalsy();
+  });
+
+  test("DELETE /files/file/:fileId - Owner deletes a file in a room immediately", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Delete File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Delete Room File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
+
+    // Delete is an async operation — wait for it to complete
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.progress).toBe(100);
+    expect(operation.processed).toBe("1");
+    expect(operation.error).toBeFalsy();
+  });
+
+  // Note: unlike GET and PUT, DELETE accepts non-existent fileId — operation is queued and fails asynchronously
+  test("DELETE /files/file/:fileId - Non-existent file returns 200 and queues an operation", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.deleteFile({
+      fileId: 999999999,
+      _delete: { immediately: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
+
+    const operation = await waitForOperation(ownerApi.operations);
+    // Operation finishes but with an error — file was not found asynchronously
+    expect(operation.finished).toBe(true);
+    expect(operation.progress).toBe(100);
+    expect(operation.processed).toBe("0");
+    expect(operation.error).toBe("The required file was not found");
   });
 });
