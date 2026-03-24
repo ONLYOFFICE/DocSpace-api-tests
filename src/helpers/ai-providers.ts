@@ -13,13 +13,13 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     type: ProviderType.OpenAi,
     title: "OpenAI",
     key: config.OPENAI_API_KEY,
-    modelId: "gpt-5.2-2025-12-11",
+    modelId: "gpt-5.4-2026-03-05",
   },
   anthropic: {
     type: ProviderType.Anthropic,
     title: "Anthropic",
     key: config.ANTHROPIC_API_KEY,
-    modelId: "claude-opus-4-5-20251101",
+    modelId: "claude-opus-4-6",
   },
   deepSeek: {
     type: ProviderType.DeepSeek,
