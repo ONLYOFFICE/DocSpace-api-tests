@@ -26,7 +26,7 @@ test.describe("Vectorization - startTask permissions", () => {
 
   for (const role of ["DocSpaceAdmin", "RoomAdmin", "User", "Guest"] as const) {
     test.fail(
-      `BUG : POST /api/2.0/ai/vectorization/tasks - ${role} with Viewer role cannot start vectorization task`,
+      `BUG 80736: POST /api/2.0/ai/vectorization/tasks - ${role} with Viewer role cannot start vectorization task`,
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
 
@@ -101,7 +101,7 @@ test.describe("Vectorization - startTask permissions", () => {
 
   for (const role of ["DocSpaceAdmin", "RoomAdmin", "User", "Guest"] as const) {
     test.fail(
-      `BUG : POST /api/2.0/ai/vectorization/tasks - ${role} not added to agent cannot start vectorization task`,
+      `BUG 80736: POST /api/2.0/ai/vectorization/tasks - ${role} not added to agent cannot start vectorization task`,
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
 

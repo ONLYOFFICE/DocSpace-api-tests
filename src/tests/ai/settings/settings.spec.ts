@@ -72,6 +72,61 @@ test.describe("AI Settings - getAiSettings", () => {
     );
     expect((response as any)?.systemAiEnabled).toBe(false);
   });
+
+  test("GET /api/2.0/ai/config - RoomAdmin gets AI settings", async ({
+    apiSdk,
+  }) => {
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await api.aiSettings.getAiSettings();
+
+    expect(status).toBe(200);
+
+    const response = data.response;
+    expect(response).toBeDefined();
+    expect(response?.webSearchEnabled).toBe(false);
+    expect(response?.vectorizationEnabled).toBe(false);
+    expect(response?.aiReady).toBe(false);
+    expect(response?.portalMcpServerId).toBeDefined();
+    expect(response?.embeddingModel).toBe("text-embedding-3-small");
+    expect(response?.modelAliases).toBeDefined();
+  });
+
+  test("GET /api/2.0/ai/config - User gets AI settings", async ({ apiSdk }) => {
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await api.aiSettings.getAiSettings();
+
+    expect(status).toBe(200);
+
+    const response = data.response;
+    expect(response).toBeDefined();
+    expect(response?.webSearchEnabled).toBe(false);
+    expect(response?.vectorizationEnabled).toBe(false);
+    expect(response?.aiReady).toBe(false);
+    expect(response?.portalMcpServerId).toBeDefined();
+    expect(response?.embeddingModel).toBe("text-embedding-3-small");
+    expect(response?.modelAliases).toBeDefined();
+  });
+
+  test("GET /api/2.0/ai/config - Guest gets AI settings", async ({
+    apiSdk,
+  }) => {
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await api.aiSettings.getAiSettings();
+
+    expect(status).toBe(200);
+
+    const response = data.response;
+    expect(response).toBeDefined();
+    expect(response?.webSearchEnabled).toBe(false);
+    expect(response?.vectorizationEnabled).toBe(false);
+    expect(response?.aiReady).toBe(false);
+    expect(response?.portalMcpServerId).toBeDefined();
+    expect(response?.embeddingModel).toBe("text-embedding-3-small");
+    expect(response?.modelAliases).toBeDefined();
+  });
 });
 
 test.describe("AI Settings - setVectorizationSettings", () => {

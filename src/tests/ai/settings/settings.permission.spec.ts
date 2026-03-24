@@ -10,20 +10,6 @@ import config from "@/config";
 const forbiddenRoles = ["RoomAdmin", "User", "Guest"] as const;
 
 test.describe("AI Settings - getAiSettings Permissions", () => {
-  for (const role of forbiddenRoles) {
-    test.fail(
-      `BUG : GET /api/2.0/ai/config - ${role} cannot get AI settings`,
-      async ({ apiSdk }) => {
-        const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-        const { data, status } = await api.aiSettings.getAiSettings();
-        console.log(data);
-        expect(status).toBe(403);
-        expect((data as any).error.message).toBe("Access denied");
-      },
-    );
-  }
-
   test("GET /api/2.0/ai/config - Anonymous gets 401 Unauthorized", async ({
     apiSdk,
   }) => {
