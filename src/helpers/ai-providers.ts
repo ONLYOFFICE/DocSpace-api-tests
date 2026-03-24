@@ -43,7 +43,7 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     type: ProviderType.OpenRouter,
     title: "OpenRouter",
     key: config.OPENROUTER_API_KEY,
-    modelId: "openai/gpt-5.2",
+    modelId: "openai/gpt-5.4",
   },
   togetherAi: {
     type: ProviderType.TogetherAi,
