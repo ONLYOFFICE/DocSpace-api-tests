@@ -297,12 +297,13 @@ test.describe("File version access - access control", () => {
 
       // Step 5: Viewer opens the file with version=1 — should be denied
       // Bug: server returns 200 and serves the version content to Viewer
-      const { data, status: versionStatus } = await viewerApi.files.openEditFile({
-        fileId,
-        version: 1,
-        view: true,
-      });
-    console.log(data);
+      const { data, status: versionStatus } =
+        await viewerApi.files.openEditFile({
+          fileId,
+          version: 1,
+          view: true,
+        });
+      console.log(data);
       expect(versionStatus).toBe(403);
     },
   );

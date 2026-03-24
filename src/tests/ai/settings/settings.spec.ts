@@ -92,9 +92,7 @@ test.describe("AI Settings - getAiSettings", () => {
     expect(response?.modelAliases).toBeDefined();
   });
 
-  test("GET /api/2.0/ai/config - User gets AI settings", async ({
-    apiSdk,
-  }) => {
+  test("GET /api/2.0/ai/config - User gets AI settings", async ({ apiSdk }) => {
     const { api } = await apiSdk.addAuthenticatedMember("owner", "User");
 
     const { data, status } = await api.aiSettings.getAiSettings();
