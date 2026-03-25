@@ -36,16 +36,15 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: chatsData } = await ownerApi.chat.getChats({
         roomId: agentRoomId,
@@ -110,16 +109,15 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: chatsData } = await ownerApi.chat.getChats({
         roomId: agentRoomId,
@@ -185,16 +183,15 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: chatsData } = await ownerApi.chat.getChats({
         roomId: agentRoomId,
@@ -260,16 +257,15 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: chatsData } = await ownerApi.chat.getChats({
         roomId: agentRoomId,
@@ -338,16 +334,15 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: chatsData } = await ownerApi.chat.getChats({
         roomId: agentRoomId,
@@ -420,16 +415,15 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: chatsData } = await ownerApi.chat.getChats({
         roomId: agentRoomId,
@@ -502,16 +496,15 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: chatsData } = await ownerApi.chat.getChats({
         roomId: agentRoomId,
@@ -584,16 +577,15 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: chatsData } = await ownerApi.chat.getChats({
         roomId: agentRoomId,
@@ -670,16 +662,15 @@ test.describe("AI Messages - Export Validation", () => {
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
       const myFolderId = myFolderData.response!.current!.id!;
@@ -729,16 +720,15 @@ test.describe("AI Messages - Export Validation", () => {
       });
       const agentRoomId = agentData.response!.id!;
 
-      ownerApi.chat
-        .startNewChat({
+      await ownerApi.chat.startNewChat(
+        {
           roomId: agentRoomId,
           startNewChatBody: {
             message: "What is 2+2? Answer in one word.",
           },
-        })
-        .catch(() => {});
-
-      await new Promise((r) => setTimeout(r, 5000));
+        },
+        { responseType: "stream" },
+      );
 
       const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
       const myFolderId = myFolderData.response!.current!.id!;

@@ -49,6 +49,45 @@ export function createPlaywrightAdapter(request: APIRequestContext) {
       }
     }
 
+    if (config.responseType === "stream") {
+      const controller = new AbortController();
+      const streamTimeout = (config.timeout as number) || 10000;
+
+      const nativeResponse = await fetch(url, {
+        method,
+        headers: { ...headers, Cookie: "" },
+        ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
+        signal: controller.signal,
+      });
+
+      let streamData = "";
+      if (nativeResponse.body) {
+        const reader = nativeResponse.body.getReader();
+        const decoder = new TextDecoder();
+        const timer = setTimeout(() => controller.abort(), streamTimeout);
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            streamData += decoder.decode(value, { stream: true });
+          }
+        } catch {
+          // stream aborted by timeout - expected for SSE
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      return {
+        data: streamData,
+        status: nativeResponse.status,
+        statusText: nativeResponse.statusText,
+        headers: Object.fromEntries(nativeResponse.headers.entries()),
+        config,
+      };
+    }
+
     const playwrightResponse = await request.fetch(url, {
       method,
       headers: { ...headers, Cookie: "" },
