@@ -1,6 +1,11 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { aiProviders } from "@/src/helpers/ai-providers";
+import { aiProviders, onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import {
+  topUpDeposit,
+  buyWalletService,
+  enableWalletService,
+} from "@/src/helpers/wallet-services";
 
 test.describe("POST /ai/agents - User cannot create AI agent", () => {
   for (const [key, provider] of Object.entries(aiProviders)) {
@@ -1653,5 +1658,47 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
+  });
+});
+
+test.describe("POST /ai/agents - Create agent with restricted model via ONLYOFFICE AI", () => {
+  test("POST /ai/agents - Owner creates agent with deepseek model when only GPT is allowed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await topUpDeposit(ownerApi.payment, 100);
+    await buyWalletService(ownerApi.payment, "aiTools", 50);
+    await enableWalletService(ownerApi.payment, "aiTools");
+
+    const nonGptModelIds = Object.values(aiProviders)
+      .map((p) => p.modelId)
+      .filter((id) => !id.toLowerCase().includes("gpt"));
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set(nonGptModelIds),
+      },
+    });
+
+    const { data, status } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Restricted Model Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: aiProviders.deepSeek.modelId,
+          prompt: "You are a test assistant powered by DeepSeek",
+        },
+      },
+    });
+
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+    expect((data as any).error.message).toBe("ModelId");
   });
 });

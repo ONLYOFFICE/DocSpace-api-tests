@@ -192,6 +192,7 @@ export class ApiSDK {
       security: new SecurityApi(config, undefined, axiosInstance),
       agents: new AgentsApi(config, undefined, axiosInstance),
       providers: new ProvidersApi(config, undefined, axiosInstance),
+      chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
       settingsMessages: new SettingsMessagesApi(
         config,
