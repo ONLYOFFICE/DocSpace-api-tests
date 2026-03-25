@@ -307,6 +307,28 @@ export class ApiSDK {
     );
   }
 
+  async uploadRoomLogo(role: Role, imageBuffer: Buffer) {
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(imageBuffer)], { type: "image/png" }),
+      "logo.png",
+    );
+
+    const axiosInstance = this.createAxiosInstance();
+    const response = await axiosInstance.post(
+      `${this.tokenStore.portalBaseUrl}/api/2.0/files/logos`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${this.tokenStore.getToken(role)}`,
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
+        },
+      },
+    );
+    return { data: response.data, status: response.status };
+  }
+
   async uploadMemberPhoto(
     role: Role,
     userId: string,
