@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 test.describe("POST /files/@my/file", () => {
@@ -1282,4 +1282,117 @@ test.describe("PUT /files/:fileId/order - Set file order", () => {
 
     expect(status).toBe(404);
   });
+});
+
+test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
+  test("POST /files/file/:fileId/recent - Owner adds file to recent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Recent File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent File.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+    expect(data.response!.folderId).toBeGreaterThan(0);
+  });
+
+  test("POST /files/file/:fileId/recent - Adding the same file twice is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Recent Idempotent File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.addFileToRecent({ fileId });
+
+    const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  test("POST /files/file/:fileId/recent - File appears in Recent section after adding", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Recent Check File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.addFileToRecent({ fileId });
+
+    const { data, status } = await ownerApi.folders.getRecentFolder();
+
+    expect(status).toBe(200);
+    const recentFiles = data.response?.files ?? [];
+    const found = recentFiles.some((f: any) => f.id === fileId);
+    expect(found).toBe(true);
+  });
+
+  test.fail(
+    "BUG XXXXX: POST /files/file/:fileId/recent - User with ReadWrite access cannot add room file to recent",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: userApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Recent Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ReadWrite }],
+          notify: false,
+        },
+      });
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Recent Room File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await userApi.files.addFileToRecent({ fileId });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.id).toBe(fileId);
+      expect(data.response!.title).toBe("Autotest Recent Room File.docx");
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /files/file/:fileId/recent - Non-existent file returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.files.addFileToRecent({
+        fileId: 999999999,
+      });
+
+      expect(status).toBe(404);
+    },
+  );
 });
