@@ -269,48 +269,43 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
     expect(profileData.response!.isAdmin).toBe(true);
   });
 
-  // Incorrect answer, you need to check the code and describe the bug if there is one.
-  test.fail(
-    "DocSpace admin terminates user type update started by Owner",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("DocSpace admin terminates user type update started by Owner", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: userData } = await apiSdk.addMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
-      const userId = userData.response!.id!;
+    const { data: userData } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const userId = userData.response!.id!;
 
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
 
-      // Owner starts demotion
-      await ownerApi.userType.starUserTypetUpdate({
-        startUpdateUserTypeDto: {
-          type: EmployeeType.User,
-          userId: userId,
-        },
+    // Owner starts demotion
+    await ownerApi.userType.starUserTypetUpdate({
+      startUpdateUserTypeDto: {
+        type: EmployeeType.User,
+        userId: userId,
+      },
+    });
+
+    // DocSpace admin terminates the process
+    const { data: terminateData } =
+      await adminApi.userType.terminateUserTypeUpdate({
+        terminateRequestDto: { userId: userId },
       });
+    expect(terminateData.statusCode).toBe(200);
+    expect((terminateData as any).response.isCompleted).toBe(true);
+    expect((terminateData as any).response.error).toBe("");
+    expect((terminateData as any).response.status).toBe(3);
 
-      // DocSpace admin terminates the process
-      const { data: terminateData } =
-        await adminApi.userType.terminateUserTypeUpdate({
-          terminateRequestDto: { userId: userId },
-        });
-      expect(terminateData.statusCode).toBe(200);
-      expect((terminateData as any).response.isCompleted).toBe(true);
-      expect((terminateData as any).response.error).toBe("");
-      expect((terminateData as any).response.status).toBe(3);
-
-      // Verify user is still DocSpace admin
-      const { data: profileData } = await ownerApi.profiles.getProfileByUserId({
-        userid: userId,
-      });
-      expect(profileData.response!.isAdmin).toBe(true);
-    },
-  );
+    // Verify user is still DocSpace admin
+    const { data: profileData } = await ownerApi.profiles.getProfileByUserId({
+      userid: userId,
+    });
+    expect(profileData.response!.isAdmin).toBe(true);
+  });
 
   test("DocSpace admin terminates own user type update of Room admin", async ({
     apiSdk,

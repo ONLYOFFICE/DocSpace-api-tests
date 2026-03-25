@@ -33,6 +33,7 @@ import {
   ChatApi,
   SettingsQuotaApi,
   PaymentApi as SdkPaymentApi,
+  MessagesApi,
   SettingsMessagesApi,
   CommonSettingsApi,
   SettingsApi as AiSettingsApi,
@@ -146,6 +147,7 @@ export class ApiSDK {
       commonSettings: new CommonSettingsApi(config, undefined, axiosInstance),
       aiSettings: new AiSettingsApi(config, undefined, axiosInstance),
       vectorization: new VectorizationApi(config, undefined, axiosInstance),
+      messages: new MessagesApi(config, undefined, axiosInstance),
     };
   }
 
@@ -199,6 +201,7 @@ export class ApiSDK {
       commonSettings: new CommonSettingsApi(config, undefined, axiosInstance),
       aiSettings: new AiSettingsApi(config, undefined, axiosInstance),
       vectorization: new VectorizationApi(config, undefined, axiosInstance),
+      messages: new MessagesApi(config, undefined, axiosInstance),
     };
   }
 
