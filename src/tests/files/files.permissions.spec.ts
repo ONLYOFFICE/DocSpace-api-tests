@@ -961,14 +961,417 @@ test.describe("File version access - access control", () => {
 
       // Step 5: Viewer opens the file with version=1 — should be denied
       // Bug: server returns 200 and serves the version content to Viewer
-      const { data, status: versionStatus } =
-        await viewerApi.files.openEditFile({
-          fileId,
-          version: 1,
-          view: true,
-        });
-      console.log(data);
+      const { status: versionStatus } = await viewerApi.files.openEditFile({
+        fileId,
+        version: 1,
+        view: true,
+      });
       expect(versionStatus).toBe(403);
     },
   );
+});
+
+test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
+  test("PUT /files/file/:fileId/lock - DocSpace admin can lock a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Admin Lock File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Admin Lock File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: adminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await adminApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.id).toBe(fileId);
+    expect(data.response?.locked).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/lock - Room manager can lock a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Room Manager Lock File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Room Manager Lock File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { api: roomManagerApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await roomManagerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.id).toBe(fileId);
+    expect(data.response?.locked).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/lock - File owner can lock their own file in a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For File Owner Lock",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ReadWrite }],
+        notify: false,
+      },
+    });
+
+    const { data: fileCreated } = await userApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest User Own Lock File" },
+    });
+    const fileId = fileCreated.response!.id!;
+
+    const { data, status } = await userApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.id).toBe(fileId);
+    expect(data.response?.locked).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/lock - Regular user with ReadWrite cannot lock a file they don't own", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For ReadWrite Lock File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest ReadWrite Lock File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ReadWrite }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+
+  test("PUT /files/file/:fileId/lock - Regular user with read-only access cannot lock a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Read-only Lock File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Read-only Lock File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+
+  test("PUT /files/file/:fileId/lock - User without room access cannot lock a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For No Access Lock File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest No Access Lock File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+
+  test("PUT /files/file/:fileId/lock - Guest cannot lock a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Guest Lock File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Guest Lock File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { api: guestApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await guestApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+
+  test("PUT /files/file/:fileId/lock - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Unauthenticated Lock File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Unauthenticated Lock File",
+      },
+    });
+    const fileId = created.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /files/file/:fileId/lock - Room manager cannot unlock a file locked by another user", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Cross-user Unlock",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const userBase = await apiSdk.addMember("owner", "User");
+    const userId = userBase.data.response!.id!;
+    const managerBase = await apiSdk.addMember("owner", "RoomAdmin");
+    const managerId = managerBase.data.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: userId, access: FileShare.ReadWrite },
+          { id: managerId, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const userApi = await apiSdk.authenticateMember(userBase.userData, "User");
+    const roomManagerApi = await apiSdk.authenticateMember(
+      managerBase.userData,
+      "RoomAdmin",
+    );
+
+    const { data: fileCreated } = await userApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Cross-user Lock File" },
+    });
+    const fileId = fileCreated.response!.id!;
+
+    await userApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    const { data, status } = await roomManagerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: false },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+
+  test("PUT /files/file/:fileId/lock - File creator can unlock their own file locked by portal owner", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Creator Unlock",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ReadWrite }],
+        notify: false,
+      },
+    });
+
+    const { data: fileCreated } = await userApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Creator Unlock File" },
+    });
+    const fileId = fileCreated.response!.id!;
+
+    await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    const { data, status } = await userApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: false },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.id).toBe(fileId);
+    expect(data.response?.locked).toBeFalsy();
+  });
 });
