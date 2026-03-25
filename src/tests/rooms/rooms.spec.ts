@@ -125,7 +125,7 @@ test.describe("API rooms methods", () => {
 
       expect(status).toBe(200);
       expect(data.response!.total).toBe(1);
-      // TODO(sdk): FolderContentDtoInteger.folders typed as FileEntryBaseDto[] — roomType field missing
+      // TODO(sdk): FolderContentDtoInteger.folders typed as FileEntryBaseDto[] - roomType field missing
       expect((data.response!.folders as any[])[0].roomType).toBe(
         RoomType.CustomRoom,
       );
@@ -248,7 +248,7 @@ test.describe("API rooms methods", () => {
       });
     });
 
-    // TODO: Need clarification — should API reject VDR-only fields on non-VDR rooms or is this expected behavior?
+    // TODO: Need clarification - should API reject VDR-only fields on non-VDR rooms or is this expected behavior?
     test.skip("PUT /files/rooms/:id - Set VDR-only fields on CustomRoom", async ({
       apiSdk,
     }) => {
@@ -683,7 +683,7 @@ test.describe("API rooms methods", () => {
   });
 
   test.describe("PUT /files/rooms/:id/share - FillingFormsRoom access levels", () => {
-    // RoomManager cannot be set via PUT /files/rooms/:id/share — API rejects it for any room type
+    // RoomManager cannot be set via PUT /files/rooms/:id/share - API rejects it for any room type
     test("PUT /files/rooms/:id/share - RoomManager is rejected for FillingFormsRoom", async ({
       apiSdk,
     }) => {
@@ -709,7 +709,7 @@ test.describe("API rooms methods", () => {
       expect(data.statusCode).toBe(403);
     });
 
-    // Editing is not a valid access level for FillingFormsRoom — API rejects it
+    // Editing is not a valid access level for FillingFormsRoom - API rejects it
     test("PUT /files/rooms/:id/share - Editing is rejected for FillingFormsRoom", async ({
       apiSdk,
     }) => {
@@ -759,7 +759,7 @@ test.describe("API rooms methods", () => {
       expect(data.statusCode).toBe(200);
     });
 
-    // Read is not a valid access level for FillingFormsRoom — API rejects it
+    // Read is not a valid access level for FillingFormsRoom - API rejects it
     test("PUT /files/rooms/:id/share - Read is rejected for FillingFormsRoom", async ({
       apiSdk,
     }) => {
@@ -1143,7 +1143,7 @@ test.describe("API rooms methods", () => {
     });
   });
 
-  // Could not trigger MarkAsNew via API — new items list is always empty. Contract test only.
+  // Could not trigger MarkAsNew via API - new items list is always empty. Contract test only.
   test.describe("Room new items", () => {
     test("GET /files/rooms/:id/newitems - Owner gets new items list for a room", async ({
       apiSdk,
@@ -1309,7 +1309,7 @@ test.describe("API rooms methods", () => {
       const { data: memberData } = await apiSdk.addMember("owner", "User");
       const userId = memberData.response!.id!;
 
-      // Batch operation — non-member IDs are silently skipped (by design)
+      // Batch operation - non-member IDs are silently skipped (by design)
       const { status } = await ownerApi.rooms.resendEmailInvitations({
         id: roomId,
         userInvitation: {
