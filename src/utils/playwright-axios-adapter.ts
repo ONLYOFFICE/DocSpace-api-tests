@@ -73,7 +73,7 @@ export function createPlaywrightAdapter(request: APIRequestContext) {
             streamData += decoder.decode(value, { stream: true });
           }
         } catch {
-          // stream aborted by timeout — expected for SSE
+          // stream aborted by timeout - expected for SSE
         } finally {
           clearTimeout(timer);
         }
