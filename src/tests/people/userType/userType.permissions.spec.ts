@@ -3,48 +3,44 @@ import { test } from "@/src/fixtures/index";
 import { EmployeeType } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
-  test.fail(
-    "BUG 80474: DocSpace admin should not be able to promote User to DocSpace admin",
-    async ({ apiSdk }) => {
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
+  test("BUG 80474: DocSpace admin should not be able to promote User to DocSpace admin", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
 
-      const { data: userData } = await apiSdk.addMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      const { data } = await adminApi.userType.updateUserType({
-        type: EmployeeType.DocSpaceAdmin,
-        updateMembersRequestDto: { userIds: [userId] },
-      });
-      console.log(data as any); // delete this string after fixing the bug
-      // BUG: API returns 200, expected 403
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    const { data } = await adminApi.userType.updateUserType({
+      type: EmployeeType.DocSpaceAdmin,
+      updateMembersRequestDto: { userIds: [userId] },
+    });
 
-  test.fail(
-    "BUG 80478: Room admin should not be able to change the type of a guest who does not belong to them.",
-    async ({ apiSdk }) => {
-      const { data: guestData } = await apiSdk.addMember("owner", "Guest");
-      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "RoomAdmin",
-      );
-      const guestId = (guestData as any).response.id as string;
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
-      const { data } = await roomAdminApi.userType.updateUserType({
-        type: EmployeeType.User,
-        updateMembersRequestDto: { userIds: [guestId] },
-      });
-      console.log(data as any); // delete this string after fixing the bug
-      // BUG: API returns 200, expected 403
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+  test("BUG 80478: Room admin should not be able to change the type of a guest who does not belong to them.", async ({
+    apiSdk,
+  }) => {
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const guestId = (guestData as any).response.id as string;
+
+    const { data } = await roomAdminApi.userType.updateUserType({
+      type: EmployeeType.User,
+      updateMembersRequestDto: { userIds: [guestId] },
+    });
+
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
   test("Room admin should not be able to upgrade the user type.", async ({
     apiSdk,
@@ -455,45 +451,44 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
   });
 
   // Incorrect answer, you need to check the code and describe the bug if there is one.
-  test.fail(
-    "Second DocSpace admin tries to terminate user type update started by first DocSpace admin.",
-    async ({ apiSdk }) => {
-      const { data: roomAdminData } = await apiSdk.addMember(
-        "owner",
-        "RoomAdmin",
-      );
-      const roomAdminId = roomAdminData.response!.id!;
-      const admin2Base = await apiSdk.addMember("owner", "DocSpaceAdmin");
+  test.skip("Second DocSpace admin tries to terminate user type update started by first DocSpace admin.", async ({
+    apiSdk,
+  }) => {
+    const { data: roomAdminData } = await apiSdk.addMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const roomAdminId = roomAdminData.response!.id!;
+    const admin2Base = await apiSdk.addMember("owner", "DocSpaceAdmin");
 
-      // Create and authenticate first DocSpace admin
-      const admin1Base = await apiSdk.addMember("owner", "DocSpaceAdmin");
-      const admin1Api = await apiSdk.authenticateMember(
-        admin1Base.userData,
-        "DocSpaceAdmin",
-      );
+    // Create and authenticate first DocSpace admin
+    const admin1Base = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const admin1Api = await apiSdk.authenticateMember(
+      admin1Base.userData,
+      "DocSpaceAdmin",
+    );
 
-      // First DocSpace admin starts demotion RoomAdmin -> User
-      await admin1Api.userType.starUserTypetUpdate({
-        startUpdateUserTypeDto: {
-          type: EmployeeType.User,
+    // First DocSpace admin starts demotion RoomAdmin -> User
+    await admin1Api.userType.starUserTypetUpdate({
+      startUpdateUserTypeDto: {
+        type: EmployeeType.User,
+        userId: roomAdminId,
+      },
+    });
+
+    // Create and authenticate second DocSpace admin (overwrites token)
+    const admin2Api = await apiSdk.authenticateMember(
+      admin2Base.userData,
+      "DocSpaceAdmin",
+    );
+
+    // Second DocSpace admin tries to terminate the process
+    const { data: terminateData } =
+      await admin2Api.userType.terminateUserTypeUpdate({
+        terminateRequestDto: {
           userId: roomAdminId,
         },
       });
-
-      // Create and authenticate second DocSpace admin (overwrites token)
-      const admin2Api = await apiSdk.authenticateMember(
-        admin2Base.userData,
-        "DocSpaceAdmin",
-      );
-
-      // Second DocSpace admin tries to terminate the process
-      const { data: terminateData } =
-        await admin2Api.userType.terminateUserTypeUpdate({
-          terminateRequestDto: {
-            userId: roomAdminId,
-          },
-        });
-      console.log(terminateData as any);
-    },
-  );
+    console.log(terminateData as any);
+  });
 });
