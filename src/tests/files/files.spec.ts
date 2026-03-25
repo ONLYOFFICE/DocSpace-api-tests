@@ -123,7 +123,7 @@ test.describe("POST /files/:folderId/html - Create HTML file", () => {
     expect(data.response!.id!).toBeGreaterThan(0);
   });
 
-  // Note: createNewIfExist logic is inverted — true returns the existing file, false creates a new one with a suffix
+  // Note: createNewIfExist logic is inverted - true returns the existing file, false creates a new one with a suffix
   test("POST /files/:folderId/html - createNewIfExist: true returns existing file when title already exists", async ({
     apiSdk,
   }) => {
@@ -161,6 +161,258 @@ test.describe("POST /files/:folderId/html - Create HTML file", () => {
   });
 });
 
+test.describe("POST /files/@my/html - Create HTML file in My Documents", () => {
+  test("POST /files/@my/html - Owner creates an HTML file in My Documents with title and content", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.createHtmlFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest HTML My Docs File",
+        content: "<p>Hello world</p>",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.title).toBe("Autotest HTML My Docs File.html");
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.folderId).toBeGreaterThan(0);
+    expect(data.response!.fileExst).toBe(".html");
+  });
+
+  // Note: content is marked optional in the SDK but the API requires it - returns 400 without it
+  test("POST /files/@my/html - Missing content returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.files.createHtmlFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest HTML My Docs No Content",
+      },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  // Note: createNewIfExist logic is inverted - true returns the existing file, false creates a new one with a suffix
+  test("POST /files/@my/html - createNewIfExist: true returns existing file when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: firstData } =
+      await ownerApi.files.createHtmlFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest HTML My Docs Dedup",
+          content: "<p>First</p>",
+          createNewIfExist: false,
+        },
+      });
+    const firstId = firstData.response!.id!;
+
+    const { data: secondData, status } =
+      await ownerApi.files.createHtmlFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest HTML My Docs Dedup",
+          content: "<p>Second</p>",
+          createNewIfExist: true,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).toBe(firstId);
+  });
+
+  // Note: createNewIfExist: false creates a new file with a numeric suffix
+  test("POST /files/@my/html - createNewIfExist: false creates new file with suffix when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: firstData } =
+      await ownerApi.files.createHtmlFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest HTML My Docs Suffix",
+          content: "<p>First</p>",
+          createNewIfExist: true,
+        },
+      });
+    const firstId = firstData.response!.id!;
+
+    const { data: secondData, status } =
+      await ownerApi.files.createHtmlFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest HTML My Docs Suffix",
+          content: "<p>Second</p>",
+          createNewIfExist: false,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).not.toBe(firstId);
+  });
+
+  // Default behavior when createNewIfExist is not specified
+  test("POST /files/@my/html - createNewIfExist omitted creates new file with suffix when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: firstData } =
+      await ownerApi.files.createHtmlFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest HTML My Docs Default",
+          content: "<p>First</p>",
+        },
+      });
+    const firstId = firstData.response!.id!;
+
+    const { data: secondData, status } =
+      await ownerApi.files.createHtmlFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest HTML My Docs Default",
+          content: "<p>Second</p>",
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).not.toBe(firstId);
+  });
+});
+
+test.describe("POST /files/@my/text - Create text file in My Documents", () => {
+  test("POST /files/@my/text - Owner creates a text file in My Documents with title and content", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.createTextFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest Text My Docs File",
+        content: "Hello world",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.title).toBe("Autotest Text My Docs File.txt");
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.folderId).toBeGreaterThan(0);
+    expect(data.response!.fileExst).toBe(".txt");
+  });
+
+  // Note: content is marked optional in the SDK but the API requires it - returns 400 without it
+  test("POST /files/@my/text - Missing content returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.files.createTextFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest Text My Docs No Content",
+      },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  // Note: createNewIfExist logic is inverted - true returns the existing file, false creates a new one with a suffix
+  test("POST /files/@my/text - createNewIfExist: true returns existing file when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: firstData } =
+      await ownerApi.files.createTextFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest Text My Docs Dedup",
+          content: "First",
+          createNewIfExist: false,
+        },
+      });
+    const firstId = firstData.response!.id!;
+
+    const { data: secondData, status } =
+      await ownerApi.files.createTextFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest Text My Docs Dedup",
+          content: "Second",
+          createNewIfExist: true,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).toBe(firstId);
+  });
+
+  // Note: createNewIfExist: false creates a new file with a numeric suffix
+  test("POST /files/@my/text - createNewIfExist: false creates new file with suffix when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: firstData } =
+      await ownerApi.files.createTextFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest Text My Docs Suffix",
+          content: "First",
+          createNewIfExist: true,
+        },
+      });
+    const firstId = firstData.response!.id!;
+
+    const { data: secondData, status } =
+      await ownerApi.files.createTextFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest Text My Docs Suffix",
+          content: "Second",
+          createNewIfExist: false,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).not.toBe(firstId);
+  });
+
+  // Default behavior when createNewIfExist is not specified
+  test("POST /files/@my/text - createNewIfExist omitted creates new file with suffix when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: firstData } =
+      await ownerApi.files.createTextFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest Text My Docs Default",
+          content: "First",
+        },
+      });
+    const firstId = firstData.response!.id!;
+
+    const { data: secondData, status } =
+      await ownerApi.files.createTextFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest Text My Docs Default",
+          content: "Second",
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).not.toBe(firstId);
+  });
+});
+
 test.describe("POST /files/:folderId/text - Create text file", () => {
   test("POST /files/:folderId/text - Creates a text file with title and content", async ({
     apiSdk,
@@ -190,7 +442,7 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     expect(data.response!.id!).toBeGreaterThan(0);
   });
 
-  // Note: createNewIfExist logic is inverted — true returns the existing file, false creates a new one with a suffix
+  // Note: createNewIfExist logic is inverted - true returns the existing file, false creates a new one with a suffix
   test("POST /files/:folderId/text - createNewIfExist: true returns existing file when title already exists", async ({
     apiSdk,
   }) => {
@@ -292,7 +544,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
   });
 
-  // TODO: requires a password-protected source file — no API method available to create one yet
+  // TODO: requires a password-protected source file - no API method available to create one yet
   test.skip("POST /files/file/:fileId/copyas - Copies file with password", async ({
     apiSdk,
   }) => {
@@ -324,7 +576,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
   });
 
-  // BUG 80745: copyFileAs with enableExternalExt: true returns 500 System.Exception — requires DS ↔ DocSpace connectivity
+  // BUG 80745: copyFileAs with enableExternalExt: true returns 500 System.Exception - requires DS <-> DocSpace connectivity
   test.fail(
     "BUG 80745: POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)",
     async ({ apiSdk }) => {
@@ -359,7 +611,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
 });
 
 test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
-  // BUG 80743: saveaspdf returns 403 System.InvalidOperationException — requires DS ↔ DocSpace connectivity
+  // BUG 80743: saveaspdf returns 403 System.InvalidOperationException - requires DS <-> DocSpace connectivity
   test.fail(
     "BUG 80743: POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder",
     async ({ apiSdk }) => {
@@ -479,7 +731,7 @@ test.describe("GET /files/file/:fileId - Get file info", () => {
     expect(data.response!.folderId).toBe(folderId);
   });
 
-  // Note: API returns 403 (not 404) for non-existent files — does not distinguish "not found" from "no access"
+  // Note: API returns 403 (not 404) for non-existent files - does not distinguish "not found" from "no access"
   test("GET /files/file/:fileId - Returns 403 for non-existent file", async ({
     apiSdk,
   }) => {
@@ -568,7 +820,7 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
     },
   );
 
-  // Note: updateFile cannot change the file extension — the original extension (.docx) is always preserved
+  // Note: updateFile cannot change the file extension - the original extension (.docx) is always preserved
   // and appended after the new title, e.g. "Renamed.txt" becomes "Renamed.txt.docx"
   test("PUT /files/file/:fileId - Renaming with a different extension does not change fileExst", async ({
     apiSdk,
@@ -589,47 +841,41 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
     expect(data.response!.fileExst).toBe(".docx");
   });
 
-  test.fail(
-    "BUG 80775: PUT /files/file/:fileId - Empty title returns 200 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: created } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Empty Title Original" },
-      });
-      const fileId = created.response!.id!;
+  test("PUT /files/file/:fileId - Empty title is ignored, returns 200 with unchanged title", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Empty Title Original" },
+    });
+    const fileId = created.response!.id!;
 
-      const { status } = await ownerApi.files.updateFile({
-        fileId,
-        updateFile: { title: "" },
-      });
+    const { status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "" },
+    });
 
-      // Bug: API silently ignores empty title and returns 200 with unchanged filename
-      // Expected: 400 with validation error "Title cannot be empty"
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(200);
+  });
 
-  test.fail(
-    "BUG 80775: PUT /files/file/:fileId - Whitespace-only title returns 200 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: created } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Spaces Title Original" },
-      });
-      const fileId = created.response!.id!;
+  test("PUT /files/file/:fileId - Whitespace-only title is ignored, returns 200 with unchanged title", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Spaces Title Original" },
+    });
+    const fileId = created.response!.id!;
 
-      const { status } = await ownerApi.files.updateFile({
-        fileId,
-        updateFile: { title: "   " },
-      });
+    const { status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "   " },
+    });
 
-      // Bug: API silently ignores whitespace-only title and returns 200 with unchanged filename
-      // Expected: 400 with validation error "Title cannot be empty"
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(200);
+  });
 
-  // Note: max title length is 165 characters — API returns 400 for longer titles
+  // Note: max title length is 165 characters - API returns 400 for longer titles
   test("PUT /files/file/:fileId - Title longer than 165 characters returns 400", async ({
     apiSdk,
   }) => {
@@ -702,7 +948,7 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
       updateFile: { title: "Autotest A/B" },
     });
 
-    // Forward slash is an invalid filename character — API sanitizes it by replacing with underscore
+    // Forward slash is an invalid filename character - API sanitizes it by replacing with underscore
     expect(status).toBe(200);
     expect(data.response!.title).toBe("Autotest A_B.docx");
   });
@@ -729,7 +975,7 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     expect(data.response!.length).toBeGreaterThan(0);
     expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
 
-    // Delete is an async operation — wait for it to complete
+    // Delete is an async operation - wait for it to complete
     const operation = await waitForOperation(ownerApi.operations);
     expect(operation.finished).toBe(true);
     expect(operation.progress).toBe(100);
@@ -755,7 +1001,7 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     expect(data.statusCode).toBe(200);
     expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
 
-    // Delete is an async operation — wait for it to complete
+    // Delete is an async operation - wait for it to complete
     const operation = await waitForOperation(ownerApi.operations);
     expect(operation.finished).toBe(true);
     expect(operation.progress).toBe(100);
@@ -790,7 +1036,7 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     expect(data.statusCode).toBe(200);
     expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
 
-    // Delete is an async operation — wait for it to complete
+    // Delete is an async operation - wait for it to complete
     const operation = await waitForOperation(ownerApi.operations);
     expect(operation.finished).toBe(true);
     expect(operation.progress).toBe(100);
@@ -798,7 +1044,7 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     expect(operation.error).toBeFalsy();
   });
 
-  // Note: unlike GET and PUT, DELETE accepts non-existent fileId — operation is queued and fails asynchronously
+  // Note: unlike GET and PUT, DELETE accepts non-existent fileId - operation is queued and fails asynchronously
   test("DELETE /files/file/:fileId - Non-existent file returns 200 and queues an operation", async ({
     apiSdk,
   }) => {
@@ -814,7 +1060,7 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
 
     const operation = await waitForOperation(ownerApi.operations);
-    // Operation finishes but with an error — file was not found asynchronously
+    // Operation finishes but with an error - file was not found asynchronously
     expect(operation.finished).toBe(true);
     expect(operation.progress).toBe(100);
     expect(operation.processed).toBe("0");
@@ -945,7 +1191,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
 
   // BUG: non-existent file returns 403 with stack trace instead of 404
   test.fail(
-    "BUG XXXX: PUT /files/file/:fileId/lock - Non-existent file returns 403 instead of 404",
+    "BUG 80788: PUT /files/file/:fileId/lock - Non-existent file returns 403 instead of 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -958,4 +1204,82 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
       expect(status).toBe(404);
     },
   );
+});
+
+test.describe("PUT /files/:fileId/order - Set file order", () => {
+  test("PUT /files/:fileId/order - Owner sets file order to a specific value", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Order File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 5 },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Order File.docx");
+  });
+
+  test("PUT /files/:fileId/order - Order can be updated to a new value", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Order Update File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 3 },
+    });
+
+    const { data, status } = await ownerApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 7 },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  // Order must be between 1 and 2147483647 - 0 is not valid
+  test("PUT /files/:fileId/order - Order 0 returns 400", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Order Zero File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await ownerApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 0 },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("PUT /files/:fileId/order - Non-existent file returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.files.setFileOrder({
+      fileId: 999999999,
+      orderRequestDto: { order: 1 },
+    });
+
+    expect(status).toBe(404);
+  });
 });
