@@ -1827,10 +1827,11 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
       "RoomAdmin",
     );
 
-    const { data: fileData } =
-      await roomAdminApi.files.createFileInMyDocuments({
+    const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
+      {
         createFileJsonElement: { title: "Autotest Recent Room Admin File" },
-      });
+      },
+    );
     const fileId = fileData.response!.id!;
 
     const { data, status } = await roomAdminApi.files.addFileToRecent({
