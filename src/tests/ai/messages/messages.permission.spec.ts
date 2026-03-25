@@ -7,7 +7,7 @@ const provider = aiProviders.deepSeek;
 
 test.describe("AI Messages - Export Permissions (not a member of agent)", () => {
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - DocSpaceAdmin cannot export message without being in agent",
+    "BUG 80770: POST /api/2.0/ai/messages/:messageId/export - DocSpaceAdmin cannot export message without being in agent",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -81,7 +81,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
   );
 
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - RoomAdmin cannot export message without being in agent",
+    "BUG 80770: POST /api/2.0/ai/messages/:messageId/export - RoomAdmin cannot export message without being in agent",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -156,7 +156,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
   );
 
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - User cannot export message without being in agent",
+    "BUG 80770: POST /api/2.0/ai/messages/:messageId/export - User cannot export message without being in agent",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -231,7 +231,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
   );
 
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - Guest cannot export message without being in agent",
+    "BUG 80770: POST /api/2.0/ai/messages/:messageId/export - Guest cannot export message without being in agent",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -309,7 +309,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
 
 test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - DocSpaceAdmin with Viewer role cannot export message",
+    "BUG 80772: POST /api/2.0/ai/messages/:messageId/export - DocSpaceAdmin with Viewer role cannot export message",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -391,7 +391,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
   );
 
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - RoomAdmin with Viewer role cannot export message",
+    "BUG 80772: POST /api/2.0/ai/messages/:messageId/export - RoomAdmin with Viewer role cannot export message",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -473,7 +473,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
   );
 
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - User with Viewer role cannot export message",
+    "BUG 80772: POST /api/2.0/ai/messages/:messageId/export - User with Viewer role cannot export message",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -555,7 +555,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
   );
 
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - Guest with Viewer role cannot export message",
+    "BUG 80772: POST /api/2.0/ai/messages/:messageId/export - Guest with Viewer role cannot export message",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -641,7 +641,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
 
 test.describe("AI Messages - Export Validation", () => {
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - returns 400 for messageId = 0",
+    "BUG 80779: POST /api/2.0/ai/messages/:messageId/export - returns 400 for messageId = 0",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -691,6 +691,7 @@ test.describe("AI Messages - Export Validation", () => {
           title: "Exported AI Message",
         },
       });
+
       expect(status).toBe(400);
       expect((data as any).error.message).toBe(
         "The message identifier is invalid (must be greater than 0)",
@@ -699,7 +700,7 @@ test.describe("AI Messages - Export Validation", () => {
   );
 
   test.fail(
-    "POST /api/2.0/ai/messages/:messageId/export - returns 400 for messageId = -1",
+    "BUG 80779: POST /api/2.0/ai/messages/:messageId/export - returns 400 for messageId = -1",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
