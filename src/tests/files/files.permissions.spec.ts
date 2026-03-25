@@ -1375,3 +1375,406 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
     expect(data.response?.locked).toBeFalsy();
   });
 });
+
+test.describe("POST /files/@my/html - Create HTML file in My Documents permissions", () => {
+  test("POST /files/@my/html - Owner can create an HTML file in My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.createHtmlFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest HTML My Docs Owner",
+        content: "<p>Owner content</p>",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.title).toBe("Autotest HTML My Docs Owner.html");
+  });
+
+  test("POST /files/@my/html - DocSpace admin can create an HTML file in their My Documents", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.files.createHtmlFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest HTML My Docs Admin",
+        content: "<p>Admin content</p>",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.title).toBe("Autotest HTML My Docs Admin.html");
+  });
+
+  test("POST /files/@my/html - Room admin can create an HTML file in their My Documents", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } =
+      await roomAdminApi.files.createHtmlFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest HTML My Docs Room Admin",
+          content: "<p>Room admin content</p>",
+          createNewIfExist: true,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.title).toBe("Autotest HTML My Docs Room Admin.html");
+  });
+
+  test("POST /files/@my/html - Regular user can create an HTML file in their My Documents", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.files.createHtmlFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest HTML My Docs User",
+        content: "<p>User content</p>",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.title).toBe("Autotest HTML My Docs User.html");
+  });
+
+  test("POST /files/@my/html - Guest cannot create an HTML file in My Documents", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.files.createHtmlFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest HTML My Docs Guest",
+        content: "<p>Guest content</p>",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /files/@my/html - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.createHtmlFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest HTML My Docs Anon",
+          createNewIfExist: true,
+        },
+      });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("POST /files/@my/text permissions", () => {
+  test("POST /files/@my/text - Owner can create a text file in My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.createTextFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest Text My Docs Owner",
+        content: "Owner content",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.title).toBe("Autotest Text My Docs Owner.txt");
+  });
+
+  test("POST /files/@my/text - DocSpace admin can create a text file in their My Documents", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.files.createTextFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest Text My Docs Admin",
+        content: "Admin content",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.title).toBe("Autotest Text My Docs Admin.txt");
+  });
+
+  test("POST /files/@my/text - Room admin can create a text file in their My Documents", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } =
+      await roomAdminApi.files.createTextFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest Text My Docs Room Admin",
+          content: "Room admin content",
+          createNewIfExist: true,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.title).toBe("Autotest Text My Docs Room Admin.txt");
+  });
+
+  test("POST /files/@my/text - Regular user can create a text file in their My Documents", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.files.createTextFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest Text My Docs User",
+        content: "User content",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id!).toBeGreaterThan(0);
+    expect(data.response!.title).toBe("Autotest Text My Docs User.txt");
+  });
+
+  test("POST /files/@my/text - Guest gets 404", async ({ apiSdk }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.files.createTextFileInMyDocuments({
+      createTextOrHtmlFile: {
+        title: "Autotest Text My Docs Guest",
+        content: "Guest content",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /files/@my/text - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.createTextFileInMyDocuments({
+        createTextOrHtmlFile: {
+          title: "Autotest Text My Docs Anon",
+          createNewIfExist: true,
+        },
+      });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /files/:fileId/order permissions", () => {
+  test("PUT /files/:fileId/order - Owner can set order on their own file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Order Owner File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 1 },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  test("PUT /files/:fileId/order - DocSpace admin can set order on their own file", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: fileData } = await adminApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Order Admin File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await adminApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 2 },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  test("PUT /files/:fileId/order - Room admin can set order on their own file", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
+      {
+        createFileJsonElement: { title: "Autotest Order Room Admin File" },
+      },
+    );
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await roomAdminApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 3 },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  test("PUT /files/:fileId/order - Regular user can set order on their own file", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: fileData } = await userApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Order User File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await userApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 4 },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  test("PUT /files/:fileId/order - User cannot set order on another user's private file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Order Private File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await userApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 1 },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /files/:fileId/order - Guest cannot set order on another user's file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Order Guest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await guestApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 1 },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /files/:fileId/order - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Order Anon File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 1 },
+    });
+
+    expect(status).toBe(401);
+  });
+});
