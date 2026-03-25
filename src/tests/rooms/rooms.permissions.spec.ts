@@ -207,13 +207,12 @@ test.describe("PUT /files/rooms/:id - access control", () => {
   });
 });
 
-// TODO: Investigate expected behavior for room deletion permissions
 // DELETE /files/rooms/:id works asynchronously:
 // 1. Controller has NO permission checks
 // 2. HTTP always returns 200 (operation queued)
 // 3. Permission check happens later in FileDeleteOperation.cs
 // 4. If access denied, error appears in GET /fileops result.error field
-test.describe.skip("DELETE /files/rooms/:id - access control", () => {
+test.describe("DELETE /files/rooms/:id - access control", () => {
   test("Owner can delete a room", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: createData } = await ownerApi.rooms.createRoom({
@@ -235,7 +234,7 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
     expect(operation.error).toBe("");
   });
 
-  test.fail("DocSpaceAdmin can delete a room", async ({ apiSdk }) => {
+  test("DocSpaceAdmin can delete a room", async ({ apiSdk }) => {
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "DocSpaceAdmin",
@@ -259,7 +258,7 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
     expect(operation.error).toBe("");
   });
 
-  test.fail("User cannot delete a room", async ({ apiSdk }) => {
+  test("User cannot delete a room", async ({ apiSdk }) => {
     const { api: userApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "User",
@@ -286,7 +285,7 @@ test.describe.skip("DELETE /files/rooms/:id - access control", () => {
     );
   });
 
-  test.fail("Guest cannot delete a room", async ({ apiSdk }) => {
+  test("Guest cannot delete a room", async ({ apiSdk }) => {
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "Guest",

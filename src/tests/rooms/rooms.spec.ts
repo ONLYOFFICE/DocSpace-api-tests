@@ -1,8 +1,15 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomsApi, RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
+import {
+  RoomsApi,
+  RoomType,
+  FileShare,
+  LinkType,
+} from "@onlyoffice/docspace-api-sdk";
 import { createAllRoomTypes } from "@/src/helpers/rooms";
+import { createTestImageBuffer } from "@/src/utils/test-image";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 
 function filterRoomsFolder(rooms: RoomsApi, filterValue: string) {
@@ -118,7 +125,7 @@ test.describe("API rooms methods", () => {
 
       expect(status).toBe(200);
       expect(data.response!.total).toBe(1);
-      // TODO(sdk): FolderContentDtoInteger.folders typed as FileEntryBaseDto[] — roomType field missing
+      // TODO(sdk): FolderContentDtoInteger.folders typed as FileEntryBaseDto[] - roomType field missing
       expect((data.response!.folders as any[])[0].roomType).toBe(
         RoomType.CustomRoom,
       );
@@ -214,21 +221,14 @@ test.describe("API rooms methods", () => {
         expect(data.response!.title).toBe("Updated VDR Room");
         expect(data.response!.indexing).toBe(true);
         expect(data.response!.denyDownload).toBe(true);
-        // TODO(sdk): FolderDto.logo, .lifetime, .watermark typed as object — nested fields missing
-        const logo = data.response!.logo as unknown as Record<string, unknown>;
-        expect(logo.color).toBe("FF5733");
-        const lifetime = data.response!.lifetime as Record<string, unknown>;
-        expect(lifetime.period).toBe(0);
-        expect(lifetime.value).toBe(30);
-        expect(lifetime.deletePermanently).toBe(true);
-        const watermark = data.response!.watermark as unknown as Record<
-          string,
-          unknown
-        >;
-        expect(watermark.additions).toBe(1);
-        expect(watermark.text).toBe("Confidential");
-        expect(watermark.rotate).toBe(0);
-        expect(watermark.imageScale).toBe(100);
+        expect(data.response!.logo?.color).toBe("FF5733");
+        expect(data.response!.lifetime?.period).toBe(0);
+        expect(data.response!.lifetime?.value).toBe(30);
+        expect(data.response!.lifetime?.deletePermanently).toBe(true);
+        expect(data.response!.watermark?.additions).toBe(1);
+        expect(data.response!.watermark?.text).toBe("Confidential");
+        expect(data.response!.watermark?.rotate).toBe(0);
+        expect(data.response!.watermark?.imageScale).toBe(100);
       });
 
       await test.step("GET /files/rooms/:id - verify all fields saved", async () => {
@@ -240,59 +240,51 @@ test.describe("API rooms methods", () => {
         expect(data.response!.title).toBe("Updated VDR Room");
         expect(data.response!.indexing).toBe(true);
         expect(data.response!.denyDownload).toBe(true);
-        // TODO(sdk): FolderDto.logo, .lifetime, .watermark typed as object — nested fields missing
-        const logo = data.response!.logo as unknown as Record<string, unknown>;
-        expect(logo.color).toBe("FF5733");
-        const lifetime = data.response!.lifetime as Record<string, unknown>;
-        expect(lifetime.period).toBe(0);
-        expect(lifetime.value).toBe(30);
-        const watermark = data.response!.watermark as unknown as Record<
-          string,
-          unknown
-        >;
-        expect(watermark.additions).toBe(1);
-        expect(watermark.text).toBe("Confidential");
+        expect(data.response!.logo?.color).toBe("FF5733");
+        expect(data.response!.lifetime?.period).toBe(0);
+        expect(data.response!.lifetime?.value).toBe(30);
+        expect(data.response!.watermark?.additions).toBe(1);
+        expect(data.response!.watermark?.text).toBe("Confidential");
       });
     });
 
-    // TODO: Need clarification — should API reject VDR-only fields on non-VDR rooms or is this expected behavior?
-    test.fail(
-      "PUT /files/rooms/:id - Set VDR-only fields on CustomRoom",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: createData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Custom Room",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = createData.response!.id!;
+    // TODO: Need clarification - should API reject VDR-only fields on non-VDR rooms or is this expected behavior?
+    test.skip("PUT /files/rooms/:id - Set VDR-only fields on CustomRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: createData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Custom Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = createData.response!.id!;
 
-        const { data, status } = await ownerApi.rooms.updateRoom({
-          id: roomId,
-          updateRoomRequest: {
-            indexing: true,
-            denyDownload: true,
-            lifetime: {
-              deletePermanently: true,
-              period: 0,
-              value: 30,
-              enabled: true,
-            },
-            watermark: {
-              enabled: true,
-              additions: 1,
-              text: "Confidential",
-              rotate: 0,
-              imageScale: 100,
-            },
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: {
+          indexing: true,
+          denyDownload: true,
+          lifetime: {
+            deletePermanently: true,
+            period: 0,
+            value: 30,
+            enabled: true,
           },
-        });
-        expect(status).toBe(200);
-        expect(data.response!.indexing).toBe(true);
-        expect(data.response!.denyDownload).toBe(true);
-      },
-    );
+          watermark: {
+            enabled: true,
+            additions: 1,
+            text: "Confidential",
+            rotate: 0,
+            imageScale: 100,
+          },
+        },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.indexing).toBe(true);
+      expect(data.response!.denyDownload).toBe(true);
+    });
 
     test("PUT /files/rooms/:id - Update room with empty title", async ({
       apiSdk,
@@ -536,6 +528,69 @@ test.describe("API rooms methods", () => {
     });
   });
 
+  test("PUT /files/tags - Owner renames a tag", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "OldTagName" },
+    });
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "OldTagName",
+        newName: "NewTagName",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string).toBe("NewTagName");
+  });
+
+  // tagName2 = path param ({tagName} in route), tagName = query param ([FromQuery] in DTO)
+  test("GET /files/tags/haslinks - Tag not linked to any room returns false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "UnlinkedTag" },
+    });
+
+    const { data, status } = await ownerApi.rooms.hasTagLinks({
+      tagName2: "UnlinkedTag",
+      tagName: "UnlinkedTag",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("GET /files/tags/haslinks - Tag linked to a room returns true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "LinkedTag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room With Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: roomData.response!.id!,
+      batchTagsRequestDto: { names: ["LinkedTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.hasTagLinks({
+      tagName2: "LinkedTag",
+      tagName: "LinkedTag",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
   test.describe("PUT /files/rooms/:id/share", () => {
     test("PUT /files/rooms/:id/share - Owner sets room access rights", async ({
       apiSdk,
@@ -573,13 +628,9 @@ test.describe("API rooms methods", () => {
         });
 
         expect(status).toBe(200);
-        // TODO(sdk): getRoomSecurityInfo returns untyped response — ArrayWrapper<RoomSecurityDto> missing
-        expect((data as any).statusCode).toBe(200);
-        const response = (data as any).response as Array<{
-          sharedToUser: { id: string };
-        }>;
-        expect(response.length).toBe(2);
-        expect(response[1].sharedToUser.id).toBe(userId);
+        expect(data.statusCode).toBe(200);
+        expect(data.response!.length).toBe(2);
+        expect(data.response![1].sharedToUser?.id).toBe(userId);
       });
     });
 
@@ -625,18 +676,14 @@ test.describe("API rooms methods", () => {
         });
 
         expect(status).toBe(200);
-        // TODO(sdk): getRoomSecurityInfo returns untyped response — ArrayWrapper<RoomSecurityDto> missing
-        const response = (data as any).response as Array<{
-          sharedToUser: { id: string };
-        }>;
-        expect(response.length).toBe(1);
-        expect(response[0].sharedToUser.id).not.toBe(userId);
+        expect(data.response!.length).toBe(1);
+        expect(data.response![0].sharedToUser?.id).not.toBe(userId);
       });
     });
   });
 
   test.describe("PUT /files/rooms/:id/share - FillingFormsRoom access levels", () => {
-    // RoomManager cannot be set via PUT /files/rooms/:id/share — API rejects it for any room type
+    // RoomManager cannot be set via PUT /files/rooms/:id/share - API rejects it for any room type
     test("PUT /files/rooms/:id/share - RoomManager is rejected for FillingFormsRoom", async ({
       apiSdk,
     }) => {
@@ -662,7 +709,7 @@ test.describe("API rooms methods", () => {
       expect(data.statusCode).toBe(403);
     });
 
-    // Editing is not a valid access level for FillingFormsRoom — API rejects it
+    // Editing is not a valid access level for FillingFormsRoom - API rejects it
     test("PUT /files/rooms/:id/share - Editing is rejected for FillingFormsRoom", async ({
       apiSdk,
     }) => {
@@ -712,7 +759,7 @@ test.describe("API rooms methods", () => {
       expect(data.statusCode).toBe(200);
     });
 
-    // Read is not a valid access level for FillingFormsRoom — API rejects it
+    // Read is not a valid access level for FillingFormsRoom - API rejects it
     test("PUT /files/rooms/:id/share - Read is rejected for FillingFormsRoom", async ({
       apiSdk,
     }) => {
@@ -736,6 +783,542 @@ test.describe("API rooms methods", () => {
       });
 
       expect(data.statusCode).toBe(403);
+    });
+  });
+
+  test.describe("Room links", () => {
+    test("GET /files/rooms/:id/links - Owner gets all links of a PublicRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Room",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.length).toBeGreaterThan(0);
+      expect(data.response![0].sharedLink?.id).toBeDefined();
+      expect(data.response![0].sharedLink?.shareLink).toBeDefined();
+      expect(data.response![0].sharedLink?.linkType).toBe(LinkType.External);
+    });
+
+    test("GET /files/rooms/:id/links/primary - Owner gets auto-created external link of a PublicRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link Room",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: roomId,
+        },
+      );
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.sharedLink?.id).toBeDefined();
+      expect(data.response!.sharedLink?.shareLink).toBeDefined();
+      expect(data.response!.sharedLink?.linkType).toBe(LinkType.External);
+    });
+
+    test("PUT /files/rooms/:id/links - Owner creates an invitation link for a room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Set Link Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest Invitation Link",
+          denyDownload: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.sharedLink?.id).toBeDefined();
+      expect(data.response!.sharedLink?.shareLink).toBeDefined();
+      expect(data.response!.sharedLink?.linkType).toBe(LinkType.Invitation);
+      expect(data.response!.sharedLink?.title).toBe("Autotest Invitation Link");
+    });
+  });
+
+  test.describe("Room covers", () => {
+    test("GET /files/rooms/covers - Owner gets available covers", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.rooms.getRoomCovers();
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.length).toBeGreaterThan(0);
+      expect(data.response![0].id).toBeDefined();
+      expect(data.response![0].data).toBeDefined();
+    });
+
+    test("PUT /files/rooms/:id/cover - Owner changes room cover", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+      const coverId = coversData.response![0].id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Cover Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.changeRoomCover({
+        id: roomId,
+        coverRequestDto: {
+          color: "FF5733",
+          cover: coverId,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBe(roomId);
+      expect(data.response!.logo?.cover?.id).toBe(coverId);
+      expect(data.response!.logo?.color).toBe("FF5733");
+    });
+  });
+
+  test.describe("Room logo", () => {
+    test("POST /files/rooms/:id/logo - Owner creates room logo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Logo Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const uploadResult = await apiSdk.uploadRoomLogo(
+        "owner",
+        createTestImageBuffer(),
+      );
+      expect(uploadResult.data.response.success).toBe(true);
+
+      const { data, status } = await ownerApi.rooms.createRoomLogo({
+        id: roomId,
+        logoRequest: { tmpFile: uploadResult.data.response.data },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBe(roomId);
+      expect(data.response!.logo?.original).toBeTruthy();
+    });
+
+    test("DELETE /files/rooms/:id/logo - Owner deletes room logo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Logo Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const uploadResult = await apiSdk.uploadRoomLogo(
+        "owner",
+        createTestImageBuffer(),
+      );
+      await ownerApi.rooms.createRoomLogo({
+        id: roomId,
+        logoRequest: { tmpFile: uploadResult.data.response.data },
+      });
+
+      const { data, status } = await ownerApi.rooms.deleteRoomLogo({
+        id: roomId,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBe(roomId);
+      expect(data.response!.logo?.original).toBeFalsy();
+    });
+  });
+
+  test.describe("Room from template", () => {
+    test("POST /files/rooms/fromtemplate - Owner creates a room from template", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Template Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      const { data, status } = await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId,
+          title: "Room From Template",
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+
+      const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+      expect(roomId).toBeGreaterThan(0);
+
+      const { data: roomInfo, status: roomStatus } =
+        await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(roomStatus).toBe(200);
+      expect(roomInfo.response!.title).toBe("Room From Template");
+      expect(roomInfo.response!.roomType).toBe(RoomType.CustomRoom);
+    });
+
+    test("POST /files/rooms/fromtemplate - Owner creates VDR from template and inherits settings", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest VDR Source",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+          denyDownload: true,
+          lifetime: {
+            deletePermanently: true,
+            period: 0,
+            value: 30,
+            enabled: true,
+          },
+          watermark: {
+            enabled: true,
+            additions: 1,
+            text: "Confidential",
+            rotate: 0,
+            imageScale: 100,
+          },
+        },
+      });
+
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest VDR Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId,
+          title: "VDR From Template",
+        },
+      });
+
+      const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+      const { data: roomInfo } = await ownerApi.rooms.getRoomInfo({
+        id: roomId,
+      });
+
+      expect(roomInfo.response!.title).toBe("VDR From Template");
+      expect(roomInfo.response!.roomType).toBe(RoomType.VirtualDataRoom);
+      // indexing and denyDownload are inherited; lifetime and watermark are not (by design)
+      expect(roomInfo.response!.indexing).toBe(true);
+      expect(roomInfo.response!.denyDownload).toBe(true);
+    });
+
+    test("GET /files/rooms/status - Owner gets room creating status after creating from template", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Template Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId,
+          title: "Room From Template",
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomCreatingStatus();
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+    });
+  });
+
+  test.describe("Room index export", () => {
+    test("POST /files/rooms/:id/indexexport - Owner starts and gets index export", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Room",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await test.step("POST /files/rooms/:id/indexexport - start export", async () => {
+        const { data, status } = await ownerApi.rooms.startRoomIndexExport({
+          id: roomId,
+        });
+
+        expect(status).toBe(200);
+        expect(data.response).toBeDefined();
+        expect(data.response!.id).toBeDefined();
+        expect(data.response!.error).toBeFalsy();
+      });
+
+      await test.step("GET /files/rooms/indexexport - get export status", async () => {
+        const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+
+        expect(status).toBe(200);
+        expect(data.response).toBeDefined();
+        expect(data.response!.id).toBeDefined();
+      });
+
+      await test.step("DELETE /files/rooms/indexexport - terminate export", async () => {
+        const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+
+        expect(status).toBe(200);
+      });
+    });
+  });
+
+  // Could not trigger MarkAsNew via API - new items list is always empty. Contract test only.
+  test.describe("Room new items", () => {
+    test("GET /files/rooms/:id/newitems - Owner gets new items list for a room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest New Items Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getNewRoomItems({
+        id: roomData.response!.id!,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(Array.isArray(data.response)).toBe(true);
+    });
+  });
+
+  test.describe("Room reorder", () => {
+    test("PUT /files/rooms/:id/reorder - Owner reorders file indexes inside an empty VDR room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Empty Room",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.reorderRoom({
+        id: roomId,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBe(roomId);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Owner reorders file indexes inside a VDR room with folders", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Room With Content",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      const { data: folderC } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder C" },
+      });
+
+      // Manually set non-sequential indexes with gaps
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderA.response!.id!,
+        orderRequestDto: { order: 10 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderB.response!.id!,
+        orderRequestDto: { order: 50 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderC.response!.id!,
+        orderRequestDto: { order: 30 },
+      });
+
+      const { data: contentBefore } =
+        await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+      const ordersBefore = contentBefore.response!.folders!.map((f) =>
+        Number(f.order),
+      );
+      // Verify indexes have gaps (not sequential 1,2,3)
+      expect(ordersBefore).not.toEqual([1, 2, 3]);
+
+      const { data, status } = await ownerApi.rooms.reorderRoom({
+        id: roomId,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBe(roomId);
+
+      const { data: contentAfter } = await ownerApi.folders.getFolderByFolderId(
+        { folderId: roomId },
+      );
+      // Reorder removes gaps
+      expect(
+        contentAfter.response!.folders!.map((f) => [f.title, Number(f.order)]),
+      ).toEqual([
+        ["Folder A", 1],
+        ["Folder C", 2],
+        ["Folder B", 3],
+      ]);
+    });
+  });
+
+  test.describe("Room invitations", () => {
+    test("POST /files/rooms/:id/resend - Owner resends email invitations", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Resend Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Editing }],
+          notify: false,
+        },
+      });
+
+      const { status } = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: {
+          usersIds: [userId],
+          resendAll: false,
+        },
+      });
+
+      expect(status).toBe(200);
+    });
+
+    test("POST /files/rooms/:id/resend - Resend to user not in room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Resend Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      // Batch operation - non-member IDs are silently skipped (by design)
+      const { status } = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: {
+          usersIds: [userId],
+          resendAll: false,
+        },
+      });
+
+      expect(status).toBe(200);
     });
   });
 
