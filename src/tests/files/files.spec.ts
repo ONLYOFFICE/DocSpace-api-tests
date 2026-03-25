@@ -554,7 +554,7 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
   });
 
   test.fail(
-    "BUG XXXX: PUT /files/file/:fileId - Returns 403 instead of 404 for non-existent file",
+    "BUG 80774: PUT /files/file/:fileId - Returns 403 instead of 404 for non-existent file",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -590,7 +590,7 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
   });
 
   test.fail(
-    "BUG XXXX: PUT /files/file/:fileId - Empty title returns 200 instead of 400",
+    "BUG 80775: PUT /files/file/:fileId - Empty title returns 200 instead of 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: created } = await ownerApi.files.createFileInMyDocuments({
@@ -610,7 +610,7 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
   );
 
   test.fail(
-    "BUG XXXX: PUT /files/file/:fileId - Whitespace-only title returns 200 instead of 400",
+    "BUG 80775: PUT /files/file/:fileId - Whitespace-only title returns 200 instead of 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: created } = await ownerApi.files.createFileInMyDocuments({
@@ -651,7 +651,7 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
   });
 
   test.fail(
-    "BUG XXXX: PUT /files/file/:fileId - lastVersion equal to current version returns 500 instead of 400",
+    "BUG 80773: PUT /files/file/:fileId - lastVersion equal to current version returns 500 instead of 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: created } = await ownerApi.files.createFileInMyDocuments({
@@ -820,4 +820,142 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     expect(operation.processed).toBe("0");
     expect(operation.error).toBe("The required file was not found");
   });
+});
+
+test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
+  test("PUT /files/file/:fileId/lock - Owner locks a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Lock File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.id).toBe(fileId);
+    expect(data.response?.locked).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/lock - Owner unlocks a previously locked file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Unlock File" },
+    });
+    const fileId = created.response!.id!;
+
+    await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    const { data, status } = await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: false },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.id).toBe(fileId);
+    // After unlock, locked field is absent from response (API omits false values)
+    expect(data.response?.locked).toBeFalsy();
+  });
+
+  test("PUT /files/file/:fileId/lock - Owner locks a file in a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Lock",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Lock Room File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.id).toBe(fileId);
+    expect(data.response?.locked).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/lock - Locking an already locked file is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Idempotent Lock File" },
+    });
+    const fileId = created.response!.id!;
+
+    await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    const { data, status } = await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.id).toBe(fileId);
+    expect(data.response?.locked).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/lock - Unlocking an already unlocked file is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Idempotent Unlock File" },
+    });
+    const fileId = created.response!.id!;
+
+    const { data, status } = await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: false },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.id).toBe(fileId);
+    expect(data.response?.locked).toBeFalsy();
+  });
+
+  // BUG: non-existent file returns 403 with stack trace instead of 404
+  test.fail(
+    "BUG XXXX: PUT /files/file/:fileId/lock - Non-existent file returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.files.lockFile({
+        fileId: 999999999,
+        lockFileParameters: { lockFile: true },
+      });
+
+      // Bug: API returns 403 with stack trace instead of 404
+      expect(status).toBe(404);
+    },
+  );
 });
