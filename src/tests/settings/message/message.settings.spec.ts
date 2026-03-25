@@ -146,7 +146,7 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
 
 test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", () => {
   test.fail(
-    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - Owner sends join invite mail",
+    "BUG 80727: POST /api/2.0/settings/sendjoininvite - Owner sends join invite mail",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { email } = apiSdk.faker.generateUser();
@@ -164,7 +164,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - Owner sends join invite mail with culture specified",
+    "BUG 80727: POST /api/2.0/settings/sendjoininvite - Owner sends join invite mail with culture specified",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { email } = apiSdk.faker.generateUser();
@@ -182,7 +182,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", (
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - DocSpaceAdmin sends join invite mail",
+    "BUG 80727: POST /api/2.0/settings/sendjoininvite - DocSpaceAdmin sends join invite mail",
     async ({ apiSdk }) => {
       const { api: adminApi } = await apiSdk.addAuthenticatedMember(
         "owner",

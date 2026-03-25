@@ -35,17 +35,15 @@ test.describe("AI Messages - Export", () => {
     });
     const agentRoomId = agentData.response!.id!;
 
-    ownerApi.chat
-      .startNewChat({
+    await ownerApi.chat.startNewChat(
+      {
         roomId: agentRoomId,
         startNewChatBody: {
           message: "What is 2+2? Answer in one word.",
         },
-      })
-      .catch(() => {});
-
-    // Wait for the AI to generate a response
-    await new Promise((r) => setTimeout(r, 5000));
+      },
+      { responseType: "stream" },
+    );
 
     const { data: chatsData } = await ownerApi.chat.getChats({
       roomId: agentRoomId,
@@ -104,17 +102,15 @@ test.describe("AI Messages - Export", () => {
     });
     const agentRoomId = agentData.response!.id!;
 
-    adminApi.chat
-      .startNewChat({
+    await adminApi.chat.startNewChat(
+      {
         roomId: agentRoomId,
         startNewChatBody: {
           message: "What is 2+2? Answer in one word.",
         },
-      })
-      .catch(() => {});
-
-    // Wait for the AI to generate a response
-    await new Promise((r) => setTimeout(r, 5000));
+      },
+      { responseType: "stream" },
+    );
 
     const { data: chatsData } = await adminApi.chat.getChats({
       roomId: agentRoomId,
@@ -155,7 +151,10 @@ test.describe("AI Messages - Export", () => {
     });
     const providerId = providerData.response!.id!;
 
-    const { data: agentData } = await ownerApi.agents.createAgent({
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data: agentData } = await roomAdminApi.agents.createAgent({
       createAgentRequestDto: {
         title: "Export Test Agent",
         color: "FF5733",
@@ -170,20 +169,15 @@ test.describe("AI Messages - Export", () => {
     });
     const agentRoomId = agentData.response!.id!;
 
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
-
-    roomAdminApi.chat
-      .startNewChat({
+    await roomAdminApi.chat.startNewChat(
+      {
         roomId: agentRoomId,
         startNewChatBody: {
           message: "What is 2+2? Answer in one word.",
         },
-      })
-      .catch(() => {});
-
-    // Wait for the AI to generate a response
-    await new Promise((r) => setTimeout(r, 5000));
+      },
+      { responseType: "stream" },
+    );
 
     const { data: chatsData } = await roomAdminApi.chat.getChats({
       roomId: agentRoomId,
@@ -251,17 +245,15 @@ test.describe("AI Messages - Export", () => {
       },
     });
 
-    userApi.chat
-      .startNewChat({
+    await userApi.chat.startNewChat(
+      {
         roomId: agentRoomId,
         startNewChatBody: {
           message: "What is 2+2? Answer in one word.",
         },
-      })
-      .catch(() => {});
-
-    // Wait for the AI to generate a response
-    await new Promise((r) => setTimeout(r, 5000));
+      },
+      { responseType: "stream" },
+    );
 
     const { data: chatsData } = await userApi.chat.getChats({
       roomId: agentRoomId,
