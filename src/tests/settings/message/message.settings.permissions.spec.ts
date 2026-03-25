@@ -72,7 +72,7 @@ test.describe("POST /api/2.0/settings/messages/enable - access control", () => {
 
 test.describe("POST /api/2.0/settings/sendjoininvite - access control", () => {
   test.fail(
-    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - anonymous cannot send join invite mail",
+    "BUG 80727: POST /api/2.0/settings/sendjoininvite - anonymous cannot send join invite mail",
     async ({ apiSdk }) => {
       const anonApi = apiSdk.forAnonymous();
       const { email } = apiSdk.faker.generateUser();
@@ -86,7 +86,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - access control", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - RoomAdmin cannot send join invite mail",
+    "BUG 80727: POST /api/2.0/settings/sendjoininvite - RoomAdmin cannot send join invite mail",
     async ({ apiSdk }) => {
       const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
         "owner",
@@ -106,7 +106,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - access control", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - User cannot send join invite mail",
+    "BUG 80727: POST /api/2.0/settings/sendjoininvite - User cannot send join invite mail",
     async ({ apiSdk }) => {
       const { api: userApi } = await apiSdk.addAuthenticatedMember(
         "owner",
@@ -126,7 +126,7 @@ test.describe("POST /api/2.0/settings/sendjoininvite - access control", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/settings/sendjoininvite - Guest cannot send join invite mail",
+    "BUG 80727: POST /api/2.0/settings/sendjoininvite - Guest cannot send join invite mail",
     async ({ apiSdk }) => {
       const { api: guestApi } = await apiSdk.addAuthenticatedMember(
         "owner",
