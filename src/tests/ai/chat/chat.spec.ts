@@ -753,3 +753,211 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Rename AI chat", () => {
     expect(data.response!.createdBy!.displayName).toBe(userDisplayName);
   });
 });
+
+test.describe("DELETE /api/2.0/ai/chats/:chatId - Delete AI chat", () => {
+  test("DELETE /api/2.0/ai/chats/:chatId - Owner deletes a chat", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: "What is 2+2? Answer in one word.",
+        },
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
+
+    const { status } = await ownerApi.chat.deleteChat({ chatId });
+
+    expect(status).toBe(204);
+  });
+
+  test("DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin deletes a chat", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: agentData } = await adminApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const startResponse = await adminApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: "What is 2+2? Answer in one word.",
+        },
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
+
+    const { status } = await adminApi.chat.deleteChat({ chatId });
+
+    expect(status).toBe(204);
+  });
+
+  test("DELETE /api/2.0/ai/chats/:chatId - RoomAdmin deletes a chat", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: agentData } = await roomAdminApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const startResponse = await roomAdminApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: "What is 2+2? Answer in one word.",
+        },
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
+
+    const { status } = await roomAdminApi.chat.deleteChat({ chatId });
+
+    expect(status).toBe(204);
+  });
+
+  test("DELETE /api/2.0/ai/chats/:chatId - User deletes a chat", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: agentRoomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+
+    const startResponse = await userApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: "What is 2+2? Answer in one word.",
+        },
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
+
+    const { status } = await userApi.chat.deleteChat({ chatId });
+
+    expect(status).toBe(204);
+  });
+});
