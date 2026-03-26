@@ -204,7 +204,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     expect(data.response!.title).toBe("Autotest Admin Updated File.docx");
   });
 
-  // Note: rename requires file ownership or DocSpace admin role — room-level access is not sufficient
+  // Note: rename requires file ownership or DocSpace admin role - room-level access is not sufficient
   test("PUT /files/file/:fileId - Room admin with ReadWrite access cannot rename a file they don't own", async ({
     apiSdk,
   }) => {
@@ -952,14 +952,14 @@ test.describe("File version access - access control", () => {
       // Step 4: Authenticate the viewer
       const viewerApi = await apiSdk.authenticateMember(userData, "User");
 
-      // Step 5: Viewer opens the file without version — should succeed
+      // Step 5: Viewer opens the file without version - should succeed
       const { status: currentStatus } = await viewerApi.files.openEditFile({
         fileId,
         view: true,
       });
       expect(currentStatus).toBe(200);
 
-      // Step 5: Viewer opens the file with version=1 — should be denied
+      // Step 5: Viewer opens the file with version=1 - should be denied
       // Bug: server returns 200 and serves the version content to Viewer
       const { status: versionStatus } = await viewerApi.files.openEditFile({
         fileId,
@@ -1774,6 +1774,168 @@ test.describe("PUT /files/:fileId/order permissions", () => {
       fileId,
       orderRequestDto: { order: 1 },
     });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("POST /files/file/:fileId/recent permissions", () => {
+  test("POST /files/file/:fileId/recent - Owner can add their file to recent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Recent Owner File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent Owner File.docx");
+  });
+
+  test("POST /files/file/:fileId/recent - DocSpace admin can add their file to recent", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: fileData } = await adminApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Recent Admin File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await adminApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent Admin File.docx");
+  });
+
+  test("POST /files/file/:fileId/recent - Room admin can add their file to recent", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
+      {
+        createFileJsonElement: { title: "Autotest Recent Room Admin File" },
+      },
+    );
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await roomAdminApi.files.addFileToRecent({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent Room Admin File.docx");
+  });
+
+  test("POST /files/file/:fileId/recent - Regular user can add their file to recent", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: fileData } = await userApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Recent User File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await userApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent User File.docx");
+  });
+
+  test.fail(
+    "BUG XXXXX: POST /files/file/:fileId/recent - User with ReadWrite access cannot add room file to recent",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: userApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Recent Shared Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ReadWrite }],
+          notify: false,
+        },
+      });
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Recent Shared File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await userApi.files.addFileToRecent({ fileId });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response!.id).toBe(fileId);
+      expect(data.response!.title).toBe("Autotest Recent Shared File.docx");
+    },
+  );
+
+  test("POST /files/file/:fileId/recent - User cannot add another user's private file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Recent Private File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await userApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /files/file/:fileId/recent - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Recent Anon File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.addFileToRecent({ fileId });
 
     expect(status).toBe(401);
   });
