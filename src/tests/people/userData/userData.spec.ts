@@ -518,6 +518,186 @@ test.describe("PUT /people/reassign/terminate - Terminate data reassignment", ()
 });
 
 test.describe("POST /people/remove/start - Start data removal", () => {
+  test.fail(
+    "BUG 80714: POST /people/remove/start - Room ownership transfers to Owner after deactivated DocSpaceAdmin data removal",
+    async ({ apiSdk }) => {
+      // Create DocSpaceAdmin
+      const { data: adminMember, userData: adminUserData } =
+        await apiSdk.addMember("owner", "DocSpaceAdmin");
+      const adminId = adminMember.response!.id!;
+      const adminDisplayName = adminMember.response!.displayName!;
+
+      // Authenticate DocSpaceAdmin so they can create a room
+      const adminApi = await apiSdk.authenticateMember(
+        adminUserData,
+        "DocSpaceAdmin",
+      );
+
+      // DocSpaceAdmin creates a room
+      const { data: roomData } = await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Remove Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // Re-authenticate owner
+      const ownerApi = await apiSdk.authenticateOwner();
+      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+      const ownerId = ownerProfile.response!.id!;
+      const ownerDisplayName = ownerProfile.response!.displayName!;
+
+      // Block (deactivate) the admin
+      await ownerApi.userStatus.updateUserStatus({
+        status: EmployeeStatus.Terminated,
+        updateMembersRequestDto: {
+          userIds: [adminId],
+        },
+      });
+
+      // Intermediate check: room owner is still the admin after blocking
+      await test.step("verify room is still owned by admin after blocking", async () => {
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          filterValue: "Autotest Remove Owner Room",
+        });
+        expect(status).toBe(200);
+        const room = (data.response!.folders as any[]).find(
+          (f) => f.id === roomId,
+        );
+        expect(room).toBeDefined();
+        expect(room.ownedBy.id).toBe(adminId);
+        expect(room.ownedBy.displayName).toBe(adminDisplayName);
+      });
+
+      // Start data removal for the deactivated admin
+      await test.step("start data removal", async () => {
+        const { data } = await ownerApi.userData.startRemove({
+          terminateRequestDto: {
+            userId: adminId,
+          },
+        });
+        expect(data.statusCode).toBe(200);
+        expect(data.response?.status).toBe(1);
+      });
+
+      // Wait for removal to complete
+      await expect(async () => {
+        const { data } = await ownerApi.userData.getRemoveProgress({
+          userid: adminId,
+        });
+        expect(data.response?.isCompleted).toBe(true);
+      }).toPass({
+        intervals: [1_000, 2_000, 5_000],
+        timeout: 30_000,
+      });
+
+      // After removal: room ownership should transfer to the Owner
+      await test.step("verify room ownership transferred to owner after removal", async () => {
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          filterValue: "Autotest Remove Owner Room",
+        });
+        expect(status).toBe(200);
+        const room = (data.response!.folders as any[]).find(
+          (f) => f.id === roomId,
+        );
+        expect(room).toBeDefined();
+        expect(room.ownedBy.id).toBe(ownerId);
+        expect(room.ownedBy.displayName).toBe(ownerDisplayName);
+      });
+    },
+  );
+
+  test.fail(
+    "BUG 80714: POST /people/remove/start - Room ownership transfers to Owner after deactivated RoomAdmin data removal",
+    async ({ apiSdk }) => {
+      // Create RoomAdmin
+      const { data: roomAdminMember, userData: roomAdminUserData } =
+        await apiSdk.addMember("owner", "RoomAdmin");
+      const roomAdminId = roomAdminMember.response!.id!;
+      const roomAdminDisplayName = roomAdminMember.response!.displayName!;
+
+      // Authenticate RoomAdmin so they can create a room
+      const roomAdminApi = await apiSdk.authenticateMember(
+        roomAdminUserData,
+        "RoomAdmin",
+      );
+
+      // RoomAdmin creates a room
+      const { data: roomData } = await roomAdminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Remove RoomAdmin Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // Re-authenticate owner
+      const ownerApi = await apiSdk.authenticateOwner();
+      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+      const ownerId = ownerProfile.response!.id!;
+      const ownerDisplayName = ownerProfile.response!.displayName!;
+
+      // Block (deactivate) the RoomAdmin
+      await ownerApi.userStatus.updateUserStatus({
+        status: EmployeeStatus.Terminated,
+        updateMembersRequestDto: {
+          userIds: [roomAdminId],
+        },
+      });
+
+      // Intermediate check: room owner is still the RoomAdmin after blocking
+      await test.step("verify room is still owned by RoomAdmin after blocking", async () => {
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          filterValue: "Autotest Remove RoomAdmin Owner Room",
+        });
+        expect(status).toBe(200);
+        const room = (data.response!.folders as any[]).find(
+          (f) => f.id === roomId,
+        );
+        expect(room).toBeDefined();
+        expect(room.ownedBy.id).toBe(roomAdminId);
+        expect(room.ownedBy.displayName).toBe(roomAdminDisplayName);
+      });
+
+      // Start data removal for the deactivated RoomAdmin
+      await test.step("start data removal", async () => {
+        const { data } = await ownerApi.userData.startRemove({
+          terminateRequestDto: {
+            userId: roomAdminId,
+          },
+        });
+        expect(data.statusCode).toBe(200);
+        expect(data.response?.status).toBe(1);
+      });
+
+      // Wait for removal to complete
+      await expect(async () => {
+        const { data } = await ownerApi.userData.getRemoveProgress({
+          userid: roomAdminId,
+        });
+        expect(data.response?.isCompleted).toBe(true);
+      }).toPass({
+        intervals: [1_000, 2_000, 5_000],
+        timeout: 30_000,
+      });
+
+      // After removal: room ownership should transfer to the Owner
+      await test.step("verify room ownership transferred to owner after removal", async () => {
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          filterValue: "Autotest Remove RoomAdmin Owner Room",
+        });
+        expect(status).toBe(200);
+        const room = (data.response!.folders as any[]).find(
+          (f) => f.id === roomId,
+        );
+        expect(room).toBeDefined();
+        expect(room.ownedBy.id).toBe(ownerId);
+        expect(room.ownedBy.displayName).toBe(ownerDisplayName);
+      });
+    },
+  );
+
   test("POST /people/remove/start - Owner removes deactivated RoomAdmin data", async ({
     apiSdk,
   }) => {
