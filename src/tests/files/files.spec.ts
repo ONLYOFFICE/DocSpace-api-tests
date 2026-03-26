@@ -1,6 +1,11 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
+import {
+  RoomType,
+  FileShare,
+  SubjectType,
+  LinkType,
+} from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 test.describe("POST /files/@my/file", () => {
@@ -1345,7 +1350,7 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
   });
 
   test.fail(
-    "BUG XXXXX: POST /files/file/:fileId/recent - User with ReadWrite access cannot add room file to recent",
+    "BUG 80794: POST /files/file/:fileId/recent - User with ReadWrite access cannot add room file to recent",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { api: userApi, data: memberData } =
@@ -1384,7 +1389,7 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /files/file/:fileId/recent - Non-existent file returns 403 instead of 404",
+    "BUG 80795: POST /files/file/:fileId/recent - Non-existent file returns 403 instead of 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1395,4 +1400,291 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
       expect(status).toBe(404);
     },
   );
+});
+
+test.describe("DELETE /files/recent - Delete files from Recent section", () => {
+  test("DELETE /files/recent - Owner removes a file from Recent section", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Delete Recent File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.addFileToRecent({ fileId });
+
+    const { status } = await ownerApi.files.deleteRecent({
+      baseBatchRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(204);
+
+    const { data: recentData } = await ownerApi.folders.getRecentFolder();
+    const recentFiles = recentData.response?.files ?? [];
+    const found = recentFiles.some((f: any) => f.id === fileId);
+    expect(found).toBe(false);
+  });
+
+  test("DELETE /files/recent - Owner removes multiple files from Recent in one request", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: file1Data } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Delete Recent File 1" },
+    });
+    const fileId1 = file1Data.response!.id!;
+
+    const { data: file2Data } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Delete Recent File 2" },
+    });
+    const fileId2 = file2Data.response!.id!;
+
+    await ownerApi.files.addFileToRecent({ fileId: fileId1 });
+    await ownerApi.files.addFileToRecent({ fileId: fileId2 });
+
+    const { status } = await ownerApi.files.deleteRecent({
+      baseBatchRequestDto: { fileIds: [fileId1 as any, fileId2 as any] },
+    });
+
+    expect(status).toBe(204);
+
+    const { data: recentData } = await ownerApi.folders.getRecentFolder();
+    const recentFiles = recentData.response?.files ?? [];
+    const found1 = recentFiles.some((f: any) => f.id === fileId1);
+    const found2 = recentFiles.some((f: any) => f.id === fileId2);
+    expect(found1).toBe(false);
+    expect(found2).toBe(false);
+  });
+
+  test("DELETE /files/recent - Removing a file not in Recent is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Delete Recent Not Added" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await ownerApi.files.deleteRecent({
+      baseBatchRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(204);
+  });
+});
+
+test.describe("GET /files/file/:id/link - Get primary external link", () => {
+  test("GET /files/file/:id/link - Owner gets primary external link for a file in My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest External Link File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
+    expect(data.response!.access).toBe(FileShare.Read);
+    expect(data.response!.canEditInternal).toBe(true);
+    expect(data.response!.canEditDenyDownload).toBe(true);
+    expect(data.response!.canEditExpirationDate).toBe(true);
+    expect(data.response!.sharedLink).toBeDefined();
+    expect(data.response!.sharedLink!.primary).toBe(true);
+    expect(data.response!.sharedLink!.linkType).toBe(LinkType.External);
+    expect(data.response!.sharedLink!.shareLink).toBeTruthy();
+    expect(data.response!.sharedLink!.id).toBeDefined();
+  });
+
+  test("GET /files/file/:id/link - File in a room also has a primary external link", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For External Link",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Room File External Link" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
+    expect(data.response!.sharedLink!.primary).toBe(true);
+    expect(data.response!.sharedLink!.linkType).toBe(LinkType.External);
+    expect(data.response!.sharedLink!.shareLink).toBeTruthy();
+  });
+
+  test("GET /files/file/:id/link - Repeated calls return the same link ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest External Link Idempotent" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: data1 } = await ownerApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
+    const { data: data2 } = await ownerApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
+
+    expect(data1.response!.sharedLink!.id).toBe(data2.response!.sharedLink!.id);
+  });
+});
+
+test.describe("GET /files/file/:id/links - Get file links", () => {
+  test("GET /files/file/:id/links - New file in My Documents has no custom external links", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest File Links" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFileLinks({ id: fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toEqual([]);
+    expect(data.count).toBe(0);
+  });
+
+  test("GET /files/file/:id/links - New file in a room also has no custom external links", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For File Links",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Room File Links" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFileLinks({ id: fileId });
+
+    expect(status).toBe(200);
+    expect(data.response).toEqual([]);
+    expect(data.count).toBe(0);
+  });
+
+  test("GET /files/file/:id/links - count and startIndex parameters return 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest File Links Pagination" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFileLinks({
+      id: fileId,
+      count: 10,
+      startIndex: 0,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toEqual([]);
+  });
+
+  test("GET /files/file/:id/links - File with a created external link returns it in the response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest File With External Link" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        primary: false,
+        access: FileShare.Read,
+        title: "Test External Link",
+      },
+    });
+
+    const { data, status } = await ownerApi.files.getFileLinks({ id: fileId });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThanOrEqual(1);
+    expect(data.count).toBe(data.response!.length);
+  });
+
+  test("GET /files/file/:id/links - External link item has correct structure", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest File Link Structure" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        primary: false,
+        access: FileShare.Read,
+        title: "Test External Link Structure",
+      },
+    });
+
+    const { data, status } = await ownerApi.files.getFileLinks({ id: fileId });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThanOrEqual(1);
+
+    const link = data.response![0];
+    expect(link.subjectType).toBe(SubjectType.ExternalLink);
+    expect(link.access).toBe(FileShare.Read);
+    expect(link.isLocked).toBe(false);
+    expect(link.sharedLink).toBeDefined();
+    expect(link.sharedLink!.id).toBeDefined();
+    expect(link.sharedLink!.title).toBe("Test External Link Structure");
+    expect(link.sharedLink!.shareLink).toBeTruthy();
+    expect(link.sharedLink!.linkType).toBe(LinkType.External);
+    expect(link.sharedLink!.primary).toBe(false);
+    expect(link.sharedLink!.internal).toBe(false);
+    expect(link.sharedLink!.denyDownload).toBe(false);
+    expect(link.sharedLink!.isExpired).toBe(false);
+  });
 });
