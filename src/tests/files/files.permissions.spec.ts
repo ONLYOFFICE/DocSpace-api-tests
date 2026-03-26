@@ -2063,6 +2063,192 @@ test.describe("DELETE /files/recent permissions", () => {
   });
 });
 
+test.describe("PUT /files/file/:id/links permissions", () => {
+  test("PUT /files/file/:id/links - Owner can set external link", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Set Link Owner" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        primary: false,
+        access: FileShare.Read,
+        title: "Owner Link",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.shareLink).toBeTruthy();
+  });
+
+  test("PUT /files/file/:id/links - DocSpace admin can set external link for their own file", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: fileData } = await adminApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Set Link Admin" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await adminApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        primary: false,
+        access: FileShare.Read,
+        title: "Admin Link",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.shareLink).toBeTruthy();
+  });
+
+  test("PUT /files/file/:id/links - Room admin can set external link for their own file", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
+      {
+        createFileJsonElement: { title: "Autotest Set Link Room Admin" },
+      },
+    );
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await roomAdminApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        primary: false,
+        access: FileShare.Read,
+        title: "Room Admin Link",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.shareLink).toBeTruthy();
+  });
+
+  test("PUT /files/file/:id/links - Regular user can set external link for their own file", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: fileData } = await userApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Set Link User" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await userApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        primary: false,
+        access: FileShare.Read,
+        title: "User Link",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.shareLink).toBeTruthy();
+  });
+
+  test("PUT /files/file/:id/links - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Set Link Anon" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        primary: false,
+        access: FileShare.Read,
+        title: "Anon Link",
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /files/file/:id/links - User cannot set external link for another user's private file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Set Link Other User Private",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await userApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        primary: false,
+        access: FileShare.Read,
+        title: "Other User Link",
+      },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /files/file/:id/links - DocSpace admin cannot set external link for another user's private file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Set Link Admin Other Private",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await adminApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        primary: false,
+        access: FileShare.Read,
+        title: "Admin Other User Link",
+      },
+    });
+
+    expect(status).toBe(403);
+  });
+});
+
 test.describe("GET /files/file/:id/link permissions", () => {
   test("GET /files/file/:id/link - Owner can get primary external link", async ({
     apiSdk,
@@ -2315,5 +2501,197 @@ test.describe("GET /files/file/:id/links permissions", () => {
     expect(status).toBe(200);
     expect(data.count).toBe(0);
     expect(data.response).toEqual([]);
+  });
+});
+
+test.describe("GET /files/file/:fileId/history permissions", () => {
+  test("GET /files/file/:fileId/history - Owner can get file version history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Version History Owner" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFileVersionInfo({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThanOrEqual(1);
+    expect(data.response![0].version).toBe(1);
+  });
+
+  test("GET /files/file/:fileId/history - DocSpace admin can get version history for their own file", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: fileData } = await adminApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Version History Admin" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await adminApi.files.getFileVersionInfo({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("GET /files/file/:fileId/history - Room admin can get version history for their own file", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
+      {
+        createFileJsonElement: { title: "Autotest Version History Room Admin" },
+      },
+    );
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await roomAdminApi.files.getFileVersionInfo({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("GET /files/file/:fileId/history - Regular user can get version history for their own file", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: fileData } = await userApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Version History User" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await userApi.files.getFileVersionInfo({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("GET /files/file/:fileId/history - Unauthenticated user gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Version History Anon" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.getFileVersionInfo({ fileId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /files/file/:fileId/history - User gets 403 for another user's private file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Version History Other Private",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await userApi.files.getFileVersionInfo({ fileId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /files/file/:fileId/history - DocSpace admin gets 403 for a file created by another user", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Version History Admin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version History Admin Cross-User",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status } = await adminApi.files.getFileVersionInfo({
+      fileId,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /files/file/:fileId/history - Room manager gets 403 for a file created by another user in their room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Version History Manager",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version History Room File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.files.getFileVersionInfo({ fileId });
+
+    expect(status).toBe(403);
   });
 });
