@@ -1999,10 +1999,11 @@ test.describe("DELETE /files/recent permissions", () => {
       "RoomAdmin",
     );
 
-    const { data: fileData } =
-      await roomAdminApi.files.createFileInMyDocuments({
+    const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
+      {
         createFileJsonElement: { title: "Autotest Delete Recent Room Admin" },
-      });
+      },
+    );
     const fileId = fileData.response!.id!;
     await roomAdminApi.files.addFileToRecent({ fileId });
 
@@ -2073,8 +2074,9 @@ test.describe("GET /files/file/:id/link permissions", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } =
-      await ownerApi.files.getFilePrimaryExternalLink({ id: fileId });
+    const { data, status } = await ownerApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
 
     expect(status).toBe(200);
     expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
@@ -2094,8 +2096,9 @@ test.describe("GET /files/file/:id/link permissions", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } =
-      await adminApi.files.getFilePrimaryExternalLink({ id: fileId });
+    const { data, status } = await adminApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
 
     expect(status).toBe(200);
     expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
@@ -2110,10 +2113,11 @@ test.describe("GET /files/file/:id/link permissions", () => {
       "RoomAdmin",
     );
 
-    const { data: fileData } =
-      await roomAdminApi.files.createFileInMyDocuments({
+    const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
+      {
         createFileJsonElement: { title: "Autotest External Link Room Admin" },
-      });
+      },
+    );
     const fileId = fileData.response!.id!;
 
     const { data, status } =
@@ -2137,8 +2141,9 @@ test.describe("GET /files/file/:id/link permissions", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } =
-      await userApi.files.getFilePrimaryExternalLink({ id: fileId });
+    const { data, status } = await userApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
 
     expect(status).toBe(200);
     expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
@@ -2180,8 +2185,9 @@ test.describe("GET /files/file/:id/link permissions", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } =
-      await userApi.files.getFilePrimaryExternalLink({ id: fileId });
+    const { data, status } = await userApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
 
     expect(status).toBe(200);
     expect(data.count).toBe(0);
@@ -2235,10 +2241,11 @@ test.describe("GET /files/file/:id/links permissions", () => {
       "RoomAdmin",
     );
 
-    const { data: fileData } =
-      await roomAdminApi.files.createFileInMyDocuments({
+    const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
+      {
         createFileJsonElement: { title: "Autotest File Links Room Admin" },
-      });
+      },
+    );
     const fileId = fileData.response!.id!;
 
     const { data, status } = await roomAdminApi.files.getFileLinks({
