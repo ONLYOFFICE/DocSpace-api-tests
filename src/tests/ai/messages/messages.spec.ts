@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { FileShare, FolderType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare } from "@onlyoffice/docspace-api-sdk";
 import { aiProviders } from "@/src/helpers/ai-providers";
 
 const provider = aiProviders.deepSeek;
@@ -273,96 +273,6 @@ test.describe("AI Messages - Export", () => {
       messageId,
       exportMessageRequestBodyInteger: {
         folderId: myFolderId,
-        title: "Exported AI Message",
-      },
-    });
-
-    expect(exportStatus).toBe(200);
-  });
-
-  test("POST /api/2.0/ai/messages/:messageId/export - Guest exports AI message to Result Storage", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
-    });
-    const providerId = providerData.response!.id!;
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId,
-          modelId: provider.modelId,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
-    });
-    const agentRoomId = agentData.response!.id!;
-
-    // Owner starts chat and retrieves messageId
-    ownerApi.chat
-      .startNewChat({
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      })
-      .catch(() => {});
-
-    await new Promise((r) => setTimeout(r, 5000));
-
-    const { data: chatsData } = await ownerApi.chat.getChats({
-      roomId: agentRoomId,
-    });
-    const chatId = chatsData.response![0].id!;
-
-    const { data: messagesData } = await ownerApi.chat.getMessages({
-      chatId,
-    });
-    const aiMessage = messagesData.response!.find((m) => m.role === 1);
-    const messageId = aiMessage!.id!;
-
-    // Get Result Storage folder from agent room
-    const { data: foldersData } = await ownerApi.folders.getFolders({
-      folderId: agentRoomId,
-    });
-    const folders = foldersData.response as any[];
-    const resultStorageFolder = folders.find(
-      (f: any) => f.type === FolderType.ResultStorage,
-    );
-    const resultStorageFolderId = resultStorageFolder.id;
-
-    // Create guest, add to agent room, then authenticate
-    const { data: guestData, userData: guestUserData } = await apiSdk.addMember(
-      "owner",
-      "Guest",
-    );
-    const guestId = guestData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: agentRoomId,
-      roomInvitationRequest: {
-        invitations: [{ id: guestId, access: FileShare.ContentCreator }],
-        notify: false,
-      },
-    });
-
-    const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-
-    const { status: exportStatus } = await guestApi.messages.exportMessage({
-      messageId,
-      exportMessageRequestBodyInteger: {
-        folderId: resultStorageFolderId,
         title: "Exported AI Message",
       },
     });

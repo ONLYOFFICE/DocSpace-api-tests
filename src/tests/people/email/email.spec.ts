@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { faker } from "@faker-js/faker";
+import config from "@/config";
 
 test.describe("API email methods", () => {
   test("POST /people/email - Owner sent himself instructions on how to change his email address", async ({
@@ -23,6 +24,16 @@ test.describe("API email methods", () => {
     );
 
     await apiSdk.authenticateOwner(newEmail);
+
+    // Restore original email so portal cleanup can authenticate
+    const ownerApi2 = apiSdk.forRole("owner");
+    await ownerApi2.email.sendEmailChangeInstructions({
+      updateMemberRequestDto: {
+        userId: ownerId,
+        email: config.DOCSPACE_OWNER_EMAIL,
+      },
+    });
+    await apiSdk.authenticateOwner(config.DOCSPACE_OWNER_EMAIL);
   });
 
   test("POST /people/email - Owner sent DocSpace admin user instructions on how to change his email address", async ({

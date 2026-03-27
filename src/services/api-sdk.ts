@@ -352,7 +352,7 @@ export class ApiSDK {
     const formData = new FormData();
     if (!options?.skipFile) {
       formData.append(
-        "formCollection",
+        "File",
         new Blob([new Uint8Array(imageBuffer)], {
           type: options?.mimeType ?? "image/png",
         }),

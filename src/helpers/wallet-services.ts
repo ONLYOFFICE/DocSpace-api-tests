@@ -8,7 +8,6 @@ export const walletServices = {
   aiTools: TenantWalletService.AITools,
   backup: TenantWalletService.Backup,
   storage: TenantWalletService.Storage,
-  webSearch: TenantWalletService.WebSearch,
 } as const;
 
 export type WalletServiceName = keyof typeof walletServices;
@@ -17,7 +16,6 @@ export const walletServiceNames: Record<WalletServiceName, string> = {
   aiTools: "ai-tools",
   backup: "backup",
   storage: "storage",
-  webSearch: "web-search",
 };
 
 export async function topUpDeposit(
