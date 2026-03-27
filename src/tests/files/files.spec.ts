@@ -577,7 +577,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
   });
 
   // BUG 80745: copyFileAs with enableExternalExt: true returns 500 System.Exception - requires DS <-> DocSpace connectivity
-  test.fail(
+  test(
     "BUG 80745: POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -605,14 +605,14 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
 
       expect(data.statusCode).toBe(200);
       expect(data.response!.title).toBe("Autotest Copied File.md");
-      expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
+      expect((data as any).response.folderId).toBe(destFolderId);
     },
   );
 });
 
 test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
   // BUG 80743: saveaspdf returns 403 System.InvalidOperationException - requires DS <-> DocSpace connectivity
-  test.fail(
+  test(
     "BUG 80743: POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -1044,8 +1044,7 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     expect(operation.error).toBeFalsy();
   });
 
-  // Note: unlike GET and PUT, DELETE accepts non-existent fileId - operation is queued and fails asynchronously
-  test("DELETE /files/file/:fileId - Non-existent file returns 200 and queues an operation", async ({
+  test("DELETE /files/file/:fileId - Non-existent file returns 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1055,16 +1054,8 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
       _delete: { immediately: true },
     });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
-
-    const operation = await waitForOperation(ownerApi.operations);
-    // Operation finishes but with an error - file was not found asynchronously
-    expect(operation.finished).toBe(true);
-    expect(operation.progress).toBe(100);
-    expect(operation.processed).toBe("0");
-    expect(operation.error).toBe("The required file was not found");
+    expect(status).toBe(404);
+    expect((data as any).error?.message).toBe("The required file was not found");
   });
 });
 

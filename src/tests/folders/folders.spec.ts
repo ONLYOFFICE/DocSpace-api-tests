@@ -373,7 +373,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
   });
 
-  test.fail(
+  test(
     "BUG 79459: DELETE /api/2.0/files/folder/:folderId - Deleting already deleted folder returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -403,13 +403,11 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: 404 Folder not found
-      // Actual (BUG 79459): 200 with empty error field
       expect(status).toBe(404);
     },
   );
 
-  test.fail(
+  test(
     "BUG 79459: DELETE /api/2.0/files/folder/:folderId - Deleting non-existent folder returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -420,8 +418,6 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: 404 Folder not found
-      // Actual (BUG 79459): 200 with empty error field
       expect(status).toBe(404);
     },
   );

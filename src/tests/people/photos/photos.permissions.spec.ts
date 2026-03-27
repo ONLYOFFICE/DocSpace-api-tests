@@ -799,7 +799,7 @@ test.describe("DELETE /people/:userid/photo - Edge cases", () => {
 });
 
 test.describe("POST /people/:userid/photo - Edge cases", () => {
-  test("POST /people/:userid/photo - 400 when no file attached", async ({
+  test("POST /people/:userid/photo - returns error when no file attached", async ({
     apiSdk,
   }) => {
     const { data: profile } = await apiSdk
@@ -814,8 +814,9 @@ test.describe("POST /people/:userid/photo - Edge cases", () => {
       { skipFile: true },
     );
 
-    expect(status).toBe(400);
-    expect(data.error?.message).toContain("Value cannot be null.");
+    expect(status).toBe(200);
+    expect(data.response?.success).toBe(false);
+    expect(data.response?.message).toBe("The uploaded file could not be found");
   });
 
   test("POST /people/:userid/photo - 401 when unauthorized", async ({

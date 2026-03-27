@@ -919,312 +919,302 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
 });
 
 test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat", () => {
-  test.fail(
-    "BUG 80797: PUT /api/2.0/ai/chats/:chatId - DocSpaceAdmin cannot rename Owner's chat gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - DocSpaceAdmin cannot rename Owner's chat gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
         },
-      });
-      const providerId = providerData.response!.id!;
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
 
-      const { data: agentData } = await ownerApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: "Autotest Chat Agent",
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest"],
-          chatSettings: {
-            providerId,
-            modelId: provider.modelId,
-            prompt:
-              "You are a helpful test assistant. Keep answers very short.",
-          },
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: "What is 2+2? Answer in one word.",
         },
-      });
-      const agentRoomId = agentData.response!.id!;
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
 
-      const startResponse = await ownerApi.chat.startNewChat(
-        {
-          roomId: agentRoomId,
-          startNewChatBody: {
-            message: "What is 2+2? Answer in one word.",
-          },
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.chat.renameChat({
+      chatId,
+      renameChatBody: {
+        name: "Hacked Chat",
+      },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - RoomAdmin cannot rename Owner's chat gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
         },
-        { responseType: "stream", timeout: 5000 },
-      );
-      const { messageStart } = parseSseEvents(startResponse.data);
-      const chatId = messageStart!.data.chatId;
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
 
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
-
-      const { data, status } = await adminApi.chat.renameChat({
-        chatId,
-        renameChatBody: {
-          name: "Hacked Chat",
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: "What is 2+2? Answer in one word.",
         },
-      });
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
 
-  test.fail(
-    "BUG 80797: PUT /api/2.0/ai/chats/:chatId - RoomAdmin cannot rename Owner's chat gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+    const { data, status } = await roomAdminApi.chat.renameChat({
+      chatId,
+      renameChatBody: {
+        name: "Hacked Chat",
+      },
+    });
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - User cannot rename Owner's chat gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
         },
-      });
-      const providerId = providerData.response!.id!;
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
 
-      const { data: agentData } = await ownerApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: "Autotest Chat Agent",
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest"],
-          chatSettings: {
-            providerId,
-            modelId: provider.modelId,
-            prompt:
-              "You are a helpful test assistant. Keep answers very short.",
-          },
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: "What is 2+2? Answer in one word.",
         },
-      });
-      const agentRoomId = agentData.response!.id!;
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
 
-      const startResponse = await ownerApi.chat.startNewChat(
-        {
-          roomId: agentRoomId,
-          startNewChatBody: {
-            message: "What is 2+2? Answer in one word.",
-          },
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.chat.renameChat({
+      chatId,
+      renameChatBody: {
+        name: "Hacked Chat",
+      },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - Guest cannot rename Owner's chat gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
         },
-        { responseType: "stream", timeout: 5000 },
-      );
-      const { messageStart } = parseSseEvents(startResponse.data);
-      const chatId = messageStart!.data.chatId;
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
 
-      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "RoomAdmin",
-      );
-
-      const { data, status } = await roomAdminApi.chat.renameChat({
-        chatId,
-        renameChatBody: {
-          name: "Hacked Chat",
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: "What is 2+2? Answer in one word.",
         },
-      });
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    const { userData: guestUserData } = await apiSdk.addMember(
+      "owner",
+      "Guest",
+    );
+    const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
-  test.fail(
-    "BUG 80797: PUT /api/2.0/ai/chats/:chatId - User cannot rename Owner's chat gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+    const { data, status } = await guestApi.chat.renameChat({
+      chatId,
+      renameChatBody: {
+        name: "Hacked Chat",
+      },
+    });
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
-      });
-      const providerId = providerData.response!.id!;
-
-      const { data: agentData } = await ownerApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: "Autotest Chat Agent",
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest"],
-          chatSettings: {
-            providerId,
-            modelId: provider.modelId,
-            prompt:
-              "You are a helpful test assistant. Keep answers very short.",
-          },
-        },
-      });
-      const agentRoomId = agentData.response!.id!;
-
-      const startResponse = await ownerApi.chat.startNewChat(
-        {
-          roomId: agentRoomId,
-          startNewChatBody: {
-            message: "What is 2+2? Answer in one word.",
-          },
-        },
-        { responseType: "stream", timeout: 5000 },
-      );
-      const { messageStart } = parseSseEvents(startResponse.data);
-      const chatId = messageStart!.data.chatId;
-
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
-
-      const { data, status } = await userApi.chat.renameChat({
-        chatId,
-        renameChatBody: {
-          name: "Hacked Chat",
-        },
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
-
-  test.fail(
-    "BUG 80797: PUT /api/2.0/ai/chats/:chatId - Guest cannot rename Owner's chat gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
-      });
-      const providerId = providerData.response!.id!;
-
-      const { data: agentData } = await ownerApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: "Autotest Chat Agent",
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest"],
-          chatSettings: {
-            providerId,
-            modelId: provider.modelId,
-            prompt:
-              "You are a helpful test assistant. Keep answers very short.",
-          },
-        },
-      });
-      const agentRoomId = agentData.response!.id!;
-
-      const startResponse = await ownerApi.chat.startNewChat(
-        {
-          roomId: agentRoomId,
-          startNewChatBody: {
-            message: "What is 2+2? Answer in one word.",
-          },
-        },
-        { responseType: "stream", timeout: 5000 },
-      );
-      const { messageStart } = parseSseEvents(startResponse.data);
-      const chatId = messageStart!.data.chatId;
-
-      const { userData: guestUserData } = await apiSdk.addMember(
-        "owner",
-        "Guest",
-      );
-      const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-
-      const { data, status } = await guestApi.chat.renameChat({
-        chatId,
-        renameChatBody: {
-          name: "Hacked Chat",
-        },
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 });
 
 test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () => {
-  test.fail(
-    "BUG 80797: PUT /api/2.0/ai/chats/:chatId - DocSpaceAdmin with Viewer role cannot rename Owner's chat gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - DocSpaceAdmin with Viewer role cannot rename Owner's chat gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
         },
-      });
-      const providerId = providerData.response!.id!;
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
 
-      const { data: agentData } = await ownerApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: "Autotest Chat Agent",
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest"],
-          chatSettings: {
-            providerId,
-            modelId: provider.modelId,
-            prompt:
-              "You are a helpful test assistant. Keep answers very short.",
-          },
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: "What is 2+2? Answer in one word.",
         },
-      });
-      const agentRoomId = agentData.response!.id!;
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
 
-      const startResponse = await ownerApi.chat.startNewChat(
-        {
-          roomId: agentRoomId,
-          startNewChatBody: {
-            message: "What is 2+2? Answer in one word.",
-          },
-        },
-        { responseType: "stream", timeout: 5000 },
-      );
-      const { messageStart } = parseSseEvents(startResponse.data);
-      const chatId = messageStart!.data.chatId;
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
 
-      const { api: adminApi, data: adminData } =
-        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-      const adminId = adminData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: agentRoomId,
+      roomInvitationRequest: {
+        invitations: [{ id: adminId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: agentRoomId,
-        roomInvitationRequest: {
-          invitations: [{ id: adminId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    const { data, status } = await adminApi.chat.renameChat({
+      chatId,
+      renameChatBody: {
+        name: "Hacked Chat",
+      },
+    });
 
-      const { data, status } = await adminApi.chat.renameChat({
-        chatId,
-        renameChatBody: {
-          name: "Hacked Chat",
-        },
-      });
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
-
-  test.fail(
+  test(
     "BUG 80797: PUT /api/2.0/ai/chats/:chatId - RoomAdmin with Viewer role cannot rename Owner's chat gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -1290,7 +1280,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
     },
   );
 
-  test.fail(
+  test(
     "BUG 80797: PUT /api/2.0/ai/chats/:chatId - User with Viewer role cannot rename Owner's chat gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -1356,7 +1346,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
     },
   );
 
-  test.fail(
+  test(
     "BUG 80797: PUT /api/2.0/ai/chats/:chatId - Guest with Viewer role cannot rename Owner's chat gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -1459,7 +1449,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Validation", () => {
 });
 
 test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename another user's chat", () => {
-  test.fail(
+  test(
     "BUG 80797: PUT /api/2.0/ai/chats/:chatId - DocSpaceAdmin with ContentCreator role cannot rename Owner's chat gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -1525,7 +1515,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
     },
   );
 
-  test.fail(
+  test(
     "BUG 80797: PUT /api/2.0/ai/chats/:chatId - RoomAdmin with ContentCreator role cannot rename Owner's chat gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -1591,7 +1581,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
     },
   );
 
-  test.fail(
+  test(
     "BUG 80797: PUT /api/2.0/ai/chats/:chatId - User with ContentCreator role cannot rename Owner's chat gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -1686,8 +1676,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Validation", () => {
 });
 
 test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a chat", () => {
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin not in agent cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin not in agent cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1740,8 +1730,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
     },
   );
 
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - RoomAdmin not in agent cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - RoomAdmin not in agent cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1794,8 +1784,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
     },
   );
 
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - User not in agent cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - User not in agent cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1848,8 +1838,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
     },
   );
 
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - Guest not in agent cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - Guest not in agent cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1905,8 +1895,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
 });
 
 test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's chat", () => {
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin with Viewer role cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin with Viewer role cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1966,8 +1956,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
     },
   );
 
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - RoomAdmin with Viewer role cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - RoomAdmin with Viewer role cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2027,8 +2017,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
     },
   );
 
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - User with Viewer role cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - User with Viewer role cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2088,8 +2078,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
     },
   );
 
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - Guest with Viewer role cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - Guest with Viewer role cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2153,8 +2143,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
 });
 
 test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete owner's chat", () => {
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin with ContentCreator role cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin with ContentCreator role cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2214,8 +2204,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
     },
   );
 
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - RoomAdmin with ContentCreator role cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - RoomAdmin with ContentCreator role cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2275,8 +2265,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
     },
   );
 
-  test.fail(
-    "BUG : DELETE /api/2.0/ai/chats/:chatId - User with ContentCreator role cannot delete owner's chat",
+  test(
+    "BUG 80801: DELETE /api/2.0/ai/chats/:chatId - User with ContentCreator role cannot delete owner's chat",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 

@@ -664,17 +664,13 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
       },
     });
 
-    const { status } = await userApi.files.deleteFile({
+    const { data, status } = await userApi.files.deleteFile({
       fileId,
       _delete: { immediately: true },
     });
 
-    const operation = await waitForOperation(userApi.operations);
-
-    expect(status).toBe(200);
-    expect(operation.finished).toBe(true);
-    expect(operation.processed).toBe("0");
-    expect(operation.error).toBeTruthy();
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
   });
 
   test("DELETE /files/file/:fileId - Regular user with read-only access cannot delete a file", async ({
@@ -706,17 +702,13 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
       },
     });
 
-    const { status } = await userApi.files.deleteFile({
+    const { data, status } = await userApi.files.deleteFile({
       fileId,
       _delete: { immediately: true },
     });
 
-    const operation = await waitForOperation(userApi.operations);
-
-    expect(status).toBe(200);
-    expect(operation.finished).toBe(true);
-    expect(operation.processed).toBe("0");
-    expect(operation.error).toBeTruthy();
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
   });
 
   test("DELETE /files/file/:fileId - User without room access cannot delete a file", async ({
@@ -742,17 +734,13 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
       "User",
     );
 
-    const { status } = await userApi.files.deleteFile({
+    const { data, status } = await userApi.files.deleteFile({
       fileId,
       _delete: { immediately: true },
     });
 
-    const operation = await waitForOperation(userApi.operations);
-
-    expect(status).toBe(200);
-    expect(operation.finished).toBe(true);
-    expect(operation.processed).toBe("0");
-    expect(operation.error).toBeTruthy();
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
   });
 
   test("DELETE /files/file/:fileId - Guest cannot delete a file", async ({
@@ -784,17 +772,13 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
       },
     });
 
-    const { status } = await guestApi.files.deleteFile({
+    const { data, status } = await guestApi.files.deleteFile({
       fileId,
       _delete: { immediately: true },
     });
 
-    const operation = await waitForOperation(guestApi.operations);
-
-    expect(status).toBe(200);
-    expect(operation.finished).toBe(true);
-    expect(operation.processed).toBe("0");
-    expect(operation.error).toBeTruthy();
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
   });
 
   test("DELETE /files/file/:fileId - Unauthenticated user gets 401", async ({

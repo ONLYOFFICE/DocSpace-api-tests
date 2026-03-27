@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { createTestImageBuffer } from "@/src/utils/test-image";
 
-test.fail(
+test(
   "BUG 80569 POST /people/:userid/photo - Owner uploads avatar via SDK photos.uploadMemberPhoto",
   async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -16,7 +16,8 @@ test.fail(
 
     const { data, status } = await ownerApi.photos.uploadMemberPhoto({
       userid: userId,
-      formCollection: [file] as any,
+      file,
+      autosave: true,
     });
 
     expect(status).toBe(200);

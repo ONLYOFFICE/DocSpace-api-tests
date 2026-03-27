@@ -273,16 +273,13 @@ test.describe("DELETE /files/rooms/:id - access control", () => {
     });
     const roomId = createData.response!.id!;
 
-    const { status } = await userApi.rooms.deleteRoom({
+    const { data, status } = await userApi.rooms.deleteRoom({
       id: roomId,
       deleteRoomRequest: { deleteAfter: false },
     });
-    const operation = await waitForOperation(userApi.operations);
-    expect(status).toBe(200);
-    expect(operation.finished).toBe(true);
-    expect(operation.error).toContain(
-      "You don't have enough permission to delete the folder",
-    );
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
   });
 
   test("Guest cannot delete a room", async ({ apiSdk }) => {
@@ -300,16 +297,13 @@ test.describe("DELETE /files/rooms/:id - access control", () => {
     });
     const roomId = createData.response!.id!;
 
-    const { status } = await guestApi.rooms.deleteRoom({
+    const { data, status } = await guestApi.rooms.deleteRoom({
       id: roomId,
       deleteRoomRequest: { deleteAfter: false },
     });
-    const operation = await waitForOperation(guestApi.operations);
-    expect(status).toBe(200);
-    expect(operation.finished).toBe(true);
-    expect(operation.error).toContain(
-      "You don't have enough permission to delete the folder",
-    );
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
   });
 });
 

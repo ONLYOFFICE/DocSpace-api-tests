@@ -25,7 +25,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     expect(status).toBe(401);
   });
 
-  test.fail(
+  test(
     "BUG 79459: DELETE /api/2.0/files/folder/:folderId - RoomAdmin cannot delete owner's folder",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -53,14 +53,12 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: 403 Access denied
-      // Actual (BUG 79459): 200 with empty error field
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
     },
   );
 
-  test.fail(
+  test(
     "BUG 79459: DELETE /api/2.0/files/folder/:folderId - User cannot delete owner's folder",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -88,8 +86,6 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: 403 Access denied
-      // Actual (BUG 79459): 200 with empty error field
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
     },
@@ -335,7 +331,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     });
   });
 
-  test.fail(
+  test(
     "BUG 79459: DELETE /api/2.0/files/folder/:folderId - Read-only room member cannot delete owner's folder",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -371,14 +367,12 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: 403 Access denied
-      // Actual (BUG 79459): 200 with empty error field
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
     },
   );
 
-  test.fail(
+  test(
     "BUG 79459: DELETE /api/2.0/files/folder/:folderId - ContentCreator cannot delete another user's folder",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -414,14 +408,12 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: 403 Access denied
-      // Actual (BUG 79459): 200 with empty error field
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
     },
   );
 
-  test.fail(
+  test(
     "BUG 79459: DELETE /api/2.0/files/folder/:folderId - Guest cannot delete owner's folder",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -449,8 +441,6 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
         deleteFolder: { deleteAfter: true, immediately: true },
       });
 
-      // Expected: 403 Access denied
-      // Actual (BUG 79459): 200 with empty error field
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
     },

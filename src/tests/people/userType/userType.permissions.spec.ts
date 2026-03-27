@@ -126,12 +126,12 @@ test.describe("PUT /people/type/:type - Change user type (permissions)", () => {
 });
 
 test.describe("PUT /people/type - Start user type update (permissions)", () => {
-  test("starUserTypetUpdate should return 400 when userId is invalid.", async ({
+  test("startUserTypeUpdate should return 400 when userId is invalid.", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data } = await ownerApi.userType.starUserTypetUpdate({
+    const { data } = await ownerApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.Guest,
         userId: "00000000-0000-0000-0000-000000000000",
@@ -151,7 +151,7 @@ test.describe("PUT /people/type - Start user type update (permissions)", () => {
     );
     const userId = (userData as any).response.id as string;
 
-    const { data } = await roomAdminApi.userType.starUserTypetUpdate({
+    const { data } = await roomAdminApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.Guest,
         userId: userId,
@@ -183,7 +183,7 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
       "RoomAdmin",
     );
 
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.User,
         userId: adminId,
@@ -215,7 +215,7 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
       "User",
     );
 
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.User,
         userId: adminId,
@@ -245,7 +245,7 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
       "Guest",
     );
 
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.User,
         userId: adminId,
@@ -278,7 +278,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // DocSpace admin starts demotion User -> Guest
-    await adminApi.userType.starUserTypetUpdate({
+    await adminApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.Guest,
         userId: userId,
@@ -308,7 +308,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // Owner starts demotion User -> Guest
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.Guest,
         userId: userId,
@@ -341,7 +341,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // DocSpace admin starts demotion User -> Guest
-    await adminApi.userType.starUserTypetUpdate({
+    await adminApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.Guest,
         userId: userId,
@@ -371,7 +371,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // Owner starts demotion RoomAdmin -> User
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.User,
         userId: memberId,
@@ -404,7 +404,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // DocSpace admin starts demotion RoomAdmin -> User
-    await adminApi.userType.starUserTypetUpdate({
+    await adminApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.User,
         userId: memberId,
@@ -434,7 +434,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // Owner starts demotion RoomAdmin -> User
-    await ownerApi.userType.starUserTypetUpdate({
+    await ownerApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.User,
         userId: memberId,
@@ -469,7 +469,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update (permissi
     );
 
     // First DocSpace admin starts demotion RoomAdmin -> User
-    await admin1Api.userType.starUserTypetUpdate({
+    await admin1Api.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.User,
         userId: roomAdminId,
