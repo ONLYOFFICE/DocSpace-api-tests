@@ -373,54 +373,52 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
   });
 
-  test(
-    "BUG 79459: DELETE /api/2.0/files/folder/:folderId - Deleting already deleted folder returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 79459: DELETE /api/2.0/files/folder/:folderId - Deleting already deleted folder returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Folder For Double Delete" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder For Double Delete" },
+    });
+    const folderId = folderData.response!.id!;
 
-      await ownerApi.folders.deleteFolder({
+    await ownerApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
+
+    await expect(async () => {
+      const { status } = await ownerApi.folders.getFolderByFolderId({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
       });
+      expect(status).not.toBe(200);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
-      await expect(async () => {
-        const { status } = await ownerApi.folders.getFolderByFolderId({
-          folderId,
-        });
-        expect(status).not.toBe(200);
-      }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+    const { status } = await ownerApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
 
-      const { status } = await ownerApi.folders.deleteFolder({
-        folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
-      });
+    expect(status).toBe(404);
+  });
 
-      expect(status).toBe(404);
-    },
-  );
+  test("BUG 79459: DELETE /api/2.0/files/folder/:folderId - Deleting non-existent folder returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const nonExistentFolderId = 999999999;
 
-  test(
-    "BUG 79459: DELETE /api/2.0/files/folder/:folderId - Deleting non-existent folder returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const nonExistentFolderId = 999999999;
+    const { status } = await ownerApi.folders.deleteFolder({
+      folderId: nonExistentFolderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
 
-      const { status } = await ownerApi.folders.deleteFolder({
-        folderId: nonExistentFolderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
-      });
-
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 });
 
 test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () => {

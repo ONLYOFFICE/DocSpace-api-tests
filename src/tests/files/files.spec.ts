@@ -582,69 +582,67 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
   });
 
   // BUG 80745: copyFileAs with enableExternalExt: true returns 500 System.Exception - requires DS <-> DocSpace connectivity
-  test(
-    "BUG 80745: POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Source File For Ext" },
-      });
-      const fileId = fileData.response!.id!;
+  test("BUG 80745: POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Source File For Ext" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For External Ext",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For External Ext",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
 
-      const { data } = await ownerApi.files.copyFileAs({
-        fileId,
-        copyAsJsonElement: {
-          destTitle: "Autotest Copied File.md",
-          destFolderId,
-          enableExternalExt: true,
-        },
-      });
+    const { data } = await ownerApi.files.copyFileAs({
+      fileId,
+      copyAsJsonElement: {
+        destTitle: "Autotest Copied File.md",
+        destFolderId,
+        enableExternalExt: true,
+      },
+    });
 
-      expect(data.statusCode).toBe(200);
-      expect(data.response!.title).toBe("Autotest Copied File.md");
-      expect((data as any).response.folderId).toBe(destFolderId);
-    },
-  );
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.title).toBe("Autotest Copied File.md");
+    expect((data as any).response.folderId).toBe(destFolderId);
+  });
 });
 
 test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
   // BUG 80743: saveaspdf returns 403 System.InvalidOperationException - requires DS <-> DocSpace connectivity
-  test(
-    "BUG 80743: POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Source File For PDF" },
-      });
-      const fileId = fileData.response!.id!;
+  test("BUG 80743: POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Source File For PDF" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For PDF",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For PDF",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
 
-      const { data, status } = await ownerApi.files.saveFileAsPdf({
-        id: fileId,
-        saveAsPdfInteger: { folderId, title: "Autotest Saved As PDF" },
-      });
+    const { data, status } = await ownerApi.files.saveFileAsPdf({
+      id: fileId,
+      saveAsPdfInteger: { folderId, title: "Autotest Saved As PDF" },
+    });
 
-      expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
-      expect(data.response!.title).toBe("Autotest Saved As PDF.pdf");
-      expect(data.response!.folderId).toBe(folderId);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.title).toBe("Autotest Saved As PDF.pdf");
+    expect(data.response!.folderId).toBe(folderId);
+  });
 });
 
 test.describe("GET /files/favorites/:fileId - Change favorite status", () => {
@@ -1060,7 +1058,9 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     });
 
     expect(status).toBe(404);
-    expect((data as any).error?.message).toBe("The required file was not found");
+    expect((data as any).error?.message).toBe(
+      "The required file was not found",
+    );
   });
 });
 

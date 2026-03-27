@@ -25,71 +25,69 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     expect(status).toBe(401);
   });
 
-  test(
-    "BUG 79459: DELETE /api/2.0/files/folder/:folderId - RoomAdmin cannot delete owner's folder",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For RoomAdmin Delete",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 79459: DELETE /api/2.0/files/folder/:folderId - RoomAdmin cannot delete owner's folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For RoomAdmin Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: "Autotest Folder RoomAdmin Delete" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder RoomAdmin Delete" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "RoomAdmin",
-      );
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
 
-      const { data, status } = await roomAdminApi.folders.deleteFolder({
-        folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
-      });
+    const { data, status } = await roomAdminApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
-  test(
-    "BUG 79459: DELETE /api/2.0/files/folder/:folderId - User cannot delete owner's folder",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For User Delete",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 79459: DELETE /api/2.0/files/folder/:folderId - User cannot delete owner's folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For User Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: "Autotest Folder User Delete" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder User Delete" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
 
-      const { data, status } = await userApi.folders.deleteFolder({
-        folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
-      });
+    const { data, status } = await userApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
   test("DELETE /api/2.0/files/folder/:folderId - DocSpaceAdmin can delete owner's folder", async ({
     apiSdk,
@@ -331,118 +329,115 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     });
   });
 
-  test(
-    "BUG 79459: DELETE /api/2.0/files/folder/:folderId - Read-only room member cannot delete owner's folder",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Read Member Delete",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 79459: DELETE /api/2.0/files/folder/:folderId - Read-only room member cannot delete owner's folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Read Member Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: "Autotest Folder Read Member Delete" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Read Member Delete" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const { api: userApi, data: memberData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const memberId = memberData.response!.id!;
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const memberId = memberData.response!.id!;
 
-      // Invite as Read (2)
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: memberId, access: 2 }],
-          notify: false,
-        },
-      });
+    // Invite as Read (2)
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: 2 }],
+        notify: false,
+      },
+    });
 
-      const { data, status } = await userApi.folders.deleteFolder({
-        folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
-      });
+    const { data, status } = await userApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
-  test(
-    "BUG 79459: DELETE /api/2.0/files/folder/:folderId - ContentCreator cannot delete another user's folder",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For ContentCreator Delete Other",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 79459: DELETE /api/2.0/files/folder/:folderId - ContentCreator cannot delete another user's folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For ContentCreator Delete Other",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: "Autotest Folder ContentCreator Delete Other" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder ContentCreator Delete Other" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const { api: userApi, data: memberData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const memberId = memberData.response!.id!;
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const memberId = memberData.response!.id!;
 
-      // Invite as ContentCreator (11)
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: memberId, access: 11 }],
-          notify: false,
-        },
-      });
+    // Invite as ContentCreator (11)
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: 11 }],
+        notify: false,
+      },
+    });
 
-      const { data, status } = await userApi.folders.deleteFolder({
-        folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
-      });
+    const { data, status } = await userApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
-  test(
-    "BUG 79459: DELETE /api/2.0/files/folder/:folderId - Guest cannot delete owner's folder",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Guest Delete",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 79459: DELETE /api/2.0/files/folder/:folderId - Guest cannot delete owner's folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Guest Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: "Autotest Folder Guest Delete" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Guest Delete" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "Guest",
-      );
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
 
-      const { data, status } = await guestApi.folders.deleteFolder({
-        folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
-      });
+    const { data, status } = await guestApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 });
