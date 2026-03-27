@@ -2,6 +2,101 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
 
+test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () => {
+  test("GET /api/2.0/files/folder/:folderId/path - Owner can get path of their own folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Path Owner" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderPath({ folderId });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - anonymous user cannot get folder path", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Path Anon" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const anonApi = apiSdk.forAnonymous();
+    const { status } = await anonApi.folders.getFolderPath({ folderId });
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG 78928: GET /api/2.0/files/folder/:folderId/path - User without access cannot get path of owner's My Documents folder",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest Folder Path User No Access" },
+      });
+      const folderId = folderData.response!.id!;
+
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+
+      // Expected: 403 Access denied - user has no access to owner's My Documents folder
+      // Actual (BUG 78928): 200 with owner's personal data (email, avatar) exposed in response
+      const { data } = await userApi.folders.getFolderPath({ folderId });
+
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error?.message).toContain("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG 78928: GET /api/2.0/files/folder/:folderId/path - Guest without access cannot get path of owner's My Documents folder",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest Folder Path Guest No Access" },
+      });
+      const folderId = folderData.response!.id!;
+
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
+
+      // Expected: 403 Access denied - guest has no access to owner's My Documents folder
+      // Actual (BUG 78928): 200 with owner's personal data (email, avatar) exposed in response
+      const { data } = await guestApi.folders.getFolderPath({ folderId });
+
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error?.message).toContain("Access denied");
+    },
+  );
+});
+
 test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
   test("DELETE /api/2.0/files/folder/:folderId - anonymous cannot delete folder", async ({
     apiSdk,
