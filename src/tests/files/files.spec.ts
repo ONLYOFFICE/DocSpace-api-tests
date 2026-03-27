@@ -1837,7 +1837,7 @@ test.describe("PUT /files/file/:id/links - Set file external link", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { status } = await ownerApi.files.setFileExternalLink({
+    const { data, status } = await ownerApi.files.setFileExternalLink({
       id: 999999999,
       fileLinkRequest: {
         primary: false,
@@ -1845,8 +1845,8 @@ test.describe("PUT /files/file/:id/links - Set file external link", () => {
         title: "Link On Missing File",
       },
     });
-
-    expect(status).toBe(403);
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("Item not found");
   });
 });
 
