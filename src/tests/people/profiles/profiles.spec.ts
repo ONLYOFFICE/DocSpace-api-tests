@@ -982,7 +982,7 @@ test.describe("API profile methods", () => {
     expect(data.response!.isVisitor).toBe(true);
   });
 
-  test("GET /people/@self - Owner receives information about himself", async ({
+  test("BUG 80818: GET /people/@self - Owner receives information about himself", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -991,7 +991,8 @@ test.describe("API profile methods", () => {
     expect(data.response!.firstName).toBe("admin-zero");
     expect(data.response!.lastName).toBe("admin-zero");
     expect(data.response!.displayName).toBe("admin-zero admin-zero");
-    expect(data.response!.isAdmin).toBe(true);
+    expect(data.response!.isOwner).toBe(true);
+    expect(data.response!.isAdmin).toBe(false);
     expect(data.response!.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
@@ -1081,7 +1082,8 @@ test.describe("API profile methods", () => {
     expect(data.response!.lastName).toBe(ownerData.response!.lastName);
     expect(data.response!.displayName).toBe(ownerData.response!.displayName);
     expect(data.response!.email).toBe(ownerData.response!.email);
-    expect(data.response!.isAdmin).toBe(true);
+    expect(data.response!.isOwner).toBe(true);
+    expect(data.response!.isAdmin).toBe(false);
     expect(data.response!.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
