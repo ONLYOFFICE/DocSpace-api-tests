@@ -2679,3 +2679,103 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
     expect(status).toBe(403);
   });
 });
+
+test.describe("POST /files/file/:fileId/sendeditornotify - access control", () => {
+  test("BUG 80319: POST /files/file/:fileId/sendeditornotify - Viewer cannot send editor notify", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest VDR Room",
+        roomType: RoomType.VirtualDataRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: viewerApi, data: viewerData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const viewerId = viewerData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: viewerId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await viewerApi.sharing.sendEditorNotify({
+      fileId,
+      mentionMessageWrapper: {
+        actionLink: {
+          action: { data: "nolimit", type: "comment" },
+        },
+        emails: [config.DOCSPACE_OWNER_EMAIL],
+        message: "test",
+      },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+});
+
+test.describe("POST /files/file/:fileId/sendeditornotify - input validation", () => {
+  test("BUG 80321: POST /files/file/:fileId/sendeditornotify - 'data' field has no character limit", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest VDR Room",
+        roomType: RoomType.VirtualDataRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: editorApi, data: editorData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const editorId = editorData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: editorId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await editorApi.sharing.sendEditorNotify({
+      fileId,
+      mentionMessageWrapper: {
+        actionLink: {
+          action: { data: "a".repeat(10000), type: "comment" },
+        },
+        emails: [editorData.response!.email!],
+        message: "test",
+      },
+    });
+
+    expect(status).toBe(400);
+    expect(
+      (data as any).response.errors["MentionMessage.ActionLink.Action.Data"][0],
+    ).toBe("The field Data must be a string with a maximum length of 256.");
+  });
+});

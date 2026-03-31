@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { roomAccesses } from "@/src/helpers/rooms";
 
 test.describe("POST /files/rooms - access control", () => {
   test("Owner can create a room", async ({ apiSdk }) => {
@@ -501,6 +502,68 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain(
       "You don't have enough permission to view the folder content",
+    );
+  });
+});
+
+for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
+  test.describe(`DELETE /files/tags - ${userType} invited to room cannot delete a tag`, () => {
+    for (const { label, access } of roomAccesses) {
+      test(`BUG 72499: Room access: ${label}`, async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        await ownerApi.rooms.createRoomTag({
+          createTagRequestDto: { name: "Autotest Tag" },
+        });
+
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Room",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        const { api: memberApi, data: memberData } =
+          await apiSdk.addAuthenticatedMember("owner", userType);
+        const userId = memberData.response!.id!;
+
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access }],
+            notify: false,
+          },
+        });
+
+        const { data, status } = await memberApi.rooms.deleteCustomTags({
+          batchTagsRequestDto: { names: ["Autotest Tag"] },
+        });
+
+        expect(status).toBe(403);
+        expect((data as any).error.message).toContain("Access denied");
+      });
+    }
+  });
+}
+
+test.describe("DELETE /api/2.0/files/tags - Input validation", () => {
+  test("BUG 80046: DELETE /api/2.0/files/tags - returns 500 when body uses 'name' instead of 'names'", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Test" },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteCustomTags({
+      batchTagsRequestDto: { name: ["Test"] } as any,
+    });
+
+    expect(status).toBe(400);
+    expect((data as any).response.errors.Names[0]).toBe(
+      "The Names field is required.",
     );
   });
 });
