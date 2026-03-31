@@ -23,6 +23,7 @@ type UsersListItem = {
 test.describe("API profile methods", () => {
   test("Owner create Guest", async ({ apiSdk }) => {
     const { data } = await apiSdk.addMember("owner", "Guest");
+
     expect(data.statusCode).toBe(200);
     expect(data.response!.isCollaborator).toBe(false);
     expect(data.response!.isOwner).toBe(false);
@@ -36,7 +37,12 @@ test.describe("API profile methods", () => {
   });
 
   test("BUG 80020: POST /people - Owner create User", async ({ apiSdk }) => {
+    const { data: ownerProfile } = await apiSdk
+      .forRole("owner")
+      .profiles.getSelfProfile();
+    const ownerDisplayName = ownerProfile.response!.displayName!;
     const { data } = await apiSdk.addMember("owner", "User");
+
     expect(data.statusCode).toBe(200);
     expect(data.response!.isCollaborator).toBe(true);
     expect(data.response!.isOwner).toBe(false);
@@ -47,10 +53,12 @@ test.describe("API profile methods", () => {
     expect(data.response!.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
+    expect(data.response!.createdBy!.displayName).toBe(ownerDisplayName);
   });
 
   test("POST /people - Owner create Room Admin", async ({ apiSdk }) => {
     const { data } = await apiSdk.addMember("owner", "RoomAdmin");
+
     expect(data.statusCode).toBe(200);
     expect(data.response!.isCollaborator).toBe(false);
     expect(data.response!.isOwner).toBe(false);
@@ -65,6 +73,7 @@ test.describe("API profile methods", () => {
 
   test("POST /people - Owner create DocSpace Admin", async ({ apiSdk }) => {
     const { data } = await apiSdk.addMember("owner", "DocSpaceAdmin");
+
     expect(data.statusCode).toBe(200);
     expect(data.response!.isCollaborator).toBe(false);
     expect(data.response!.isOwner).toBe(false);
@@ -81,8 +90,8 @@ test.describe("API profile methods", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
     const { data } = await apiSdk.addMember("docSpaceAdmin", "RoomAdmin");
+
     expect(data.statusCode).toBe(200);
     expect(data.response!.isCollaborator).toBe(false);
     expect(data.response!.isOwner).toBe(false);
@@ -97,8 +106,8 @@ test.describe("API profile methods", () => {
 
   test("POST /people - DocSpace admin creates user", async ({ apiSdk }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
     const { data } = await apiSdk.addMember("docSpaceAdmin", "User");
+
     expect(data.statusCode).toBe(200);
     expect(data.response!.isCollaborator).toBe(true);
     expect(data.response!.isOwner).toBe(false);
@@ -113,8 +122,8 @@ test.describe("API profile methods", () => {
 
   test("POST /people - Room admin creates User", async ({ apiSdk }) => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-
     const { data } = await apiSdk.addMember("roomAdmin", "User");
+
     expect(data.statusCode).toBe(200);
     expect(data.response!.isCollaborator).toBe(true);
     expect(data.response!.isOwner).toBe(false);
@@ -660,7 +669,7 @@ test.describe("API profile methods", () => {
         updateMembersRequestDto: userDataChangeStatus,
       });
       const { data } = await ownerApi.profiles.deleteMember({ userid: userId });
-
+      console.log(data);
       expect(data.statusCode).toBe(200);
       expect(data.links![0].action).toBe("DELETE");
       expect((data.response as unknown as EmployeeFullDto).id).toBe(userId);
@@ -1077,6 +1086,7 @@ test.describe("API profile methods", () => {
     const { data } = await ownerApi.profiles.getProfileByEmail({
       email: ownerEmail,
     });
+
     expect(data.statusCode).toBe(200);
     expect(data.response!.firstName).toBe(ownerData.response!.firstName);
     expect(data.response!.lastName).toBe(ownerData.response!.lastName);

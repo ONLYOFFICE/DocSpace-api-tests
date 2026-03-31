@@ -465,7 +465,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
           message: "Now multiply that by 3.",
         },
       });
-
+      console.log(data);
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
     },

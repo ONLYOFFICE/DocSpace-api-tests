@@ -1,6 +1,14 @@
-import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "../services/api-sdk";
 import { Role } from "../services/token-store";
+
+export const roomAccesses = [
+  { label: "Viewer", access: FileShare.Read },
+  { label: "Commenter", access: FileShare.Comment },
+  { label: "Reviewer", access: FileShare.Review },
+  { label: "Editor", access: FileShare.Editing },
+  { label: "ContentCreator", access: FileShare.ContentCreator },
+] as const;
 
 export async function createAllRoomTypes(apiSdk: ApiSDK, role: Role) {
   const configs = [

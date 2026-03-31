@@ -528,6 +528,27 @@ test.describe("API rooms methods", () => {
     });
   });
 
+  test("BUG 72499: DELETE /files/tags - DocSpaceAdmin deletes tag created by Owner", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Tag" },
+    });
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status } = await adminApi.rooms.deleteCustomTags({
+      batchTagsRequestDto: { names: ["Autotest Tag"] },
+    });
+
+    expect(status).toBe(200);
+  });
+
   test("PUT /files/tags - Owner renames a tag", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.rooms.createRoomTag({

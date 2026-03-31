@@ -232,7 +232,7 @@ test.describe("API profiling tests for access rights", () => {
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  test("POST /people/invite - DocSpace admin invites docspace admin", async ({
+  test("BUG 79500: POST /people/invite - DocSpace admin invites docspace admin", async ({
     apiSdk,
   }) => {
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
@@ -284,7 +284,7 @@ test.describe("API profiling tests for access rights", () => {
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
 
-  test("POST /people/invite - Invite user for long email", async ({
+  test("BUG 79527: POST /people/invite - Invite user for long email", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -829,7 +829,7 @@ test.describe("API profiling tests for access rights", () => {
     );
   });
 
-  test("PUT /people/:userId - DocSpace admin updating profile data owner", async ({
+  test("BUG 79724: PUT /people/:userId - DocSpace admin updating profile data owner", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1607,6 +1607,26 @@ test.describe("API profiling tests for access rights", () => {
     ).toContain(
       // TODO(sdk): RFC 7807 validation error shape not typed in SDK
       "The field CultureName must be a string with a maximum length of 85.",
+    );
+  });
+});
+
+test.describe("PUT /people/delete - input validation", () => {
+  test("BUG 80048: PUT /people/delete - returns 500 when body uses 'userId' instead of 'userIds'", async ({
+    apiSdk,
+  }) => {
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .profiles.removeUsers({
+        updateMembersRequestDto: { userId: [userId] } as any,
+      });
+
+    expect(status).toBe(400);
+    expect((data as any).error.message).toContain(
+      "Value cannot be null. (Parameter 'inDto?.UserIds')",
     );
   });
 });
