@@ -144,6 +144,7 @@ test.describe("PUT /people/type - Start user type update (permissions)", () => {
   test("Room admin should not be able to downgrade the user type.", async ({
     apiSdk,
   }) => {
+    const ownerApi = apiSdk.forRole("owner");
     const { data: userData } = await apiSdk.addMember("owner", "User");
     const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
@@ -151,16 +152,23 @@ test.describe("PUT /people/type - Start user type update (permissions)", () => {
     );
     const userId = (userData as any).response.id as string;
 
-    const { data } = await roomAdminApi.userType.startUserTypeUpdate({
+    await roomAdminApi.userType.startUserTypeUpdate({
       startUpdateUserTypeDto: {
         type: EmployeeType.Guest,
         userId: userId,
       },
     });
 
-    expect(data.statusCode).toBe(200);
-    expect((data as any).response.isCompleted).toBe(false);
-    expect((data as any).response.error).toBe(
+    let progress: any;
+    await expect(async () => {
+      const { data } = await ownerApi.userType.getUserTypeUpdateProgress({
+        userid: userId,
+      });
+      progress = (data as any).response;
+      expect(progress?.isCompleted).toBe(true);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+
+    expect(progress.error).toBe(
       "You don't have enough permission to perform the operation",
     );
   });

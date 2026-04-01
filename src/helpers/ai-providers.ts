@@ -55,7 +55,7 @@ export const aiProviders: Record<string, AiProviderConfig> = {
 
 export const onlyofficeAiProvider = {
   providerId: -1,
-  defaultModel: "gpt-5.2",
+  defaultModel: "gpt-5.4",
   providerTitle: "ONLYOFFICE AI",
 } as const;
 

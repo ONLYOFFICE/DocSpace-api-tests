@@ -734,7 +734,6 @@ test.describe("GET /files/file/:fileId - Get file info", () => {
     expect(data.response!.folderId).toBe(folderId);
   });
 
-  // Note: API returns 403 (not 404) for non-existent files - does not distinguish "not found" from "no access"
   test("GET /files/file/:fileId - Returns 403 for non-existent file", async ({
     apiSdk,
   }) => {
@@ -744,7 +743,7 @@ test.describe("GET /files/file/:fileId - Get file info", () => {
       fileId: 999999999,
     });
 
-    expect(status).toBe(403);
+    expect(status).toBe(404);
     expect((data as any).error.message).toBe("The required file was not found");
   });
 });
@@ -813,13 +812,16 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.files.updateFile({
+      const { data, status } = await ownerApi.files.updateFile({
         fileId: 999999999,
         updateFile: { title: "Autotest Non-existent" },
       });
 
       // Bug: API crashes with NullReferenceException and returns 403 instead of 404
       expect(status).toBe(404);
+      expect((data as any).error.message).toBe(
+        "The required file was not found",
+      );
     },
   );
 
@@ -899,25 +901,25 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
     );
   });
 
-  test.fail(
-    "BUG 80773: PUT /files/file/:fileId - lastVersion equal to current version returns 500 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: created } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest LastVersion Original" },
-      });
-      const fileId = created.response!.id!;
+  test("BUG 80773: PUT /files/file/:fileId - lastVersion equal to current version returns 500 instead of 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest LastVersion Original" },
+    });
+    const fileId = created.response!.id!;
 
-      const { status } = await ownerApi.files.updateFile({
-        fileId,
-        updateFile: { title: "Autotest LastVersion Renamed", lastVersion: 1 },
-      });
+    const { data, status } = await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest LastVersion Renamed", lastVersion: 1 },
+    });
 
-      // Bug: API returns 500 with "The new version cannot be the same as the current one"
-      // when lastVersion equals the current file version. Expected: 400 Bad Request.
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).error.message).toBe(
+      "The new version cannot be the same as the current one",
+    );
+  });
 
   test("PUT /files/file/:fileId - Title with ampersand is accepted", async ({
     apiSdk,
@@ -1185,21 +1187,19 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     expect(data.response?.locked).toBeFalsy();
   });
 
-  // BUG: non-existent file returns 403 with stack trace instead of 404
-  test.fail(
-    "BUG 80788: PUT /files/file/:fileId/lock - Non-existent file returns 403 instead of 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80788: PUT /files/file/:fileId/lock - Non-existent file returns 403 instead of 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.files.lockFile({
-        fileId: 999999999,
-        lockFileParameters: { lockFile: true },
-      });
+    const { data, status } = await ownerApi.files.lockFile({
+      fileId: 999999999,
+      lockFileParameters: { lockFile: true },
+    });
 
-      // Bug: API returns 403 with stack trace instead of 404
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("The required file was not found");
+  });
 });
 
 test.describe("PUT /files/:fileId/order - Set file order", () => {
@@ -1340,57 +1340,56 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
     expect(found).toBe(true);
   });
 
-  test.fail(
-    "BUG 80794: POST /files/file/:fileId/recent - User with ReadWrite access cannot add room file to recent",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { api: userApi, data: memberData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = memberData.response!.id!;
+  test("POST /files/file/:fileId/recent - User access can add room file to recent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Recent Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Recent Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.ReadWrite }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest Recent Room File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Recent Room File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data, status } = await userApi.files.addFileToRecent({ fileId });
+    const { data, status } = await userApi.files.addFileToRecent({ fileId });
 
-      expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
-      expect(data.response!.id).toBe(fileId);
-      expect(data.response!.title).toBe("Autotest Recent Room File.docx");
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent Room File.docx");
+  });
 
-  test.fail(
-    "BUG 80795: POST /files/file/:fileId/recent - Non-existent file returns 403 instead of 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80795: POST /files/file/:fileId/recent - Non-existent file returns 403 instead of 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.files.addFileToRecent({
-        fileId: 999999999,
-      });
+    const { data, status } = await ownerApi.files.addFileToRecent({
+      fileId: 999999999,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("The required file was not found");
+  });
 });
 
 test.describe("DELETE /files/recent - Delete files from Recent section", () => {
