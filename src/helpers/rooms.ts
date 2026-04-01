@@ -8,6 +8,7 @@ export const roomAccesses = [
   { label: "Reviewer", access: FileShare.Review },
   { label: "Editor", access: FileShare.Editing },
   { label: "ContentCreator", access: FileShare.ContentCreator },
+  { label: "RoomManager", access: FileShare.RoomManager },
 ] as const;
 
 export async function createAllRoomTypes(apiSdk: ApiSDK, role: Role) {

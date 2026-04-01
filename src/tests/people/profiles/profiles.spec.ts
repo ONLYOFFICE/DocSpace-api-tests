@@ -652,29 +652,28 @@ test.describe("API profile methods", () => {
     expect((data.response as unknown as EmployeeFullDto).id).toBe(userId);
   });
 
-  test.fail(
-    "BUG 80753: DELETE /people/:userIds - Owner deletes a deactivated guest",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: userData } = await apiSdk.addMember("owner", "Guest");
-      const userId = userData.response!.id!;
+  test("BUG 80753: DELETE /people/:userIds - Owner deletes a deactivated guest", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: userData } = await apiSdk.addMember("owner", "Guest");
+    const userId = userData.response!.id!;
 
-      const userDataChangeStatus = {
-        userIds: [userId],
-        resendAll: false,
-      };
+    const userDataChangeStatus = {
+      userIds: [userId],
+      resendAll: false,
+    };
 
-      await ownerApi.userStatus.updateUserStatus({
-        status: EmployeeStatus.Terminated,
-        updateMembersRequestDto: userDataChangeStatus,
-      });
-      const { data } = await ownerApi.profiles.deleteMember({ userid: userId });
-      console.log(data);
-      expect(data.statusCode).toBe(200);
-      expect(data.links![0].action).toBe("DELETE");
-      expect((data.response as unknown as EmployeeFullDto).id).toBe(userId);
-    },
-  );
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: userDataChangeStatus,
+    });
+    const { data } = await ownerApi.profiles.deleteMember({ userid: userId });
+
+    expect(data.statusCode).toBe(200);
+    expect(data.links![0].action).toBe("DELETE");
+    expect((data.response as unknown as EmployeeFullDto).id).toBe(userId);
+  });
 
   test("DELETE /people/:userIds - Owner deletes a deactivated docspace admin", async ({
     apiSdk,
