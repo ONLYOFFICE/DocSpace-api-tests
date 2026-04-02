@@ -42,59 +42,57 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 78928: GET /api/2.0/files/folder/:folderId/path - User without access cannot get path of owner's My Documents folder",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 78928: GET /api/2.0/files/folder/:folderId/path - User without access cannot get path of owner's My Documents folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Folder Path User No Access" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Path User No Access" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
 
-      // Expected: 403 Access denied - user has no access to owner's My Documents folder
-      // Actual (BUG 78928): 200 with owner's personal data (email, avatar) exposed in response
-      const { data } = await userApi.folders.getFolderPath({ folderId });
+    const { data } = await userApi.folders.getFolderPath({ folderId });
 
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error?.message).toContain("Access denied");
-    },
-  );
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error?.message).toContain(
+      "You don't have enough permission to view the folder content",
+    );
+  });
 
-  test.fail(
-    "BUG 78928: GET /api/2.0/files/folder/:folderId/path - Guest without access cannot get path of owner's My Documents folder",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 78928: GET /api/2.0/files/folder/:folderId/path - Guest without access cannot get path of owner's My Documents folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Folder Path Guest No Access" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Path Guest No Access" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "Guest",
-      );
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
 
-      // Expected: 403 Access denied - guest has no access to owner's My Documents folder
-      // Actual (BUG 78928): 200 with owner's personal data (email, avatar) exposed in response
-      const { data } = await guestApi.folders.getFolderPath({ folderId });
+    const { data } = await guestApi.folders.getFolderPath({ folderId });
 
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error?.message).toContain("Access denied");
-    },
-  );
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error?.message).toContain(
+      "You don't have enough permission to view the folder content",
+    );
+  });
 });
 
 test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
