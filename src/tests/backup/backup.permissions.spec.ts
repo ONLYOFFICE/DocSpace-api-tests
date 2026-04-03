@@ -575,54 +575,50 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 80574: GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state",
-    async ({ apiSdk }) => {
-      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "RoomAdmin",
-      );
+  test("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
 
-      const { data, status } =
-        await roomAdminApi.backup.getBackupsServiceState();
+    const { data, status } = await roomAdminApi.backup.getBackupsServiceState();
 
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 80574: GET /api/2.0/backup/getbackupsservicestate - User gets service state",
-    async ({ apiSdk }) => {
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+  test("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
 
-      const { data, status } = await userApi.backup.getBackupsServiceState();
+    const { data, status } = await userApi.backup.getBackupsServiceState();
 
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 80574: GET /api/2.0/backup/getbackupsservicestate - Guest gets service state",
-    async ({ apiSdk }) => {
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "Guest",
-      );
+  test("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
 
-      const { data, status } = await guestApi.backup.getBackupsServiceState();
+    const { data, status } = await guestApi.backup.getBackupsServiceState();
 
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 });
 
 // Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.

@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { aiProviders } from "@/src/helpers/ai-providers";
+import { aiProviders, onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import { topUpDeposit, buyWalletService } from "@/src/helpers/wallet-services";
 
 const provider = aiProviders.openAi;
 const forbiddenRoles = ["RoomAdmin", "User", "Guest"] as const;
@@ -378,29 +379,52 @@ test.describe("AI Providers - Set Default Permissions", () => {
 });
 
 test.describe("AI Providers - Get Default Permissions", () => {
-  for (const role of ["User", "Guest"] as const) {
-    test.fail(
-      `BUG 80713: GET /api/2.0/ai/providers/default - ${role} cannot get default provider`,
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80713: GET /api/2.0/ai/providers/default - Guest cannot get default provider", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: {
-            type: provider.type,
-            title: provider.title,
-            key: provider.key,
-          },
-        });
-
-        const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-        const { data, status } = await api.providers.getDefaultProvider();
-
-        expect(status).toBe(403);
-        expect((data as any).error.message).toBe("Access denied");
+    await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
       },
-    );
-  }
+    });
+
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await api.providers.getDefaultProvider();
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/ai/providers/default - Guest cannot get ONLYOFFICE AI default provider", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const onlyofficeAi = onlyofficeAiProvider;
+
+    await topUpDeposit(ownerApi.payment, 100);
+    await buyWalletService(ownerApi.payment, "aiTools", 50);
+
+    await ownerApi.providers.setDefaultProvider({
+      setDefaultProviderRequestDto: {
+        providerId: onlyofficeAi.providerId,
+        defaultModel: onlyofficeAi.defaultModel,
+      },
+    });
+
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await api.providers.getDefaultProvider();
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
   test("GET /api/2.0/ai/providers/default - Anonymous gets 401 Unauthorized", async ({
     apiSdk,
