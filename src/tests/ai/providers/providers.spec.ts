@@ -427,6 +427,32 @@ test.describe("AI Providers - Get Default", () => {
     expect(data.response?.defaultModel).toBe(defaultProvider.modelId);
     expect(data.response?.providerTitle).toBe(defaultProvider.title);
   });
+
+  test("GET /api/2.0/ai/providers/default - User gets default provider", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: defaultProvider.type,
+        title: defaultProvider.title,
+        key: defaultProvider.key,
+      },
+    });
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.providers.getDefaultProvider();
+
+    expect(status).toBe(200);
+    expect(data.count).toBe(1);
+    expect(data.response?.defaultModel).toBe(defaultProvider.modelId);
+    expect(data.response?.providerTitle).toBe(defaultProvider.title);
+  });
 });
 
 test.describe("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)", () => {
@@ -540,36 +566,6 @@ test.describe("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)"
     );
 
     const { data, status } = await userApi.providers.getDefaultProvider();
-
-    expect(status).toBe(200);
-    expect(data.response?.providerId).toBe(onlyofficeAi.providerId);
-    expect(data.response?.defaultModel).toBe(onlyofficeAi.defaultModel);
-    expect(data.response?.providerTitle).toBe(onlyofficeAi.providerTitle);
-  });
-
-  test("GET /api/2.0/ai/providers/default - Guest gets ONLYOFFICE AI as default provider", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-
-    await topUpDeposit(ownerApi.payment, 100);
-    await buyWalletService(ownerApi.payment, "aiTools", 50);
-
-    await ownerApi.providers.setDefaultProvider({
-      setDefaultProviderRequestDto: {
-        providerId: onlyofficeAi.providerId,
-        defaultModel: onlyofficeAi.defaultModel,
-      },
-    });
-
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-
-    const { data, status } = await guestApi.providers.getDefaultProvider();
 
     expect(status).toBe(200);
     expect(data.response?.providerId).toBe(onlyofficeAi.providerId);

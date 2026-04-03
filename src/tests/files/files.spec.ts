@@ -807,23 +807,20 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
     expect(data.response!.fileExst).toBe(".docx");
   });
 
-  test.fail(
-    "BUG 80774: PUT /files/file/:fileId - Returns 403 instead of 404 for non-existent file",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80774: PUT /files/file/:fileId - Returns 403 instead of 404 for non-existent file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.files.updateFile({
-        fileId: 999999999,
-        updateFile: { title: "Autotest Non-existent" },
-      });
+    const { data, status } = await ownerApi.files.updateFile({
+      fileId: 999999999,
+      updateFile: { title: "Autotest Non-existent" },
+    });
 
-      // Bug: API crashes with NullReferenceException and returns 403 instead of 404
-      expect(status).toBe(404);
-      expect((data as any).error.message).toBe(
-        "The required file was not found",
-      );
-    },
-  );
+    // Bug: API crashes with NullReferenceException and returns 403 instead of 404
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("The required file was not found");
+  });
 
   // Note: updateFile cannot change the file extension - the original extension (.docx) is always preserved
   // and appended after the new title, e.g. "Renamed.txt" becomes "Renamed.txt.docx"

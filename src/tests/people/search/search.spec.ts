@@ -376,7 +376,6 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
       "Guest",
     );
     const guestMemberId = guestMemberData.response!.id!;
-    const guestApi = await apiSdk.authenticateMember(userData, "Guest");
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
@@ -404,6 +403,8 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
       },
     });
     const fileId = fileData.response!.id!;
+
+    const guestApi = await apiSdk.authenticateMember(userData, "Guest");
 
     const { data } = await guestApi.peopleSearch.getUsersWithFilesShared({
       id: fileId,
