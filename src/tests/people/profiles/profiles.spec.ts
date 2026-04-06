@@ -120,7 +120,9 @@ test.describe("API profile methods", () => {
     );
   });
 
-  test("POST /people - Room admin creates User", async ({ apiSdk }) => {
+  test("BUG 79334: POST /people - Room admin creates User", async ({
+    apiSdk,
+  }) => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const { data } = await apiSdk.addMember("roomAdmin", "User");
 
