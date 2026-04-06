@@ -284,19 +284,18 @@ test.describe("API room groups methods", () => {
       expect(verify.response!.icon).toBeDefined();
     });
 
-    test.fail(
-      "BUG 80922: POST /files/group/:id/icon - Owner gets 500 changing icon on non-existent group",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
+    test("BUG 80922: POST /files/group/:id/icon - Owner gets 500 changing icon on non-existent group", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-        const { status } = await ownerApi.groups.changeRoomGroupIcon({
-          id: 999999,
-          iconRequest: { icon: "heart" },
-        });
+      const { status } = await ownerApi.groups.changeRoomGroupIcon({
+        id: 999999,
+        iconRequest: { icon: "heart" },
+      });
 
-        expect(status).toBe(404);
-      },
-    );
+      expect(status).toBe(404);
+    });
   });
 
   test.describe("GET /files/group", () => {
