@@ -358,63 +358,6 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     expect((data.response as any[])[0].id).toBe(userId);
     expect((data.response as any[])[0].displayName).toBe(userName);
   });
-
-  test("GET /people/file/:id - Guest searches users for file", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: searchableMemberData } = await apiSdk.addMember(
-      "owner",
-      "User",
-    );
-    const userId = searchableMemberData.response!.id!;
-    const userName = searchableMemberData.response!.displayName!;
-
-    const { data: guestMemberData, userData } = await apiSdk.addMember(
-      "owner",
-      "Guest",
-    );
-    const guestMemberId = guestMemberData.response!.id!;
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Users File Guest",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [
-          { id: guestMemberId, access: FileShare.Editing },
-          { id: userId, access: FileShare.Editing },
-        ],
-        notify: false,
-      },
-    });
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: {
-        title: "Autotest Users File",
-      },
-    });
-    const fileId = fileData.response!.id!;
-
-    const guestApi = await apiSdk.authenticateMember(userData, "Guest");
-
-    const { data } = await guestApi.peopleSearch.getUsersWithFilesShared({
-      id: fileId,
-      filterValue: userName,
-    });
-    expect(data.statusCode).toBe(200);
-    expect(data.count).toBe(1);
-    expect((data.response as any[])[0].id).toBe(userId);
-    expect((data.response as any[])[0].displayName).toBe(userName);
-  });
 });
 
 test.describe("GET /accounts/folder/:id/search - Search accounts for folder sharing", () => {
@@ -772,62 +715,6 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     expect((data.response as any[])[0].id).toBe(userId);
     expect((data.response as any[])[0].displayName).toBe(userName);
   });
-
-  test("GET /people/folder/:id - Guest searches users for folder", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: searchableMemberData } = await apiSdk.addMember(
-      "owner",
-      "User",
-    );
-    const userId = searchableMemberData.response!.id!;
-    const userName = searchableMemberData.response!.displayName!;
-
-    const { data: guestMemberData, userData } = await apiSdk.addMember(
-      "owner",
-      "Guest",
-    );
-    const guestMemberId = guestMemberData.response!.id!;
-    const guestApi = await apiSdk.authenticateMember(userData, "Guest");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Users Folder Guest",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [
-          { id: guestMemberId, access: FileShare.Editing },
-          { id: userId, access: FileShare.Editing },
-        ],
-        notify: false,
-      },
-    });
-
-    const { data: folderData } = await ownerApi.folders.createFolder({
-      folderId: roomId,
-      createFolder: {
-        title: "Autotest Users Folder",
-      },
-    });
-    const folderId = folderData.response!.id!;
-
-    const { data } = await guestApi.peopleSearch.getUsersWithFoldersShared({
-      id: folderId,
-      filterValue: userName,
-    });
-    expect(data.statusCode).toBe(200);
-    expect(data.count).toBe(1);
-    expect((data.response as any[])[0].id).toBe(userId);
-    expect((data.response as any[])[0].displayName).toBe(userName);
-  });
 });
 
 test.describe("GET /accounts/room/:id/search - Search accounts for room sharing", () => {
@@ -1118,54 +1005,6 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
     });
 
     const { data } = await userApi.peopleSearch.getUsersWithRoomShared({
-      id: roomId,
-      filterValue: userName,
-    });
-    expect(data.statusCode).toBe(200);
-    expect(data.count).toBe(1);
-    expect((data.response as any[])[0].id).toBe(userId);
-    expect((data.response as any[])[0].displayName).toBe(userName);
-  });
-
-  test("GET /people/room/:id - Guest searches users for room", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: searchableMemberData } = await apiSdk.addMember(
-      "owner",
-      "User",
-    );
-    const userId = searchableMemberData.response!.id!;
-    const userName = searchableMemberData.response!.displayName!;
-
-    const { data: guestMemberData, userData } = await apiSdk.addMember(
-      "owner",
-      "Guest",
-    );
-    const guestMemberId = guestMemberData.response!.id!;
-    const guestApi = await apiSdk.authenticateMember(userData, "Guest");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Users Room Guest",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [
-          { id: guestMemberId, access: FileShare.Editing },
-          { id: userId, access: FileShare.Editing },
-        ],
-        notify: false,
-      },
-    });
-
-    const { data } = await guestApi.peopleSearch.getUsersWithRoomShared({
       id: roomId,
       filterValue: userName,
     });

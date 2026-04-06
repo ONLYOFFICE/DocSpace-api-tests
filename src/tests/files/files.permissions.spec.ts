@@ -2779,3 +2779,48 @@ test.describe("POST /files/file/:fileId/sendeditornotify - input validation", ()
     ).toBe("The field Data must be a string with a maximum length of 256.");
   });
 });
+
+test.describe("GET /files/file/:fileId/protectusers - access control", () => {
+  test("BUG 79205: GET /files/file/:fileId/protectusers - Guest gets user data instead of 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Protect Users Guest",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Protected File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.files.getProtectedFileUsers({
+      fileId,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
