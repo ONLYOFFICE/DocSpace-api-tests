@@ -1375,6 +1375,52 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
     expect(data.response!.title).toBe("Autotest Recent Room File.docx");
   });
 
+  test("POST /files/file/:fileId/recent - File in a room subfolder: folderId points to subfolder, originRoomId points to room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const roomTitle = "Autotest Recent Subfolder Room";
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: roomTitle,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: subfolderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Recent Subfolder" },
+    });
+    const subfolderId = subfolderData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: subfolderId,
+      createFileJsonElement: { title: "Autotest Recent Subfolder File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent Subfolder File.docx");
+    // Business: folderId points to the subfolder, not the room root
+    expect(data.response!.folderId).toBe(subfolderId);
+    // Business: originId points to the immediate parent (subfolder)
+    expect((data.response as any).originId).toBe(subfolderId);
+    // Business: originTitle matches the subfolder name
+    expect((data.response as any).originTitle).toBe(
+      "Autotest Recent Subfolder",
+    );
+    // Business: originRoomId points to the room, not the subfolder
+    expect((data.response as any).originRoomId).toBe(roomId);
+    // Business: originRoomTitle matches the room title
+    expect((data.response as any).originRoomTitle).toBe(roomTitle);
+  });
+
   test("BUG 80795: POST /files/file/:fileId/recent - Non-existent file returns 403 instead of 404", async ({
     apiSdk,
   }) => {

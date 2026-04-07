@@ -38,6 +38,7 @@ import {
   SettingsMessagesApi,
   CommonSettingsApi,
   SettingsApi as AiSettingsApi,
+  UsersApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
@@ -150,6 +151,7 @@ export class ApiSDK {
       aiSettings: new AiSettingsApi(config, undefined, axiosInstance),
       vectorization: new VectorizationApi(config, undefined, axiosInstance),
       messages: new MessagesApi(config, undefined, axiosInstance),
+      users: new UsersApi(config, undefined, axiosInstance),
     };
   }
 
@@ -206,6 +208,7 @@ export class ApiSDK {
       aiSettings: new AiSettingsApi(config, undefined, axiosInstance),
       vectorization: new VectorizationApi(config, undefined, axiosInstance),
       messages: new MessagesApi(config, undefined, axiosInstance),
+      users: new UsersApi(config, undefined, axiosInstance),
     };
   }
 
