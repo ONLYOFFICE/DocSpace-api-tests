@@ -1925,6 +1925,230 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
   });
 });
 
+test.describe("POST /files/file/:fileId/recent - Room file: access by user type and room role", () => {
+  test("POST /files/file/:fileId/recent - Owner (room owner, no invitation) adds room file to recent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Recent Owner Room Role",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Recent Owner Room File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent Owner Room File.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+    expect(data.response!.folderId).toBe(roomId);
+
+    const { data: recentData } = await ownerApi.folders.getRecentFolder();
+    const recentFiles = recentData.response?.files ?? [];
+    const found = recentFiles.some((f: any) => f.id === fileId);
+    expect(found).toBe(true);
+  });
+
+  test("POST /files/file/:fileId/recent - DocSpace admin with RoomManager role adds room file to recent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Recent DocSpaceAdmin RoomManager",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: adminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Recent DocSpaceAdmin File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await adminApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe(
+      "Autotest Recent DocSpaceAdmin File.docx",
+    );
+    expect(data.response!.fileExst).toBe(".docx");
+    expect(data.response!.folderId).toBe(roomId);
+
+    const { data: recentData } = await adminApi.folders.getRecentFolder();
+    const recentFiles = recentData.response?.files ?? [];
+    const found = recentFiles.some((f: any) => f.id === fileId);
+    expect(found).toBe(true);
+  });
+
+  test("POST /files/file/:fileId/recent - RoomAdmin user with Editing role adds room file to recent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Recent RoomAdmin Editing",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Recent RoomAdmin File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await roomAdminApi.files.addFileToRecent({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent RoomAdmin File.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+    expect(data.response!.folderId).toBe(roomId);
+
+    const { data: recentData } = await roomAdminApi.folders.getRecentFolder();
+    const recentFiles = recentData.response?.files ?? [];
+    const found = recentFiles.some((f: any) => f.id === fileId);
+    expect(found).toBe(true);
+  });
+
+  test("POST /files/file/:fileId/recent - User with Comment role adds room file to recent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Recent User Comment",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Comment }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Recent User Comment File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await userApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent User Comment File.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+    expect(data.response!.folderId).toBe(roomId);
+
+    const { data: recentData } = await userApi.folders.getRecentFolder();
+    const recentFiles = recentData.response?.files ?? [];
+    const found = recentFiles.some((f: any) => f.id === fileId);
+    expect(found).toBe(true);
+  });
+
+  test("POST /files/file/:fileId/recent - Guest with Read role adds room file to recent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Recent Guest Read",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Recent Guest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await guestApi.files.addFileToRecent({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.title).toBe("Autotest Recent Guest File.docx");
+    expect(data.response!.fileExst).toBe(".docx");
+    expect(data.response!.folderId).toBe(roomId);
+
+    const { data: recentData } = await guestApi.folders.getRecentFolder();
+    const recentFiles = recentData.response?.files ?? [];
+    const found = recentFiles.some((f: any) => f.id === fileId);
+    expect(found).toBe(true);
+  });
+});
+
 test.describe("DELETE /files/recent permissions", () => {
   test("DELETE /files/recent - Owner can delete their file from Recent", async ({
     apiSdk,
