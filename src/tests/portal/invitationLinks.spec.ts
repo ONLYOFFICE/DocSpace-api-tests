@@ -75,6 +75,60 @@ test.describe("Portal — Invitation Links", () => {
       expect(status).toBe(400);
     });
 
+    test("POST /api/2.0/users/invitationlink - Owner creates invitation link with future expiration", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 7);
+
+      const { data, status } = await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+          expiration: futureDate.toISOString(),
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.isExpired).toBe(false);
+      expect(data.response!.url).toBeTruthy();
+    });
+
+    test("POST /api/2.0/users/invitationlink - Owner creates invitation link with maxUseCount 1000", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+          maxUseCount: 1000,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.maxUseCount).toBe(1000);
+      expect(data.response!.currentUseCount).toBe(0);
+    });
+
+    test("POST /api/2.0/users/invitationlink - Owner cannot create invitation link with maxUseCount above 1000", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+          maxUseCount: 1001,
+        },
+      });
+
+      expect(status).toBe(400);
+    });
+
     test("POST /api/2.0/users/invitationlink - Owner cannot create invitation link with past expiration", async ({
       apiSdk,
     }) => {

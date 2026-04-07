@@ -215,6 +215,34 @@ test.describe("Portal — Invitation Links (permissions)", () => {
   });
 
   test.describe("PUT /api/2.0/users/invitationlink - access control", () => {
+    test("PUT /api/2.0/users/invitationlink - DocSpaceAdmin can update invitation link", async ({
+      apiSdk,
+    }) => {
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data: created } = await adminApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+          maxUseCount: 5,
+        },
+      });
+      const linkId = created.response!.id!;
+
+      const { data, status } = await adminApi.users.updateInvitationLink({
+        invitationLinkUpdateRequestDto: {
+          id: linkId,
+          maxUseCount: 10,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.maxUseCount).toBe(10);
+    });
+
     test("PUT /api/2.0/users/invitationlink - Anonymous cannot update invitation link", async ({
       apiSdk,
     }) => {
