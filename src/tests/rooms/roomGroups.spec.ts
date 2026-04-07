@@ -51,30 +51,29 @@ test.describe("API room groups methods", () => {
       expect(status).toBe(403);
     });
 
-    test.fail(
-      "BUG 80921: POST /files/group - Owner creates a room group with invalid icon value",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
+    test("BUG 80921: POST /files/group - Owner creates a room group with invalid icon value", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Room for Invalid Icon Group",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Room for Invalid Icon Group",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        const { status } = await ownerApi.groups.addRoomGroup({
-          roomGroupRequestDto: {
-            name: "Invalid Icon Group",
-            icon: "none",
-            rooms: [roomId],
-          },
-        });
+      const { status } = await ownerApi.groups.addRoomGroup({
+        roomGroupRequestDto: {
+          name: "Invalid Icon Group",
+          icon: "none",
+          rooms: [roomId],
+        },
+      });
 
-        expect(status).toBe(400);
-      },
-    );
+      expect(status).toBe(400);
+    });
   });
 
   test.describe("GET /files/group/{id}", () => {
@@ -284,7 +283,7 @@ test.describe("API room groups methods", () => {
       expect(verify.response!.icon).toBeDefined();
     });
 
-    test("BUG 80922: POST /files/group/:id/icon - Owner gets 500 changing icon on non-existent group", async ({
+    test("BUG 80922: POST /files/group/:id/icon - Owner gets 404 changing icon on non-existent group", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
