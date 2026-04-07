@@ -429,113 +429,110 @@ test.describe("API room groups permissions", () => {
       expect(status).toBe(200);
     });
 
-    test.fail(
-      "BUG: POST /files/group/:id/icon - RoomAdmin gets 500 changing group icon",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
+    test("POST /files/group/:id/icon - RoomAdmin gets 404 changing group icon", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Room for Group",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Room for Group",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        const { data: created } = await ownerApi.groups.addRoomGroup({
-          roomGroupRequestDto: {
-            name: "Group for Icon",
-            icon: "star",
-            rooms: [roomId],
-          },
-        });
-        const groupId = created.response!.id!;
+      const { data: created } = await ownerApi.groups.addRoomGroup({
+        roomGroupRequestDto: {
+          name: "Group for Icon",
+          icon: "star",
+          rooms: [roomId],
+        },
+      });
+      const groupId = created.response!.id!;
 
-        const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-          "owner",
-          "RoomAdmin",
-        );
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
 
-        const { status } = await roomAdminApi.groups.changeRoomGroupIcon({
-          id: groupId,
-          iconRequest: { icon: "heart" },
-        });
+      const { status } = await roomAdminApi.groups.changeRoomGroupIcon({
+        id: groupId,
+        iconRequest: { icon: "heart" },
+      });
 
-        expect(status).toBe(404);
-      },
-    );
+      expect(status).toBe(404);
+    });
 
-    test.fail(
-      "BUG: POST /files/group/:id/icon - User gets 500 changing group icon",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
+    test("POST /files/group/:id/icon - User gets 404 changing group icon", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Room for Group",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Room for Group",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        const { data: created } = await ownerApi.groups.addRoomGroup({
-          roomGroupRequestDto: {
-            name: "Group for Icon",
-            icon: "star",
-            rooms: [roomId],
-          },
-        });
-        const groupId = created.response!.id!;
+      const { data: created } = await ownerApi.groups.addRoomGroup({
+        roomGroupRequestDto: {
+          name: "Group for Icon",
+          icon: "star",
+          rooms: [roomId],
+        },
+      });
+      const groupId = created.response!.id!;
 
-        const { api: userApi } = await apiSdk.addAuthenticatedMember(
-          "owner",
-          "User",
-        );
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
 
-        const { status } = await userApi.groups.changeRoomGroupIcon({
-          id: groupId,
-          iconRequest: { icon: "heart" },
-        });
+      const { status } = await userApi.groups.changeRoomGroupIcon({
+        id: groupId,
+        iconRequest: { icon: "heart" },
+      });
 
-        expect(status).toBe(404);
-      },
-    );
+      expect(status).toBe(404);
+    });
 
-    test.fail(
-      "BUG: POST /files/group/:id/icon - Guest gets 500 changing group icon",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
+    test("POST /files/group/:id/icon - Guest gets 404 changing group icon", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Room for Group",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Room for Group",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        const { data: created } = await ownerApi.groups.addRoomGroup({
-          roomGroupRequestDto: {
-            name: "Group for Icon",
-            icon: "star",
-            rooms: [roomId],
-          },
-        });
-        const groupId = created.response!.id!;
+      const { data: created } = await ownerApi.groups.addRoomGroup({
+        roomGroupRequestDto: {
+          name: "Group for Icon",
+          icon: "star",
+          rooms: [roomId],
+        },
+      });
+      const groupId = created.response!.id!;
 
-        const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-          "owner",
-          "Guest",
-        );
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
 
-        const { status } = await guestApi.groups.changeRoomGroupIcon({
-          id: groupId,
-          iconRequest: { icon: "heart" },
-        });
+      const { status } = await guestApi.groups.changeRoomGroupIcon({
+        id: groupId,
+        iconRequest: { icon: "heart" },
+      });
 
-        expect(status).toBe(404);
-      },
-    );
+      expect(status).toBe(404);
+    });
   });
 
   test.describe("GET /files/group - access control", () => {
