@@ -51,7 +51,7 @@ test.describe("API room groups methods", () => {
       expect(status).toBe(403);
     });
 
-    test.fail(
+    test(
       "BUG 80921: POST /files/group - Owner creates a room group with invalid icon value",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
@@ -64,7 +64,7 @@ test.describe("API room groups methods", () => {
         });
         const roomId = roomData.response!.id!;
 
-        const { status } = await ownerApi.groups.addRoomGroup({
+        const { data, status } = await ownerApi.groups.addRoomGroup({
           roomGroupRequestDto: {
             name: "Invalid Icon Group",
             icon: "none",
@@ -73,6 +73,9 @@ test.describe("API room groups methods", () => {
         });
 
         expect(status).toBe(400);
+        expect((data as any).error.message).toBe(
+        "Value does not fall within the expected range. (Parameter 'icon')",
+        );
       },
     );
   });
