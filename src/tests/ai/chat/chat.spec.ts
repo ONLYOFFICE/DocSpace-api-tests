@@ -1,8 +1,9 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { FileShare } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, ToolExecutionDecision } from "@onlyoffice/docspace-api-sdk";
 import { aiProviders } from "@/src/helpers/ai-providers";
 import { parseSseEvents } from "@/src/helpers/parse-sse-events";
+import { UserType } from "@/src/services/api-sdk";
 
 const provider = aiProviders.openAi;
 
@@ -959,5 +960,520 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Delete AI chat", () => {
     const { status } = await userApi.chat.deleteChat({ chatId });
 
     expect(status).toBe(204);
+  });
+});
+
+test.describe("PUT /api/2.0/ai/rooms/:roomId/chats/config - Set user chats settings", () => {
+  test("PUT /api/2.0/ai/rooms/:roomId/chats/config - Owner sets user chats settings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const { data: data1, status: status1 } =
+      await ownerApi.chat.setUserChatsSettings({
+        roomId: agentRoomId,
+        setUserChatSettingsRequestBody: {
+          webSearchEnabled: true,
+          reasoningEffort: 2,
+        },
+      });
+
+    expect(status1).toBe(200);
+    expect(data1.response?.webSearchEnabled).toBe(true);
+    expect(data1.response?.reasoningEffort).toBe(2);
+
+    const { data: data2, status: status2 } =
+      await ownerApi.chat.setUserChatsSettings({
+        roomId: agentRoomId,
+        setUserChatSettingsRequestBody: {
+          webSearchEnabled: false,
+          reasoningEffort: 0,
+        },
+      });
+
+    expect(status2).toBe(200);
+    expect(data2.response?.webSearchEnabled).toBe(false);
+    expect(data2.response?.reasoningEffort).toBe(0);
+  });
+
+  test("PUT /api/2.0/ai/rooms/:roomId/chats/config - DocSpaceAdmin sets user chats settings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: agentData } = await adminApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const { data: data1, status: status1 } =
+      await adminApi.chat.setUserChatsSettings({
+        roomId: agentRoomId,
+        setUserChatSettingsRequestBody: {
+          webSearchEnabled: true,
+          reasoningEffort: 2,
+        },
+      });
+
+    expect(status1).toBe(200);
+    expect(data1.response?.webSearchEnabled).toBe(true);
+    expect(data1.response?.reasoningEffort).toBe(2);
+
+    const { data: data2, status: status2 } =
+      await adminApi.chat.setUserChatsSettings({
+        roomId: agentRoomId,
+        setUserChatSettingsRequestBody: {
+          webSearchEnabled: false,
+          reasoningEffort: 0,
+        },
+      });
+
+    expect(status2).toBe(200);
+    expect(data2.response?.webSearchEnabled).toBe(false);
+    expect(data2.response?.reasoningEffort).toBe(0);
+  });
+
+  test("PUT /api/2.0/ai/rooms/:roomId/chats/config - RoomAdmin sets user chats settings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: agentData } = await roomAdminApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const { data: data1, status: status1 } =
+      await roomAdminApi.chat.setUserChatsSettings({
+        roomId: agentRoomId,
+        setUserChatSettingsRequestBody: {
+          webSearchEnabled: true,
+          reasoningEffort: 2,
+        },
+      });
+
+    expect(status1).toBe(200);
+    expect(data1.response?.webSearchEnabled).toBe(true);
+    expect(data1.response?.reasoningEffort).toBe(2);
+
+    const { data: data2, status: status2 } =
+      await roomAdminApi.chat.setUserChatsSettings({
+        roomId: agentRoomId,
+        setUserChatSettingsRequestBody: {
+          webSearchEnabled: false,
+          reasoningEffort: 0,
+        },
+      });
+
+    expect(status2).toBe(200);
+    expect(data2.response?.webSearchEnabled).toBe(false);
+    expect(data2.response?.reasoningEffort).toBe(0);
+  });
+});
+
+for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
+  test.describe(`PUT /api/2.0/ai/rooms/:roomId/chats/config - ${userType} member sets user chats settings`, () => {
+    test(`PUT /api/2.0/ai/rooms/:roomId/chats/config - ${userType} member sets user chats settings`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data: data1, status: status1 } =
+        await memberApi.chat.setUserChatsSettings({
+          roomId: agentRoomId,
+          setUserChatSettingsRequestBody: {
+            webSearchEnabled: true,
+            reasoningEffort: 2,
+          },
+        });
+
+      expect(status1).toBe(200);
+      expect(data1.response?.webSearchEnabled).toBe(true);
+      expect(data1.response?.reasoningEffort).toBe(2);
+
+      const { data: data2, status: status2 } =
+        await memberApi.chat.setUserChatsSettings({
+          roomId: agentRoomId,
+          setUserChatSettingsRequestBody: {
+            webSearchEnabled: false,
+            reasoningEffort: 0,
+          },
+        });
+
+      expect(status2).toBe(200);
+      expect(data2.response?.webSearchEnabled).toBe(false);
+      expect(data2.response?.reasoningEffort).toBe(0);
+    });
+  });
+}
+
+for (const userType of ["DocSpaceAdmin", "RoomAdmin"] as UserType[]) {
+  test.describe(`PUT /api/2.0/ai/rooms/:roomId/chats/config - ${userType} as Agent Manager sets user chats settings`, () => {
+    test(`PUT /api/2.0/ai/rooms/:roomId/chats/config - ${userType} as Agent Manager sets user chats settings`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.RoomManager }],
+          notify: false,
+        },
+      });
+
+      const { data: data1, status: status1 } =
+        await memberApi.chat.setUserChatsSettings({
+          roomId: agentRoomId,
+          setUserChatSettingsRequestBody: {
+            webSearchEnabled: true,
+            reasoningEffort: 2,
+          },
+        });
+
+      expect(status1).toBe(200);
+      expect(data1.response?.webSearchEnabled).toBe(true);
+      expect(data1.response?.reasoningEffort).toBe(2);
+
+      const { data: data2, status: status2 } =
+        await memberApi.chat.setUserChatsSettings({
+          roomId: agentRoomId,
+          setUserChatSettingsRequestBody: {
+            webSearchEnabled: false,
+            reasoningEffort: 0,
+          },
+        });
+
+      expect(status2).toBe(200);
+      expect(data2.response?.webSearchEnabled).toBe(false);
+      expect(data2.response?.reasoningEffort).toBe(0);
+    });
+  });
+}
+
+test.describe("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - providePermission", () => {
+  test("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - Owner provides permission for tool execution", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Tool Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        attachDefaultTools: true,
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful assistant.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myFolderId = myFolderData.response!.current!.id!;
+
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: `Create a .docx file named "autotest" in folder with id ${myFolderId}`,
+        },
+      },
+      { responseType: "stream", timeout: 10000 },
+    );
+
+    const { parsed } = parseSseEvents(startResponse.data);
+    const permissionEvent = parsed.find(
+      (e) => e.event === "tool_call" && e.data?.managed === true,
+    );
+    const callId = permissionEvent!.data.callId as string;
+
+    const { status } = await ownerApi.chat.providePermission({
+      callId,
+      toolDecisionRequestBody: {
+        decision: ToolExecutionDecision.Allow,
+      },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - DocSpaceAdmin provides permission for tool execution", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: agentData } = await adminApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Tool Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        attachDefaultTools: true,
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful assistant.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const { data: myFolderData } = await adminApi.folders.getMyFolder({});
+    const myFolderId = myFolderData.response!.current!.id!;
+
+    const startResponse = await adminApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: `Create a .docx file named "autotest" in folder with id ${myFolderId}`,
+        },
+      },
+      { responseType: "stream", timeout: 10000 },
+    );
+
+    const { parsed } = parseSseEvents(startResponse.data);
+    const permissionEvent = parsed.find(
+      (e) => e.event === "tool_call" && e.data?.managed === true,
+    );
+    const callId = permissionEvent!.data.callId as string;
+
+    const { status } = await adminApi.chat.providePermission({
+      callId,
+      toolDecisionRequestBody: {
+        decision: ToolExecutionDecision.Allow,
+      },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - RoomAdmin provides permission for tool execution", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: agentData } = await roomAdminApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Tool Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        attachDefaultTools: true,
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful assistant.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const { data: myFolderData } = await roomAdminApi.folders.getMyFolder({});
+    const myFolderId = myFolderData.response!.current!.id!;
+
+    const startResponse = await roomAdminApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: `Create a .docx file named "autotest" in folder with id ${myFolderId}`,
+        },
+      },
+      { responseType: "stream", timeout: 10000 },
+    );
+
+    const { parsed } = parseSseEvents(startResponse.data);
+    const permissionEvent = parsed.find(
+      (e) => e.event === "tool_call" && e.data?.managed === true,
+    );
+    const callId = permissionEvent!.data.callId as string;
+
+    const { status } = await roomAdminApi.chat.providePermission({
+      callId,
+      toolDecisionRequestBody: {
+        decision: ToolExecutionDecision.Allow,
+      },
+    });
+
+    expect(status).toBe(200);
   });
 });
