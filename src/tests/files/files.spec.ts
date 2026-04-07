@@ -581,7 +581,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
   });
 
-  test("POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)", async ({
+  test("BUG 80745: POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -614,7 +614,7 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
 });
 
 test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
-  test("POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder", async ({
+  test("BUG 80743: POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -805,7 +805,7 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
     expect(data.response!.fileExst).toBe(".docx");
   });
 
-  test("PUT /files/file/:fileId - Returns 404 for non-existent file", async ({
+  test("BUG 80774: PUT /files/file/:fileId - Returns 404 for non-existent file", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1181,7 +1181,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     expect(data.response?.locked).toBeFalsy();
   });
 
-  test("PUT /files/file/:fileId/lock - Non-existent file returns 404", async ({
+  test("BUG 80788: PUT /files/file/:fileId/lock - Non-existent file returns 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1418,7 +1418,7 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
     expect((data.response as any).originRoomTitle).toBe(roomTitle);
   });
 
-  test("POST /files/file/:fileId/recent - Non-existent file returns 404", async ({
+  test("BUG 80795: POST /files/file/:fileId/recent - Non-existent file returns 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");

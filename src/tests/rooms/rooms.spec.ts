@@ -528,7 +528,7 @@ test.describe("API rooms methods", () => {
     });
   });
 
-  test("DELETE /files/tags - DocSpaceAdmin deletes tag created by Owner", async ({
+  test("BUG 72499: DELETE /files/tags - DocSpaceAdmin deletes tag created by Owner", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");

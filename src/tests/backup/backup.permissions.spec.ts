@@ -575,7 +575,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect(status).toBe(401);
   });
 
-  test("GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
+  test("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - RoomAdmin gets service state", async ({
     apiSdk,
   }) => {
     const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
@@ -590,7 +590,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  test("GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
+  test("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - User gets service state", async ({
     apiSdk,
   }) => {
     const { api: userApi } = await apiSdk.addAuthenticatedMember(
@@ -605,7 +605,7 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () 
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  test("GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
+  test("BUG 80574: GET /api/2.0/backup/getbackupsservicestate - Guest gets service state", async ({
     apiSdk,
   }) => {
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(

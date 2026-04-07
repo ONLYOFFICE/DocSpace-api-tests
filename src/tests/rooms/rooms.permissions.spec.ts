@@ -509,7 +509,7 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
 for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
   test.describe(`DELETE /files/tags - ${userType} invited to room cannot delete a tag`, () => {
     for (const { label, access } of roomAccesses) {
-      test(`Room access: ${label}`, async ({ apiSdk }) => {
+      test(`BUG 72499: Room access: ${label}`, async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
 
         await ownerApi.rooms.createRoomTag({
