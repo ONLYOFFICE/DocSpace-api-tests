@@ -2486,70 +2486,580 @@ for (const userType of [
   "Guest",
 ] as UserType[]) {
   test.describe(`POST /api/2.0/ai/chats/tool-permissions/:callId/decision - ${userType} cannot approve tool execution in another user's chat`, () => {
-    test.fail(
-      `BUG XXXXX: POST /api/2.0/ai/chats/tool-permissions/:callId/decision - ${userType} should get 403 when approving tool call in Owner's chat session but gets 200`,
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
+    test(`BUG 80930: POST /api/2.0/ai/chats/tool-permissions/:callId/decision - ${userType} should get 403 when approving tool call in Owner's chat session but gets 200`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-        const { data: providerData } = await ownerApi.providers.addProvider({
-          createProviderRequestDto: {
-            type: provider.type,
-            title: provider.title,
-            key: provider.key,
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Tool Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          attachDefaultTools: true,
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt: "You are a helpful assistant.",
           },
-        });
-        const providerId = providerData.response!.id!;
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
 
-        const { data: agentData } = await ownerApi.agents.createAgent({
-          createAgentRequestDto: {
-            title: "Autotest Tool Agent",
-            color: "FF5733",
-            cover: "layers",
-            tags: ["autotest"],
-            attachDefaultTools: true,
-            chatSettings: {
-              providerId,
-              modelId: provider.modelId,
-              prompt: "You are a helpful assistant.",
-            },
+      const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+      const myFolderId = myFolderData.response!.current!.id!;
+
+      const startResponse = await ownerApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: {
+            message: `Create a .docx file named "autotest" in folder with id ${myFolderId}`,
           },
-        });
-        const agentRoomId = agentData.response!.id!;
+        },
+        { responseType: "stream", timeout: 10000 },
+      );
 
-        const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-        const myFolderId = myFolderData.response!.current!.id!;
+      const { parsed } = parseSseEvents(startResponse.data);
+      const permissionEvent = parsed.find(
+        (e) => e.event === "tool_call" && e.data?.managed === true,
+      );
+      const callId = permissionEvent!.data.callId as string;
 
-        const startResponse = await ownerApi.chat.startNewChat(
-          {
-            roomId: agentRoomId,
-            startNewChatBody: {
-              message: `Create a .docx file named "autotest" in folder with id ${myFolderId}`,
-            },
-          },
-          { responseType: "stream", timeout: 10000 },
-        );
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
 
-        const { parsed } = parseSseEvents(startResponse.data);
-        const permissionEvent = parsed.find(
-          (e) => e.event === "tool_call" && e.data?.managed === true,
-        );
-        const callId = permissionEvent!.data.callId as string;
+      const { data, status } = await memberApi.chat.providePermission({
+        callId,
+        toolDecisionRequestBody: {
+          decision: ToolExecutionDecision.Allow,
+        },
+      });
 
-        const { api: memberApi } = await apiSdk.addAuthenticatedMember(
-          "owner",
-          userType,
-        );
-
-        const { data, status } = await memberApi.chat.providePermission({
-          callId,
-          toolDecisionRequestBody: {
-            decision: ToolExecutionDecision.Allow,
-          },
-        });
-
-        expect(status).toBe(403);
-        expect((data as any).error.message).toBe("Access denied");
-      },
-    );
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
   });
 }
+
+for (const userType of [
+  "DocSpaceAdmin",
+  "RoomAdmin",
+  "User",
+  "Guest",
+] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/rooms/:roomId/chats/config - ${userType} with Viewer role cannot get user chats settings`, () => {
+    test(`GET /api/2.0/ai/rooms/:roomId/chats/config - ${userType} with Viewer role gets 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await memberApi.chat.getUserChatsSettings({
+        roomId: agentRoomId,
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+for (const userType of [
+  "DocSpaceAdmin",
+  "RoomAdmin",
+  "User",
+  "Guest",
+] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/rooms/:roomId/chats/config - ${userType} not in agent cannot get user chats settings`, () => {
+    test(`GET /api/2.0/ai/rooms/:roomId/chats/config - ${userType} not in agent gets 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data, status } = await memberApi.chat.getUserChatsSettings({
+        roomId: agentRoomId,
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+test.describe("GET /api/2.0/ai/rooms/:roomId/chats/config - Get user chats settings validation", () => {
+  test("GET /api/2.0/ai/rooms/:roomId/chats/config - Owner gets settings for non-existent room gets 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.chat.getUserChatsSettings({
+      roomId: 999999999,
+    });
+
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe(
+      "The required folder was not found",
+    );
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/chats/config - Anonymous gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.chat.getUserChatsSettings({
+      roomId: 1,
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+for (const userType of [
+  "DocSpaceAdmin",
+  "RoomAdmin",
+  "User",
+  "Guest",
+] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/rooms/:roomId/chats - ${userType} not in agent cannot get chats`, () => {
+    test(`GET /api/2.0/ai/rooms/:roomId/chats - ${userType} not in agent gets 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data, status } = await memberApi.chat.getChats({
+        roomId: agentRoomId,
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+for (const userType of [
+  "DocSpaceAdmin",
+  "RoomAdmin",
+  "User",
+  "Guest",
+] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/rooms/:roomId/chats - ${userType} with Viewer role cannot get chats`, () => {
+    test(`GET /api/2.0/ai/rooms/:roomId/chats - ${userType} with Viewer role gets 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await memberApi.chat.getChats({
+        roomId: agentRoomId,
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+test.describe("GET /api/2.0/ai/rooms/:roomId/chats - Get AI chats validation", () => {
+  test("GET /api/2.0/ai/rooms/:roomId/chats - Owner gets chats for non-existent room gets 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.chat.getChats({
+      roomId: 999999999,
+    });
+
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe(
+      "The required folder was not found",
+    );
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/chats - Anonymous gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.chat.getChats({
+      roomId: 1,
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} with ContentCreator role cannot read Owner's chat`, () => {
+    test(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} with ContentCreator role gets 403 on Owner's chatId`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      await ownerApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: { message: "What is 2+2? Answer in one word." },
+        },
+        { responseType: "stream" },
+      );
+
+      const { data: chatsData } = await ownerApi.chat.getChats({
+        roomId: agentRoomId,
+      });
+      const ownerChatId = chatsData.response![0].id!;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await memberApi.chat.getMessages({
+        chatId: ownerChatId,
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+for (const userType of [
+  "DocSpaceAdmin",
+  "RoomAdmin",
+  "User",
+  "Guest",
+] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} not in agent cannot read Owner's chat`, () => {
+    test(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} not in agent gets 403 on Owner's chatId`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      await ownerApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: { message: "What is 2+2? Answer in one word." },
+        },
+        { responseType: "stream" },
+      );
+
+      const { data: chatsData } = await ownerApi.chat.getChats({
+        roomId: agentRoomId,
+      });
+      const ownerChatId = chatsData.response![0].id!;
+
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data, status } = await memberApi.chat.getMessages({
+        chatId: ownerChatId,
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+for (const userType of [
+  "DocSpaceAdmin",
+  "RoomAdmin",
+  "User",
+  "Guest",
+] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} with Viewer role cannot read Owner's chat`, () => {
+    test(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} with Viewer role gets 403 on Owner's chatId`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      await ownerApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: { message: "What is 2+2? Answer in one word." },
+        },
+        { responseType: "stream" },
+      );
+
+      const { data: chatsData } = await ownerApi.chat.getChats({
+        roomId: agentRoomId,
+      });
+      const ownerChatId = chatsData.response![0].id!;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await memberApi.chat.getMessages({
+        chatId: ownerChatId,
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+test.describe("GET /api/2.0/ai/chats/:chatId/messages - Get messages validation", () => {
+  test("GET /api/2.0/ai/chats/:chatId/messages - Owner gets messages for non-existent chatId gets 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.chat.getMessages({
+      chatId: "00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("Chat not found");
+  });
+
+  test("GET /api/2.0/ai/chats/:chatId/messages - Anonymous gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.chat.getMessages({
+      chatId: "00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(status).toBe(401);
+  });
+});
