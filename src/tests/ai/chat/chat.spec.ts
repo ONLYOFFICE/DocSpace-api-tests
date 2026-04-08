@@ -1330,7 +1330,7 @@ test.describe("GET /api/2.0/ai/rooms/:roomId/chats - Get AI chats in a room", ()
     const { data, status } = await ownerApi.chat.getChats({
       roomId: agentRoomId,
     });
-console.log(data);
+    console.log(data);
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
     expect(data.response!.length).toBeGreaterThanOrEqual(1);
