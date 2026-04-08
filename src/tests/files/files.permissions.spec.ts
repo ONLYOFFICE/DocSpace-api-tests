@@ -2878,11 +2878,6 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data, status } = await ownerApi.files.getEditHistory({ fileId });
 
-    console.log(
-      "getEditHistory response (Owner):",
-      JSON.stringify(data, null, 2),
-    );
-
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
@@ -2923,11 +2918,6 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data, status } = await adminApi.files.getEditHistory({ fileId });
 
-    console.log(
-      "getEditHistory response (DocSpaceAdmin, RoomManager):",
-      JSON.stringify(data, null, 2),
-    );
-
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
@@ -2966,11 +2956,6 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data, status } = await userApi.files.getEditHistory({ fileId });
 
-    console.log(
-      "getEditHistory response (User, Editing):",
-      JSON.stringify(data, null, 2),
-    );
-
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
@@ -3007,12 +2992,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await userApi.files.getEditHistory({ fileId });
-
-    console.log(
-      "getEditHistory response (User, Comment - expected 403):",
-      JSON.stringify(data, null, 2),
-    );
+    const { status } = await userApi.files.getEditHistory({ fileId });
 
     expect(status).toBe(403);
   });
@@ -3043,12 +3023,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await userApi.files.getEditHistory({ fileId });
-
-    console.log(
-      "getEditHistory response (User, no access - expected 403):",
-      JSON.stringify(data, null, 2),
-    );
+    const { status } = await userApi.files.getEditHistory({ fileId });
 
     expect(status).toBe(403);
   });
@@ -3063,14 +3038,9 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forAnonymous()
       .files.getEditHistory({ fileId });
-
-    console.log(
-      "getEditHistory response (unauthenticated):",
-      JSON.stringify(data, null, 2),
-    );
 
     expect(status).toBe(403);
   });

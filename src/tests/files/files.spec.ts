@@ -2149,11 +2149,6 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
 
     const { data, status } = await ownerApi.files.getEditHistory({ fileId });
 
-    console.log(
-      "getEditHistory response (owner, new file):",
-      JSON.stringify(data, null, 2),
-    );
-
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
@@ -2172,11 +2167,6 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
     const fileId = fileData.response!.id!;
 
     const { data, status } = await ownerApi.files.getEditHistory({ fileId });
-
-    console.log(
-      "getEditHistory response (structure check):",
-      JSON.stringify(data, null, 2),
-    );
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -2215,11 +2205,6 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
 
     const { data, status } = await ownerApi.files.getEditHistory({ fileId });
 
-    console.log(
-      "getEditHistory response (room file):",
-      JSON.stringify(data, null, 2),
-    );
-
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
@@ -2233,11 +2218,6 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
       const { data, status } = await ownerApi.files.getEditHistory({
         fileId: 999999999,
       });
-
-      console.log(
-        "getEditHistory response (non-existent file):",
-        JSON.stringify(data, null, 2),
-      );
 
       expect(status).toBe(404);
       expect((data as any).error.message).toBe(
