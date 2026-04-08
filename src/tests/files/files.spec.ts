@@ -581,7 +581,6 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
   });
 
-  // BUG 80745: copyFileAs with enableExternalExt: true returns 500 System.Exception - requires DS <-> DocSpace connectivity
   test("BUG 80745: POST /files/file/:fileId/copyas - Copies file with non-standard extension (enableExternalExt: true)", async ({
     apiSdk,
   }) => {
@@ -615,7 +614,6 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
 });
 
 test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
-  // BUG 80743: saveaspdf returns 403 System.InvalidOperationException - requires DS <-> DocSpace connectivity
   test("BUG 80743: POST /files/file/:id/saveaspdf - Saves file as PDF in specified folder", async ({
     apiSdk,
   }) => {
@@ -807,7 +805,7 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
     expect(data.response!.fileExst).toBe(".docx");
   });
 
-  test("BUG 80774: PUT /files/file/:fileId - Returns 403 instead of 404 for non-existent file", async ({
+  test("BUG 80774: PUT /files/file/:fileId - Returns 404 for non-existent file", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -817,7 +815,6 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
       updateFile: { title: "Autotest Non-existent" },
     });
 
-    // Bug: API crashes with NullReferenceException and returns 403 instead of 404
     expect(status).toBe(404);
     expect((data as any).error.message).toBe("The required file was not found");
   });
@@ -1184,7 +1181,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     expect(data.response?.locked).toBeFalsy();
   });
 
-  test("BUG 80788: PUT /files/file/:fileId/lock - Non-existent file returns 403 instead of 404", async ({
+  test("BUG 80788: PUT /files/file/:fileId/lock - Non-existent file returns 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1421,7 +1418,7 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
     expect((data.response as any).originRoomTitle).toBe(roomTitle);
   });
 
-  test("BUG 80795: POST /files/file/:fileId/recent - Non-existent file returns 403 instead of 404", async ({
+  test("BUG 80795: POST /files/file/:fileId/recent - Non-existent file returns 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -2137,4 +2134,95 @@ test.describe("GET /files/file/:fileId/history - Get file version info", () => {
     expect(data.response![0].comment).toBe("Created");
     expect(data.response![0].fileStatus).toBe(0);
   });
+});
+
+test.describe("GET /files/file/:fileId/edit/history - Get file edit history", () => {
+  test("GET /files/file/:fileId/edit/history - Owner gets edit history of a new file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Edit History File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getEditHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBe(1);
+    expect(data.count).toBe(1);
+  });
+
+  test("GET /files/file/:fileId/edit/history - Edit history entry has correct structure", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Edit History Structure" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getEditHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.length).toBe(1);
+
+    const entry = data.response![0];
+    // Business: each entry must identify the document version and author
+    expect(entry.id).toBe(fileId);
+    expect(entry.key).toBeTruthy();
+    expect(entry.version).toBe(1);
+    expect(entry.versionGroup).toBe(1);
+    expect(entry.user).toBeDefined();
+    expect(entry.user!.id).toBeTruthy();
+    expect(entry.user!.name).toBeTruthy();
+    expect(entry.created).toBeDefined();
+  });
+
+  test("GET /files/file/:fileId/edit/history - File in a room has edit history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Edit History",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Room Edit History File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getEditHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test.fail(
+    "BUG XXXXX: GET /files/file/:fileId/edit/history - Non-existent file returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.files.getEditHistory({
+        fileId: 999999999,
+      });
+
+      expect(status).toBe(404);
+      expect((data as any).error.message).toBe(
+        "The required file was not found",
+      );
+    },
+  );
 });
