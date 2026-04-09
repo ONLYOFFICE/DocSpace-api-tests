@@ -601,6 +601,47 @@ test.describe("GET /people/room/:id - Permissions", () => {
     expect((data as any).error?.message).toContain("Access denied");
   });
 
+  test(
+    "BUG 79218: GET /people/room/:id - Guest invited to a room can get all portal users via room search",
+    async ({ apiSdk }) => {
+      // DocSpace admin creates a room
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+      const { data: roomData } = await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Guest Room Search",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // DocSpace admin invites a guest to the room
+      const { data: guestData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
+      const guestId = guestData.response!.id!;
+
+      await adminApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: guestId, access: FileShare.Read }],
+        },
+      });
+
+      // Guest calls GET /people/room/:id for the room they are a member of
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .peopleSearch.getUsersWithRoomShared({ id: roomId });
+
+      // Expected: 403 because guests should not be able to retrieve portal members list
+      expect(status).toBe(403);
+      expect((data as any).error?.message).toContain("Access denied");
+    },
+  );
+
   test("GET /people/room/:id - 401 when unauthorized", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
 
