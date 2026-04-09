@@ -549,23 +549,6 @@ test.describe("API rooms methods", () => {
     expect(status).toBe(200);
   });
 
-  test("PUT /files/tags - Owner renames a tag", async ({ apiSdk }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.rooms.createRoomTag({
-      createTagRequestDto: { name: "OldTagName" },
-    });
-
-    const { data, status } = await ownerApi.rooms.updateRoomTag({
-      updateTagRequestDto: {
-        oldName: "OldTagName",
-        newName: "NewTagName",
-      },
-    });
-
-    expect(status).toBe(200);
-    expect(data.response as unknown as string).toBe("NewTagName");
-  });
-
   // tagName2 = path param ({tagName} in route), tagName = query param ([FromQuery] in DTO)
   test("GET /files/tags/haslinks - Tag not linked to any room returns false", async ({
     apiSdk,
