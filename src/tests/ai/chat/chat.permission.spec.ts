@@ -3063,3 +3063,477 @@ test.describe("GET /api/2.0/ai/chats/:chatId/messages - Get messages validation"
     expect(status).toBe(401);
   });
 });
+
+for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
+  test.describe(`POST /api/2.0/ai/chats/:chatId/messages/export - ${userType} with Viewer role cannot export Owner's chat`, () => {
+    test(`POST /api/2.0/ai/chats/:chatId/messages/export - ${userType} with Viewer role gets 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Export Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const startResponse = await ownerApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: { message: "What is 2+2? Answer in one word." },
+        },
+        { responseType: "stream", timeout: 5000 },
+      );
+      const { messageStart } = parseSseEvents(startResponse.data);
+      const ownerChatId = messageStart!.data.chatId;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data: myFolderData } = await memberApi.folders.getMyFolder({});
+      const myDocsFolderId = myFolderData.response!.current!.id!;
+
+      const { data, status } = await memberApi.chat.exportChat({
+        chatId: ownerChatId,
+        exportChatRequestBodyInteger: {
+          folderId: myDocsFolderId,
+          title: apiSdk.faker.generateString(10),
+        },
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest with Viewer role cannot export Owner's chat", () => {
+  test("POST /api/2.0/ai/chats/:chatId/messages/export - Guest with Viewer role gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Export Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: { message: "What is 2+2? Answer in one word." },
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const ownerChatId = messageStart!.data.chatId;
+
+    const agentParentId = (agentData.response as any).parentId;
+    const { data: parentContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: agentParentId,
+    });
+    const folders = (parentContent as any).response?.folders ?? [];
+    const resultStorageFolder = (folders as any[]).find(
+      (f: any) => f.type === 33 && f.parentId === agentRoomId,
+    );
+    const resultStorageFolderId = resultStorageFolder.id;
+
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: agentRoomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await guestApi.chat.exportChat({
+      chatId: ownerChatId,
+      exportChatRequestBodyInteger: {
+        folderId: resultStorageFolderId,
+        title: apiSdk.faker.generateString(10),
+      },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
+
+for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
+  test.describe(`POST /api/2.0/ai/chats/:chatId/messages/export - ${userType} not in agent cannot export Owner's chat`, () => {
+    test(`POST /api/2.0/ai/chats/:chatId/messages/export - ${userType} not in agent gets 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Export Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const startResponse = await ownerApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: { message: "What is 2+2? Answer in one word." },
+        },
+        { responseType: "stream", timeout: 5000 },
+      );
+      const { messageStart } = parseSseEvents(startResponse.data);
+      const ownerChatId = messageStart!.data.chatId;
+
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data: myFolderData } = await memberApi.folders.getMyFolder({});
+      const myDocsFolderId = myFolderData.response!.current!.id!;
+
+      const { data, status } = await memberApi.chat.exportChat({
+        chatId: ownerChatId,
+        exportChatRequestBodyInteger: {
+          folderId: myDocsFolderId,
+          title: apiSdk.faker.generateString(10),
+        },
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest not in agent cannot export Owner's chat", () => {
+  test("POST /api/2.0/ai/chats/:chatId/messages/export - Guest not in agent gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Export Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: { message: "What is 2+2? Answer in one word." },
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const ownerChatId = messageStart!.data.chatId;
+
+    const agentParentId = (agentData.response as any).parentId;
+    const { data: parentContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: agentParentId,
+    });
+    const folders = (parentContent as any).response?.folders ?? [];
+    const resultStorageFolder = (folders as any[]).find(
+      (f: any) => f.type === 33 && f.parentId === agentRoomId,
+    );
+    const resultStorageFolderId = resultStorageFolder.id;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.chat.exportChat({
+      chatId: ownerChatId,
+      exportChatRequestBodyInteger: {
+        folderId: resultStorageFolderId,
+        title: apiSdk.faker.generateString(10),
+      },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Export chat validation", () => {
+  test("POST /api/2.0/ai/chats/:chatId/messages/export - Owner exports non-existent chat gets 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+
+    const { data, status } = await ownerApi.chat.exportChat({
+      chatId: "00000000-0000-0000-0000-000000000000",
+      exportChatRequestBodyInteger: {
+        folderId: myDocsFolderId,
+        title: apiSdk.faker.generateString(10),
+      },
+    });
+
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("Chat not found");
+  });
+
+  test("POST /api/2.0/ai/chats/:chatId/messages/export - Anonymous gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.chat.exportChat({
+      chatId: "00000000-0000-0000-0000-000000000000",
+      exportChatRequestBodyInteger: {
+        folderId: 0,
+        title: "test",
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+for (const userType of [
+  "DocSpaceAdmin",
+  "RoomAdmin",
+  "User",
+  "Guest",
+] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/chats/:chatId - ${userType} with Viewer role cannot get Owner's chat`, () => {
+    test(`GET /api/2.0/ai/chats/:chatId - ${userType} with Viewer role gets 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Get Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const startResponse = await ownerApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: { message: "What is 2+2? Answer in one word." },
+        },
+        { responseType: "stream", timeout: 5000 },
+      );
+      const { messageStart } = parseSseEvents(startResponse.data);
+      const ownerChatId = messageStart!.data.chatId;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await memberApi.chat.getChat({
+        chatId: ownerChatId,
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+for (const userType of [
+  "DocSpaceAdmin",
+  "RoomAdmin",
+  "User",
+  "Guest",
+] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/chats/:chatId - ${userType} not in agent cannot get Owner's chat`, () => {
+    test(`GET /api/2.0/ai/chats/:chatId - ${userType} not in agent gets 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Get Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const startResponse = await ownerApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: { message: "What is 2+2? Answer in one word." },
+        },
+        { responseType: "stream", timeout: 5000 },
+      );
+      const { messageStart } = parseSseEvents(startResponse.data);
+      const ownerChatId = messageStart!.data.chatId;
+
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data, status } = await memberApi.chat.getChat({
+        chatId: ownerChatId,
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+test.describe("GET /api/2.0/ai/chats/:chatId - Get chat validation", () => {
+  test("GET /api/2.0/ai/chats/:chatId - Owner gets non-existent chat gets 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.chat.getChat({
+      chatId: "00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("Chat not found");
+  });
+
+  test("GET /api/2.0/ai/chats/:chatId - Anonymous gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.chat.getChat({
+      chatId: "00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(status).toBe(401);
+  });
+});

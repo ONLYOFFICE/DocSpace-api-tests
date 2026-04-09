@@ -1888,3 +1888,274 @@ test.describe("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - provid
     expect(status).toBe(200);
   });
 });
+
+test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Export AI chat messages", () => {
+  test("POST /api/2.0/ai/chats/:chatId/messages/export - Owner exports chat to My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Export Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: { message: "What is 2+2? Answer in one word." },
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+    const exportTitle = apiSdk.faker.generateString(10);
+
+    const { status } = await ownerApi.chat.exportChat({
+      chatId,
+      exportChatRequestBodyInteger: {
+        folderId: myDocsFolderId,
+        title: exportTitle,
+      },
+    });
+
+    expect(status).toBe(200);
+
+    await expect(async () => {
+      const { data: folderData } = await ownerApi.folders.getFolderByFolderId({
+        folderId: myDocsFolderId,
+      });
+      const exportedFile = folderData.response!.files?.find(
+        (f) => f.title === `${exportTitle}.docx`,
+      );
+      expect(exportedFile).toBeDefined();
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+  });
+
+  for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
+    test(`POST /api/2.0/ai/chats/:chatId/messages/export - ${userType} exports chat to My Documents`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Export Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const startResponse = await memberApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: { message: "What is 2+2? Answer in one word." },
+        },
+        { responseType: "stream", timeout: 5000 },
+      );
+      const { messageStart } = parseSseEvents(startResponse.data);
+      const chatId = messageStart!.data.chatId;
+
+      const { data: myFolderData } = await memberApi.folders.getMyFolder({});
+      const myDocsFolderId = myFolderData.response!.current!.id!;
+      const exportTitle = apiSdk.faker.generateString(10);
+
+      const { status } = await memberApi.chat.exportChat({
+        chatId,
+        exportChatRequestBodyInteger: {
+          folderId: myDocsFolderId,
+          title: exportTitle,
+        },
+      });
+
+      expect(status).toBe(200);
+
+      await expect(async () => {
+        const { data: folderData } =
+          await memberApi.folders.getFolderByFolderId({
+            folderId: myDocsFolderId,
+          });
+        const exportedFile = folderData.response!.files?.find(
+          (f) => f.title === `${exportTitle}.docx`,
+        );
+        expect(exportedFile).toBeDefined();
+      }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+    });
+  }
+});
+
+test.describe("GET /api/2.0/ai/chats/:chatId - Get AI chat by ID", () => {
+  test("GET /api/2.0/ai/chats/:chatId - Owner gets chat metadata", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await ownerApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Get Chat Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful test assistant. Keep answers very short.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const startResponse = await ownerApi.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: { message: "What is 2+2? Answer in one word." },
+      },
+      { responseType: "stream", timeout: 5000 },
+    );
+    const { messageStart } = parseSseEvents(startResponse.data);
+    const chatId = messageStart!.data.chatId;
+
+    const { data, status } = await ownerApi.chat.getChat({ chatId });
+
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(chatId);
+    expect(data.response?.title).toBeTruthy();
+    expect(data.response?.createdOn).toBeDefined();
+    expect(data.response?.modifiedOn).toBeDefined();
+    expect(data.response?.createdBy?.id).toBeDefined();
+    expect(data.response?.createdBy?.displayName).toBe(ownerDisplayName);
+  });
+});
+
+for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/chats/:chatId - ${userType} gets chat metadata`, () => {
+    test(`GET /api/2.0/ai/chats/:chatId - ${userType} gets chat metadata`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Get Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const { api: memberApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", userType);
+      const memberId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const startResponse = await memberApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: { message: "What is 2+2? Answer in one word." },
+        },
+        { responseType: "stream", timeout: 5000 },
+      );
+      const { messageStart } = parseSseEvents(startResponse.data);
+      const chatId = messageStart!.data.chatId;
+
+      const { data: profileData } = await memberApi.profiles.getSelfProfile();
+      const memberDisplayName = profileData.response!.displayName!;
+
+      const { data, status } = await memberApi.chat.getChat({ chatId });
+
+      expect(status).toBe(200);
+      expect(data.response?.id).toBe(chatId);
+      expect(data.response?.title).toBeTruthy();
+      expect(data.response?.createdOn).toBeDefined();
+      expect(data.response?.modifiedOn).toBeDefined();
+      expect(data.response?.createdBy?.id).toBeDefined();
+      expect(data.response?.createdBy?.displayName).toBe(memberDisplayName);
+    });
+  });
+}
