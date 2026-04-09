@@ -57,10 +57,9 @@ test.describe("POST /group/:id/members - Replace group members", () => {
         id: groupId,
         includeMembers: true,
       });
-      expect(
-        groupAfter.response?.members?.some((m) => m.id === memberId),
-      ).toBe(true);
+      expect(groupAfter.response?.members?.some((m) => m.id === memberId)).toBe(
+        true,
+      );
     },
   );
-
 });
