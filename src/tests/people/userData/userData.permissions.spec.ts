@@ -428,6 +428,52 @@ test.describe("GET /people/reassign/progress - Permissions", () => {
 
     expect(status).toBe(401);
   });
+
+  test(
+    "BUG 78957: DocSpace admin should not be able to check reassign progress for a DocSpace admin they have no access to",
+    async ({ apiSdk }) => {
+      // Create DocSpace admin2 (who will be blocked and have data reassigned by Owner)
+      const { data: admin2Data } = await apiSdk.addMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+      const admin2Id = admin2Data.response!.id!;
+
+      // Create and authenticate DocSpace admin1 (who will attempt to check progress)
+      const { api: admin1Api } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const ownerApi = await apiSdk.authenticateOwner();
+
+      // Owner blocks DocSpace admin2
+      await ownerApi.userStatus.updateUserStatus({
+        status: EmployeeStatus.Terminated,
+        updateMembersRequestDto: { userIds: [admin2Id] },
+      });
+
+      // Owner gets their own ID to use as reassignment target
+      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+      const ownerId = ownerProfile.response!.id!;
+
+      // Owner starts reassignment of admin2's data to themselves
+      await ownerApi.userData.startReassign({
+        startReassignRequestDto: {
+          fromUserId: admin2Id,
+          toUserId: ownerId,
+        },
+      });
+
+      // DocSpace admin1 tries to check the progress of admin2's reassignment
+      const { data } = await admin1Api.userData.getReassignProgress({
+        userid: admin2Id,
+      });
+
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error?.message).toContain("Access denied");
+    },
+  );
 });
 
 test.describe("PUT /people/reassign/terminate - Permissions", () => {
