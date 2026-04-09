@@ -3440,9 +3440,7 @@ test.describe("GET /files/rooms/covers - access control", () => {
     "BUG XXXXX: GET /files/rooms/covers - Guest cannot get covers list",
     async ({ apiSdk }) => {
       await apiSdk.addMember("owner", "Guest");
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .rooms.getRoomCovers();
+      const { status } = await apiSdk.forRole("guest").rooms.getRoomCovers();
       expect(status).toBe(403);
     },
   );
@@ -3450,7 +3448,7 @@ test.describe("GET /files/rooms/covers - access control", () => {
   test("GET /files/rooms/covers - Unauthenticated user cannot get covers list", async ({
     apiSdk,
   }) => {
-    const { data, status } = await apiSdk.forAnonymous().rooms.getRoomCovers();
+    const { status } = await apiSdk.forAnonymous().rooms.getRoomCovers();
     expect(status).toBe(401);
   });
 });
@@ -3471,7 +3469,7 @@ test.describe("PUT /files/rooms/:id/cover - access control", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await ownerApi.rooms.changeRoomCover({
+    const { status } = await ownerApi.rooms.changeRoomCover({
       id: roomId,
       coverRequestDto: { color: "FF5733", cover: coverId },
     });
@@ -3495,7 +3493,7 @@ test.describe("PUT /files/rooms/:id/cover - access control", () => {
 
       await apiSdk.addMember("owner", "DocSpaceAdmin");
 
-      const { data, status } = await apiSdk
+      const { status } = await apiSdk
         .forRole("docSpaceAdmin")
         .rooms.changeRoomCover({
           id: roomId,
@@ -3531,7 +3529,7 @@ test.describe("PUT /files/rooms/:id/cover - access control", () => {
         },
       });
 
-      const { data, status } = await apiSdk
+      const { status } = await apiSdk
         .forRole("roomAdmin")
         .rooms.changeRoomCover({
           id: roomId,
@@ -3558,12 +3556,10 @@ test.describe("PUT /files/rooms/:id/cover - access control", () => {
 
       await apiSdk.addMember("owner", "User");
 
-      const { data, status } = await apiSdk
-        .forRole("user")
-        .rooms.changeRoomCover({
-          id: roomId,
-          coverRequestDto: { color: "FF0000", cover: coverId },
-        });
+      const { status } = await apiSdk.forRole("user").rooms.changeRoomCover({
+        id: roomId,
+        coverRequestDto: { color: "FF0000", cover: coverId },
+      });
       expect(status).toBe(403);
     },
   );
@@ -3585,12 +3581,10 @@ test.describe("PUT /files/rooms/:id/cover - access control", () => {
 
       await apiSdk.addMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .rooms.changeRoomCover({
-          id: roomId,
-          coverRequestDto: { color: "FF0000", cover: coverId },
-        });
+      const { status } = await apiSdk.forRole("guest").rooms.changeRoomCover({
+        id: roomId,
+        coverRequestDto: { color: "FF0000", cover: coverId },
+      });
       expect(status).toBe(403);
     },
   );
@@ -3607,7 +3601,7 @@ test.describe("PUT /files/rooms/:id/cover - access control", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await apiSdk.forAnonymous().rooms.changeRoomCover({
+    const { status } = await apiSdk.forAnonymous().rooms.changeRoomCover({
       id: roomId,
       coverRequestDto: { color: "FF0000" },
     });
@@ -3692,7 +3686,7 @@ test.describe("POST /files/rooms/:id/logo - access control", () => {
       });
 
       const uploadResult = await apiSdk.uploadRoomLogo("owner", testLogoBuffer);
-      const { data, status } = await apiSdk
+      const { status } = await apiSdk
         .forRole("roomAdmin")
         .rooms.createRoomLogo({
           id: roomId,
@@ -3717,12 +3711,10 @@ test.describe("POST /files/rooms/:id/logo - access control", () => {
       await apiSdk.addMember("owner", "User");
 
       const uploadResult = await apiSdk.uploadRoomLogo("owner", testLogoBuffer);
-      const { data, status } = await apiSdk
-        .forRole("user")
-        .rooms.createRoomLogo({
-          id: roomId,
-          logoRequest: { tmpFile: uploadResult.data.response.data as string },
-        });
+      const { status } = await apiSdk.forRole("user").rooms.createRoomLogo({
+        id: roomId,
+        logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      });
       expect(status).toBe(403);
     },
   );
@@ -3742,12 +3734,10 @@ test.describe("POST /files/rooms/:id/logo - access control", () => {
       await apiSdk.addMember("owner", "Guest");
 
       const uploadResult = await apiSdk.uploadRoomLogo("owner", testLogoBuffer);
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .rooms.createRoomLogo({
-          id: roomId,
-          logoRequest: { tmpFile: uploadResult.data.response.data as string },
-        });
+      const { status } = await apiSdk.forRole("guest").rooms.createRoomLogo({
+        id: roomId,
+        logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      });
       expect(status).toBe(403);
     },
   );
@@ -3765,7 +3755,7 @@ test.describe("POST /files/rooms/:id/logo - access control", () => {
     const roomId = roomData.response!.id!;
 
     const uploadResult = await apiSdk.uploadRoomLogo("owner", testLogoBuffer);
-    const { data, status } = await apiSdk.forAnonymous().rooms.createRoomLogo({
+    const { status } = await apiSdk.forAnonymous().rooms.createRoomLogo({
       id: roomId,
       logoRequest: { tmpFile: uploadResult.data.response.data as string },
     });
@@ -3861,7 +3851,7 @@ test.describe("DELETE /files/rooms/:id/logo - access control", () => {
         logoRequest: { tmpFile: uploadResult.data.response.data as string },
       });
 
-      const { data, status } = await apiSdk
+      const { status } = await apiSdk
         .forRole("roomAdmin")
         .rooms.deleteRoomLogo({ id: roomId });
       expect(status).toBe(403);
@@ -3882,7 +3872,7 @@ test.describe("DELETE /files/rooms/:id/logo - access control", () => {
 
       await apiSdk.addMember("owner", "User");
 
-      const { data, status } = await apiSdk
+      const { status } = await apiSdk
         .forRole("user")
         .rooms.deleteRoomLogo({ id: roomId });
       expect(status).toBe(403);
@@ -3903,7 +3893,7 @@ test.describe("DELETE /files/rooms/:id/logo - access control", () => {
 
       await apiSdk.addMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
+      const { status } = await apiSdk
         .forRole("guest")
         .rooms.deleteRoomLogo({ id: roomId });
       expect(status).toBe(403);
@@ -3922,7 +3912,7 @@ test.describe("DELETE /files/rooms/:id/logo - access control", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forAnonymous()
       .rooms.deleteRoomLogo({ id: roomId });
     expect(status).toBe(401);

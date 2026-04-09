@@ -2376,12 +2376,10 @@ test.describe("PUT /files/rooms/:id/cover - Change room cover", () => {
   test("PUT /files/rooms/:id/cover - Non-existent room returns 404", async ({
     apiSdk,
   }) => {
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .rooms.changeRoomCover({
-        id: 999999999,
-        coverRequestDto: { color: "FF0000" },
-      });
+    const { status } = await apiSdk.forRole("owner").rooms.changeRoomCover({
+      id: 999999999,
+      coverRequestDto: { color: "FF0000" },
+    });
     expect(status).toBe(404);
   });
 
@@ -2533,12 +2531,10 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
       "owner",
       createTestImageBuffer(),
     );
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .rooms.createRoomLogo({
-        id: 999999999,
-        logoRequest: { tmpFile: uploadResult.data.response.data as string },
-      });
+    const { status } = await apiSdk.forRole("owner").rooms.createRoomLogo({
+      id: 999999999,
+      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+    });
     expect(status).toBe(404);
   });
 
@@ -2554,7 +2550,7 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await ownerApi.rooms.createRoomLogo({
+    const { status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: { tmpFile: "/non/existent/path/fake.png" },
     });
@@ -2635,7 +2631,7 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await ownerApi.rooms.deleteRoomLogo({
+    const { status } = await ownerApi.rooms.deleteRoomLogo({
       id: roomId,
     });
 
@@ -2645,7 +2641,7 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
   test.fail(
     "BUG XXXXX: DELETE /files/rooms/:id/logo - Non-existent room returns 500 instead of 404",
     async ({ apiSdk }) => {
-      const { data, status } = await apiSdk
+      const { status } = await apiSdk
         .forRole("owner")
         .rooms.deleteRoomLogo({ id: 999999999 });
       expect(status).toBe(404);
