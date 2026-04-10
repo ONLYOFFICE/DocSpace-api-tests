@@ -308,6 +308,51 @@ test.describe("DELETE /files/rooms/:id - access control", () => {
   });
 });
 
+test.describe("POST /files/fileops/move - access control", () => {
+  test("BUG 80938: Owner can archive room created by DocSpaceAdmin", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    // DocSpaceAdmin creates a room
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    // DocSpaceAdmin creates a file inside the room
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "DocSpaceAdmin Document",
+      },
+    });
+
+    expect(fileData.statusCode).toBe(200);
+    expect(fileData.response!.id!).toBeGreaterThan(0);
+
+    // Owner archives the room
+    const { status } = await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(200);
+
+    // Wait for the asynchronous operation to complete
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+  });
+});
+
 test.describe("POST /files/tags - access control", () => {
   test("Owner can create a tag", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
