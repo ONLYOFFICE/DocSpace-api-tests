@@ -3541,7 +3541,7 @@ test.describe("GET /api/2.0/ai/chats/:chatId - Get chat validation", () => {
 for (const userType of ["User", "Guest"] as UserType[]) {
   test.describe(`GET /api/2.0/ai/chats/models - ${userType} not in agent cannot get models`, () => {
     test.fail(
-      `BUG XXXX: GET /api/2.0/ai/chats/models - ${userType} not in agent gets 403`,
+      `BUG 81005: GET /api/2.0/ai/chats/models - ${userType} not in agent gets 403`,
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
 
@@ -3553,20 +3553,6 @@ for (const userType of ["User", "Guest"] as UserType[]) {
           },
         });
         const providerId = providerData.response!.id!;
-
-        await ownerApi.agents.createAgent({
-          createAgentRequestDto: {
-            title: "Autotest Chat Models Agent",
-            color: "FF5733",
-            cover: "layers",
-            tags: ["autotest"],
-            chatSettings: {
-              providerId,
-              modelId: provider.modelId,
-              prompt: "You are a test assistant",
-            },
-          },
-        });
 
         const { api: memberApi } = await apiSdk.addAuthenticatedMember(
           "owner",
