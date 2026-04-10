@@ -1,12 +1,10 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { createTestImageBuffer } from "@/src/utils/test-image";
 
 test.describe("POST /api/2.0/files/logos - access control", () => {
-  const testLogoBuffer = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
-    "base64",
-  );
+  const testLogoBuffer = createTestImageBuffer();
 
   test("POST /api/2.0/files/logos - Owner can upload logo image", async ({
     apiSdk,
@@ -52,10 +50,7 @@ test.describe("POST /api/2.0/files/logos - access control", () => {
 });
 
 test.describe("POST /files/rooms/:id/logo - access control", () => {
-  const testLogoBuffer = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
-    "base64",
-  );
+  const testLogoBuffer = createTestImageBuffer();
 
   test("POST /files/rooms/:id/logo - Owner can create room logo", async ({
     apiSdk,
@@ -190,10 +185,7 @@ test.describe("POST /files/rooms/:id/logo - access control", () => {
 });
 
 test.describe("DELETE /files/rooms/:id/logo - access control", () => {
-  const testLogoBuffer = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
-    "base64",
-  );
+  const testLogoBuffer = createTestImageBuffer();
 
   test("DELETE /files/rooms/:id/logo - Owner can delete room logo", async ({
     apiSdk,
