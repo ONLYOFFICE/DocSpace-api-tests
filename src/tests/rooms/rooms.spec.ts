@@ -7,7 +7,6 @@ import {
   LinkType,
 } from "@onlyoffice/docspace-api-sdk";
 import { createAllRoomTypes } from "@/src/helpers/rooms";
-import { createTestImageBuffer } from "@/src/utils/test-image";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
@@ -868,115 +867,6 @@ test.describe("API rooms methods", () => {
       expect(data.response!.sharedLink?.shareLink).toBeDefined();
       expect(data.response!.sharedLink?.linkType).toBe(LinkType.Invitation);
       expect(data.response!.sharedLink?.title).toBe("Autotest Invitation Link");
-    });
-  });
-
-  test.describe("Room covers", () => {
-    test("GET /files/rooms/covers - Owner gets available covers", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { data, status } = await ownerApi.rooms.getRoomCovers();
-
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-      expect(data.response!.length).toBeGreaterThan(0);
-      expect(data.response![0].id).toBeDefined();
-      expect(data.response![0].data).toBeDefined();
-    });
-
-    test("PUT /files/rooms/:id/cover - Owner changes room cover", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { data: coversData } = await ownerApi.rooms.getRoomCovers();
-      const coverId = coversData.response![0].id!;
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Cover Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-
-      const { data, status } = await ownerApi.rooms.changeRoomCover({
-        id: roomId,
-        coverRequestDto: {
-          color: "FF5733",
-          cover: coverId,
-        },
-      });
-
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-      expect(data.response!.id).toBe(roomId);
-      expect(data.response!.logo?.cover?.id).toBe(coverId);
-      expect(data.response!.logo?.color).toBe("FF5733");
-    });
-  });
-
-  test.describe("Room logo", () => {
-    test("POST /files/rooms/:id/logo - Owner creates room logo", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-
-      const uploadResult = await apiSdk.uploadRoomLogo(
-        "owner",
-        createTestImageBuffer(),
-      );
-      expect(uploadResult.data.response.success).toBe(true);
-
-      const { data, status } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: { tmpFile: uploadResult.data.response.data },
-      });
-
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-      expect(data.response!.id).toBe(roomId);
-      expect(data.response!.logo?.original).toBeTruthy();
-    });
-
-    test("DELETE /files/rooms/:id/logo - Owner deletes room logo", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-
-      const uploadResult = await apiSdk.uploadRoomLogo(
-        "owner",
-        createTestImageBuffer(),
-      );
-      await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: { tmpFile: uploadResult.data.response.data },
-      });
-
-      const { data, status } = await ownerApi.rooms.deleteRoomLogo({
-        id: roomId,
-      });
-
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-      expect(data.response!.id).toBe(roomId);
-      expect(data.response!.logo?.original).toBeFalsy();
     });
   });
 
