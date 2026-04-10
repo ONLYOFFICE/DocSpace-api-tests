@@ -2210,19 +2210,16 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  test.fail(
-    "BUG 80962: GET /files/file/:fileId/edit/history - Non-existent file returns 403 instead of 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80962: GET /files/file/:fileId/edit/history - Non-existent file returns 403 instead of 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.files.getEditHistory({
-        fileId: 999999999,
-      });
+    const { data, status } = await ownerApi.files.getEditHistory({
+      fileId: 999999999,
+    });
 
-      expect(status).toBe(404);
-      expect((data as any).error.message).toBe(
-        "The required file was not found",
-      );
-    },
-  );
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("The required file was not found");
+  });
 });
