@@ -214,7 +214,9 @@ test.describe("PUT /files/rooms/:id/cover - Change room cover", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdminApi = apiSdk.forRole("roomAdmin");
-    const { data: coversData } = await apiSdk.forRole("owner").rooms.getRoomCovers();
+    const { data: coversData } = await apiSdk
+      .forRole("owner")
+      .rooms.getRoomCovers();
     const coverId = coversData.response![0].id!;
 
     const { data: roomData } = await roomAdminApi.rooms.createRoom({
