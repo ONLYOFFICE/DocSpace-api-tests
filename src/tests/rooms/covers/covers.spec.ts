@@ -185,4 +185,50 @@ test.describe("PUT /files/rooms/:id/cover - Change room cover", () => {
     expect(data.response!.logo?.cover?.id).toBe(coverId);
     expect(data.response!.logo?.color).toBe("CC3300");
   });
+
+  test("PUT /files/rooms/:id/cover - DocSpaceAdmin changes cover of their own room", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+    const { data: coversData } = await adminApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover DocSpaceAdmin Own Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await adminApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+    expect(status).toBe(200);
+  });
+
+  test("PUT /files/rooms/:id/cover - RoomAdmin changes cover of their own room", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+    const { data: coversData } = await apiSdk.forRole("owner").rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover RoomAdmin Own Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await roomAdminApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+    expect(status).toBe(200);
+  });
 });
