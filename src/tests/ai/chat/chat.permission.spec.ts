@@ -3537,3 +3537,59 @@ test.describe("GET /api/2.0/ai/chats/:chatId - Get chat validation", () => {
     expect(status).toBe(401);
   });
 });
+
+for (const userType of ["User", "Guest"] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/chats/models - ${userType} not in agent cannot get models`, () => {
+    test.fail(
+      `BUG XXXX: GET /api/2.0/ai/chats/models - ${userType} not in agent gets 403`,
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { data: providerData } = await ownerApi.providers.addProvider({
+          createProviderRequestDto: {
+            type: provider.type,
+            title: provider.title,
+            key: provider.key,
+          },
+        });
+        const providerId = providerData.response!.id!;
+
+        await ownerApi.agents.createAgent({
+          createAgentRequestDto: {
+            title: "Autotest Chat Models Agent",
+            color: "FF5733",
+            cover: "layers",
+            tags: ["autotest"],
+            chatSettings: {
+              providerId,
+              modelId: provider.modelId,
+              prompt: "You are a test assistant",
+            },
+          },
+        });
+
+        const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          userType,
+        );
+
+        const { data, status } = await memberApi.chat.getChatModels({
+          provider: providerId,
+        });
+
+        expect(status).toBe(403);
+        expect((data as any).error.message).toBe("Access denied");
+      },
+    );
+  });
+}
+
+test.describe("GET /api/2.0/ai/chats/models - Get models validation", () => {
+  test("GET /api/2.0/ai/chats/models - Anonymous gets 401", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().chat.getChatModels({});
+
+    expect(status).toBe(401);
+  });
+});
