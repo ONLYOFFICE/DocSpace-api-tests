@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
+import { RoomType, FileShare, SearchArea } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { roomAccesses } from "@/src/helpers/rooms";
 
@@ -305,6 +305,49 @@ test.describe("DELETE /files/rooms/:id - access control", () => {
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /files/fileops/move - access control", () => {
+  test("BUG 80938: Owner can archive room created by DocSpaceAdmin", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    // DocSpaceAdmin creates a room
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    // DocSpaceAdmin creates a file inside the room
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "DocSpaceAdmin Document",
+      },
+    });
+
+    expect(fileData.statusCode).toBe(200);
+    expect(fileData.response!.id!).toBeGreaterThan(0);
+
+    // Owner archives the room
+    const { status } = await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(200);
+
+    // Wait for the asynchronous operation to complete
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
   });
 });
 
