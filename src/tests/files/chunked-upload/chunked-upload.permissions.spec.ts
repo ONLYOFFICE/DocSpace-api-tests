@@ -48,7 +48,10 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
     });
     const fileId = fileData.response!.id!;
 
-    const { data: memberData } = await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
     const memberId = memberData.response!.id!;
 
     await ownerApi.rooms.setRoomSecurity({
@@ -85,7 +88,10 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
     });
     const fileId = fileData.response!.id!;
 
-    const { data: memberData } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
     const memberId = memberData.response!.id!;
 
     await ownerApi.rooms.setRoomSecurity({
@@ -122,7 +128,10 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
     });
     const fileId = fileData.response!.id!;
 
-    const { data: memberData } = await apiSdk.addAuthenticatedMember("owner", "User");
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
     const memberId = memberData.response!.id!;
 
     await ownerApi.rooms.setRoomSecurity({
@@ -159,7 +168,10 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
     });
     const fileId = fileData.response!.id!;
 
-    const { data: memberData } = await apiSdk.addAuthenticatedMember("owner", "User");
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
     const memberId = memberData.response!.id!;
 
     await ownerApi.rooms.setRoomSecurity({
