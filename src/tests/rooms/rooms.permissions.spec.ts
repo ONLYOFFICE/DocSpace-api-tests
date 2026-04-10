@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType, FileShare, SearchArea } from "@onlyoffice/docspace-api-sdk";
+import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { roomAccesses } from "@/src/helpers/rooms";
 
@@ -309,7 +309,9 @@ test.describe("DELETE /files/rooms/:id - access control", () => {
 });
 
 test.describe("POST /files/fileops/move - access control", () => {
-  test("BUG 80938: Owner can archive room created by DocSpaceAdmin", async ({ apiSdk }) => {
+  test("BUG 80938: Owner can archive room created by DocSpaceAdmin", async ({
+    apiSdk,
+  }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
