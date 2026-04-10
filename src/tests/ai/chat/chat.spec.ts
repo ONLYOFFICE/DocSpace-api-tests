@@ -2159,3 +2159,70 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
     });
   });
 }
+
+test.describe("GET /api/2.0/ai/chats/models - Get available AI chat models", () => {
+  test("GET /api/2.0/ai/chats/models - Owner gets models filtered by provider", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: providerData } = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+    const providerId = providerData.response!.id!;
+
+    const { data, status } = await ownerApi.chat.getChatModels({
+      provider: providerId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.length).toBeGreaterThan(0);
+
+    const model = data.response![0] as any;
+    expect(model.providerId).toBe(providerId);
+    expect(model.providerTitle).toBe(provider.title);
+    expect(model.modelId).toBe(provider.modelId);
+  });
+});
+
+for (const userType of ["DocSpaceAdmin", "RoomAdmin"] as UserType[]) {
+  test.describe(`GET /api/2.0/ai/chats/models - ${userType} gets models filtered by provider`, () => {
+    test(`GET /api/2.0/ai/chats/models - ${userType} gets models filtered by provider`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
+
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data, status } = await memberApi.chat.getChatModels({
+        provider: providerId,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response?.length).toBeGreaterThan(0);
+
+      const model = data.response![0] as any;
+      expect(model.providerId).toBe(providerId);
+      expect(model.providerTitle).toBe(provider.title);
+      expect(model.modelId).toBe(provider.modelId);
+    });
+  });
+}

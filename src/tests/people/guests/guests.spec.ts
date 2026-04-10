@@ -25,7 +25,7 @@ test.describe("DELETE /people/guests - Delete guests", () => {
       updateMembersRequestDto: { userIds: [guestId] },
     });
     const body = data as any;
-
+    console.log("Delete guest response:", body);
     expect(status).toBe(200);
     expect(body.statusCode).toBe(200);
 
