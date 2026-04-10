@@ -12,6 +12,8 @@ test.describe("GET /files/rooms/covers - Get room covers", () => {
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
     expect(data.response!.length).toBeGreaterThan(0);
+    expect(data.response![0].id).toBeDefined();
+    expect(data.response![0].data).toBeDefined();
   });
 
   test("GET /files/rooms/covers - Response has correct structure (statusCode, count, response)", async ({

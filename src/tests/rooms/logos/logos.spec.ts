@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
 import { createTestImageBuffer } from "@/src/utils/test-image";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 test.describe("POST /api/2.0/files/logos - Upload room logo image", () => {
   test("POST /api/2.0/files/logos - Owner uploads a valid PNG image", async ({
@@ -45,6 +46,7 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
       "owner",
       createTestImageBuffer(),
     );
+    expect(uploadResult.data.response.success).toBe(true);
     const tmpFile = uploadResult.data.response.data as string;
 
     const { data, status } = await ownerApi.rooms.createRoomLogo({
@@ -130,6 +132,43 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
     expect(status).toBe(404);
   });
 
+  test("POST /files/rooms/:id/logo - Cannot create logo for archived room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    let roomId: number;
+
+    await test.step("create room", async () => {
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Logo Archived Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      roomId = roomData.response!.id!;
+    });
+
+    await test.step("archive room", async () => {
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+    });
+
+    await test.step("try to create logo — expect 403", async () => {
+      const uploadResult = await apiSdk.uploadRoomLogo(
+        "owner",
+        createTestImageBuffer(),
+      );
+      const { status } = await ownerApi.rooms.createRoomLogo({
+        id: roomId,
+        logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      });
+      expect(status).toBe(403);
+    });
+  });
+
   test("POST /files/rooms/:id/logo - Invalid tmpFile returns error", async ({
     apiSdk,
   }) => {
@@ -147,7 +186,7 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
       logoRequest: { tmpFile: "/non/existent/path/fake.png" },
     });
 
-    expect(status).not.toBe(200);
+    expect(status).toBe(403);
   });
 });
 
@@ -231,7 +270,7 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
   });
 
   test.fail(
-    "BUG XXXXX: DELETE /files/rooms/:id/logo - Non-existent room returns 500 instead of 404",
+    "BUG 80983: DELETE /files/rooms/:id/logo - Non-existent room returns 500 instead of 404",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -239,6 +278,47 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
       expect(status).toBe(404);
     },
   );
+
+  test("DELETE /files/rooms/:id/logo - Cannot delete logo from archived room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    let roomId: number;
+
+    await test.step("create room", async () => {
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Logo Del Archived Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      roomId = roomData.response!.id!;
+    });
+
+    await test.step("set logo", async () => {
+      const uploadResult = await apiSdk.uploadRoomLogo(
+        "owner",
+        createTestImageBuffer(),
+      );
+      await ownerApi.rooms.createRoomLogo({
+        id: roomId,
+        logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      });
+    });
+
+    await test.step("archive room", async () => {
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+    });
+
+    await test.step("try to delete logo — expect 403", async () => {
+      const { status } = await ownerApi.rooms.deleteRoomLogo({ id: roomId });
+      expect(status).toBe(403);
+    });
+  });
 
   test("DELETE /files/rooms/:id/logo - getRoomInfo after deletion shows empty logo", async ({
     apiSdk,
