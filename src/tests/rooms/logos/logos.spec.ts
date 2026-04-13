@@ -269,15 +269,14 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     expect(status).toBe(200);
   });
 
-  test.fail(
-    "BUG 80983: DELETE /files/rooms/:id/logo - Non-existent room returns 500 instead of 404",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .rooms.deleteRoomLogo({ id: 999999999 });
-      expect(status).toBe(404);
-    },
-  );
+  test("BUG 80983: DELETE /files/rooms/:id/logo - Non-existent room returns 500 instead of 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .rooms.deleteRoomLogo({ id: 999999999 });
+    expect(status).toBe(404);
+  });
 
   test("DELETE /files/rooms/:id/logo - Cannot delete logo from archived room", async ({
     apiSdk,

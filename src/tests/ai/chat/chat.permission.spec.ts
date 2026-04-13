@@ -3540,33 +3540,32 @@ test.describe("GET /api/2.0/ai/chats/:chatId - Get chat validation", () => {
 
 for (const userType of ["User", "Guest"] as UserType[]) {
   test.describe(`GET /api/2.0/ai/chats/models - ${userType} not in agent cannot get models`, () => {
-    test.fail(
-      `BUG 81005: GET /api/2.0/ai/chats/models - ${userType} not in agent gets 403`,
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
+    test(`BUG 81005: GET /api/2.0/ai/chats/models - ${userType} not in agent gets 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-        const { data: providerData } = await ownerApi.providers.addProvider({
-          createProviderRequestDto: {
-            type: provider.type,
-            title: provider.title,
-            key: provider.key,
-          },
-        });
-        const providerId = providerData.response!.id!;
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: {
+          type: provider.type,
+          title: provider.title,
+          key: provider.key,
+        },
+      });
+      const providerId = providerData.response!.id!;
 
-        const { api: memberApi } = await apiSdk.addAuthenticatedMember(
-          "owner",
-          userType,
-        );
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
 
-        const { data, status } = await memberApi.chat.getChatModels({
-          provider: providerId,
-        });
+      const { data, status } = await memberApi.chat.getChatModels({
+        provider: providerId,
+      });
 
-        expect(status).toBe(403);
-        expect((data as any).error.message).toBe("Access denied");
-      },
-    );
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
   });
 }
 
