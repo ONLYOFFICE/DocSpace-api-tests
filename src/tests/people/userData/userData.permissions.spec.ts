@@ -668,6 +668,66 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     expect((data as any).error?.message).toContain("Access denied");
   });
 
+  test("BUG 79320: PUT /people/reassign/terminate - DocSpaceAdmin cannot terminate reassignment of another DocSpaceAdmin", async ({
+    apiSdk,
+  }) => {
+    // Create DocSpaceAdmin2 (target — will be deactivated and have data reassigned)
+    const { data: targetData, userData: targetUserData } =
+      await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const targetUserId = targetData.response!.id!;
+
+    // Target creates some data
+    const targetApi = await apiSdk.authenticateMember(
+      targetUserData,
+      "DocSpaceAdmin",
+    );
+    const { data: roomData } = await targetApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Reassign Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    await targetApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Reassign File" },
+    });
+
+    // Owner deactivates target and starts reassignment to himself
+    const ownerApi = await apiSdk.authenticateOwner();
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [targetUserId] },
+    });
+
+    await ownerApi.userData.startReassign({
+      startReassignRequestDto: {
+        fromUserId: targetUserId,
+        toUserId: ownerId,
+      },
+    });
+
+    // Create DocSpaceAdmin1 (attacker — tries to terminate reassignment)
+    const { userData: attackerUserData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const attackerApi = await apiSdk.authenticateMember(
+      attackerUserData,
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await attackerApi.userData.terminateReassign({
+      terminateRequestDto: { userId: targetUserId },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
   test("PUT /people/reassign/terminate - 401 when unauthorized", async ({
     apiSdk,
   }) => {
