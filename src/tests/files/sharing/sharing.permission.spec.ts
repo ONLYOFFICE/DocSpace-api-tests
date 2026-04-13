@@ -4,7 +4,7 @@ import { FileShare } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("GET /api/2.0/files/file/{fileId}/group/{groupId}/share", () => {
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/file/{fileId}/group/{groupId}/share - Guest gets group member count when file is shared only with guest",
+    "BUG 81023: GET /api/2.0/files/file/{fileId}/group/{groupId}/share - Guest gets group member count when file is shared only with guest",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -52,7 +52,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/group/{groupId}/share", () => {
   );
 
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/file/{fileId}/group/{groupId}/share - Guest gets full group member info when file is shared with guest and group",
+    "BUG 81023: GET /api/2.0/files/file/{fileId}/group/{groupId}/share - Guest gets full group member info when file is shared with guest and group",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
