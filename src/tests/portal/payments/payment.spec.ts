@@ -9,7 +9,7 @@ import {
 
 test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
   test.fail(
-    "BUG XXXXX: GET /api/2.0/portal/payment/customer/operations - Returns 200 after disabling Disk Storage service",
+    "BUG 81050: GET /api/2.0/portal/payment/customer/operations - Returns 200 after disabling Disk Storage service",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
 
