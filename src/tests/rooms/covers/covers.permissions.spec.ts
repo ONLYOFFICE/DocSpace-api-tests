@@ -44,14 +44,13 @@ test.describe("GET /files/rooms/covers - access control", () => {
     expect(data.response!.length).toBeGreaterThan(0);
   });
 
-  test.fail(
-    "BUG 81012: GET /files/rooms/covers - Guest cannot get covers list",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
-      const { status } = await apiSdk.forRole("guest").rooms.getRoomCovers();
-      expect(status).toBe(403);
-    },
-  );
+  test("BUG 81012: GET /files/rooms/covers - Guest cannot get covers list", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const { status } = await apiSdk.forRole("guest").rooms.getRoomCovers();
+    expect(status).toBe(403);
+  });
 
   test("GET /files/rooms/covers - Unauthenticated user cannot get covers list", async ({
     apiSdk,
