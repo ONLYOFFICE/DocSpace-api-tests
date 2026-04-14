@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
+import { TenantTrustedDomainsType } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("POST /api/2.0/settings/messages/enable - Enable admin message settings", () => {
   test("POST /api/2.0/settings/messages/enable - Owner enables admin message settings", async ({
@@ -145,6 +146,37 @@ test.describe("POST /api/2.0/settings/messages/enable - Enable admin message set
 });
 
 test.describe("POST /api/2.0/settings/sendjoininvite - Send join invite mail", () => {
+  test("BUG 79040: POST /api/2.0/settings/sendjoininvite - Owner sends join invite to already registered user gets 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("Enable trusted mail domains (any domain)", async () => {
+      const { status } = await ownerApi.commonSettings.saveMailDomainSettings({
+        mailDomainSettingsRequestsDto: {
+          type: TenantTrustedDomainsType.All,
+          domains: [],
+          inviteUsersAsVisitors: true,
+        },
+      });
+      expect(status).toBe(200);
+    });
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const existingEmail = userData.response!.email!;
+
+    const { data, status } = await ownerApi.settingsMessages.sendJoinInviteMail(
+      {
+        adminMessageBaseSettingsRequestsDto: { email: existingEmail },
+      },
+    );
+
+    expect(status).toBe(400);
+    expect((data as any).error.message).toBe(
+      "User with this email is already registered",
+    );
+  });
+
   test.fail(
     "BUG 80727: POST /api/2.0/settings/sendjoininvite - Owner sends join invite mail",
     async ({ apiSdk }) => {
