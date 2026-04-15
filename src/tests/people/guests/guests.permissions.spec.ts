@@ -3,7 +3,47 @@ import { test } from "@/src/fixtures/index";
 import { EmployeeStatus } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("DELETE /people/guests - Permissions", () => {
-  test("BUG 80628: DELETE /people/guests - Room admin cannot delete another user's deactivated guest", async ({
+  test("DELETE /people/guests - Owner cannot remove a guest from their guest list", async ({
+    apiSdk,
+  }) => {
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [guestId] },
+    });
+
+    const { data } = await apiSdk.forRole("owner").guests.deleteGuests({
+      updateMembersRequestDto: { userIds: [guestId] },
+    });
+
+    expect((data as any).statusCode).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test("DELETE /people/guests - DocSpace admin cannot remove a guest from their guest list", async ({
+    apiSdk,
+  }) => {
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [guestId] },
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .guests.deleteGuests({ updateMembersRequestDto: { userIds: [guestId] } });
+
+    expect((data as any).statusCode).toBe(403);
+    expect((data as any).error?.message).toContain("Access denied");
+  });
+
+  test("BUG 80628: DELETE /people/guests - Room admin cannot remove a deactivated guest from another user's guest list", async ({
     apiSdk,
   }) => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
@@ -28,7 +68,7 @@ test.describe("DELETE /people/guests - Permissions", () => {
     expect((data as any).error?.message).toContain("Access denied");
   });
 
-  test("BUG 80628: DELETE /people/guests - Room admin cannot delete another user's guest", async ({
+  test("BUG 80628: DELETE /people/guests - Room admin cannot remove a guest from another user's guest list", async ({
     apiSdk,
   }) => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
@@ -48,7 +88,7 @@ test.describe("DELETE /people/guests - Permissions", () => {
     expect((data as any).error?.message).toContain("Access denied");
   });
 
-  test("DELETE /people/guests - User cannot delete a guest", async ({
+  test("DELETE /people/guests - User cannot remove a guest from their guest list", async ({
     apiSdk,
   }) => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
@@ -70,7 +110,7 @@ test.describe("DELETE /people/guests - Permissions", () => {
     expect((data as any).error?.message).toContain("Access denied");
   });
 
-  test("DELETE /people/guests - Guest cannot delete a guest", async ({
+  test("DELETE /people/guests - Guest cannot remove a guest from their guest list", async ({
     apiSdk,
   }) => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
