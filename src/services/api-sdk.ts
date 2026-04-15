@@ -42,6 +42,7 @@ import {
   UsersApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
+import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -128,6 +129,7 @@ export class ApiSDK {
         axiosInstance,
       ),
       guests: new GuestsApi(config, undefined, axiosInstance),
+      portalGuests: new PortalGuestsApi(config, undefined, axiosInstance),
       peopleSearch: new PeopleSearchApi(config, undefined, axiosInstance),
       theme: new ThemeApi(config, undefined, axiosInstance),
       thirdPartyAccounts: new ThirdPartyAccountsApi(
