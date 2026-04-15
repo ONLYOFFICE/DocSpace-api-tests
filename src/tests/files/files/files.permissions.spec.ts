@@ -4182,3 +4182,40 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
     expect(status).toBe(403);
   });
 });
+
+test.describe("GET /files/file/:fileId/log - Get file history permissions", () => {
+  test.fail(
+    "BUG 81093: GET /files/file/:fileId/log - Guest sees owner email in profileUrl field of file history response",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: {
+          title: "Autotest File History Guest Test",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: guestData, api: guestApi } =
+        await apiSdk.addAuthenticatedMember("owner", "Guest");
+      const guestId = guestData.response!.id!;
+
+      await ownerApi.sharing.setFileSecurityInfo({
+        fileId,
+        securityInfoSimpleRequestDto: {
+          share: [{ shareTo: guestId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await guestApi.files.getFileHistory({ fileId });
+
+      expect(status).toBe(200);
+
+      const historyEntries = data.response ?? [];
+      for (const entry of historyEntries) {
+        expect(entry.initiator?.profileUrl).toBeFalsy();
+      }
+    },
+  );
+});
