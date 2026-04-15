@@ -3,6 +3,7 @@ import { test } from "@/src/fixtures/index";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
 import { createTestImageBuffer } from "@/src/utils/test-image";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 
 test.describe("POST /api/2.0/files/logos - Upload room logo image", () => {
   test("POST /api/2.0/files/logos - Owner uploads a valid PNG image", async ({
@@ -188,6 +189,37 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
 
     expect(status).toBe(403);
   });
+
+  test("POST /files/rooms/:id/logo - Owner can create logo for a room saved as template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Template Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: { roomId, title: "Autotest Logo Template" },
+    });
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
+      id: templateId,
+      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.logo?.original).toBeTruthy();
+  });
 });
 
 test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
@@ -317,6 +349,46 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
       const { status } = await ownerApi.rooms.deleteRoomLogo({ id: roomId });
       expect(status).toBe(403);
     });
+  });
+
+  test("DELETE /files/rooms/:id/logo - Owner can delete logo from a room saved as template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Del Template Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+    });
+
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId,
+        title: "Autotest Logo Del Template",
+        copyLogo: true,
+      },
+    });
+
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+    const { data, status } = await ownerApi.rooms.deleteRoomLogo({
+      id: templateId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.logo?.original).toBeFalsy();
   });
 
   test("DELETE /files/rooms/:id/logo - getRoomInfo after deletion shows empty logo", async ({
