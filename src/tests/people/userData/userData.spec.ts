@@ -290,16 +290,21 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
       },
     });
 
-    // Check progress
-    const { data } = await ownerApi.userData.getReassignProgress({
-      userid: roomAdminId,
-    });
+    // Poll until reassignment completes (status 2 = completed)
+    let data: Awaited<
+      ReturnType<typeof ownerApi.userData.getReassignProgress>
+    >["data"];
+    await expect(async () => {
+      ({ data } = await ownerApi.userData.getReassignProgress({
+        userid: roomAdminId,
+      }));
+      expect(data.response?.status).toBe(2);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
-    expect(data.statusCode).toBe(200);
-    expect(data.response?.isCompleted).toBeDefined();
-    expect(data.response?.percentage).toBeDefined();
-    expect(data.response?.error).toBe("");
-    expect(data.response?.status).toBe(2);
+    expect(data!.statusCode).toBe(200);
+    expect(data!.response?.isCompleted).toBeDefined();
+    expect(data!.response?.percentage).toBeDefined();
+    expect(data!.response?.error).toBe("");
   });
 
   test("GET /people/reassign/progress/:userid - DocSpace admin checks reassign progress", async ({
@@ -363,16 +368,21 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
       },
     });
 
-    // DocSpaceAdmin checks progress
-    const { data } = await docSpaceAdminApi.userData.getReassignProgress({
-      userid: roomAdminId,
-    });
+    // Poll until reassignment completes (status 2 = completed)
+    let data: Awaited<
+      ReturnType<typeof docSpaceAdminApi.userData.getReassignProgress>
+    >["data"];
+    await expect(async () => {
+      ({ data } = await docSpaceAdminApi.userData.getReassignProgress({
+        userid: roomAdminId,
+      }));
+      expect(data.response?.status).toBe(2);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
-    expect(data.statusCode).toBe(200);
-    expect(data.response?.isCompleted).toBeDefined();
-    expect(data.response?.percentage).toBeGreaterThanOrEqual(0);
-    expect(data.response?.error).toBe("");
-    expect(data.response?.status).toBe(2);
+    expect(data!.statusCode).toBe(200);
+    expect(data!.response?.isCompleted).toBeDefined();
+    expect(data!.response?.percentage).toBeGreaterThanOrEqual(0);
+    expect(data!.response?.error).toBe("");
   });
 });
 
