@@ -5,6 +5,7 @@ import {
   FileShare,
   SubjectType,
   LinkType,
+  MessageAction,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
@@ -2997,5 +2998,558 @@ test.describe("POST /files/file/:fileId/restoreversion - Restore file version", 
     });
 
     expect(status).toBe(403);
+  });
+});
+
+test.describe("POST /files/file/referencedata - Get reference data", () => {
+  test("POST /files/file/referencedata - Owner gets reference data using fileKey and instanceId from openEditFile", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest ReferenceData Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest ReferenceData File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+    const fileKey = openData.response!.document!.referenceData!.fileKey!;
+    const instanceId = openData.response!.document!.referenceData!.instanceId!;
+
+    const { data, status } = await ownerApi.files.getReferenceData({
+      getReferenceDataDtoInteger: { fileKey, instanceId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.url).toBeTruthy();
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.referenceData).toBeDefined();
+  });
+
+  test("POST /files/file/referencedata - Response referenceData contains same fileKey and instanceId (roundtrip)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest ReferenceData Roundtrip Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest ReferenceData Roundtrip File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+    const fileKey = openData.response!.document!.referenceData!.fileKey!;
+    const instanceId = openData.response!.document!.referenceData!.instanceId!;
+
+    const { data, status } = await ownerApi.files.getReferenceData({
+      getReferenceDataDtoInteger: { fileKey, instanceId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.referenceData!.fileKey).toBe(fileKey);
+    expect(data.response!.referenceData!.instanceId).toBe(instanceId);
+  });
+
+  test("POST /files/file/referencedata - sourceFileId can be passed alongside fileKey and instanceId", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest ReferenceData SourceId Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest ReferenceData SourceId File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+    const fileKey = openData.response!.document!.referenceData!.fileKey!;
+    const instanceId = openData.response!.document!.referenceData!.instanceId!;
+
+    const { data, status } = await ownerApi.files.getReferenceData({
+      getReferenceDataDtoInteger: { fileKey, instanceId, sourceFileId: fileId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.url).toBeTruthy();
+    expect(data.response!.referenceData).toBeDefined();
+  });
+
+  test("POST /files/file/referencedata - Read-only room member gets 200 with canEditRoom false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest RefData ReadOnly Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest RefData ReadOnly File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+    const fileKey = openData.response!.document!.referenceData!.fileKey!;
+    const instanceId = openData.response!.document!.referenceData!.instanceId!;
+
+    const { data, status } = await userApi.files.getReferenceData({
+      getReferenceDataDtoInteger: { fileKey, instanceId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.referenceData!.canEditRoom).toBe(false);
+  });
+
+  test("POST /files/file/referencedata - All fields passed simultaneously returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest RefData AllFields Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest RefData AllFields File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+    const fileKey = openData.response!.document!.referenceData!.fileKey!;
+    const instanceId = openData.response!.document!.referenceData!.instanceId!;
+
+    const { data: linkData } = await ownerApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
+    const linkUrl = linkData.response!.sharedLink!.shareLink!;
+
+    const { data, status } = await ownerApi.files.getReferenceData({
+      getReferenceDataDtoInteger: {
+        fileKey,
+        instanceId,
+        sourceFileId: fileId,
+        path: "Sheet1!A1",
+        link: linkUrl,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.url).toBeTruthy();
+  });
+
+  test("POST /files/file/referencedata - Arbitrary fileKey not from openEditFile returns error", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .files.getReferenceData({
+        getReferenceDataDtoInteger: {
+          fileKey: "totally-fake-file-key-12345",
+          instanceId: "fake-instance-id",
+        },
+      });
+
+    expect(status === 404 || data.response?.error != null).toBe(true);
+  });
+});
+
+test.describe("GET /files/file/:fileId/log - Get file history", () => {
+  test("GET /files/file/:fileId/log - Owner gets file history with correct structure", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History Structure Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest History Structure File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFileHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+    const entry = data.response![0];
+    expect(entry.id).toBeDefined();
+    expect(entry.action).toBeDefined();
+    expect(entry.initiator).toBeDefined();
+    expect(entry.initiator.displayName).toBeTruthy();
+    expect(entry.date).toBeDefined();
+  });
+
+  test("GET /files/file/:fileId/log - Newly created file has FileCreated action in history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History Created Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest History Created File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFileHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(1);
+    expect(data.response![0].action?.id).toBe(MessageAction.FileCreated);
+  });
+
+  test("GET /files/file/:fileId/log - History grows after file rename operations", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History Grow Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest History Grow File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest History Grow File Renamed 1" },
+    });
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest History Grow File Renamed 2" },
+    });
+
+    const { data, status } = await ownerApi.files.getFileHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThanOrEqual(3);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).toContain(MessageAction.FileCreated);
+    expect(actionIds).toContain(MessageAction.FileRenamed);
+  });
+
+  test("GET /files/file/:fileId/log - count parameter limits number of returned entries", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History Count Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest History Count File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest History Count File Renamed 1" },
+    });
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest History Count File Renamed 2" },
+    });
+
+    const { data, status } = await ownerApi.files.getFileHistory({
+      fileId,
+      count: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(1);
+  });
+
+  test("GET /files/file/:fileId/log - startIndex shifts result set", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History StartIndex Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest History StartIndex File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest History StartIndex File Renamed" },
+    });
+
+    const { data: data0 } = await ownerApi.files.getFileHistory({
+      fileId,
+      startIndex: 0,
+      count: 1,
+    });
+    const { data: data1, status } = await ownerApi.files.getFileHistory({
+      fileId,
+      startIndex: 1,
+      count: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(data0.response![0].id).not.toBe(data1.response![0].id);
+  });
+
+  test("GET /files/file/:fileId/log - startIndex beyond total entries returns empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History Beyond Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest History Beyond File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getFileHistory({
+      fileId,
+      startIndex: 99999,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(0);
+  });
+
+  test("GET /files/file/:fileId/log - response count matches actual number of entries", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History Count Match Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest History Count Match File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest History Count Match File Renamed" },
+    });
+
+    const { data, status } = await ownerApi.files.getFileHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.count).toBe(data.response!.length);
+  });
+
+  test("GET /files/file/:fileId/log - History is non-empty and contains FileCreated action", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const fromDate = new Date(Date.now() - 60000).toISOString();
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History DateFilter Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest History DateFilter File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const toDate = new Date(Date.now() + 60000).toISOString();
+
+    const { data, status } = await ownerApi.files.getFileHistory({
+      fileId,
+      fromDate: { utcTime: fromDate },
+      toDate: { utcTime: toDate },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).toContain(MessageAction.FileCreated);
+  });
+
+  test("GET /files/file/:fileId/log - Non-existent file returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .files.getFileHistory({ fileId: 999999999 });
+
+    expect(status).toBe(404);
+  });
+
+  test("GET /files/file/:fileId/log - Owner can get file history in archived room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest History Archived File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.files.getFileHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("GET /files/file/:fileId/log - Owner can get file history for deleted file in trash", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest History Deleted Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest History Deleted File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: false },
+    });
+
+    const { data, status } = await ownerApi.files.getFileHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
   });
 });
