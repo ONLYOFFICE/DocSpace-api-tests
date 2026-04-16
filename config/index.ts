@@ -25,6 +25,7 @@ interface Config {
   ANTHROPIC_API_KEY: string;
   TOGETHER_AI_API_KEY: string;
   EXA_API_KEY: string;
+  GITHUB_MCP_ENDPOINT: string;
 }
 
 const config: Config = {
@@ -59,6 +60,8 @@ const config: Config = {
   TOGETHER_AI_API_KEY:
     process.env.TOGETHER_AI_API_KEY ?? "TOGETHER_AI_API_KEY_NOT_CONFIGURED",
   EXA_API_KEY: process.env.EXA_API_KEY ?? "EXA_API_KEY_NOT_CONFIGURED",
+  GITHUB_MCP_ENDPOINT:
+    process.env.GITHUB_MCP_ENDPOINT ?? "GITHUB_MCP_ENDPOINT_NOT_CONFIGURED",
 };
 
 export default config;
