@@ -42,6 +42,7 @@ import {
   UsersApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
+import { MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/mcpapi";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -154,6 +155,7 @@ export class ApiSDK {
       vectorization: new VectorizationApi(config, undefined, axiosInstance),
       messages: new MessagesApi(config, undefined, axiosInstance),
       users: new UsersApi(config, undefined, axiosInstance),
+      mcp: new MCPApi(config, undefined, axiosInstance),
     };
   }
 
@@ -211,6 +213,7 @@ export class ApiSDK {
       vectorization: new VectorizationApi(config, undefined, axiosInstance),
       messages: new MessagesApi(config, undefined, axiosInstance),
       users: new UsersApi(config, undefined, axiosInstance),
+      mcp: new MCPApi(config, undefined, axiosInstance),
     };
   }
 
