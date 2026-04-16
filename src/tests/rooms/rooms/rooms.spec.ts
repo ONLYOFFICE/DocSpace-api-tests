@@ -1036,8 +1036,9 @@ test.describe("API rooms methods", () => {
       });
     });
 
+    // Bug 81110: GET /files/rooms/indexexport returns error instead of completing successfully
     test.fail(
-      "GET /files/rooms/indexexport - Owner export completes without error",
+      "BUG 81110: GET /files/rooms/indexexport - Owner export completes without error",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
