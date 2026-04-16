@@ -1035,6 +1035,44 @@ test.describe("API rooms methods", () => {
         expect(status).toBe(200);
       });
     });
+
+    test.fail(
+      "GET /files/rooms/indexexport - Owner export completes without error",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Index Export Room",
+            roomType: RoomType.VirtualDataRoom,
+            indexing: true,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        await test.step("POST /files/rooms/:id/indexexport - start export", async () => {
+          const { status } = await ownerApi.rooms.startRoomIndexExport({
+            id: roomId,
+          });
+          expect(status).toBe(200);
+        });
+
+        await test.step("GET /files/rooms/indexexport - poll until completed", async () => {
+          await expect(async () => {
+            const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+            expect(status).toBe(200);
+            expect(data.response!.isCompleted).toBe(true);
+          }).toPass({
+            intervals: [2_000, 5_000, 10_000],
+            timeout: 60_000,
+          });
+
+          const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+          expect(status).toBe(200);
+          expect(data.response!.error).toBeFalsy();
+          expect(data.response!.resultFileId).toBeTruthy();
+        });
+      },
+    );
   });
 
   // Could not trigger MarkAsNew via API - new items list is always empty. Contract test only.

@@ -44,14 +44,13 @@ test.describe("GET /files/rooms/covers - access control", () => {
     expect(data.response!.length).toBeGreaterThan(0);
   });
 
-  test.fail(
-    "BUG 81012: GET /files/rooms/covers - Guest cannot get covers list",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
-      const { status } = await apiSdk.forRole("guest").rooms.getRoomCovers();
-      expect(status).toBe(403);
-    },
-  );
+  test("BUG 81012: GET /files/rooms/covers - Guest cannot get covers list", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const { status } = await apiSdk.forRole("guest").rooms.getRoomCovers();
+    expect(status).toBe(403);
+  });
 
   test("GET /files/rooms/covers - Unauthenticated user cannot get covers list", async ({
     apiSdk,
@@ -379,6 +378,138 @@ test.describe("PUT /files/rooms/:id/cover - access control", () => {
     const { status } = await apiSdk.forRole("user").rooms.changeRoomCover({
       id: roomId,
       coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+    expect(status).toBe(403);
+  });
+
+  test("PUT /files/rooms/:id/cover - DocSpaceAdmin can change cover in own room", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const docSpaceAdminApi = apiSdk.forRole("docSpaceAdmin");
+    const { data: coversData } = await docSpaceAdminApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await docSpaceAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover DocSpaceAdmin Own Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await docSpaceAdminApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+    expect(status).toBe(200);
+  });
+
+  test("PUT /files/rooms/:id/cover - RoomAdmin can change cover in own room", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+    const { data: coversData } = await roomAdminApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover RoomAdmin Own Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await roomAdminApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+    expect(status).toBe(200);
+  });
+
+  test("PUT /files/rooms/:id/cover - User with RoomManager access cannot change room cover", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover User RoomManager Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { status } = await apiSdk.forRole("user").rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+    expect(status).toBe(403);
+  });
+
+  test("PUT /files/rooms/:id/cover - User cannot change cover in DocSpaceAdmin's room", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const docSpaceAdminApi = apiSdk.forRole("docSpaceAdmin");
+    const { data: coversData } = await docSpaceAdminApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await docSpaceAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover User In DocSpaceAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { status } = await apiSdk.forRole("user").rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF0000", cover: coverId },
+    });
+    expect(status).toBe(403);
+  });
+
+  test("PUT /files/rooms/:id/cover - User cannot change cover in RoomAdmin's room", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+    const { data: coversData } = await roomAdminApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover User In RoomAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { status } = await apiSdk.forRole("user").rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF0000", cover: coverId },
     });
     expect(status).toBe(403);
   });

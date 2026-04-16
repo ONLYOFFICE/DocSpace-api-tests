@@ -172,6 +172,34 @@ test.describe("PUT /people/type - Start user type update (permissions)", () => {
       "You don't have enough permission to perform the operation",
     );
   });
+
+  test("BUG 80669: POST /people/type - Room admin promotes a guest to User", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: guestData } = await apiSdk.addMember("roomAdmin", "Guest");
+    const guestId = guestData.response!.id!;
+
+    const { data } = await roomAdminApi.userType.startUserTypeUpdate({
+      startUpdateUserTypeDto: {
+        type: EmployeeType.User,
+        userId: guestId,
+      },
+    });
+    expect(data.statusCode).toBe(200);
+
+    await expect(async () => {
+      const { data: profileData } = await ownerApi.profiles.getProfileByUserId({
+        userid: guestId,
+      });
+      expect(profileData.response!.isCollaborator).toBe(true);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+  });
 });
 
 test.describe("GET /people/type/progress/{userid} - Get user type update progress (permissions)", () => {

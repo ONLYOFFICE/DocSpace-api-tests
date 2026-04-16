@@ -129,6 +129,7 @@ export class ApiSDK {
         axiosInstance,
       ),
       guests: new GuestsApi(config, undefined, axiosInstance),
+      portalGuests: new PortalGuestsApi(config, undefined, axiosInstance),
       peopleSearch: new PeopleSearchApi(config, undefined, axiosInstance),
       theme: new ThemeApi(config, undefined, axiosInstance),
       thirdPartyAccounts: new ThirdPartyAccountsApi(

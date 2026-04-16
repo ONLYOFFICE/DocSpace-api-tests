@@ -2020,6 +2020,256 @@ test.describe("GET /files/file/:id/links - Get file links", () => {
   });
 });
 
+test.describe("POST /api/2.0/files/{fileId}/edit_session - Create Edit Session", () => {
+  test("POST /api/2.0/files/{fileId}/edit_session - Owner creates edit session for a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Upload Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+      fileSize: 1024,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - Response success is true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Success Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked Success File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+      fileSize: 2048,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - Response contains session ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked ID Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked ID File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+      fileSize: 1024,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.data!.id).toBeTruthy();
+    expect(typeof data.response!.data!.id).toBe("string");
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - Session has expiration date", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Expiry Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked Expiry File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+      fileSize: 1024,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.data!.expired).toBeTruthy();
+    const expiryDate = new Date(data.response!.data!.expired!);
+    expect(expiryDate.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - Session has location", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Location Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked Location File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+      fileSize: 1024,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.data!.location).toBeTruthy();
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - bytes_total matches fileSize", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Bytes Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked Bytes File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const fileSize = 5120;
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+      fileSize,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.data!.bytes_total).toBe(fileSize);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - Session can be created without fileSize", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked No Size Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked No Size File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - Session created field is returned", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Created Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked Created File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+      fileSize: 1024,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.data!.created).toBeTruthy();
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - Non-existent file returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .files.createEditSession({ fileId: 999999999 });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - File in My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Chunked MyDocs File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+      fileSize: 1024,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.success).toBe(true);
+    expect(data.response!.data!.id).toBeTruthy();
+  });
+});
+
 test.describe("GET /files/file/:fileId/history - Get file version info", () => {
   test("GET /files/file/:fileId/history - New file has one version in history", async ({
     apiSdk,
@@ -2147,7 +2397,9 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await ownerApi.files.getEditHistory({ fileId });
+    const { data, status } = await ownerApi.files.getEditHistory({
+      fileId,
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -2162,11 +2414,15 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Edit History Structure" },
+      createFileJsonElement: {
+        title: "Autotest Edit History Structure",
+      },
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await ownerApi.files.getEditHistory({ fileId });
+    const { data, status } = await ownerApi.files.getEditHistory({
+      fileId,
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -2203,7 +2459,9 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await ownerApi.files.getEditHistory({ fileId });
+    const { data, status } = await ownerApi.files.getEditHistory({
+      fileId,
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -2221,5 +2479,523 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
 
     expect(status).toBe(404);
     expect((data as any).error.message).toBe("The required file was not found");
+  });
+
+  test("GET /files/file/:fileId/edit/history - History grows after version increment", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Edit History Versions" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.getEditHistory({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(1);
+  });
+
+  test("GET /files/file/:fileId/edit/history - File in archived room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Edit History Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Edit History Archived File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.files.getEditHistory({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+});
+
+test.describe("PUT /files/file/:fileId/history - Change version history", () => {
+  test("PUT /files/file/:fileId/history - Owner splits version into new group (continueVersion: false)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Version History Split" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+
+    const v1 = data.response!.find((f) => f.version === 1);
+    const v2 = data.response!.find((f) => f.version === 2);
+    expect(v1).toBeDefined();
+    expect(v2).toBeDefined();
+    expect(v2!.versionGroup).not.toBe(v1!.versionGroup);
+  });
+
+  test("PUT /files/file/:fileId/history - Owner merges version into previous group (continueVersion: true)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Version History Merge" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+
+    const v1 = data.response!.find((f) => f.version === 1);
+    const v2 = data.response!.find((f) => f.version === 2);
+    expect(v1).toBeDefined();
+    expect(v2).toBeDefined();
+  });
+
+  test("PUT /files/file/:fileId/history - Response has correct file structure", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Version History Structure",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(200);
+    expect(data.count).toBeGreaterThan(0);
+
+    const file = data.response![0];
+    expect(file.id).toBeDefined();
+    expect(file.version).toBeDefined();
+    expect(file.versionGroup).toBeDefined();
+    expect(file.title).toBeDefined();
+  });
+
+  test("PUT /files/file/:fileId/history - Split creates new version group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Version History Groups" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data: before } = await ownerApi.files.getEditHistory({
+      fileId,
+    });
+    const groupsBefore = new Set(before.response?.map((e) => e.versionGroup));
+
+    await ownerApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    const { data: after } = await ownerApi.files.getEditHistory({ fileId });
+    const groupsAfter = new Set(after.response?.map((e) => e.versionGroup));
+
+    expect(groupsAfter.size).toBeGreaterThanOrEqual(groupsBefore.size);
+
+    const v1 = after.response!.find((e) => e.version === 1);
+    const v2 = after.response!.find((e) => e.version === 2);
+    expect(v1).toBeDefined();
+    expect(v2).toBeDefined();
+    expect(v2!.versionGroup).not.toBe(v1!.versionGroup);
+  });
+
+  test("PUT /files/file/:fileId/history - Merge reduces version groups", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Version History Merge Groups",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    await ownerApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    const { data: before } = await ownerApi.files.getEditHistory({
+      fileId,
+    });
+    const groupsBefore = new Set(before.response?.map((e) => e.versionGroup));
+
+    const { status } = await ownerApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: true },
+    });
+
+    const { data: after } = await ownerApi.files.getEditHistory({ fileId });
+    const groupsAfter = new Set(after.response?.map((e) => e.versionGroup));
+
+    expect(status).toBe(200);
+    expect(groupsAfter.size).toBeLessThanOrEqual(groupsBefore.size);
+  });
+
+  test("PUT /files/file/:fileId/history - Non-existent file returns 404", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .files.changeVersionHistory({
+        fileId: 999999999,
+        changeHistory: { version: 1, continueVersion: false },
+      });
+
+    expect(status).toBe(404);
+    expect((data as any).error?.message).toBeTruthy();
+  });
+
+  test("PUT /files/file/:fileId/history - File in a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version History Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version History Room File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/history - File in archived room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version History Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version History Archived File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBeTruthy();
+  });
+});
+
+test.describe("POST /files/file/:fileId/restoreversion - Restore file version", () => {
+  test("POST /files/file/:fileId/restoreversion - Owner restores a previous version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Restore Version" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - Restore adds a new entry to edit history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Restore Grows History" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data: before } = await ownerApi.files.getEditHistory({
+      fileId,
+    });
+    const countBefore = before.response!.length;
+
+    const { data, status } = await ownerApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(countBefore);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - Response has correct edit history structure", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Restore Structure" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(200);
+
+    const entry = data.response![0];
+    expect(entry.id).toBeDefined();
+    expect(entry.key).toBeTruthy();
+    expect(entry.version).toBeDefined();
+    expect(entry.versionGroup).toBeDefined();
+    expect(entry.user).toBeDefined();
+    expect(entry.user!.id).toBeTruthy();
+    expect(entry.created).toBeDefined();
+  });
+
+  test("POST /files/file/:fileId/restoreversion - File in a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Restore Version Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Restore Version Room File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - Missing version and url returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Restore No Params" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await ownerApi.files.restoreFileVersion({
+      fileId,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - Non-existent file returns error", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").files.restoreFileVersion({
+      fileId: 999999999,
+      version: 1,
+    });
+
+    expect([403, 404]).toContain(status);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - File in archived room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Restore Version Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Restore Version Archived File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await ownerApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(403);
   });
 });

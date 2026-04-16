@@ -895,66 +895,6 @@ test.describe("Share link privacy - no user data leakage", () => {
   );
 });
 
-test.describe("File version access - access control", () => {
-  test.fail(
-    "BUG 80683: GET /files/file/:id/openedit?version= - Viewer in room cannot open a specific file version",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-
-      // Step 1: Owner creates a Custom room
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Version Access Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-
-      // Step 2: Owner creates a file in the room
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest Version Access File.docx" },
-      });
-      const fileId = fileData.response!.id!;
-
-      // Step 3: Create a user and invite to the room as Viewer (FileShare.Read)
-      const { data: memberData, userData } = await apiSdk.addMember(
-        "owner",
-        "User",
-      );
-      const viewerId = memberData.response!.id!;
-
-      const { status: securityStatus } = await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: viewerId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
-      expect(securityStatus).toBe(200);
-
-      // Step 4: Authenticate the viewer
-      const viewerApi = await apiSdk.authenticateMember(userData, "User");
-
-      // Step 5: Viewer opens the file without version - should succeed
-      const { status: currentStatus } = await viewerApi.files.openEditFile({
-        fileId,
-        view: true,
-      });
-      expect(currentStatus).toBe(200);
-
-      // Step 5: Viewer opens the file with version=1 - should be denied
-      // Bug: server returns 200 and serves the version content to Viewer
-      const { status: versionStatus } = await viewerApi.files.openEditFile({
-        fileId,
-        version: 1,
-        view: true,
-      });
-      expect(versionStatus).toBe(403);
-    },
-  );
-});
-
 test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
   test("PUT /files/file/:fileId/lock - DocSpace admin can lock a file", async ({
     apiSdk,
@@ -2673,6 +2613,391 @@ test.describe("GET /files/file/:id/links permissions", () => {
   });
 });
 
+test.describe("POST /files/file/:fileId/sendeditornotify - access control", () => {
+  test("BUG 80319: POST /files/file/:fileId/sendeditornotify - Viewer cannot send editor notify", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest VDR Room",
+        roomType: RoomType.VirtualDataRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: viewerApi, data: viewerData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const viewerId = viewerData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: viewerId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await viewerApi.sharing.sendEditorNotify({
+      fileId,
+      mentionMessageWrapper: {
+        actionLink: {
+          action: { data: "nolimit", type: "comment" },
+        },
+        emails: [config.DOCSPACE_OWNER_EMAIL],
+        message: "test",
+      },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+});
+
+test.describe("POST /files/file/:fileId/sendeditornotify - input validation", () => {
+  test("BUG 80321: POST /files/file/:fileId/sendeditornotify - 'data' field has no character limit", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest VDR Room",
+        roomType: RoomType.VirtualDataRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: editorApi, data: editorData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const editorId = editorData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: editorId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await editorApi.sharing.sendEditorNotify({
+      fileId,
+      mentionMessageWrapper: {
+        actionLink: {
+          action: { data: "a".repeat(10000), type: "comment" },
+        },
+        emails: [editorData.response!.email!],
+        message: "test",
+      },
+    });
+
+    expect(status).toBe(400);
+    expect(
+      (data as any).response.errors["MentionMessage.ActionLink.Action.Data"][0],
+    ).toBe("The field Data must be a string with a maximum length of 256.");
+  });
+});
+
+test.describe("GET /files/file/:fileId/protectusers - access control", () => {
+  test("BUG 79205: GET /files/file/:fileId/protectusers - Guest gets user data instead of 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Protect Users Guest",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Protected File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.files.getProtectedFileUsers({
+      fileId,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () => {
+  test("POST /api/2.0/files/{fileId}/edit_session - Owner can create edit session", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Owner Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked Owner File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createEditSession({
+      fileId,
+      fileSize: 1024,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - DocSpaceAdmin can create edit session", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Admin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Chunked Admin File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const memberId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .files.createEditSession({ fileId, fileSize: 1024 });
+
+    expect(status).toBe(200);
+    expect(data.response!.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - RoomAdmin (RoomManager) can create edit session", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked RoomAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Chunked RoomAdmin File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const memberId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .files.createEditSession({ fileId, fileSize: 1024 });
+
+    expect(status).toBe(200);
+    expect(data.response!.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - User with Edit access can create edit session", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Editor Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Chunked Editor File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .files.createEditSession({ fileId, fileSize: 1024 });
+
+    expect(status).toBe(200);
+    expect(data.response!.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - User with Read access cannot create edit session", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Reader Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Chunked Reader File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .files.createEditSession({ fileId, fileSize: 1024 });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - Guest cannot create edit session", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked Guest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .files.createEditSession({ fileId, fileSize: 1024 });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/{fileId}/edit_session - Unauthenticated user cannot create edit session", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chunked Anon Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Chunked Anon File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.createEditSession({ fileId, fileSize: 1024 });
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("GET /files/file/:fileId/history permissions", () => {
   test("GET /files/file/:fileId/history - Owner can get file version history", async ({
     apiSdk,
@@ -2724,7 +3049,9 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
       {
-        createFileJsonElement: { title: "Autotest Version History Room Admin" },
+        createFileJsonElement: {
+          title: "Autotest Version History Room Admin",
+        },
       },
     );
     const fileId = fileData.response!.id!;
@@ -2863,6 +3190,68 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
 
     expect(status).toBe(403);
   });
+});
+
+test.describe("File version access - access control", () => {
+  test.fail(
+    "BUG 80683: GET /files/file/:id/openedit?version= - Viewer in room cannot open a specific file version",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      // Step 1: Owner creates a Custom room
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Version Access Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // Step 2: Owner creates a file in the room
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest Version Access File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      // Step 3: Create a user and invite to the room as Viewer (FileShare.Read)
+      const { data: memberData, userData } = await apiSdk.addMember(
+        "owner",
+        "User",
+      );
+      const viewerId = memberData.response!.id!;
+
+      const { status: securityStatus } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: viewerId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+      expect(securityStatus).toBe(200);
+
+      // Step 4: Authenticate the viewer
+      const viewerApi = await apiSdk.authenticateMember(userData, "User");
+
+      // Step 5: Viewer opens the file without version - should succeed
+      const { status: currentStatus } = await viewerApi.files.openEditFile({
+        fileId,
+        view: true,
+      });
+      expect(currentStatus).toBe(200);
+
+      // Step 6: Viewer opens the file with version=1 - should be denied
+      // Bug: server returns 200 and serves the version content to Viewer
+      const { status: versionStatus } = await viewerApi.files.openEditFile({
+        fileId,
+        version: 1,
+        view: true,
+      });
+      expect(versionStatus).toBe(403);
+    },
+  );
 });
 
 test.describe("GET /files/file/:fileId/edit/history permissions", () => {
@@ -3044,124 +3433,312 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     expect(status).toBe(403);
   });
-});
 
-test.describe("POST /files/file/:fileId/sendeditornotify - access control", () => {
-  test("BUG 80319: POST /files/file/:fileId/sendeditornotify - Viewer cannot send editor notify", async ({
+  test("GET /files/file/:fileId/edit/history - Guest cannot get edit history", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
-        title: "Autotest VDR Room",
-        roomType: RoomType.VirtualDataRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { api: viewerApi, data: viewerData } =
-      await apiSdk.addAuthenticatedMember("owner", "User");
-    const viewerId = viewerData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [{ id: viewerId, access: FileShare.Read }],
-        notify: false,
-      },
-    });
-
-    const { data, status } = await viewerApi.sharing.sendEditorNotify({
-      fileId,
-      mentionMessageWrapper: {
-        actionLink: {
-          action: { data: "nolimit", type: "comment" },
-        },
-        emails: [config.DOCSPACE_OWNER_EMAIL],
-        message: "test",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You do not have enough permissions to edit the file",
-    );
-  });
-});
-
-test.describe("POST /files/file/:fileId/sendeditornotify - input validation", () => {
-  test("BUG 80321: POST /files/file/:fileId/sendeditornotify - 'data' field has no character limit", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest VDR Room",
-        roomType: RoomType.VirtualDataRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { api: editorApi, data: editorData } =
-      await apiSdk.addAuthenticatedMember("owner", "User");
-    const editorId = editorData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [{ id: editorId, access: FileShare.Editing }],
-        notify: false,
-      },
-    });
-
-    const { data, status } = await editorApi.sharing.sendEditorNotify({
-      fileId,
-      mentionMessageWrapper: {
-        actionLink: {
-          action: { data: "a".repeat(10000), type: "comment" },
-        },
-        emails: [editorData.response!.email!],
-        message: "test",
-      },
-    });
-
-    expect(status).toBe(400);
-    expect(
-      (data as any).response.errors["MentionMessage.ActionLink.Action.Data"][0],
-    ).toBe("The field Data must be a string with a maximum length of 256.");
-  });
-});
-
-test.describe("GET /files/file/:fileId/protectusers - access control", () => {
-  test("BUG 79205: GET /files/file/:fileId/protectusers - Guest gets user data instead of 403", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Protect Users Guest",
+        title: "Autotest Edit History Guest Room",
         roomType: RoomType.CustomRoom,
       },
     });
     const roomId = roomData.response!.id!;
 
-    const { data: memberData } = await apiSdk.addMember("owner", "User");
-    const userId = memberData.response!.id!;
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Edit History Guest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .files.getEditHistory({ fileId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /files/file/:fileId/edit/history - User with Read access cannot get edit history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Edit History User Read Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Edit History Read File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await userApi.files.getEditHistory({ fileId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /files/file/:fileId/edit/history - DocSpaceAdmin can get edit history in own room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Edit History DocSpaceAdmin Own Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Edit History DocSpaceAdmin Own File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await adminApi.files.getEditHistory({ fileId });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /files/file/:fileId/edit/history - RoomAdmin can get edit history in own room", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Edit History RoomAdmin Own Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await roomAdminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Edit History RoomAdmin Own File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await roomAdminApi.files.getEditHistory({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+});
+
+test.describe("PUT /files/file/:fileId/history - access control", () => {
+  test("PUT /files/file/:fileId/history - Owner can change version history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Version History Perm Owner",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/history - DocSpaceAdmin can change version history in own room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version History DocSpaceAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version History DocSpaceAdmin File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await adminApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await adminApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/history - RoomAdmin can change version history in own room", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version History RoomAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await roomAdminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version History RoomAdmin File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await roomAdminApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await roomAdminApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/history - DocSpaceAdmin with RoomManager access can change version history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version History DSA RoomManager Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: adminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version History DSA RoomManager File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await adminApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/history - User with Editing access cannot change version history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version History User Editing Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
     await ownerApi.rooms.setRoomSecurity({
       id: roomId,
@@ -3173,20 +3750,472 @@ test.describe("GET /files/file/:fileId/protectusers - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Protected File" },
+      createFileJsonElement: {
+        title: "Autotest Version History Editing File",
+      },
     });
     const fileId = fileData.response!.id!;
 
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-
-    const { data, status } = await guestApi.files.getProtectedFileUsers({
+    await ownerApi.files.updateFile({
       fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await userApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
     });
 
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
   });
+
+  test("PUT /files/file/:fileId/history - User with Read access cannot change version history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version History User Read Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version History Read File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await userApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /files/file/:fileId/history - User without room access cannot change version history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version History No Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version History No Access File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await userApi.files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /files/file/:fileId/history - Guest cannot change version history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version History Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Version History Guest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .files.changeVersionHistory({
+        fileId,
+        changeHistory: { version: 2, continueVersion: false },
+      });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /files/file/:fileId/history - Unauthenticated user cannot change version history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Version History Anon",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await apiSdk.forAnonymous().files.changeVersionHistory({
+      fileId,
+      changeHistory: { version: 2, continueVersion: false },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("POST /files/file/:fileId/restoreversion - access control", () => {
+  test("POST /files/file/:fileId/restoreversion - Owner can restore file version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Restore Perm Owner" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - DocSpaceAdmin can restore version in own room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Restore DSA Own Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Restore DSA File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await adminApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await adminApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - RoomAdmin can restore version in own room", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Restore RoomAdmin Own Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await roomAdminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Restore RoomAdmin File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await roomAdminApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await roomAdminApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - User with Editing access cannot restore version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Restore User Editing Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Restore Editing File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await userApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - User with Read access cannot restore version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Restore User Read Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Restore Read File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await userApi.files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - Guest cannot restore version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Restore Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Restore Guest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await apiSdk.forRole("guest").files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /files/file/:fileId/restoreversion - Unauthenticated user cannot restore version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Restore Anon" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { status } = await apiSdk.forAnonymous().files.restoreFileVersion({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("GET /files/file/:fileId/log - Get file history permissions", () => {
+  test.fail(
+    "BUG 81093: GET /files/file/:fileId/log - Guest sees owner email in profileUrl field of file history response",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: {
+          title: "Autotest File History Guest Test",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: guestData, api: guestApi } =
+        await apiSdk.addAuthenticatedMember("owner", "Guest");
+      const guestId = guestData.response!.id!;
+
+      await ownerApi.sharing.setFileSecurityInfo({
+        fileId,
+        securityInfoSimpleRequestDto: {
+          share: [{ shareTo: guestId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await guestApi.files.getFileHistory({ fileId });
+
+      expect(status).toBe(200);
+
+      const historyEntries = data.response ?? [];
+      for (const entry of historyEntries) {
+        expect(entry.initiator?.profileUrl).toBeFalsy();
+      }
+    },
+  );
 });

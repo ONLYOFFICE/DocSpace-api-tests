@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 
 test.describe("GET /files/rooms/covers - Get room covers", () => {
   test("GET /files/rooms/covers - Owner gets list of available covers", async ({
@@ -232,5 +233,37 @@ test.describe("PUT /files/rooms/:id/cover - Change room cover", () => {
       coverRequestDto: { color: "FF5733", cover: coverId },
     });
     expect(status).toBe(200);
+  });
+
+  test("PUT /files/rooms/:id/cover - Owner can change cover for a room saved as template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover Template Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: { roomId, title: "Autotest Cover Template" },
+    });
+
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+    const { data, status } = await ownerApi.rooms.changeRoomCover({
+      id: templateId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.logo?.cover?.id).toBe(coverId);
+    expect(data.response!.logo?.color).toBe("FF5733");
   });
 });
