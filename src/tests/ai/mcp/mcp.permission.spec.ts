@@ -179,3 +179,38 @@ test.describe("MCP Servers - Endpoint Validation", () => {
     expect(status).toBe(400);
   });
 });
+
+const fakeServerId = "00000000-0000-0000-0000-000000000000";
+
+test.describe("MCP Servers - Update Permissions", () => {
+  for (const role of forbiddenRoles) {
+    test(`PUT /api/2.0/ai/servers/:id - ${role} cannot update a custom MCP server`, async ({
+      apiSdk,
+    }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+
+      const { data, status } = await api.mcp.updateServer({
+        id: fakeServerId,
+        updateServerRequestBody: {
+          name: `mcp-renamed-${Date.now()}`,
+        },
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  }
+
+  test("PUT /api/2.0/ai/servers/:id - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.updateServer({
+      id: fakeServerId,
+      updateServerRequestBody: {
+        name: `mcp-renamed-${Date.now()}`,
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+});

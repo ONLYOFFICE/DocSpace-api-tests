@@ -62,6 +62,101 @@ test.describe("MCP Servers", () => {
   }
 });
 
+test.describe("MCP Servers - Update", () => {
+  for (const { role, label } of [
+    { role: "owner" as const, label: "Owner" },
+    { role: "docSpaceAdmin" as const, label: "DocSpaceAdmin" },
+  ]) {
+    test.fail(
+      `BUG 81107: PUT /api/2.0/ai/servers/:id - ${label} updates MCP server name`,
+      async ({ apiSdk }) => {
+        const mcpApiKey = process.env.MCP_API_KEY;
+        if (!mcpApiKey) {
+          throw new Error(
+            "MCP_API_KEY is not defined in environment variables",
+          );
+        }
+
+        const api = apiSdk.forRole(role);
+
+        const provider = aiProviders.deepSeek;
+        await api.providers.addProvider({
+          createProviderRequestDto: {
+            type: provider.type,
+            title: provider.title,
+            key: provider.key,
+          },
+        });
+
+        const { data: created } = await api.mcp.addServer({
+          addMcpServerRequestBody: {
+            name: `mcp-upd-${Date.now()}`,
+            description: "GitHub Copilot MCP server",
+            endpoint: GITHUB_MCP_ENDPOINT,
+            headers: { Authorization: `Bearer ${mcpApiKey}` },
+          },
+        });
+        const serverId = created.response!.id!;
+
+        const newName = `mcp-renamed-${Date.now()}`;
+        const { data, status } = await api.mcp.updateServer({
+          id: serverId,
+          updateServerRequestBody: {
+            name: newName,
+          },
+        });
+
+        expect(status).toBe(200);
+        expect(data.response?.name).toBe(newName);
+      },
+    );
+
+    test.fail(
+      `BUG 81107: PUT /api/2.0/ai/servers/:id - ${label} updates MCP server description`,
+      async ({ apiSdk }) => {
+        const mcpApiKey = process.env.MCP_API_KEY;
+        if (!mcpApiKey) {
+          throw new Error(
+            "MCP_API_KEY is not defined in environment variables",
+          );
+        }
+
+        const api = apiSdk.forRole(role);
+
+        const provider = aiProviders.deepSeek;
+        await api.providers.addProvider({
+          createProviderRequestDto: {
+            type: provider.type,
+            title: provider.title,
+            key: provider.key,
+          },
+        });
+
+        const { data: created } = await api.mcp.addServer({
+          addMcpServerRequestBody: {
+            name: `mcp-upd-${Date.now()}`,
+            description: "Original description",
+            endpoint: GITHUB_MCP_ENDPOINT,
+            headers: { Authorization: `Bearer ${mcpApiKey}` },
+          },
+        });
+        const serverId = created.response!.id!;
+
+        const newDescription = "Updated description";
+        const { data, status } = await api.mcp.updateServer({
+          id: serverId,
+          updateServerRequestBody: {
+            description: newDescription,
+          },
+        });
+
+        expect(status).toBe(200);
+        expect(data.response?.description).toBe(newDescription);
+      },
+    );
+  }
+});
+
 test.describe("MCP Servers - Get", () => {
   for (const { role, label } of [
     { role: "owner" as const, label: "Owner" },
