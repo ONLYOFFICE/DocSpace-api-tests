@@ -83,25 +83,26 @@ test.describe("MCP Servers - Name Validation", () => {
     expect(status).toBe(400);
   });
 
-  test.fail("BUG 81107: POST /api/2.0/ai/servers - accepts name with 128 characters", async ({
-    apiSdk,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
+  test.fail(
+    "BUG 81107: POST /api/2.0/ai/servers - accepts name with 128 characters",
+    async ({ apiSdk }) => {
+      const mcpApiKey = process.env.MCP_API_KEY;
+      if (!mcpApiKey) {
+        throw new Error("MCP_API_KEY is not defined in environment variables");
+      }
 
-    const { status } = await apiSdk.forRole("owner").mcp.addServer({
-      addMcpServerRequestBody: {
-        name: "a".repeat(128),
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
+      const { status } = await apiSdk.forRole("owner").mcp.addServer({
+        addMcpServerRequestBody: {
+          name: "a".repeat(128),
+          description: "GitHub Copilot MCP server",
+          endpoint: GITHUB_MCP_ENDPOINT,
+          headers: { Authorization: `Bearer ${mcpApiKey}` },
+        },
+      });
 
-    expect(status).toBe(200);
-  });
+      expect(status).toBe(200);
+    },
+  );
 
   test("POST /api/2.0/ai/servers - returns 400 when name is already taken", async ({
     apiSdk,

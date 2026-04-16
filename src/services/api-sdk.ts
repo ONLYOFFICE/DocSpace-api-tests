@@ -43,6 +43,7 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
 import { MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/mcpapi";
+import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";

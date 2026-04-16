@@ -10,72 +10,77 @@ test.describe("MCP Servers", () => {
     { role: "owner" as const, label: "Owner" },
     { role: "docSpaceAdmin" as const, label: "DocSpaceAdmin" },
   ]) {
-    test.fail(`BUG 81107: POST /api/2.0/ai/servers - ${label} registers a custom MCP server`, async ({
-      apiSdk,
-    }) => {
-      const mcpApiKey = process.env.MCP_API_KEY;
-      if (!mcpApiKey) {
-        throw new Error("MCP_API_KEY is not defined in environment variables");
-      }
+    test.fail(
+      `BUG 81107: POST /api/2.0/ai/servers - ${label} registers a custom MCP server`,
+      async ({ apiSdk }) => {
+        const mcpApiKey = process.env.MCP_API_KEY;
+        if (!mcpApiKey) {
+          throw new Error(
+            "MCP_API_KEY is not defined in environment variables",
+          );
+        }
 
-      const api = apiSdk.forRole(role);
+        const api = apiSdk.forRole(role);
 
-      await test.step("Create AI provider as precondition", async () => {
-        const provider = aiProviders.deepSeek;
-        await api.providers.addProvider({
-          createProviderRequestDto: {
-            type: provider.type,
-            title: provider.title,
-            key: provider.key,
-          },
-        });
-      });
-
-      const serverName = `mcp-basic-${Date.now()}`;
-      const serverDescription = "GitHub Copilot MCP server";
-      const iconBase64 = readIconAsBase64("src/assets/mcp-icon.png");
-      let serverId: string;
-
-      await test.step("POST /api/2.0/ai/servers - create MCP server", async () => {
-        const { data, status } = await api.mcp.addServer({
-          addMcpServerRequestBody: {
-            name: serverName,
-            description: serverDescription,
-            endpoint: GITHUB_MCP_ENDPOINT,
-            headers: { Authorization: `Bearer ${mcpApiKey}` },
-            icon: iconBase64,
-          },
+        await test.step("Create AI provider as precondition", async () => {
+          const provider = aiProviders.deepSeek;
+          await api.providers.addProvider({
+            createProviderRequestDto: {
+              type: provider.type,
+              title: provider.title,
+              key: provider.key,
+            },
+          });
         });
 
-        expect(status).toBe(200);
-        expect(data.response).toBeDefined();
+        const serverName = `mcp-basic-${Date.now()}`;
+        const serverDescription = "GitHub Copilot MCP server";
+        const iconBase64 = readIconAsBase64("src/assets/mcp-icon.png");
+        let serverId: string;
 
-        const server = data.response!;
-        expect(server.id).toBeDefined();
-        expect(server.name).toBe(serverName);
-        expect(server.description).toBe(serverDescription);
-        expect(server.endpoint).toBe(GITHUB_MCP_ENDPOINT);
-        expect(server.headers).toEqual({ Authorization: `Bearer ${mcpApiKey}` });
-        expect(server.icon).toBeDefined();
-        expect(server.serverType).toBeDefined();
-        expect(server.enabled).toBeDefined();
-        expect(server.needReset).toBeDefined();
+        await test.step("POST /api/2.0/ai/servers - create MCP server", async () => {
+          const { data, status } = await api.mcp.addServer({
+            addMcpServerRequestBody: {
+              name: serverName,
+              description: serverDescription,
+              endpoint: GITHUB_MCP_ENDPOINT,
+              headers: { Authorization: `Bearer ${mcpApiKey}` },
+              icon: iconBase64,
+            },
+          });
 
-        serverId = server.id!;
-      });
+          expect(status).toBe(200);
+          expect(data.response).toBeDefined();
 
-      await test.step("GET /api/2.0/ai/servers - verify server appears in list", async () => {
-        const { data, status } = await api.mcp.getServers();
+          const server = data.response!;
+          expect(server.id).toBeDefined();
+          expect(server.name).toBe(serverName);
+          expect(server.description).toBe(serverDescription);
+          expect(server.endpoint).toBe(GITHUB_MCP_ENDPOINT);
+          expect(server.headers).toEqual({
+            Authorization: `Bearer ${mcpApiKey}`,
+          });
+          expect(server.icon).toBeDefined();
+          expect(server.serverType).toBeDefined();
+          expect(server.enabled).toBeDefined();
+          expect(server.needReset).toBeDefined();
 
-        expect(status).toBe(200);
-        expect(data.response).toBeDefined();
+          serverId = server.id!;
+        });
 
-        const found = data.response!.find((s) => s.id === serverId);
-        expect(found).toBeDefined();
-        expect(found!.name).toBe(serverName);
-        expect(found!.description).toBe(serverDescription);
-        expect(found!.endpoint).toBe(GITHUB_MCP_ENDPOINT);
-      });
-    });
+        await test.step("GET /api/2.0/ai/servers - verify server appears in list", async () => {
+          const { data, status } = await api.mcp.getServers();
+
+          expect(status).toBe(200);
+          expect(data.response).toBeDefined();
+
+          const found = data.response!.find((s) => s.id === serverId);
+          expect(found).toBeDefined();
+          expect(found!.name).toBe(serverName);
+          expect(found!.description).toBe(serverDescription);
+          expect(found!.endpoint).toBe(GITHUB_MCP_ENDPOINT);
+        });
+      },
+    );
   }
 });
