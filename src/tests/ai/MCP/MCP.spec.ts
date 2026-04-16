@@ -2,8 +2,9 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { aiProviders } from "@/src/helpers/ai-providers";
 import { readIconAsBase64 } from "@/src/utils/icon.utils";
+import config from "@/config";
 
-const GITHUB_MCP_ENDPOINT = "https://api.githubcopilot.com/mcp";
+const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
 
 test.describe("MCP Servers", () => {
   for (const { role, label } of [

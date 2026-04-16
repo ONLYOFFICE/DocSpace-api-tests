@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
+import config from "@/config";
 
-const GITHUB_MCP_ENDPOINT = "https://api.githubcopilot.com/mcp";
+const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
 const forbiddenRoles = ["RoomAdmin", "User", "Guest"] as const;
 
 test.describe("MCP Servers - Permissions", () => {
