@@ -372,4 +372,102 @@ test.describe("MCP Servers - Get", () => {
     expect(found!.description).toBe(serverDescription);
     expect(found!.endpoint).toBe(GITHUB_MCP_ENDPOINT);
   });
+
+  test("GET /api/2.0/ai/servers/:id - Owner gets MCP server by id", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const serverName = `mcp-get-${Date.now()}`;
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: serverName,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const { data, status } = await api.mcp.getServer({ id: serverId });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    const server = data.response!;
+    expect(server.id).toBe(serverId);
+    expect(server.name).toBe(serverName);
+    expect(server.serverType).toBeDefined();
+    expect(server.enabled).toBeDefined();
+  });
+
+  test("GET /api/2.0/ai/servers/available - Owner gets available MCP servers", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const ts = Date.now();
+
+    const { data: created1 } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-avail-enabled-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const enabledServerId = created1.response!.id!;
+
+    const { data: created2 } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-avail-disabled-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const disabledServerId = created2.response!.id!;
+
+    await api.mcp.setServerStatus({
+      id: disabledServerId,
+      setServerStatusRequestBody: { enabled: false },
+    });
+
+    const { data, status } = await api.mcp.getAvailableServers();
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    const ids = data.response!.map((s) => s.id);
+    expect(ids).toContain(enabledServerId);
+    expect(ids).not.toContain(disabledServerId);
+  });
 });

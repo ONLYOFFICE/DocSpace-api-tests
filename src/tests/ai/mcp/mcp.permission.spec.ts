@@ -246,6 +246,88 @@ test.describe("MCP Servers - Update Permissions", () => {
   });
 });
 
+test.describe("MCP Servers - Get List Permissions", () => {
+  for (const role of forbiddenRoles) {
+    test(`GET /api/2.0/ai/servers - ${role} cannot get list of MCP servers`, async ({
+      apiSdk,
+    }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+
+      const { data, status } = await api.mcp.getServers();
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  }
+
+  test("GET /api/2.0/ai/servers - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.getServers();
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("MCP Servers - Get Available Permissions", () => {
+  for (const role of ["RoomAdmin", "User"] as const) {
+    test(`GET /api/2.0/ai/servers/available - ${role} can get available MCP servers`, async ({
+      apiSdk,
+    }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+
+      const { status } = await api.mcp.getAvailableServers();
+
+      expect(status).toBe(200);
+    });
+  }
+
+  test.fail(
+    "BUG 81140: GET /api/2.0/ai/servers/available - Guest cannot get available MCP servers",
+    async ({ apiSdk }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await api.mcp.getAvailableServers();
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    },
+  );
+
+  test("GET /api/2.0/ai/servers/available - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.getAvailableServers();
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("MCP Servers - Get Permissions", () => {
+  for (const role of forbiddenRoles) {
+    test(`GET /api/2.0/ai/servers/:id - ${role} cannot get a MCP server by id`, async ({
+      apiSdk,
+    }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+
+      const { data, status } = await api.mcp.getServer({ id: fakeServerId });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  }
+
+  test("GET /api/2.0/ai/servers/:id - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .mcp.getServer({ id: fakeServerId });
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("MCP Servers - DocSpaceAdmin Access", () => {
   test("BUG 81107: POST /api/2.0/ai/servers - DocSpaceAdmin registers a custom MCP server", async ({
     apiSdk,
@@ -396,6 +478,110 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
     });
 
     expect(status).toBe(200);
+  });
+
+  test("BUG 81107: GET /api/2.0/ai/servers/:id - DocSpaceAdmin gets MCP server by id", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const serverName = `mcp-admin-get-${Date.now()}`;
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: serverName,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const { data, status } = await api.mcp.getServer({ id: serverId });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    const server = data.response!;
+    expect(server.id).toBe(serverId);
+    expect(server.name).toBe(serverName);
+    expect(server.serverType).toBeDefined();
+    expect(server.enabled).toBeDefined();
+  });
+
+  test("BUG 81107: GET /api/2.0/ai/servers/available - DocSpaceAdmin gets available MCP servers", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const ts = Date.now();
+
+    const { data: created1 } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-avail-enabled-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const enabledServerId = created1.response!.id!;
+
+    const { data: created2 } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-avail-disabled-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const disabledServerId = created2.response!.id!;
+
+    await api.mcp.setServerStatus({
+      id: disabledServerId,
+      setServerStatusRequestBody: { enabled: false },
+    });
+
+    const { data, status } = await api.mcp.getAvailableServers();
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    const ids = data.response!.map((s) => s.id);
+    expect(ids).toContain(enabledServerId);
+    expect(ids).not.toContain(disabledServerId);
   });
 });
 
