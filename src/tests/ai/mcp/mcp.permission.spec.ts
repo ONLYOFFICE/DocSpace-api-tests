@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
+import { aiProviders } from "@/src/helpers/ai-providers";
 import config from "@/config";
 
 const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
@@ -84,26 +85,25 @@ test.describe("MCP Servers - Name Validation", () => {
     expect(status).toBe(400);
   });
 
-  test.fail(
-    "BUG 81107: POST /api/2.0/ai/servers - accepts name with 128 characters",
-    async ({ apiSdk }) => {
-      const mcpApiKey = process.env.MCP_API_KEY;
-      if (!mcpApiKey) {
-        throw new Error("MCP_API_KEY is not defined in environment variables");
-      }
+  test("BUG 81107: POST /api/2.0/ai/servers - accepts name with 128 characters", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
 
-      const { status } = await apiSdk.forRole("owner").mcp.addServer({
-        addMcpServerRequestBody: {
-          name: "a".repeat(128),
-          description: "GitHub Copilot MCP server",
-          endpoint: GITHUB_MCP_ENDPOINT,
-          headers: { Authorization: `Bearer ${mcpApiKey}` },
-        },
-      });
+    const { status } = await apiSdk.forRole("owner").mcp.addServer({
+      addMcpServerRequestBody: {
+        name: "a".repeat(128),
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
 
-      expect(status).toBe(200);
-    },
-  );
+    expect(status).toBe(200);
+  });
 
   test("POST /api/2.0/ai/servers - returns 400 when name is already taken", async ({
     apiSdk,
@@ -212,5 +212,158 @@ test.describe("MCP Servers - Update Permissions", () => {
     });
 
     expect(status).toBe(401);
+  });
+});
+
+test.describe("MCP Servers - DocSpaceAdmin Access", () => {
+  test("BUG 81107: POST /api/2.0/ai/servers - DocSpaceAdmin registers a custom MCP server", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const { status } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-admin-${Date.now()}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("BUG 81107: GET /api/2.0/ai/servers - DocSpaceAdmin gets list of MCP servers", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-admin-${Date.now()}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+
+    const { status } = await api.mcp.getServers();
+
+    expect(status).toBe(200);
+  });
+
+  test("BUG 81107: PUT /api/2.0/ai/servers/:id - DocSpaceAdmin updates MCP server name", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-admin-${Date.now()}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const newName = `mcp-admin-renamed-${Date.now()}`;
+    const { status } = await api.mcp.updateServer({
+      id: serverId,
+      updateServerRequestBody: { name: newName },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("BUG 81107: PUT /api/2.0/ai/servers/:id - DocSpaceAdmin updates MCP server description", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-admin-${Date.now()}`,
+        description: "Original description",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const { status } = await api.mcp.updateServer({
+      id: serverId,
+      updateServerRequestBody: { description: "Updated description" },
+    });
+
+    expect(status).toBe(200);
   });
 });
