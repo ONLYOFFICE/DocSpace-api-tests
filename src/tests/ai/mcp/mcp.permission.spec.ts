@@ -182,6 +182,37 @@ test.describe("MCP Servers - Endpoint Validation", () => {
 
 const fakeServerId = "00000000-0000-0000-0000-000000000000";
 
+test.describe("MCP Servers - Delete Permissions", () => {
+  for (const role of forbiddenRoles) {
+    test(`DELETE /api/2.0/ai/servers - ${role} cannot delete a MCP server`, async ({
+      apiSdk,
+    }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+
+      const { data, status } = await api.mcp.deleteServer({
+        deleteServersRequestBody: {
+          servers: new Set([fakeServerId]),
+        },
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  }
+
+  test("DELETE /api/2.0/ai/servers - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.deleteServer({
+      deleteServersRequestBody: {
+        servers: new Set([fakeServerId]),
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("MCP Servers - Update Permissions", () => {
   for (const role of forbiddenRoles) {
     test(`PUT /api/2.0/ai/servers/:id - ${role} cannot update a custom MCP server`, async ({
@@ -365,5 +396,65 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
     });
 
     expect(status).toBe(200);
+  });
+});
+
+test.describe("MCP Servers - Delete Edge Cases", () => {
+  test("DELETE /api/2.0/ai/servers - Owner gets 204 when deleting a non-existent server", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk.forRole("owner").mcp.deleteServer({
+      deleteServersRequestBody: {
+        servers: new Set([fakeServerId]),
+      },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+  });
+
+  test("DELETE /api/2.0/ai/servers - Owner gets 204 when deleting an already deleted server", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-redel-${Date.now()}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    await api.mcp.deleteServer({
+      deleteServersRequestBody: {
+        servers: new Set([serverId]),
+      },
+    });
+
+    const { data, status } = await api.mcp.deleteServer({
+      deleteServersRequestBody: {
+        servers: new Set([serverId]),
+      },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
   });
 });
