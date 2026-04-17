@@ -138,6 +138,195 @@ test.describe("MCP Servers - Update", () => {
   });
 });
 
+test.describe("MCP Servers - Delete", () => {
+  test("DELETE /api/2.0/ai/servers - Owner deletes a MCP server", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-del-${Date.now()}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const { data, status } = await api.mcp.deleteServer({
+      deleteServersRequestBody: {
+        servers: new Set([serverId]),
+      },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+
+    const { status: getStatus } = await api.mcp.getServer({ id: serverId });
+    expect(getStatus).toBe(404);
+  });
+
+  test("DELETE /api/2.0/ai/servers - Owner deletes multiple MCP servers in one request", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const ts = Date.now();
+    const serverIds: string[] = [];
+    for (const suffix of ["first", "second", "third"]) {
+      const { data } = await api.mcp.addServer({
+        addMcpServerRequestBody: {
+          name: `mcp-multi-${suffix}-${ts}`,
+          description: "GitHub Copilot MCP server",
+          endpoint: GITHUB_MCP_ENDPOINT,
+          headers: { Authorization: `Bearer ${mcpApiKey}` },
+        },
+      });
+      serverIds.push(data.response!.id!);
+    }
+
+    const { data, status } = await api.mcp.deleteServer({
+      deleteServersRequestBody: {
+        servers: new Set(serverIds),
+      },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+
+    for (const id of serverIds) {
+      const { status: getStatus } = await api.mcp.getServer({ id });
+      expect(getStatus).toBe(404);
+    }
+  });
+
+  test("DELETE /api/2.0/ai/servers - DocSpaceAdmin deletes multiple MCP servers in one request", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const ownerApi = apiSdk.forRole("owner");
+
+    const provider = aiProviders.deepSeek;
+    await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const ts = Date.now();
+    const serverIds: string[] = [];
+    for (const suffix of ["first", "second", "third"]) {
+      const { data } = await ownerApi.mcp.addServer({
+        addMcpServerRequestBody: {
+          name: `mcp-multi-admin-${suffix}-${ts}`,
+          description: "GitHub Copilot MCP server",
+          endpoint: GITHUB_MCP_ENDPOINT,
+          headers: { Authorization: `Bearer ${mcpApiKey}` },
+        },
+      });
+      serverIds.push(data.response!.id!);
+    }
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.mcp.deleteServer({
+      deleteServersRequestBody: {
+        servers: new Set(serverIds),
+      },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+
+    for (const id of serverIds) {
+      const { status: getStatus } = await ownerApi.mcp.getServer({ id });
+      expect(getStatus).toBe(404);
+    }
+  });
+
+  test("DELETE /api/2.0/ai/servers - DocSpaceAdmin deletes a MCP server", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const ownerApi = apiSdk.forRole("owner");
+
+    const provider = aiProviders.deepSeek;
+    await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const { data: created } = await ownerApi.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-del-admin-${Date.now()}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.mcp.deleteServer({
+      deleteServersRequestBody: {
+        servers: new Set([serverId]),
+      },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+  });
+});
+
 test.describe("MCP Servers - Get", () => {
   test("BUG 81107: GET /api/2.0/ai/servers - Owner gets list of MCP servers", async ({
     apiSdk,
@@ -182,5 +371,103 @@ test.describe("MCP Servers - Get", () => {
     expect(found!.name).toBe(serverName);
     expect(found!.description).toBe(serverDescription);
     expect(found!.endpoint).toBe(GITHUB_MCP_ENDPOINT);
+  });
+
+  test("GET /api/2.0/ai/servers/:id - Owner gets MCP server by id", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const serverName = `mcp-get-${Date.now()}`;
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: serverName,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const { data, status } = await api.mcp.getServer({ id: serverId });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    const server = data.response!;
+    expect(server.id).toBe(serverId);
+    expect(server.name).toBe(serverName);
+    expect(server.serverType).toBeDefined();
+    expect(server.enabled).toBeDefined();
+  });
+
+  test("GET /api/2.0/ai/servers/available - Owner gets available MCP servers", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const ts = Date.now();
+
+    const { data: created1 } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-avail-enabled-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const enabledServerId = created1.response!.id!;
+
+    const { data: created2 } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-avail-disabled-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const disabledServerId = created2.response!.id!;
+
+    await api.mcp.setServerStatus({
+      id: disabledServerId,
+      setServerStatusRequestBody: { enabled: false },
+    });
+
+    const { data, status } = await api.mcp.getAvailableServers();
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    const ids = data.response!.map((s) => s.id);
+    expect(ids).toContain(enabledServerId);
+    expect(ids).not.toContain(disabledServerId);
   });
 });
