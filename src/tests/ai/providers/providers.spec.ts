@@ -175,7 +175,7 @@ test.describe("AI Providers - Get Available", () => {
     const { data, status } = await ownerApi.providers.getAvailableProviders();
 
     expect(status).toBe(200);
-    expect(data.count).toBe(7);
+    expect(data.count).toBe(8);
     for (const expected of expectedAvailableProviders) {
       const found = data.response?.find((p) => p.type === expected.type);
       expect(found).toBeDefined();
@@ -194,7 +194,7 @@ test.describe("AI Providers - Get Available", () => {
     const { data, status } = await adminApi.providers.getAvailableProviders();
 
     expect(status).toBe(200);
-    expect(data.count).toBe(7);
+    expect(data.count).toBe(8);
     for (const expected of expectedAvailableProviders) {
       const found = data.response?.find((p) => p.type === expected.type);
       expect(found).toBeDefined();
