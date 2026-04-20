@@ -1584,6 +1584,16 @@ test.describe("POST /files/fileops/duplicate", () => {
         // Currently fails with: "You don't have enough permission to copy the folder"
         expect(operation.error).toBe("");
       });
+
+      await test.step("GET /files/rooms - duplicate room appears in list", async () => {
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const titles = data.response!.folders!.map((f) => f.title);
+        expect(
+          titles.some((t) =>
+            t?.includes("Autotest Admin Room For Owner Duplicate"),
+          ),
+        ).toBe(true);
+      });
     },
   );
 });
