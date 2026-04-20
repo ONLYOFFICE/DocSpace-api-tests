@@ -1523,3 +1523,77 @@ test.describe("PUT /files/tags - Update tag", () => {
     );
   });
 });
+
+test.describe("POST /files/fileops/duplicate", () => {
+  test("POST /files/fileops/duplicate - Owner duplicates their own room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room To Duplicate",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: {
+        folderIds: [roomId as any],
+      },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+  });
+
+  test.fail(
+    "POST /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room",
+    async ({ apiSdk }) => {
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data: roomData } = await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Admin Room For Owner Duplicate",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const ownerApi = apiSdk.forRole("owner");
+
+      await test.step("POST /files/fileops/duplicate", async () => {
+        const { status } = await ownerApi.operations.duplicateBatchItems({
+          duplicateRequestDto: {
+            folderIds: [roomId as any],
+          },
+        });
+        expect(status).toBe(200);
+      });
+
+      await test.step("GET /files/fileops", async () => {
+        const operation = await waitForOperation(ownerApi.operations);
+        expect(operation.finished).toBe(true);
+        // Currently fails with: "You don't have enough permission to copy the folder"
+        expect(operation.error).toBe("");
+      });
+
+      await test.step("GET /files/rooms - duplicate room appears in list", async () => {
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const titles = data.response!.folders!.map((f) => f.title);
+        expect(
+          titles.some((t) =>
+            t?.includes("Autotest Admin Room For Owner Duplicate"),
+          ),
+        ).toBe(true);
+      });
+    },
+  );
+});
