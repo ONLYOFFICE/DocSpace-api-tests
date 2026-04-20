@@ -525,6 +525,46 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
     expect(server.enabled).toBeDefined();
   });
 
+  test("BUG 81107: PUT /api/2.0/ai/servers/:id/status - DocSpaceAdmin can change MCP server status", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const provider = aiProviders.deepSeek;
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-admin-status-${Date.now()}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const { status } = await api.mcp.setServerStatus({
+      id: serverId,
+      setServerStatusRequestBody: { enabled: false },
+    });
+
+    expect(status).toBe(200);
+  });
+
   test("BUG 81107: GET /api/2.0/ai/servers/available - DocSpaceAdmin gets available MCP servers", async ({
     apiSdk,
   }) => {
@@ -582,6 +622,35 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
     const ids = data.response!.map((s) => s.id);
     expect(ids).toContain(enabledServerId);
     expect(ids).not.toContain(disabledServerId);
+  });
+});
+
+test.describe("MCP Servers - Set Status Permissions", () => {
+  for (const role of forbiddenRoles) {
+    test(`PUT /api/2.0/ai/servers/:id/status - ${role} cannot change MCP server status`, async ({
+      apiSdk,
+    }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+
+      const { data, status } = await api.mcp.setServerStatus({
+        id: fakeServerId,
+        setServerStatusRequestBody: { enabled: false },
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  }
+
+  test("PUT /api/2.0/ai/servers/:id/status - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.setServerStatus({
+      id: fakeServerId,
+      setServerStatusRequestBody: { enabled: false },
+    });
+
+    expect(status).toBe(401);
   });
 });
 
