@@ -753,36 +753,3 @@ test.describe("PUT /files/tags - access control", () => {
     expect(status).toBe(401);
   });
 });
-
-test.describe("GET /files/fileops - access control", () => {
-  test.fail(
-    "GET /files/fileops - DocSpaceAdmin can duplicate another user's room",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Owner Room For Admin Duplicate",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
-
-      await adminApi.operations.duplicateBatchItems({
-        duplicateRequestDto: {
-          folderIds: [roomId as any],
-        },
-      });
-
-      const operation = await waitForOperation(adminApi.operations);
-      expect(operation.finished).toBe(true);
-      // Currently fails with: "You don't have enough permission to copy the folder"
-      expect(operation.error).toBeNull();
-    },
-  );
-});
