@@ -1392,3 +1392,11 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - Get backup service s
     expect(typeof data.response!.enabled).toBe("boolean");
   });
 });
+
+
+/*
+  A test for the `startBackupRestore` method cannot be written,
+  as it triggers the restoration process,
+  which invalidates the cookie and subsequently prevents the deletion of the portal,
+  thereby leading to database clutter.
+*/

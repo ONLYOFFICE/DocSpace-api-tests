@@ -811,9 +811,9 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 });
 
 test.describe("Share link privacy - no user data leakage", () => {
-  test.fail(
+  test(
     "BUG 80495: External file share link response does not expose room creator and link creator data",
-    async ({ apiSdk, request }) => {
+    async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
       // Step 1: Owner creates a room and a file in it
@@ -870,7 +870,7 @@ test.describe("Share link privacy - no user data leakage", () => {
       // Short link /s/<hash> redirects to /doceditor?share=<requestToken>&fileId=<fileId>
       const docEditorUrl = `https://${portalDomain}/doceditor?share=${requestToken}&fileId=${fileId}`;
 
-      const response = await request.get(docEditorUrl);
+      const response = await fetch(docEditorUrl);
       const responseBody = await response.text();
 
       // Step 5: Verify that the response does not contain any user PII
