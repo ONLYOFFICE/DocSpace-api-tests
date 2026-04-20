@@ -4490,3 +4490,160 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
     expect(status).toBe(401);
   });
 });
+
+test.describe("POST /files/file/:fileId/startedit - Start file editing permissions", () => {
+  test.fail(
+    "BUG: POST /files/file/:fileId/startedit - Unauthenticated user gets 403 instead of 401",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest StartEdit Unauth Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest StartEdit Unauth File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { status } = await apiSdk
+        .forAnonymous()
+        .files.startEditFile({ fileId, startEdit: { editingAlone: true } });
+
+      expect(status).toBe(401);
+    },
+  );
+
+  test("POST /files/file/:fileId/startedit - Guest with Read access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartEdit Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest StartEdit Guest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: guestApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await guestApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: false },
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+
+  test("POST /files/file/:fileId/startedit - User with Read-only access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartEdit Read Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest StartEdit Read File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: false },
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+
+  test("POST /files/file/:fileId/startedit - User with RoomManager access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartEdit User RoomManager Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest StartEdit User RoomManager File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: true },
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You do not have enough permissions to edit the file",
+    );
+  });
+});
