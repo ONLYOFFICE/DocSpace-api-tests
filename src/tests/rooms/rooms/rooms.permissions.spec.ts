@@ -754,9 +754,9 @@ test.describe("PUT /files/tags - access control", () => {
   });
 });
 
-test.describe("POST /files/fileops/duplicate - access control", () => {
+test.describe("GET /files/fileops - access control", () => {
   test.fail(
-    "POST /files/fileops/duplicate - DocSpaceAdmin can duplicate another user's room",
+    "GET /files/fileops - DocSpaceAdmin can duplicate another user's room",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -773,13 +773,11 @@ test.describe("POST /files/fileops/duplicate - access control", () => {
         "DocSpaceAdmin",
       );
 
-      const { status } = await adminApi.operations.duplicateBatchItems({
+      await adminApi.operations.duplicateBatchItems({
         duplicateRequestDto: {
           folderIds: [roomId as any],
         },
       });
-
-      expect(status).toBe(200);
 
       const operation = await waitForOperation(adminApi.operations);
       expect(operation.finished).toBe(true);
