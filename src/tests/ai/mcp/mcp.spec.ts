@@ -866,7 +866,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
   });
 
   test.fail(
-    "POST /api/2.0/ai/rooms/:roomId/servers - re-adding already linked server does not create duplicate",
+    "BUG 81166: POST /api/2.0/ai/rooms/:roomId/servers - re-adding already linked server does not create duplicate",
     async ({ apiSdk }) => {
       const mcpApiKey = process.env.MCP_API_KEY;
       if (!mcpApiKey) {
