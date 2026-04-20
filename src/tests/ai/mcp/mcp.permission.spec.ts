@@ -282,17 +282,16 @@ test.describe("MCP Servers - Get Available Permissions", () => {
     });
   }
 
-  test.fail(
-    "BUG 81140: GET /api/2.0/ai/servers/available - Guest cannot get available MCP servers",
-    async ({ apiSdk }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
+  test("BUG 81140: GET /api/2.0/ai/servers/available - Guest cannot get available MCP servers", async ({
+    apiSdk,
+  }) => {
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { data, status } = await api.mcp.getAvailableServers();
+    const { data, status } = await api.mcp.getAvailableServers();
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
 
   test("GET /api/2.0/ai/servers/available - Anonymous gets 401 Unauthorized", async ({
     apiSdk,
