@@ -1523,3 +1523,31 @@ test.describe("PUT /files/tags - Update tag", () => {
     );
   });
 });
+
+test.describe("POST /files/fileops/duplicate", () => {
+  test("POST /files/fileops/duplicate - Owner duplicates their own room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room To Duplicate",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: {
+        folderIds: [roomId as any],
+      },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBeNull();
+  });
+});
