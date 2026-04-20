@@ -1393,7 +1393,6 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - Get backup service s
   });
 });
 
-
 /*
   A test for the `startBackupRestore` method cannot be written,
   as it triggers the restoration process,
