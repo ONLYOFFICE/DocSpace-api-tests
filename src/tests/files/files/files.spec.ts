@@ -3553,3 +3553,294 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
     expect(data.response!.length).toBeGreaterThan(0);
   });
 });
+
+test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
+  test("POST /files/file/:fileId/startedit - Owner, editingAlone: false returns error (requires Document Server)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Start Edit Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Start Edit File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: false },
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("File editing start error");
+  });
+
+  test("POST /files/file/:fileId/startedit - Owner starts editing a file alone", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Start Edit Alone Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Start Edit Alone File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(typeof data.response).toBe("string");
+    expect(data.response).toBeTruthy();
+  });
+
+  test("POST /files/file/:fileId/startedit - DocSpaceAdmin starts editing a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Admin Start Edit Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Admin Start Edit File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: adminApi, data: adminMemberData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminUserId = adminMemberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: adminUserId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await adminApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(typeof data.response).toBe("string");
+    expect(data.response).toBeTruthy();
+  });
+
+  test("POST /files/file/:fileId/startedit - RoomAdmin starts editing a file in their room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest RoomAdmin Start Edit Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest RoomAdmin Start Edit File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: roomAdminApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await roomAdminApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(typeof data.response).toBe("string");
+    expect(data.response).toBeTruthy();
+  });
+
+  test("POST /files/file/:fileId/startedit - Non-existent fileId returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const nonExistentFileId = 999999999;
+
+    const { data, status } = await ownerApi.files.startEditFile({
+      fileId: nonExistentFileId,
+      startEdit: { editingAlone: true },
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("The required file was not found");
+  });
+
+  test("POST /files/file/:fileId/startedit - Request without editingAlone field", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartEdit No Body Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest StartEdit No Body File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.startEditFile({
+      fileId,
+      startEdit: {},
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("File editing start error");
+  });
+
+  test("POST /files/file/:fileId/startedit - Second user starts editing a file already being edited", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Concurrent Edit Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Concurrent Edit File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ReadWrite }],
+        notify: false,
+      },
+    });
+
+    const { data: ownerEditData, status: ownerStatus } =
+      await ownerApi.files.startEditFile({
+        fileId,
+        startEdit: { editingAlone: true },
+      });
+
+    const { data, status } = await userApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: true },
+    });
+
+    expect(ownerStatus).toBe(200);
+    expect(ownerEditData.response).toBeTruthy();
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe(
+      "This document is being edited by you in another tab",
+    );
+  });
+
+  test("POST /files/file/:fileId/startedit - editingAlone: true when file is already being edited", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest EditingAlone Conflict Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest EditingAlone Conflict File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ReadWrite }],
+        notify: false,
+      },
+    });
+
+    const { data: firstEditData, status: firstStatus } =
+      await ownerApi.files.startEditFile({
+        fileId,
+        startEdit: { editingAlone: true },
+      });
+
+    const { data, status } = await userApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: true },
+    });
+
+    expect(firstStatus).toBe(200);
+    expect(firstEditData.response).toBeTruthy();
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe(
+      "This document is being edited by you in another tab",
+    );
+  });
+});
