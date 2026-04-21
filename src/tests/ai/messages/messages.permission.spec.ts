@@ -66,7 +66,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
 
     const { data, status } = await adminApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -136,7 +136,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
 
     const { data, status } = await roomAdminApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -206,7 +206,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
 
     const { data, status } = await userApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -277,7 +277,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
 
     const { data, status } = await guestApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -356,7 +356,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
 
     const { data, status } = await adminApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -433,7 +433,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
 
     const { data, status } = await roomAdminApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -510,7 +510,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
 
     const { data, status } = await userApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -591,7 +591,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
 
     const { data, status } = await guestApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -647,7 +647,7 @@ test.describe("AI Messages - Export Validation", () => {
 
     const { data, status } = await ownerApi.messages.exportMessage({
       messageId: 0,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -703,7 +703,7 @@ test.describe("AI Messages - Export Validation", () => {
 
     const { data, status } = await ownerApi.messages.exportMessage({
       messageId: -1,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -724,7 +724,7 @@ test.describe("AI Messages - Export Unauthorized", () => {
 
     const { status } = await anonymousApi.messages.exportMessage({
       messageId: 1,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: 1,
         title: "Exported AI Message",
       },

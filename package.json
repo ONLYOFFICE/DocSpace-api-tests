@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@faker-js/faker": "^9.9.0",
-    "@onlyoffice/docspace-api-sdk": "file:onlyoffice-docspace-api-sdk-3.6.0.tgz",
+    "@onlyoffice/docspace-api-sdk": "file:onlyoffice-docspace-api-sdk-3.7.0.tgz",
     "axios": "^1.9.0",
     "dotenv": "^16.4.7"
   }
