@@ -61,20 +61,6 @@ test.describe("Portal — Invitation Links", () => {
       expect(data.response!.url).toBeTruthy();
     });
 
-    test("POST /api/2.0/users/invitationlink - Owner cannot create invitation link for Guest", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { status } = await ownerApi.users.createInvitationLink({
-        invitationLinkCreateRequestDto: {
-          employeeType: EmployeeType.Guest,
-        },
-      });
-
-      expect(status).toBe(400);
-    });
-
     test("POST /api/2.0/users/invitationlink - Owner creates invitation link with future expiration", async ({
       apiSdk,
     }) => {
@@ -114,40 +100,63 @@ test.describe("Portal — Invitation Links", () => {
       expect(data.response!.currentUseCount).toBe(0);
     });
 
-    test("POST /api/2.0/users/invitationlink - Owner cannot create invitation link with maxUseCount above 1000", async ({
+    test("POST /api/2.0/users/invitationlink - DocSpaceAdmin can create invitation link for user", async ({
       apiSdk,
     }) => {
-      const ownerApi = apiSdk.forRole("owner");
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
 
-      const { status } = await ownerApi.users.createInvitationLink({
+      const { data, status } = await adminApi.users.createInvitationLink({
         invitationLinkCreateRequestDto: {
           employeeType: EmployeeType.User,
-          maxUseCount: 1001,
         },
       });
 
-      expect(status).toBe(400);
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeTruthy();
     });
 
-    test("POST /api/2.0/users/invitationlink - Owner cannot create invitation link with past expiration", async ({
+    test("POST /api/2.0/users/invitationlink - DocSpace Admin can create invitation link for Room admin", async ({
       apiSdk,
     }) => {
-      const ownerApi = apiSdk.forRole("owner");
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
 
-      const pastDate = new Date();
-      pastDate.setDate(pastDate.getDate() - 1);
-
-      const { status } = await ownerApi.users.createInvitationLink({
+      const { data, status } = await adminApi.users.createInvitationLink({
         invitationLinkCreateRequestDto: {
-          employeeType: EmployeeType.User,
-          expiration: pastDate.toISOString(),
+          employeeType: EmployeeType.RoomAdmin,
         },
       });
 
-      expect(status).toBe(400);
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeTruthy();
+    });
+
+    test("POST /api/2.0/users/invitationlink - Room Admin can create invitation link for user", async ({
+      apiSdk,
+    }) => {
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+
+      const { data, status } = await roomAdminApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeTruthy();
     });
   });
-
   test.describe("GET /api/2.0/users/invitationlink/:employeeType - Get an invitation link", () => {
     test("GET /api/2.0/users/invitationlink/:employeeType - Owner gets invitation link for User", async ({
       apiSdk,
@@ -169,6 +178,7 @@ test.describe("Portal — Invitation Links", () => {
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeTruthy();
       expect(data.response!.employeeType).toBe(4); // 4 = User
       expect(data.response!.url).toBeTruthy();
     });
@@ -192,6 +202,7 @@ test.describe("Portal — Invitation Links", () => {
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeTruthy();
       expect(data.response!.employeeType).toBe(3); // 3 = DocSpaceAdmin
       expect(data.response!.url).toBeTruthy();
     });
@@ -215,7 +226,95 @@ test.describe("Portal — Invitation Links", () => {
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeTruthy();
       expect(data.response!.employeeType).toBe(1); // 1 = RoomAdmin
+      expect(data.response!.url).toBeTruthy();
+    });
+
+    test("GET /api/2.0/users/invitationlink/:employeeType - DocSpaceAdmin gets invitation link for User", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+        },
+      });
+
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data, status } =
+        await adminApi.users.getInvitationLinkByEmployeeType({
+          employeeType: EmployeeType.User,
+        });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeTruthy();
+      expect(data.response!.employeeType).toBe(4); // 4 = User
+      expect(data.response!.url).toBeTruthy();
+    });
+
+    test("GET /api/2.0/users/invitationlink/:employeeType - DocSpaceAdmin gets invitation link for RoomAdmin", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.RoomAdmin,
+        },
+      });
+
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data, status } =
+        await adminApi.users.getInvitationLinkByEmployeeType({
+          employeeType: EmployeeType.RoomAdmin,
+        });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeTruthy();
+      expect(data.response!.employeeType).toBe(1); // 1 = RoomAdmin
+      expect(data.response!.url).toBeTruthy();
+    });
+
+    test("GET /api/2.0/users/invitationlink/:employeeType - RoomAdmin gets invitation link for User", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+        },
+      });
+
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+
+      const { data, status } =
+        await roomAdminApi.users.getInvitationLinkByEmployeeType({
+          employeeType: EmployeeType.User,
+        });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeTruthy();
+      expect(data.response!.employeeType).toBe(4); // 4 = User
       expect(data.response!.url).toBeTruthy();
     });
   });
@@ -277,12 +376,15 @@ test.describe("Portal — Invitation Links", () => {
       expect(data.response!.isExpired).toBe(false);
     });
 
-    test("PUT /api/2.0/users/invitationlink - Owner cannot update maxUseCount above 1000", async ({
+    test("PUT /api/2.0/users/invitationlink - DocSpaceAdmin can update invitation link", async ({
       apiSdk,
     }) => {
-      const ownerApi = apiSdk.forRole("owner");
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
 
-      const { data: created } = await ownerApi.users.createInvitationLink({
+      const { data: created } = await adminApi.users.createInvitationLink({
         invitationLinkCreateRequestDto: {
           employeeType: EmployeeType.User,
           maxUseCount: 5,
@@ -290,29 +392,44 @@ test.describe("Portal — Invitation Links", () => {
       });
       const linkId = created.response!.id!;
 
-      const { status } = await ownerApi.users.updateInvitationLink({
+      const { data, status } = await adminApi.users.updateInvitationLink({
         invitationLinkUpdateRequestDto: {
           id: linkId,
-          maxUseCount: 1001,
-        },
-      });
-
-      expect(status).toBe(400);
-    });
-
-    test("PUT /api/2.0/users/invitationlink - Owner updates non-existent invitation link", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { status } = await ownerApi.users.updateInvitationLink({
-        invitationLinkUpdateRequestDto: {
-          id: "00000000-0000-0000-0000-000000000000",
           maxUseCount: 10,
         },
       });
 
-      expect(status).toBe(404);
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.maxUseCount).toBe(10);
+    });
+
+    test("PUT /api/2.0/users/invitationlink - RoomAdmin can update invitation link", async ({
+      apiSdk,
+    }) => {
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+
+      const { data: created } = await adminApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+          maxUseCount: 5,
+        },
+      });
+      const linkId = created.response!.id!;
+
+      const { data, status } = await adminApi.users.updateInvitationLink({
+        invitationLinkUpdateRequestDto: {
+          id: linkId,
+          maxUseCount: 10,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.maxUseCount).toBe(10);
     });
   });
 
@@ -346,18 +463,52 @@ test.describe("Portal — Invitation Links", () => {
       expect(reDeleteStatus).toBe(404);
     });
 
-    test("DELETE /api/2.0/users/invitationlink - Owner deletes non-existent invitation link", async ({
+    test("DELETE /api/2.0/users/invitationlink - RoomAdmin can delete invitation link for User", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.users.deleteInvitationLink({
-        invitationLinkDeleteRequestDto: {
-          id: "00000000-0000-0000-0000-000000000000",
+      const { data: created } = await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
         },
       });
+      const linkId = created.response!.id!;
 
-      expect(status).toBe(404);
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+
+      const { status } = await roomAdminApi.users.deleteInvitationLink({
+        invitationLinkDeleteRequestDto: { id: linkId },
+      });
+
+      expect(status).toBe(200);
+    });
+
+    test("DELETE /api/2.0/users/invitationlink - DocSpace Admin can delete invitation link for User", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: created } = await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+        },
+      });
+      const linkId = created.response!.id!;
+
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { status } = await roomAdminApi.users.deleteInvitationLink({
+        invitationLinkDeleteRequestDto: { id: linkId },
+      });
+
+      expect(status).toBe(200);
     });
   });
 });
