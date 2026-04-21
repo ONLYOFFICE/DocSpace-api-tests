@@ -408,6 +408,125 @@ test.describe("GET /api/2.0/users/invitationlink/:employeeType - access control"
   });
 });
 
+// @deprecated — use getInvitationLinkByEmployeeType instead; returns StringWrapper (plain URL string) instead of InvitationLinkWrapper
+test.describe("GET /api/2.0/portal/users/invite/:employeeType - access control (deprecated)", () => {
+  test("GET /api/2.0/portal/users/invite/:employeeType - Anonymous cannot get invitation link", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.users.getInvitationLink({
+      employeeType: EmployeeType.User,
+    });
+
+    expect(status).toBe(401);
+  });
+
+  // Deprecated endpoint does not enforce role-based access control —
+  // returns 200 with an empty response instead of 403
+
+  test("GET /api/2.0/portal/users/invite/:employeeType - DocSpaceAdmin gets empty response for DocSpaceAdmin type", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.users.createInvitationLink({
+      invitationLinkCreateRequestDto: {
+        employeeType: EmployeeType.DocSpaceAdmin,
+      },
+    });
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.users.getInvitationLink({
+      employeeType: EmployeeType.DocSpaceAdmin,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeFalsy();
+  });
+
+  test("GET /api/2.0/portal/users/invite/:employeeType - RoomAdmin gets empty response for RoomAdmin type", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.users.createInvitationLink({
+      invitationLinkCreateRequestDto: {
+        employeeType: EmployeeType.RoomAdmin,
+      },
+    });
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.users.getInvitationLink({
+      employeeType: EmployeeType.RoomAdmin,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeFalsy();
+  });
+
+  test("GET /api/2.0/portal/users/invite/:employeeType - RoomAdmin gets empty response for DocSpaceAdmin type", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.users.createInvitationLink({
+      invitationLinkCreateRequestDto: {
+        employeeType: EmployeeType.DocSpaceAdmin,
+      },
+    });
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.users.getInvitationLink({
+      employeeType: EmployeeType.DocSpaceAdmin,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeFalsy();
+  });
+
+  test("GET /api/2.0/portal/users/invite/:employeeType - User gets empty response", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.users.getInvitationLink({
+      employeeType: EmployeeType.User,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeFalsy();
+  });
+
+  test("GET /api/2.0/portal/users/invite/:employeeType - Guest gets empty response", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.users.getInvitationLink({
+      employeeType: EmployeeType.User,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeFalsy();
+  });
+});
+
 test.describe("PUT /api/2.0/users/invitationlink - access control", () => {
   test("PUT /api/2.0/users/invitationlink - Owner cannot update maxUseCount above 1000", async ({
     apiSdk,

@@ -319,6 +319,158 @@ test.describe("Portal — Invitation Links", () => {
     });
   });
 
+  // @deprecated — use getInvitationLinkByEmployeeType instead; returns StringWrapper (plain URL string) instead of InvitationLinkWrapper
+  test.describe("GET /api/2.0/portal/users/invite/:employeeType - Get an invitation link (deprecated)", () => {
+    test("GET /api/2.0/portal/users/invite/:employeeType - Owner gets invitation link for User", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      // Create a link first — fresh portal has no default invitation links
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+        },
+      });
+
+      const { data, status } = await ownerApi.users.getInvitationLink({
+        employeeType: EmployeeType.User,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeTruthy();
+    });
+
+    test("GET /api/2.0/portal/users/invite/:employeeType - Owner gets invitation link for DocSpaceAdmin", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.DocSpaceAdmin,
+        },
+      });
+
+      const { data, status } = await ownerApi.users.getInvitationLink({
+        employeeType: EmployeeType.DocSpaceAdmin,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeTruthy();
+    });
+
+    test("GET /api/2.0/portal/users/invite/:employeeType - Owner gets invitation link for RoomAdmin", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.RoomAdmin,
+        },
+      });
+
+      const { data, status } = await ownerApi.users.getInvitationLink({
+        employeeType: EmployeeType.RoomAdmin,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeTruthy();
+    });
+
+    test("GET /api/2.0/portal/users/invite/:employeeType - DocSpaceAdmin gets invitation link for User", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+        },
+      });
+
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data, status } = await adminApi.users.getInvitationLink({
+        employeeType: EmployeeType.User,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeTruthy();
+    });
+
+    test("GET /api/2.0/portal/users/invite/:employeeType - DocSpaceAdmin gets invitation link for RoomAdmin", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.RoomAdmin,
+        },
+      });
+
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data, status } = await adminApi.users.getInvitationLink({
+        employeeType: EmployeeType.RoomAdmin,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeTruthy();
+    });
+
+    test("GET /api/2.0/portal/users/invite/:employeeType - RoomAdmin gets invitation link for User", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.User,
+        },
+      });
+
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+
+      const { data, status } = await roomAdminApi.users.getInvitationLink({
+        employeeType: EmployeeType.User,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeTruthy();
+    });
+
+    test("GET /api/2.0/portal/users/invite/:employeeType - Guest type returns empty response", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.users.getInvitationLink({
+        employeeType: EmployeeType.Guest,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeTruthy();
+    });
+  });
+
   test.describe("PUT /api/2.0/users/invitationlink - Update an invitation link", () => {
     test("PUT /api/2.0/users/invitationlink - Owner updates invitation link maxUseCount", async ({
       apiSdk,
