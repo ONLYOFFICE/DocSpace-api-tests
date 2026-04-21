@@ -61,7 +61,7 @@ test.describe("AI Messages - Export", () => {
 
     const { status: exportStatus } = await ownerApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -128,7 +128,7 @@ test.describe("AI Messages - Export", () => {
 
     const { status: exportStatus } = await adminApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -195,7 +195,7 @@ test.describe("AI Messages - Export", () => {
 
     const { status: exportStatus } = await roomAdminApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },
@@ -271,7 +271,7 @@ test.describe("AI Messages - Export", () => {
 
     const { status: exportStatus } = await userApi.messages.exportMessage({
       messageId,
-      exportMessageRequestBodyInteger: {
+      exportMessageRequestBody: {
         folderId: myFolderId,
         title: "Exported AI Message",
       },

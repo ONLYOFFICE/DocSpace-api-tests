@@ -1935,7 +1935,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Export AI chat m
 
     const { status } = await ownerApi.chat.exportChat({
       chatId,
-      exportChatRequestBodyInteger: {
+      exportChatRequestBody: {
         folderId: myDocsFolderId,
         title: exportTitle,
       },
@@ -2013,7 +2013,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Export AI chat m
 
       const { status } = await memberApi.chat.exportChat({
         chatId,
-        exportChatRequestBodyInteger: {
+        exportChatRequestBody: {
           folderId: myDocsFolderId,
           title: exportTitle,
         },

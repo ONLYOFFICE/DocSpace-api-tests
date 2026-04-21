@@ -3123,7 +3123,7 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
 
       const { data, status } = await memberApi.chat.exportChat({
         chatId: ownerChatId,
-        exportChatRequestBodyInteger: {
+        exportChatRequestBody: {
           folderId: myDocsFolderId,
           title: apiSdk.faker.generateString(10),
         },
@@ -3199,7 +3199,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest with Viewe
 
     const { data, status } = await guestApi.chat.exportChat({
       chatId: ownerChatId,
-      exportChatRequestBodyInteger: {
+      exportChatRequestBody: {
         folderId: resultStorageFolderId,
         title: apiSdk.faker.generateString(10),
       },
@@ -3262,7 +3262,7 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
 
       const { data, status } = await memberApi.chat.exportChat({
         chatId: ownerChatId,
-        exportChatRequestBodyInteger: {
+        exportChatRequestBody: {
           folderId: myDocsFolderId,
           title: apiSdk.faker.generateString(10),
         },
@@ -3331,7 +3331,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest not in age
 
     const { data, status } = await guestApi.chat.exportChat({
       chatId: ownerChatId,
-      exportChatRequestBodyInteger: {
+      exportChatRequestBody: {
         folderId: resultStorageFolderId,
         title: apiSdk.faker.generateString(10),
       },
@@ -3353,7 +3353,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Export chat vali
 
     const { data, status } = await ownerApi.chat.exportChat({
       chatId: "00000000-0000-0000-0000-000000000000",
-      exportChatRequestBodyInteger: {
+      exportChatRequestBody: {
         folderId: myDocsFolderId,
         title: apiSdk.faker.generateString(10),
       },
@@ -3370,7 +3370,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Export chat vali
 
     const { status } = await anonApi.chat.exportChat({
       chatId: "00000000-0000-0000-0000-000000000000",
-      exportChatRequestBodyInteger: {
+      exportChatRequestBody: {
         folderId: 0,
         title: "test",
       },
