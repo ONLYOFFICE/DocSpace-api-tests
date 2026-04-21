@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { aiProviders } from "@/src/helpers/ai-providers";
 import config from "@/config";
+import { RoomType } from "@onlyoffice/docspace-api-sdk";
 
 const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
 const forbiddenRoles = ["RoomAdmin", "User", "Guest"] as const;
@@ -181,6 +182,7 @@ test.describe("MCP Servers - Endpoint Validation", () => {
 });
 
 const fakeServerId = "00000000-0000-0000-0000-000000000000";
+const fakeRoomId = 999999999;
 
 test.describe("MCP Servers - Delete Permissions", () => {
   for (const role of forbiddenRoles) {
@@ -710,5 +712,353 @@ test.describe("MCP Servers - Delete Edge Cases", () => {
 
     expect(status).toBe(204);
     expect(data).toBeFalsy();
+  });
+});
+
+test.describe("MCP Servers - Delete Room Servers Validation", () => {
+  test("DELETE /api/2.0/ai/rooms/:roomId/servers - error when roomId does not exist", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").mcp.deleteRoomServers({
+      roomId: fakeRoomId,
+      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("DELETE /api/2.0/ai/rooms/:roomId/servers - error when servers is null", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").mcp.deleteRoomServers({
+      roomId: fakeRoomId,
+      deleteRoomServersRequestBody: { servers: null },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("DELETE /api/2.0/ai/rooms/:roomId/servers - error when servers is empty set", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").mcp.deleteRoomServers({
+      roomId: fakeRoomId,
+      deleteRoomServersRequestBody: { servers: new Set([]) },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("DELETE /api/2.0/ai/rooms/:roomId/servers - returns 204 when server id does not exist", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-room-val-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data, status } = await api.mcp.deleteRoomServers({
+      roomId,
+      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+  });
+
+  test("DELETE /api/2.0/ai/rooms/:roomId/servers - returns 204 when server exists but is not linked to room", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+    const provider = aiProviders.deepSeek;
+    const ts = Date.now();
+
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-room-notlinked-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-notlinked-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const { data, status } = await api.mcp.deleteRoomServers({
+      roomId,
+      deleteRoomServersRequestBody: { servers: new Set([serverId]) },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+  });
+
+  test("DELETE /api/2.0/ai/rooms/:roomId/servers - mixed valid and invalid server ids returns 204", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+    const provider = aiProviders.deepSeek;
+    const ts = Date.now();
+
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-room-mixed-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-mixed-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const linkedServerId = created.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([linkedServerId]) },
+    });
+
+    const { data, status } = await api.mcp.deleteRoomServers({
+      roomId,
+      deleteRoomServersRequestBody: {
+        servers: new Set([linkedServerId, fakeServerId]),
+      },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+
+    const { data: roomServers, status: getRoomStatus } =
+      await api.mcp.getRoomServers({ roomId });
+    expect(getRoomStatus).toBe(200);
+    expect(roomServers.response!.map((s) => s.id)).not.toContain(
+      linkedServerId,
+    );
+  });
+});
+
+const forbiddenRolesForRoomServers = ["RoomAdmin", "User", "Guest"] as const;
+
+test.describe("MCP Servers - Delete Room Servers Permissions", () => {
+  test("DELETE /api/2.0/ai/rooms/:roomId/servers - Owner can delete room servers", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-room-ownerperm-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data, status } = await api.mcp.deleteRoomServers({
+      roomId,
+      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+  });
+
+  test("DELETE /api/2.0/ai/rooms/:roomId/servers - DocSpaceAdmin can delete room servers", async ({
+    apiSdk,
+  }) => {
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const ts = Date.now();
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-room-adminperm-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data, status } = await api.mcp.deleteRoomServers({
+      roomId,
+      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
+    });
+
+    expect(status).toBe(204);
+    expect(data).toBeFalsy();
+  });
+
+  for (const role of forbiddenRolesForRoomServers) {
+    test(`DELETE /api/2.0/ai/rooms/:roomId/servers - ${role} cannot delete room servers`, async ({
+      apiSdk,
+    }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+
+      const { status } = await api.mcp.deleteRoomServers({
+        roomId: fakeRoomId,
+        deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
+      });
+
+      expect(status).toBe(404);
+    });
+  }
+
+  test("DELETE /api/2.0/ai/rooms/:roomId/servers - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.deleteRoomServers({
+      roomId: fakeRoomId,
+      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("MCP Servers - Get Room Servers Permissions", () => {
+  test("GET /api/2.0/ai/rooms/:roomId/servers - Owner can get room servers", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-room-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { status } = await api.mcp.getRoomServers({ roomId });
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers - DocSpaceAdmin can get room servers", async ({
+    apiSdk,
+  }) => {
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const ts = Date.now();
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-room-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { status } = await api.mcp.getRoomServers({ roomId });
+
+    expect(status).toBe(200);
+  });
+
+  const forbiddenRolesForGetRoomServers = [
+    "RoomAdmin",
+    "User",
+    "Guest",
+  ] as const;
+
+  for (const role of forbiddenRolesForGetRoomServers) {
+    test(`GET /api/2.0/ai/rooms/:roomId/servers - ${role} cannot get room servers`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const ts = Date.now();
+
+      const { data: room } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `mcp-room-${ts}`,
+          roomType: RoomType.AiRoom,
+        },
+      });
+      const roomId = room.response!.id!;
+
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const { status } = await api.mcp.getRoomServers({ roomId });
+
+      expect(status).toBe(403);
+    });
+  }
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.getRoomServers({
+      roomId: fakeRoomId,
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("MCP Servers - Get Room Servers Validation", () => {
+  test("GET /api/2.0/ai/rooms/:roomId/servers - error when roomId does not exist", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").mcp.getRoomServers({
+      roomId: fakeRoomId,
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers - error when roomId has invalid format", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").mcp.getRoomServers({
+      roomId: "invalid-id" as any,
+    });
+
+    expect(status).toBe(400);
   });
 });
