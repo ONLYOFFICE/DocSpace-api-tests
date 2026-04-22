@@ -1951,7 +1951,7 @@ test.describe("MCP Servers - Get Tools", () => {
 });
 
 test.describe("MCP Servers - Set Tools", () => {
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - disables one existing tool and keeps others enabled", async ({
+  test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - disables one existing tool and keeps others enabled", async ({
     apiSdk,
   }) => {
     test.fail();
@@ -2017,7 +2017,7 @@ test.describe("MCP Servers - Set Tools", () => {
     }
   });
 
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - disables multiple existing tools", async ({
+  test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - disables multiple existing tools", async ({
     apiSdk,
   }) => {
     test.fail();
@@ -2337,7 +2337,7 @@ test.describe("MCP Servers - Set Tools", () => {
     }
   });
 
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - returns tools with correct enabled/disabled states in response", async ({
+  test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - returns tools with correct enabled/disabled states in response", async ({
     apiSdk,
   }) => {
     test.fail();
@@ -2616,7 +2616,7 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
   });
 
   test.fail(
-    "GET /api/2.0/ai/servers/available - built-in DocSpace server has correct McpServerShortDto fields",
+    "BUG 81211: GET /api/2.0/ai/servers/available - built-in DocSpace server has correct McpServerShortDto fields",
     async ({ apiSdk }) => {
       const { data } = await apiSdk.forRole("owner").mcp.getAvailableServers();
 
