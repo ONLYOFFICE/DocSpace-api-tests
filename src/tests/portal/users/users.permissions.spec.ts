@@ -871,7 +871,7 @@ test.describe("GET /api/2.0/portal/users/:userID - access control", () => {
   });
 
   test.fail(
-    "BUG XXXX: GET /api/2.0/portal/users/:userID - Returns 404 for non-existent user",
+    "BUG 81212: GET /api/2.0/portal/users/:userID - Returns 404 for non-existent user",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
