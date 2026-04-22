@@ -1,6 +1,11 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType, FileShare, SubjectType } from "@onlyoffice/docspace-api-sdk";
+import {
+  RoomType,
+  FileShare,
+  SubjectType,
+  FileEntryType,
+} from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import config from "@/config";
 
@@ -4644,5 +4649,204 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
     expect((data as any).error.message).toBe(
       "You do not have enough permissions to edit the file",
     );
+  });
+});
+
+test.describe("PUT /files/order - Set files order in bulk permissions", () => {
+  // Catches: Anonymous user receives 403 instead of 401 (auth middleware skipped for this endpoint)
+  test("PUT /files/order - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Anon Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Anon File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 1 }],
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  // Catches: Guest with Read access silently allowed to reorder files in a room
+  test("PUT /files/order - Guest with Read access cannot set order on a room file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: guestApi, data: guestMemberData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Guest Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: guestMemberData.response!.id!, access: FileShare.Read },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Guest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await guestApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 1 }],
+      },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: Room-level role (RoomManager) silently allowed when portal-level access is required
+  // setFilesOrder requires portal-level access (owner/docSpaceAdmin); room roles are not sufficient
+  test("PUT /files/order - User with RoomManager access cannot set order on a room file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi, data: userMemberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder User Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          {
+            id: userMemberData.response!.id!,
+            access: FileShare.RoomManager,
+          },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await userApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder User File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await userApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 2 }],
+      },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: User with Read-only access silently allowed to reorder files in a room
+  test("PUT /files/order - User with Read access cannot set order on a room file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi, data: userReadMemberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder User Read Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: userReadMemberData.response!.id!, access: FileShare.Read },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest BulkOrder User Read File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await userApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 1 }],
+      },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: DocSpaceAdmin cannot set order on room files despite elevated portal role
+  test("PUT /files/order - DocSpaceAdmin can set order on a file in their own VDR room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Admin Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Admin File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await adminApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 3 }],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response![0].id).toBe(fileId);
   });
 });

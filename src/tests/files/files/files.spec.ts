@@ -6,6 +6,7 @@ import {
   SubjectType,
   LinkType,
   MessageAction,
+  FileEntryType,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
@@ -3842,5 +3843,453 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     expect((data as any).error.message).toBe(
       "This document is being edited by you in another tab",
     );
+  });
+});
+
+test.describe("PUT /files/order - Set files order in bulk", () => {
+  // Note: setFilesOrder only works with files/folders inside rooms (VDR with indexing: true).
+  // Files in My Documents return 403 - this is consistent with how room ordering works in the project.
+
+  // Catches: API silently ignores the order field or returns wrong entry
+  test("PUT /files/order - Owner sets order for a single file in VDR room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Single File Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Single File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 5 }],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBe(1);
+    expect(data.response![0].id).toBe(fileId);
+    expect(data.response![0].title).toBe("Autotest BulkOrder Single File.docx");
+    expect(data.response![0].fileEntryType).toBe(FileEntryType.File);
+  });
+
+  // Catches: Folder entries silently ignored or returned with wrong fileEntryType
+  test("PUT /files/order - Owner sets order for a single folder in VDR room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Single Folder Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest BulkOrder Single Folder" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [
+          { entryId: folderId, entryType: FileEntryType.Folder, order: 3 },
+        ],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.length).toBe(1);
+    expect(data.response![0].id).toBe(folderId);
+    expect(data.response![0].fileEntryType).toBe(FileEntryType.Folder);
+  });
+
+  // Catches: Batch partial failure - some items silently dropped from response
+  test("PUT /files/order - Owner sets order for multiple files at once", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Multi File Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Multi File 1" },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Multi File 2" },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [
+          { entryId: fileId1, entryType: FileEntryType.File, order: 1 },
+          { entryId: fileId2, entryType: FileEntryType.File, order: 2 },
+        ],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.length).toBe(2);
+    const ids = data.response!.map((e) => e.id);
+    expect(ids).toContain(fileId1);
+    expect(ids).toContain(fileId2);
+  });
+
+  // Catches: Mixed batch silently drops folders or returns wrong fileEntryType per item
+  test("PUT /files/order - Owner sets order for a mix of files and folders", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Mix Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Mix File" },
+    });
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest BulkOrder Mix Folder" },
+    });
+    const fileId = fileData.response!.id!;
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [
+          { entryId: fileId, entryType: FileEntryType.File, order: 1 },
+          { entryId: folderId, entryType: FileEntryType.Folder, order: 2 },
+        ],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.length).toBe(2);
+    const fileItem = data.response!.find((e) => e.id === fileId);
+    const folderItem = data.response!.find((e) => e.id === folderId);
+    expect(fileItem).toBeDefined();
+    expect(folderItem).toBeDefined();
+    expect(fileItem!.fileEntryType).toBe(FileEntryType.File);
+    expect(folderItem!.fileEntryType).toBe(FileEntryType.Folder);
+  });
+
+  // Catches: Repeated calls overwrite instead of returning stale order value
+  test("PUT /files/order - Order value can be updated with a new value", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Update Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Update File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 3 }],
+      },
+    });
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 7 }],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response![0].id).toBe(fileId);
+  });
+
+  // Catches: API crashes or returns 500 on empty batch instead of 200 with empty array
+  test("PUT /files/order - Empty items array returns 200 with empty response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: { items: [] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBe(0);
+  });
+
+  // BUG: order=0 returns HTTP 200 with validation error embedded in response body instead of HTTP 400
+  test.fail(
+    "BUG XXXXX: PUT /files/order - Order value 0 returns HTTP 200 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest BulkOrder Zero Room",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest BulkOrder Zero File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { status } = await ownerApi.files.setFilesOrder({
+        ordersRequestDtoInteger: {
+          items: [{ entryId: fileId, entryType: FileEntryType.File, order: 0 }],
+        },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  // Catches: Off-by-one - minimum boundary value 1 incorrectly rejected
+  test("PUT /files/order - Order value 1 (minimum) is accepted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Min Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Min File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 1 }],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response![0].id).toBe(fileId);
+  });
+
+  // Catches: Integer overflow or silent truncation at max int boundary
+  test("PUT /files/order - Order value 2147483647 (max int) is accepted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Max Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Max File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [
+          {
+            entryId: fileId,
+            entryType: FileEntryType.File,
+            order: 2147483647,
+          },
+        ],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response![0].id).toBe(fileId);
+  });
+
+  // Catches: API rejects duplicate order values in a single batch request
+  test("PUT /files/order - Same order value for multiple items is accepted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Dup Order Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Dup Order 1" },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Dup Order 2" },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [
+          { entryId: fileId1, entryType: FileEntryType.File, order: 5 },
+          { entryId: fileId2, entryType: FileEntryType.File, order: 5 },
+        ],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.length).toBe(2);
+  });
+
+  // Catches: Non-existent ID returns 500 or is silently ignored instead of 404
+  test("PUT /files/order - Non-existent entryId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [
+          {
+            entryId: 999999999,
+            entryType: FileEntryType.File,
+            order: 1,
+          },
+        ],
+      },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  // Catches: API uses entryType to look up item and silently creates/matches wrong entry
+  test("PUT /files/order - File ID with entryType Folder returns error", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Wrong Type Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Wrong Type File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.Folder, order: 1 }],
+      },
+    });
+
+    // File ID passed as Folder type should not succeed
+    expect(status).toBe(404);
+  });
+
+  // Catches: Response missing count field or count mismatches actual response array length
+  test("PUT /files/order - Response has correct structure with count and statusCode", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Structure Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Structure File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 4 }],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.count).toBe(1);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response![0].id).toBeDefined();
+    expect(data.response![0].title).toBeDefined();
+    expect(data.response![0].fileEntryType).toBeDefined();
   });
 });
