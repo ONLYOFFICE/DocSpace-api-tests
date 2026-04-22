@@ -1388,7 +1388,7 @@ test.describe("MCP Servers - Set Tools Validation", () => {
     expect(status).toBe(400);
   });
 
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when disabledTools contains non-existing tool name", async ({
+  test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when disabledTools contains non-existing tool name", async ({
     apiSdk,
   }) => {
     test.fail();
@@ -1441,7 +1441,7 @@ test.describe("MCP Servers - Set Tools Validation", () => {
     expect(status).toBe(400);
   });
 
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - ignores duplicate tool names in disabledTools", async ({
+  test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - ignores duplicate tool names in disabledTools", async ({
     apiSdk,
   }) => {
     test.fail();
@@ -1500,7 +1500,7 @@ test.describe("MCP Servers - Set Tools Validation", () => {
     );
   });
 
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - allows disabling all tools", async ({
+  test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - allows disabling all tools", async ({
     apiSdk,
   }) => {
     test.fail();
