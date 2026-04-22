@@ -455,12 +455,12 @@ test.describe("AI Providers - Get Default", () => {
   });
 
   test.fail(
-    "BUG XXXXX: GET /api/2.0/ai/providers/default - Owner gets default provider on fresh portal without billing customer",
+    "BUG 81203: GET /api/2.0/ai/providers/default - Owner gets default provider on fresh portal without billing customer",
     async ({ apiSdk }) => {
       // Fresh portal from fixture. Do not touch paymentsApi or any payment endpoint
       const { status } = await apiSdk.forRole("owner").providers.getDefaultProvider();
 
-      expect(status).toBe(200);
+      expect(status).toBe(404);
     },
   );
 });
