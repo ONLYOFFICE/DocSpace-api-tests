@@ -664,3 +664,124 @@ test.describe("Portal — Invitation Links", () => {
     });
   });
 });
+
+test.describe("GET /api/2.0/portal/userscount - Get portal users count", () => {
+  test("GET /api/2.0/portal/userscount - Owner gets users count after adding all user types", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "DocSpaceAdmin");
+    await apiSdk.addMember("owner", "RoomAdmin");
+    await apiSdk.addMember("owner", "User");
+    await apiSdk.addMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .users.getPortalUsersCount();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(5); // owner + 4 added users
+  });
+
+  test("GET /api/2.0/portal/userscount - DocSpaceAdmin gets users count after adding all user types", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    await apiSdk.addMember("owner", "RoomAdmin");
+    await apiSdk.addMember("owner", "User");
+    await apiSdk.addMember("owner", "Guest");
+
+    const { data, status } = await adminApi.users.getPortalUsersCount();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(5); // owner + 4 added users
+  });
+});
+
+test.describe("GET /api/2.0/portal/users/:userID - Get user by ID", () => {
+  test("GET /api/2.0/portal/users/:userID - Owner gets user by ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const userId = userData.response!.id!;
+
+    const { data, status } = await ownerApi.users.getUserById({
+      userID: userId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(userId);
+    expect(data.response!.firstName).toBe(userData.response!.firstName);
+    expect(data.response!.lastName).toBe(userData.response!.lastName);
+    expect(data.response!.userName).toBeTruthy();
+    expect(data.response!.email).toBe(userData.response!.email);
+    expect(data.response!.createdBy).toBe(ownerId);
+  });
+
+  test("GET /api/2.0/portal/users/:userID - DocSpaceAdmin gets user by ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.users.getUserById({
+      userID: userId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(userId);
+    expect(data.response!.firstName).toBe(userData.response!.firstName);
+    expect(data.response!.lastName).toBe(userData.response!.lastName);
+    expect(data.response!.userName).toBeTruthy();
+    expect(data.response!.email).toBe(userData.response!.email);
+    expect(data.response!.createdBy).toBe(ownerId);
+  });
+
+  test("GET /api/2.0/portal/users/:userID - RoomAdmin gets user by ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.users.getUserById({
+      userID: userId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(userId);
+    expect(data.response!.firstName).toBe(userData.response!.firstName);
+    expect(data.response!.lastName).toBe(userData.response!.lastName);
+    expect(data.response!.userName).toBeTruthy();
+    expect(data.response!.email).toBe(userData.response!.email);
+    expect(data.response!.createdBy).toBe(ownerId);
+  });
+});

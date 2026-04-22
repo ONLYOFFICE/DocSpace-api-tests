@@ -690,6 +690,56 @@ test.describe("DELETE /api/2.0/users/invitationlink - access control", () => {
     expect((data as any).error.message).toBe("Access denied");
   });
 
+  test("DELETE /api/2.0/users/invitationlink - Room admin cannot delete Owner's invitation link for Room admin", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: created } = await ownerApi.users.createInvitationLink({
+      invitationLinkCreateRequestDto: {
+        employeeType: EmployeeType.RoomAdmin,
+      },
+    });
+    const linkId = created.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.users.deleteInvitationLink({
+      invitationLinkDeleteRequestDto: { id: linkId },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/users/invitationlink - DocSpace admin cannot delete Owner's invitation link for DocSpaceAdmin", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: created } = await ownerApi.users.createInvitationLink({
+      invitationLinkCreateRequestDto: {
+        employeeType: EmployeeType.DocSpaceAdmin,
+      },
+    });
+    const linkId = created.response!.id!;
+
+    const { api: docSpaceAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await docSpaceAdminApi.users.deleteInvitationLink({
+      invitationLinkDeleteRequestDto: { id: linkId },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
   test("DELETE /api/2.0/users/invitationlink - User cannot delete invitation link", async ({
     apiSdk,
   }) => {
@@ -737,4 +787,102 @@ test.describe("DELETE /api/2.0/users/invitationlink - access control", () => {
     expect(status).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
+});
+
+test.describe("GET /api/2.0/portal/userscount - access control", () => {
+  test("GET /api/2.0/portal/userscount - Anonymous cannot get users count", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.users.getPortalUsersCount();
+
+    expect(status).toBe(401);
+  });
+
+  for (const role of ["RoomAdmin", "User", "Guest"] as const) {
+    test(`GET /api/2.0/portal/userscount - ${role} cannot get users count`, async ({
+      apiSdk,
+    }) => {
+      await apiSdk.addMember("owner", "DocSpaceAdmin");
+      await apiSdk.addMember("owner", "RoomAdmin");
+      await apiSdk.addMember("owner", "User");
+      await apiSdk.addMember("owner", "Guest");
+      const { api: roleApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        role,
+      );
+
+      const { data, status } = await roleApi.users.getPortalUsersCount();
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  }
+});
+
+test.describe("GET /api/2.0/portal/users/:userID - access control", () => {
+  test("GET /api/2.0/portal/users/:userID - Anonymous cannot get user by ID", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+    const { data: userData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const userId = userData.response!.id!;
+
+    const { status } = await anonApi.users.getUserById({ userID: userId });
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/users/:userID - User cannot get user by ID", async ({
+    apiSdk,
+  }) => {
+    const { data: userData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const userId = userData.response!.id!;
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.users.getUserById({
+      userID: userId,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toContain("Access denied");
+  });
+
+  test("GET /api/2.0/portal/users/:userID - Guest cannot get user by ID", async ({
+    apiSdk,
+  }) => {
+    const { data: userData } = await apiSdk.addMember("owner", "RoomAdmin");
+    const userId = userData.response!.id!;
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.users.getUserById({
+      userID: userId,
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toContain("Access denied");
+  });
+
+  test.fail(
+    "BUG XXXX: GET /api/2.0/portal/users/:userID - Returns 404 for non-existent user",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.users.getUserById({
+        userID: "00000000-0000-0000-0000-000000000000",
+      });
+
+      expect(status).toBe(404);
+      expect((data as any).error.message).toContain(
+        "The user could not be found",
+      );
+    },
+  );
 });
