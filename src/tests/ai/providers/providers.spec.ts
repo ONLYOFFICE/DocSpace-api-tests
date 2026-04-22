@@ -453,6 +453,16 @@ test.describe("AI Providers - Get Default", () => {
     expect(data.response?.defaultModel).toBe(defaultProvider.modelId);
     expect(data.response?.providerTitle).toBe(defaultProvider.title);
   });
+
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/ai/providers/default - Owner gets default provider on fresh portal without billing customer",
+    async ({ apiSdk }) => {
+      // Fresh portal from fixture. Do not touch paymentsApi or any payment endpoint
+      const { status } = await apiSdk.forRole("owner").providers.getDefaultProvider();
+
+      expect(status).toBe(200);
+    },
+  );
 });
 
 test.describe("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)", () => {
