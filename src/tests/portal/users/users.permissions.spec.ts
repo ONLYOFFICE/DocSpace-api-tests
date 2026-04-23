@@ -870,19 +870,18 @@ test.describe("GET /api/2.0/portal/users/:userID - access control", () => {
     expect((data as any).error.message).toContain("Access denied");
   });
 
-  test.fail(
-    "BUG 81212: GET /api/2.0/portal/users/:userID - Returns 404 for non-existent user",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81212: GET /api/2.0/portal/users/:userID - Returns 404 for non-existent user", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.users.getUserById({
-        userID: "00000000-0000-0000-0000-000000000000",
-      });
+    const { data, status } = await ownerApi.users.getUserById({
+      userID: "00000000-0000-0000-0000-000000000000",
+    });
 
-      expect(status).toBe(404);
-      expect((data as any).error.message).toContain(
-        "The user could not be found",
-      );
-    },
-  );
+    expect(status).toBe(404);
+    expect((data as any).error.message).toContain(
+      "The user could not be found",
+    );
+  });
 });
