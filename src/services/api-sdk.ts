@@ -44,6 +44,7 @@ import {
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
 import { MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/mcpapi";
 import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
+import { ApiKeysApi } from "@onlyoffice/docspace-api-sdk/dist/api/api-keys/api-keys-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -86,6 +87,26 @@ export class ApiSDK {
     });
     axiosInstance.defaults.adapter = createPlaywrightAdapter(this.request);
     return axiosInstance;
+  }
+
+  forApiKey(apiKey: string) {
+    const config = new Configuration({
+      basePath: `${this.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
+        },
+      },
+    });
+    const axiosInstance = this.createAxiosInstance();
+    return {
+      apiKeys: new ApiKeysApi(config, undefined, axiosInstance),
+      files: new FilesApi(config, undefined, axiosInstance),
+      folders: new FoldersApi(config, undefined, axiosInstance),
+      rooms: new RoomsApi(config, undefined, axiosInstance),
+      profiles: new ProfilesApi(config, undefined, axiosInstance),
+    };
   }
 
   forRole(role: Role) {
@@ -158,6 +179,7 @@ export class ApiSDK {
       messages: new MessagesApi(config, undefined, axiosInstance),
       users: new UsersApi(config, undefined, axiosInstance),
       mcp: new MCPApi(config, undefined, axiosInstance),
+      apiKeys: new ApiKeysApi(config, undefined, axiosInstance),
     };
   }
 
@@ -216,6 +238,7 @@ export class ApiSDK {
       messages: new MessagesApi(config, undefined, axiosInstance),
       users: new UsersApi(config, undefined, axiosInstance),
       mcp: new MCPApi(config, undefined, axiosInstance),
+      apiKeys: new ApiKeysApi(config, undefined, axiosInstance),
     };
   }
 
