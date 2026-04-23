@@ -4066,35 +4066,34 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
   });
 
   // BUG: order=0 returns HTTP 200 with validation error embedded in response body instead of HTTP 400
-  test.fail(
-    "BUG 81187: PUT /files/order - Order value 0 returns HTTP 200 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81187: PUT /files/order - Order value 0 returns HTTP 200 instead of 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest BulkOrder Zero Room",
-          roomType: RoomType.VirtualDataRoom,
-          indexing: true,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Zero Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest BulkOrder Zero File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Zero File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.files.setFilesOrder({
-        ordersRequestDtoInteger: {
-          items: [{ entryId: fileId, entryType: FileEntryType.File, order: 0 }],
-        },
-      });
+    const { status } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 0 }],
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   // Catches: Off-by-one - minimum boundary value 1 incorrectly rejected
   test("PUT /files/order - Order value 1 (minimum) is accepted", async ({
