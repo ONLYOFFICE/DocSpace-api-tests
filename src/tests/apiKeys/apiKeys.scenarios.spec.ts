@@ -4,7 +4,7 @@ import { RoomType } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("POST /api/2.0/keys - scenarios", () => {
   test.fail(
-    "BUG XXXX: API key with files:read scope cannot create another API key",
+    "BUG 81238: API key with files:read scope cannot create another API key",
     async ({ apiSdk }) => {
       let apiKeyValue: string;
 
@@ -38,7 +38,7 @@ test.describe("POST /api/2.0/keys - scenarios", () => {
   );
 
   test.fail(
-    "BUG XXXX: API key with contacts:read scope cannot access rooms",
+    "BUG 81239: API key with contacts:read scope cannot access rooms",
     async ({ apiSdk }) => {
       let roomId: number;
       let apiKeyValue: string;
