@@ -874,9 +874,9 @@ test.describe("MCP Servers - Add Room Servers", () => {
     expect(roomServers.response!.map((s) => s.id)).toContain(serverId);
   });
 
-  test.fail(
-    "BUG 81166: POST /api/2.0/ai/rooms/:roomId/servers - re-adding already linked server does not create duplicate",
-    async ({ apiSdk }) => {
+  test("BUG 81166: POST /api/2.0/ai/rooms/:roomId/servers - re-adding already linked server does not create duplicate", async ({
+    apiSdk,
+  }) => {
       const mcpApiKey = process.env.MCP_API_KEY;
       if (!mcpApiKey) {
         throw new Error("MCP_API_KEY is not defined in environment variables");
@@ -922,7 +922,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
         addRoomServersRequestBody: { servers: new Set([serverId]) },
       });
 
-      expect(status).toBe(200);
+      expect(status).toBe(400);
 
       const { data: roomServers, status: getRoomStatus } =
         await api.mcp.getRoomServers({ roomId });
@@ -3196,7 +3196,9 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
     for (const name of toDisable) {
       expect(after.response!.find((t) => t.name === name)!.enabled).toBe(false);
     }
-    for (const t of after.response!.filter((t) => !toDisable.includes(t.name!))) {
+    for (const t of after.response!.filter(
+      (t) => !toDisable.includes(t.name!),
+    )) {
       expect(t.enabled).toBe(true);
     }
   });
@@ -3249,4 +3251,65 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
       expect(t.enabled).toBe(true);
     }
   });
+
+  test.fail(
+    "DELETE /api/2.0/ai/servers - built-in DocSpace server cannot be deleted",
+    async ({ apiSdk }) => {
+      const api = apiSdk.forRole("owner");
+
+      const { data: available } = await api.mcp.getAvailableServers();
+      const builtInServer = available.response!.find(
+        (s) => s.serverType === ServerType.DocSpace,
+      )!;
+      const builtInServerId = builtInServer.id!;
+
+      const { status, data: deleteData } = await api.mcp.deleteServer({
+        deleteServersRequestBody: { servers: new Set([builtInServerId]) },
+      });
+      console.log("[delete] status:", status);
+      console.log("[delete] response:", JSON.stringify(deleteData));
+
+      const { data: afterDelete } = await api.mcp.getAvailableServers();
+      const stillPresent = afterDelete.response!.find(
+        (s) => s.id === builtInServerId,
+      );
+      console.log("[delete] server still present after delete:", !!stillPresent);
+
+      expect(status).not.toBe(204);
+      expect(stillPresent).toBeDefined();
+    },
+  );
+
+  test.fail(
+    "PUT /api/2.0/ai/servers/:id - built-in DocSpace server cannot be updated",
+    async ({ apiSdk }) => {
+      const api = apiSdk.forRole("owner");
+
+      const { data: available } = await api.mcp.getAvailableServers();
+      const builtInServer = available.response!.find(
+        (s) => s.serverType === ServerType.DocSpace,
+      )!;
+      const builtInServerId = builtInServer.id!;
+      const originalName = builtInServer.name!;
+      const newName = `renamed-${Date.now()}`;
+
+      const { status, data: updateData } = await api.mcp.updateServer({
+        id: builtInServerId,
+        updateServerRequestBody: { name: newName },
+      });
+      console.log("[update] status:", status);
+      console.log("[update] response:", JSON.stringify(updateData));
+
+      const { data: afterUpdate } = await api.mcp.getServer({
+        id: builtInServerId,
+      });
+      const nameAfter = afterUpdate.response?.name;
+      console.log("[update] original name:", originalName);
+      console.log("[update] name after update attempt:", nameAfter);
+      console.log("[update] name changed:", nameAfter !== originalName);
+
+      expect(status).not.toBe(200);
+      expect(nameAfter).toBe(originalName);
+    },
+  );
 });
