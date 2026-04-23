@@ -1524,8 +1524,8 @@ test.describe("PUT /files/tags - Update tag", () => {
   });
 });
 
-test.describe("POST /files/fileops/duplicate", () => {
-  test("POST /files/fileops/duplicate - Owner duplicates their own room", async ({
+test.describe("PUT /files/fileops/duplicate", () => {
+  test("PUT /files/fileops/duplicate - Owner duplicates their own room", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1552,7 +1552,7 @@ test.describe("POST /files/fileops/duplicate", () => {
   });
 
   test.fail(
-    "POST /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room",
+    "PUT /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room",
     async ({ apiSdk }) => {
       const { api: adminApi } = await apiSdk.addAuthenticatedMember(
         "owner",
@@ -1569,7 +1569,7 @@ test.describe("POST /files/fileops/duplicate", () => {
 
       const ownerApi = apiSdk.forRole("owner");
 
-      await test.step("POST /files/fileops/duplicate", async () => {
+      await test.step("PUT /files/fileops/duplicate", async () => {
         const { status } = await ownerApi.operations.duplicateBatchItems({
           duplicateRequestDto: {
             folderIds: [roomId as any],
