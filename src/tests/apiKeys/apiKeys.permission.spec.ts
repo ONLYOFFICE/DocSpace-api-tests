@@ -3,7 +3,7 @@ import { test } from "@/src/fixtures";
 
 test.describe("POST /api/2.0/keys - permissions", () => {
   test.fail(
-    "BUG XXXX: POST /api/2.0/keys - User cannot create an API key with Contacts permissions",
+    "BUG 81235: POST /api/2.0/keys - User cannot create an API key with Contacts permissions",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "User");
 
@@ -22,7 +22,7 @@ test.describe("POST /api/2.0/keys - permissions", () => {
   );
 
   test.fail(
-    "BUG XXXX: POST /api/2.0/keys - Guest cannot create an API key",
+    "BUG 81236: POST /api/2.0/keys - Guest cannot create an API key",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
@@ -103,7 +103,7 @@ test.describe("POST /api/2.0/keys - permissions", () => {
   });
 
   test.fail(
-    "BUG XXXX: POST /api/2.0/keys - Owner cannot create an API key with empty permissions array",
+    "BUG 81237: POST /api/2.0/keys - Owner cannot create an API key with empty permissions array",
     async ({ apiSdk }) => {
       const { data, status } = await apiSdk
         .forRole("owner")
