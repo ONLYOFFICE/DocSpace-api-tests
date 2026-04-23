@@ -3196,7 +3196,9 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
     for (const name of toDisable) {
       expect(after.response!.find((t) => t.name === name)!.enabled).toBe(false);
     }
-    for (const t of after.response!.filter((t) => !toDisable.includes(t.name!))) {
+    for (const t of after.response!.filter(
+      (t) => !toDisable.includes(t.name!),
+    )) {
       expect(t.enabled).toBe(true);
     }
   });
