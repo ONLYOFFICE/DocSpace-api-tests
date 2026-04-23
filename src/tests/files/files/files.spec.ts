@@ -4666,3 +4666,156 @@ test.describe("POST /files/thumbnails - Create thumbnails", () => {
     expect(data.response).toContain(999999999);
   });
 });
+
+test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
+  test("GET /files/file/:fileId/edit/diff - Owner gets diff URL for latest version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Edit Diff URL" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // Business: key and url are required by Document Server to render diff
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.url).toBeTruthy();
+    // API returns version: 0 when no version parameter is specified (means "latest")
+    expect(data.response!.version).toBe(0);
+    expect(data.response!.fileType).toBeTruthy();
+  });
+
+  test("GET /files/file/:fileId/edit/diff - Owner gets diff URL for specific version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Edit Diff URL Specific Version",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // Business: version in response must match the requested version
+    expect(data.response!.version).toBe(1);
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.url).toBeTruthy();
+  });
+
+  test("GET /files/file/:fileId/edit/diff - Version 2 created via API has no previous edit history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Edit Diff URL With Previous",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    // updateFile increments version metadata only - no real editing history is recorded
+    // previous field requires Document Server to track actual content changes via editor
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({
+      fileId,
+      version: 2,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.version).toBe(2);
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.url).toBeTruthy();
+    // No previous data: updateFile does not create Document Server editing history
+    expect(data.response!.previous).toBeFalsy();
+  });
+
+  test("GET /files/file/:fileId/edit/diff - First version has no previous version data", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Edit Diff URL No Previous",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // API returns version: 0 when no version parameter is specified (means "latest")
+    expect(data.response!.version).toBe(0);
+    // Business: first version has nothing to compare against
+    expect(data.response!.previous).toBeFalsy();
+  });
+
+  test.fail(
+    "BUG XXXXX: GET /files/file/:fileId/edit/diff - Non-existent fileId returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.files.getEditDiffUrl({
+        fileId: 999999999,
+      });
+
+      expect(status).toBe(404);
+      expect((data as any).error.message).toBe(
+        "The required file was not found",
+      );
+    },
+  );
+
+  test("GET /files/file/:fileId/edit/diff - File in a room returns diff URL", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Edit Diff URL Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Edit Diff URL Room File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.url).toBeTruthy();
+    expect(data.response!.fileType).toBeTruthy();
+  });
+});
