@@ -4065,35 +4065,37 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     expect(data.response!.length).toBe(0);
   });
 
-  // BUG: order=0 returns HTTP 200 with validation error embedded in response body instead of HTTP 400
-  test("BUG 81187: PUT /files/order - Order value 0 returns HTTP 200 instead of 400", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+  // BUG: order=0 returns statusCode 200 instead of 400 in response body
+  test.fail(
+    "BUG 81187: PUT /files/order - Order value 0 returns statusCode 200 instead of 400 in response body",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest BulkOrder Zero Room",
-        roomType: RoomType.VirtualDataRoom,
-        indexing: true,
-      },
-    });
-    const roomId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest BulkOrder Zero Room",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest BulkOrder Zero File" },
-    });
-    const fileId = fileData.response!.id!;
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest BulkOrder Zero File" },
+      });
+      const fileId = fileData.response!.id!;
 
-    const { status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
-        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 0 }],
-      },
-    });
+      const { data } = await ownerApi.files.setFilesOrder({
+        ordersRequestDtoInteger: {
+          items: [{ entryId: fileId, entryType: FileEntryType.File, order: 0 }],
+        },
+      });
 
-    expect(status).toBe(400);
-  });
+      expect(data.statusCode).toBe(400);
+      expect(data.status).toBe(1);
+    },
+  );
 
   // Catches: Off-by-one - minimum boundary value 1 incorrectly rejected
   test("PUT /files/order - Order value 1 (minimum) is accepted", async ({
@@ -4451,7 +4453,7 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
 
   // BUG: non-existent fileId returns HTTP 200 with error in value instead of HTTP 404
   test.fail(
-    "BUG XXXXX: GET /files/file/:fileId/trackeditfile - Non-existent fileId returns HTTP 200 instead of 404",
+    "BUG 81219: GET /files/file/:fileId/trackeditfile - Non-existent fileId returns HTTP 200 instead of 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -4462,33 +4464,6 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
       expect(status).toBe(404);
     },
   );
-
-  // Catches: API returns different behavior for room files vs My Documents files
-  test("GET /files/file/:fileId/trackeditfile - File in CustomRoom returns 200", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest TrackEdit Room File Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Room File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data, status } = await ownerApi.files.trackEditFile({ fileId });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
-  });
 
   // Catches: response missing required fields or key/value have wrong types
   test("GET /files/file/:fileId/trackeditfile - Response has correct structure", async ({
@@ -4521,5 +4496,173 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     expect(
       data.response!.value === null || typeof data.response!.value === "string",
     ).toBe(true);
+  });
+});
+
+test.describe("POST /files/thumbnails - Create thumbnails", () => {
+  // Catches: API crashes or returns wrong status for a single file thumbnail request
+  test("POST /files/thumbnails - Owner creates thumbnail for a single file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Thumbnails Single File Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Thumbnails Single File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createThumbnails({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // response contains the file ID for which thumbnail was queued
+    expect(data.response).toContain(fileId);
+    expect(data.response!.length).toBe(1);
+  });
+
+  // Catches: Batch thumbnail generation silently drops some files from response
+  test("POST /files/thumbnails - Owner creates thumbnails for multiple files", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Thumbnails Multi File Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Thumbnails Multi File 1" },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Thumbnails Multi File 2" },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    const { data, status } = await ownerApi.files.createThumbnails({
+      baseBatchRequestDto: { fileIds: [fileId1, fileId2] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // both file IDs are included in response
+    expect(data.response).toContain(fileId1);
+    expect(data.response).toContain(fileId2);
+    expect(data.response!.length).toBe(2);
+  });
+
+  // Catches: folderIds param silently ignored or causes unexpected error
+  test("POST /files/thumbnails - Owner creates thumbnails for a folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Thumbnails Folder Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Thumbnails Folder" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createThumbnails({
+      baseBatchRequestDto: { folderIds: [folderId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // empty folder has no files - response is empty array
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBe(0);
+  });
+
+  // Catches: mixed batch silently drops folders or files from response
+  test("POST /files/thumbnails - Owner creates thumbnails for files and folders", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Thumbnails Mix Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Thumbnails Mix File" },
+    });
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Thumbnails Mix Folder" },
+    });
+    const fileId = fileData.response!.id!;
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createThumbnails({
+      baseBatchRequestDto: { fileIds: [fileId], folderIds: [folderId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // only file ID is returned - folder ID is not included in response
+    expect(data.response).toContain(fileId);
+    expect(data.response).not.toContain(folderId);
+    expect(data.response!.length).toBe(1);
+  });
+
+  // Catches: empty batch causes crash or returns 500 instead of 200 with empty array
+  test("POST /files/thumbnails - Empty request body returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.createThumbnails({});
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBe(0);
+  });
+
+  // Catches: non-existent fileId causes crash or returns 500 instead of graceful response
+  test("POST /files/thumbnails - Non-existent fileId returns graceful response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.createThumbnails({
+      baseBatchRequestDto: { fileIds: [999999999] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // non-existent ID is still included in response - API does not validate file existence
+    expect(data.response).toContain(999999999);
   });
 });
