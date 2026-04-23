@@ -877,60 +877,59 @@ test.describe("MCP Servers - Add Room Servers", () => {
   test("BUG 81166: POST /api/2.0/ai/rooms/:roomId/servers - re-adding already linked server does not create duplicate", async ({
     apiSdk,
   }) => {
-      const mcpApiKey = process.env.MCP_API_KEY;
-      if (!mcpApiKey) {
-        throw new Error("MCP_API_KEY is not defined in environment variables");
-      }
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
 
-      const api = apiSdk.forRole("owner");
-      const provider = aiProviders.deepSeek;
-      const ts = Date.now();
+    const api = apiSdk.forRole("owner");
+    const provider = aiProviders.deepSeek;
+    const ts = Date.now();
 
-      await api.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
-      });
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: provider.type,
+        title: provider.title,
+        key: provider.key,
+      },
+    });
 
-      const { data: room } = await api.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `mcp-room-${ts}`,
-          roomType: RoomType.AiRoom,
-        },
-      });
-      const roomId = room.response!.id!;
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-room-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
 
-      const { data: created } = await api.mcp.addServer({
-        addMcpServerRequestBody: {
-          name: `mcp-idem-${ts}`,
-          description: "GitHub Copilot MCP server",
-          endpoint: GITHUB_MCP_ENDPOINT,
-          headers: { Authorization: `Bearer ${mcpApiKey}` },
-        },
-      });
-      const serverId = created.response!.id!;
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-idem-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
 
-      await api.mcp.addRoomServers({
-        roomId,
-        addRoomServersRequestBody: { servers: new Set([serverId]) },
-      });
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([serverId]) },
+    });
 
-      const { status } = await api.mcp.addRoomServers({
-        roomId,
-        addRoomServersRequestBody: { servers: new Set([serverId]) },
-      });
+    const { status } = await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([serverId]) },
+    });
 
-      expect(status).toBe(400);
+    expect(status).toBe(400);
 
-      const { data: roomServers, status: getRoomStatus } =
-        await api.mcp.getRoomServers({ roomId });
-      expect(getRoomStatus).toBe(200);
-      const matches = roomServers.response!.filter((s) => s.id === serverId);
-      expect(matches).toHaveLength(1);
-    },
-  );
+    const { data: roomServers, status: getRoomStatus } =
+      await api.mcp.getRoomServers({ roomId });
+    expect(getRoomStatus).toBe(200);
+    const matches = roomServers.response!.filter((s) => s.id === serverId);
+    expect(matches).toHaveLength(1);
+  });
 });
 
 test.describe("MCP Servers - Delete Room Servers", () => {
@@ -3273,7 +3272,10 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
       const stillPresent = afterDelete.response!.find(
         (s) => s.id === builtInServerId,
       );
-      console.log("[delete] server still present after delete:", !!stillPresent);
+      console.log(
+        "[delete] server still present after delete:",
+        !!stillPresent,
+      );
 
       expect(status).not.toBe(204);
       expect(stillPresent).toBeDefined();
