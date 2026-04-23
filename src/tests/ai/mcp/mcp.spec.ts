@@ -2661,4 +2661,592 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
     );
     expect(builtIn).toBeDefined();
   });
+
+  test("POST /api/2.0/ai/rooms/:roomId/servers - Owner adds built-in DocSpace server to room", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-add-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data, status } = await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.map((s) => s.id)).toContain(builtInServerId);
+  });
+
+  test("POST /api/2.0/ai/rooms/:roomId/servers - built-in DocSpace server has correct McpServerStatusDto fields after being added to room", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-struct-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data } = await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const server = data.response!.find((s) => s.id === builtInServerId)!;
+    expect(server.id).toBe(builtInServerId);
+    expect(server.name).toBeDefined();
+    expect(server.serverType).toBe(ServerType.DocSpace);
+    expect(server.connected).toBe(true);
+    expect(typeof server.needReset).toBe("boolean");
+  });
+
+  test.fail(
+    "BUG 81166: POST /api/2.0/ai/rooms/:roomId/servers - re-adding built-in DocSpace server does not create duplicate",
+    async ({ apiSdk }) => {
+      const api = apiSdk.forRole("owner");
+      const ts = Date.now();
+
+      const { data: available } = await api.mcp.getAvailableServers();
+      const builtInServerId = available.response!.find(
+        (s) => s.serverType === ServerType.DocSpace,
+      )!.id!;
+
+      const { data: room } = await api.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `mcp-builtin-idem-${ts}`,
+          roomType: RoomType.AiRoom,
+        },
+      });
+      const roomId = room.response!.id!;
+
+      await api.mcp.addRoomServers({
+        roomId,
+        addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+      });
+
+      const { status } = await api.mcp.addRoomServers({
+        roomId,
+        addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+      });
+      expect(status).toBe(200);
+
+      const { data: roomServers } = await api.mcp.getRoomServers({ roomId });
+      const matches = roomServers.response!.filter(
+        (s) => s.id === builtInServerId,
+      );
+      expect(matches).toHaveLength(1);
+    },
+  );
+
+  test("POST /api/2.0/ai/rooms/:roomId/servers - Owner adds built-in DocSpace server together with a custom server", async ({
+    apiSdk,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    await api.providers.addProvider({
+      createProviderRequestDto: {
+        type: aiProviders.deepSeek.type,
+        title: aiProviders.deepSeek.title,
+        key: aiProviders.deepSeek.key,
+      },
+    });
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: custom } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-builtin-mix-${ts}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const customServerId = custom.response!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-mix-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data, status } = await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: {
+        servers: new Set([builtInServerId, customServerId]),
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(2);
+    const returnedIds = data.response!.map((s) => s.id);
+    expect(returnedIds).toContain(builtInServerId);
+    expect(returnedIds).toContain(customServerId);
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers - built-in DocSpace server is visible after addRoomServers", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-getroom-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data, status } = await api.mcp.getRoomServers({ roomId });
+
+    expect(status).toBe(200);
+    expect(data.response!.map((s) => s.id)).toContain(builtInServerId);
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers - built-in DocSpace server is not visible before being added", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-getroom-before-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data, status } = await api.mcp.getRoomServers({ roomId });
+
+    expect(status).toBe(200);
+    expect(data.response!.map((s) => s.id)).not.toContain(builtInServerId);
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers - built-in DocSpace server disappears after deleteRoomServers", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-getroom-del-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    await api.mcp.deleteRoomServers({
+      roomId,
+      deleteRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data, status } = await api.mcp.getRoomServers({ roomId });
+
+    expect(status).toBe(200);
+    expect(data.response!.map((s) => s.id)).not.toContain(builtInServerId);
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers - built-in DocSpace server has correct McpServerStatusDto structure", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-getroom-dto-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data, status } = await api.mcp.getRoomServers({ roomId });
+
+    expect(status).toBe(200);
+    const server = data.response!.find((s) => s.id === builtInServerId)!;
+    expect(server.id).toBe(builtInServerId);
+    expect(server.name).toBeDefined();
+    expect(server.serverType).toBe(ServerType.DocSpace);
+    expect(server.connected).toBe(true);
+    expect(typeof server.needReset).toBe("boolean");
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - returns tools for built-in DocSpace server", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-tools-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data, status } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - each tool of built-in DocSpace server has correct McpToolDto fields", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-tools-dto-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+
+    expect(data.response!.length).toBeGreaterThan(0);
+    for (const tool of data.response!) {
+      expect(typeof tool.name).toBe("string");
+      expect(tool.name).not.toBeNull();
+      expect(typeof tool.enabled).toBe("boolean");
+    }
+  });
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - all tools of built-in DocSpace server are enabled by default", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-tools-default-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+
+    expect(data.response!.length).toBeGreaterThan(0);
+    for (const tool of data.response!) {
+      expect(tool.enabled).toBe(true);
+    }
+  });
+
+  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - disables one tool for built-in DocSpace server", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-settools-one-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data: toolsData } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+    const toolToDisable = toolsData.response![0].name!;
+
+    const { status } = await api.mcp.setTools({
+      roomId,
+      serverId: builtInServerId,
+      setMcpToolsRequestBody: { disabledTools: [toolToDisable] },
+    });
+    expect(status).toBe(200);
+
+    const { data: after } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+    expect(after.response!.find((t) => t.name === toolToDisable)!.enabled).toBe(
+      false,
+    );
+    for (const t of after.response!.filter((t) => t.name !== toolToDisable)) {
+      expect(t.enabled).toBe(true);
+    }
+  });
+
+  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - re-enables a disabled tool for built-in DocSpace server", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-settools-reenable-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data: toolsData } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+    const toolToToggle = toolsData.response![0].name!;
+
+    await api.mcp.setTools({
+      roomId,
+      serverId: builtInServerId,
+      setMcpToolsRequestBody: { disabledTools: [toolToToggle] },
+    });
+
+    await api.mcp.setTools({
+      roomId,
+      serverId: builtInServerId,
+      setMcpToolsRequestBody: { disabledTools: [] },
+    });
+
+    const { data: after } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+    for (const t of after.response!) {
+      expect(t.enabled).toBe(true);
+    }
+  });
+
+  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - changes state of multiple tools for built-in DocSpace server", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-settools-multi-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data: toolsData } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+    expect(toolsData.response!.length).toBeGreaterThanOrEqual(2);
+    const toDisable = [
+      toolsData.response![0].name!,
+      toolsData.response![1].name!,
+    ];
+
+    const { status } = await api.mcp.setTools({
+      roomId,
+      serverId: builtInServerId,
+      setMcpToolsRequestBody: { disabledTools: toDisable },
+    });
+    expect(status).toBe(200);
+
+    const { data: after } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+    for (const name of toDisable) {
+      expect(after.response!.find((t) => t.name === name)!.enabled).toBe(false);
+    }
+    for (const t of after.response!.filter((t) => !toDisable.includes(t.name!))) {
+      expect(t.enabled).toBe(true);
+    }
+  });
+
+  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - setTools changes for built-in server are persisted and visible via getTools", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-settools-persist-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await api.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data: toolsData } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+    const toolToDisable = toolsData.response![0].name!;
+
+    await api.mcp.setTools({
+      roomId,
+      serverId: builtInServerId,
+      setMcpToolsRequestBody: { disabledTools: [toolToDisable] },
+    });
+
+    const { data, status } = await api.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+    expect(status).toBe(200);
+    expect(data.response!.find((t) => t.name === toolToDisable)!.enabled).toBe(
+      false,
+    );
+    for (const t of data.response!.filter((t) => t.name !== toolToDisable)) {
+      expect(t.enabled).toBe(true);
+    }
+  });
 });

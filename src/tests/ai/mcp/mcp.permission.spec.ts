@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { aiProviders } from "@/src/helpers/ai-providers";
 import config from "@/config";
-import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, RoomType, ServerType } from "@onlyoffice/docspace-api-sdk";
 
 const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
 const forbiddenRoles = ["RoomAdmin", "User", "Guest"] as const;
@@ -1700,6 +1700,299 @@ test.describe("MCP Servers - Set Tools Permissions", () => {
       const { status } = await api.mcp.setTools({
         roomId,
         serverId: fakeServerId,
+        setMcpToolsRequestBody: { disabledTools: [] },
+      });
+
+      expect(status).toBe(403);
+    });
+  }
+
+  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.setTools({
+      roomId: fakeRoomId,
+      serverId: fakeServerId,
+      setMcpToolsRequestBody: { disabledTools: [] },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+const forbiddenRolesForAddRoomServers = ["RoomAdmin", "User", "Guest"] as const;
+
+test.describe("MCP Servers - Add Room Servers Permissions (Built-in DocSpace Server)", () => {
+  test("POST /api/2.0/ai/rooms/:roomId/servers - Owner can add built-in DocSpace server to room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await ownerApi.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-perm-owner-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { status } = await ownerApi.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("POST /api/2.0/ai/rooms/:roomId/servers - DocSpaceAdmin can add built-in DocSpace server to room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const ts = Date.now();
+
+    const { data: available } = await adminApi.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-perm-admin-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { status } = await adminApi.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  for (const role of forbiddenRolesForAddRoomServers) {
+    test(`POST /api/2.0/ai/rooms/:roomId/servers - ${role} cannot add built-in DocSpace server to room`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const ts = Date.now();
+
+      const { data: available } = await ownerApi.mcp.getAvailableServers();
+      const builtInServerId = available.response!.find(
+        (s) => s.serverType === ServerType.DocSpace,
+      )!.id!;
+
+      const { data: room } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `mcp-builtin-perm-${role.toLowerCase()}-${ts}`,
+          roomType: RoomType.AiRoom,
+        },
+      });
+      const roomId = room.response!.id!;
+
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const { status } = await api.mcp.addRoomServers({
+        roomId,
+        addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+      });
+
+      expect(status).toBe(403);
+    });
+  }
+
+  test("POST /api/2.0/ai/rooms/:roomId/servers - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.addRoomServers({
+      roomId: fakeRoomId,
+      addRoomServersRequestBody: { servers: new Set([fakeServerId]) },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+const forbiddenRolesForGetTools = ["RoomAdmin", "User", "Guest"] as const;
+
+test.describe("MCP Servers - Get Tools Permissions (Built-in DocSpace Server)", () => {
+  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - user with room access can get tools for built-in DocSpace server", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await ownerApi.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-tools-perm-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await ownerApi.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data: memberData, api: memberApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: memberData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { status } = await memberApi.mcp.getTools({
+      roomId,
+      serverId: builtInServerId,
+    });
+
+    expect(status).toBe(200);
+  });
+
+  for (const role of forbiddenRolesForGetTools) {
+    test(`GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - ${role} without room access cannot get tools for built-in DocSpace server`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const ts = Date.now();
+
+      const { data: available } = await ownerApi.mcp.getAvailableServers();
+      const builtInServerId = available.response!.find(
+        (s) => s.serverType === ServerType.DocSpace,
+      )!.id!;
+
+      const { data: room } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `mcp-builtin-tools-noaccess-${ts}`,
+          roomType: RoomType.AiRoom,
+        },
+      });
+      const roomId = room.response!.id!;
+
+      await ownerApi.mcp.addRoomServers({
+        roomId,
+        addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+      });
+
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const { status } = await api.mcp.getTools({
+        roomId,
+        serverId: builtInServerId,
+      });
+
+      expect(status).toBe(403);
+    });
+  }
+
+  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.getTools({
+      roomId: fakeRoomId,
+      serverId: fakeServerId,
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+const forbiddenRolesForSetTools = ["RoomAdmin", "User", "Guest"] as const;
+
+test.describe("MCP Servers - Set Tools Permissions (Built-in DocSpace Server)", () => {
+  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - user with room access can configure tools for built-in DocSpace server", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const ts = Date.now();
+
+    const { data: available } = await ownerApi.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `mcp-builtin-settools-perm-${ts}`,
+        roomType: RoomType.AiRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    await ownerApi.mcp.addRoomServers({
+      roomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
+
+    const { data: memberData, api: memberApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: memberData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { status } = await memberApi.mcp.setTools({
+      roomId,
+      serverId: builtInServerId,
+      setMcpToolsRequestBody: { disabledTools: [] },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  for (const role of forbiddenRolesForSetTools) {
+    test(`PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - ${role} without room access cannot configure tools for built-in DocSpace server`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const ts = Date.now();
+
+      const { data: available } = await ownerApi.mcp.getAvailableServers();
+      const builtInServerId = available.response!.find(
+        (s) => s.serverType === ServerType.DocSpace,
+      )!.id!;
+
+      const { data: room } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `mcp-builtin-settools-noaccess-${ts}`,
+          roomType: RoomType.AiRoom,
+        },
+      });
+      const roomId = room.response!.id!;
+
+      await ownerApi.mcp.addRoomServers({
+        roomId,
+        addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+      });
+
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const { status } = await api.mcp.setTools({
+        roomId,
+        serverId: builtInServerId,
         setMcpToolsRequestBody: { disabledTools: [] },
       });
 
