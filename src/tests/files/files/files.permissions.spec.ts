@@ -5663,7 +5663,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
 
   // BUG: guest receives HTTP 200 instead of HTTP 403 (unlike addTemplates which correctly returns 403 for guest)
   test.fail(
-    "BUG XXXXX: DELETE /files/templates - Guest gets 200 instead of 403",
+    "BUG 81274: DELETE /files/templates - Guest gets 200 instead of 403",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
