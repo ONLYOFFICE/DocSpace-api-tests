@@ -3558,7 +3558,7 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
 
 test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
   test.fail(
-    "BUG XXXXX: POST /files/file/:fileId/startedit - editingAlone: false returns 500 instead of 403",
+    "BUG 81267: POST /files/file/:fileId/startedit - editingAlone: false returns 500 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -3719,7 +3719,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
   });
 
   test.fail(
-    "BUG XXXXX: POST /files/file/:fileId/startedit - Request without editingAlone field returns 500 instead of 403",
+    "BUG 81267: POST /files/file/:fileId/startedit - Request without editingAlone field returns 500 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -4817,5 +4817,147 @@ test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
     expect(data.response!.fileType).toBeTruthy();
+  });
+});
+
+test.describe("POST /files/templates - Add templates", () => {
+  // Catches: API crashes or returns wrong status for a single file template request
+  test("POST /files/templates - Owner adds a single file to templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Templates Single Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Single File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: batch template add silently drops some files
+  test("POST /files/templates - Owner adds multiple files to templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Templates Multi Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Multi File 1" },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Multi File 2" },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId1, fileId2] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: re-adding same file causes error instead of being idempotent
+  test("POST /files/templates - Adding the same file twice is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Templates Idempotent Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Idempotent File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: empty fileIds causes crash or returns 500 instead of graceful response
+  test("POST /files/templates - Empty fileIds array returns graceful response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: missing body causes crash or returns 500
+  test("POST /files/templates - Request without body returns graceful response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.addTemplates({});
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: non-existent fileId causes crash or returns wrong status
+  test("POST /files/templates - Non-existent fileId returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [999999999] },
+    });
+
+    // API does not validate file existence — returns true regardless
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
   });
 });
