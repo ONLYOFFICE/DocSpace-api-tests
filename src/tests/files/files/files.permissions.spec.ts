@@ -4496,32 +4496,31 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
 });
 
 test.describe("POST /files/file/:fileId/startedit - Start file editing permissions", () => {
-  test.fail(
-    "BUG 81168: POST /files/file/:fileId/startedit - Unauthenticated user gets 403 instead of 401",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81168: POST /files/file/:fileId/startedit - Unauthenticated user gets 403 instead of 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest StartEdit Unauth Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartEdit Unauth Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest StartEdit Unauth File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest StartEdit Unauth File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await apiSdk
-        .forAnonymous()
-        .files.startEditFile({ fileId, startEdit: { editingAlone: true } });
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.startEditFile({ fileId, startEdit: { editingAlone: true } });
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 
   test("POST /files/file/:fileId/startedit - Guest with Read access gets 403", async ({
     apiSdk,
@@ -4646,9 +4645,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You do not have enough permissions to edit the file",
-    );
+    expect((data as any).error.message).toBe("Access denied");
   });
 });
 
@@ -5547,5 +5544,107 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
     expect(data.statusCode).toBe(200);
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
+  });
+});
+
+test.describe("POST /files/templates - Add templates permissions", () => {
+  // Catches: unauthenticated user should not be able to add templates
+  test("POST /files/templates - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.addTemplates({ templatesRequestDto: { fileIds: [1] } });
+
+    expect(status).toBe(401);
+  });
+
+  // Catches: guest should not be able to add portal templates
+  test("POST /files/templates - Guest gets 403", async ({ apiSdk }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .files.addTemplates({ templatesRequestDto: { fileIds: [1] } });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  // Catches: regular user silently blocked from adding templates
+  test("POST /files/templates - User can add templates", async ({ apiSdk }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .files.addTemplates({ templatesRequestDto: { fileIds: [1] } });
+
+    // templates are a personal (per-user) feature — available to all authenticated users
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: DocSpaceAdmin silently blocked from adding templates
+  test("POST /files/templates - DocSpaceAdmin can add templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Templates Admin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Admin File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await adminApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: owner blocked from adding templates
+  test("POST /files/templates - Owner can add templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Templates Owner Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Owner File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
   });
 });
