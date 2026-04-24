@@ -4961,3 +4961,193 @@ test.describe("POST /files/templates - Add templates", () => {
     expect(data.response).toBe(true);
   });
 });
+
+test.describe("DELETE /files/templates - Delete templates", () => {
+  // Catches: API crashes or returns wrong status when removing a single template
+  test("DELETE /files/templates - Owner removes a single file from templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Templates Single Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Delete Templates Single File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [fileId],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: batch removal silently drops some files
+  test("DELETE /files/templates - Owner removes multiple files from templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Templates Multi Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Delete Templates Multi File 1",
+      },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Delete Templates Multi File 2",
+      },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId1, fileId2] },
+    });
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [fileId1, fileId2],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: re-deleting same file causes error instead of being idempotent
+  test("DELETE /files/templates - Removing the same file twice is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Templates Idempotent Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Delete Templates Idempotent File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    await ownerApi.files.deleteTemplates({ requestBody: [fileId] });
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [fileId],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: removing file not in templates causes crash
+  test("DELETE /files/templates - Removing file not in templates returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Templates Not Added Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Delete Templates Not Added File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    // file was never added to templates
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [fileId],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: non-existent fileId causes crash or returns wrong status
+  test("DELETE /files/templates - Non-existent fileId returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [999999999],
+    });
+
+    // API does not validate file existence — returns true regardless
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: empty array causes crash or returns 500
+  test("DELETE /files/templates - Empty requestBody returns graceful response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: missing body causes crash or returns 500 instead of 400
+  test("DELETE /files/templates - Request without body returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.deleteTemplates({});
+
+    // body is required — API returns 400 validation error
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+  });
+});
