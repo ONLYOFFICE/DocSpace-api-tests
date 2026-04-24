@@ -3252,7 +3252,7 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
   });
 
   test.fail(
-    "DELETE /api/2.0/ai/servers - built-in DocSpace server cannot be deleted",
+    "BUG 81271: DELETE /api/2.0/ai/servers - built-in DocSpace server cannot be deleted",
     async ({ apiSdk }) => {
       const api = apiSdk.forRole("owner");
 
@@ -3283,7 +3283,7 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
   );
 
   test.fail(
-    "PUT /api/2.0/ai/servers/:id - built-in DocSpace server cannot be updated",
+    "BUG 81271: PUT /api/2.0/ai/servers/:id - built-in DocSpace server cannot be updated",
     async ({ apiSdk }) => {
       const api = apiSdk.forRole("owner");
 
