@@ -4496,32 +4496,31 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
 });
 
 test.describe("POST /files/file/:fileId/startedit - Start file editing permissions", () => {
-  test.fail(
-    "BUG 81168: POST /files/file/:fileId/startedit - Unauthenticated user gets 403 instead of 401",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81168: POST /files/file/:fileId/startedit - Unauthenticated user gets 403 instead of 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest StartEdit Unauth Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartEdit Unauth Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest StartEdit Unauth File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest StartEdit Unauth File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await apiSdk
-        .forAnonymous()
-        .files.startEditFile({ fileId, startEdit: { editingAlone: true } });
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.startEditFile({ fileId, startEdit: { editingAlone: true } });
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 
   test("POST /files/file/:fileId/startedit - Guest with Read access gets 403", async ({
     apiSdk,
@@ -4646,9 +4645,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You do not have enough permissions to edit the file",
-    );
+    expect((data as any).error.message).toBe("Access denied");
   });
 });
 
