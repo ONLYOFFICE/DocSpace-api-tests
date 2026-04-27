@@ -1611,7 +1611,7 @@ test.describe("PUT /files/fileops/duplicate", () => {
 
 test.describe("PUT /files/fileops/delete - Room deletion with open file", () => {
   test.fail(
-    "PUT /files/fileops/delete - deleting a room with an open file partially removes other files instead of rolling back atomically",
+    "BUG 81287: PUT /files/fileops/delete - deleting a room with an open file partially removes other files instead of rolling back atomically",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
