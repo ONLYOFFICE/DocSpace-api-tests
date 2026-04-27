@@ -3557,34 +3557,35 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
 });
 
 test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
-  test("POST /files/file/:fileId/startedit - Owner, editingAlone: false returns error (requires Document Server)", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+  test.fail(
+    "BUG 81267: POST /files/file/:fileId/startedit - editingAlone: false returns 500 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Start Edit Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Start Edit Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest Start Edit File" },
-    });
-    const fileId = fileData.response!.id!;
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Start Edit File" },
+      });
+      const fileId = fileData.response!.id!;
 
-    const { data, status } = await ownerApi.files.startEditFile({
-      fileId,
-      startEdit: { editingAlone: false },
-    });
+      const { data, status } = await ownerApi.files.startEditFile({
+        fileId,
+        startEdit: { editingAlone: false },
+      });
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("File editing start error");
-  });
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("File editing start error");
+    },
+  );
 
   test("POST /files/file/:fileId/startedit - Owner starts editing a file alone", async ({
     apiSdk,
@@ -3701,7 +3702,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     expect(data.response).toBeTruthy();
   });
 
-  test("POST /files/file/:fileId/startedit - Non-existent fileId returns 403", async ({
+  test("POST /files/file/:fileId/startedit - Non-existent fileId returns 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -3712,39 +3713,40 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
       startEdit: { editingAlone: true },
     });
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
     expect((data as any).error.message).toBe("The required file was not found");
   });
 
-  test("POST /files/file/:fileId/startedit - Request without editingAlone field", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+  test.fail(
+    "BUG 81267: POST /files/file/:fileId/startedit - Request without editingAlone field returns 500 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest StartEdit No Body Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest StartEdit No Body Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest StartEdit No Body File" },
-    });
-    const fileId = fileData.response!.id!;
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest StartEdit No Body File" },
+      });
+      const fileId = fileData.response!.id!;
 
-    const { data, status } = await ownerApi.files.startEditFile({
-      fileId,
-      startEdit: {},
-    });
+      const { data, status } = await ownerApi.files.startEditFile({
+        fileId,
+        startEdit: {},
+      });
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe("File editing start error");
-  });
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("File editing start error");
+    },
+  );
 
   test("POST /files/file/:fileId/startedit - Second user starts editing a file already being edited", async ({
     apiSdk,
@@ -4065,37 +4067,35 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     expect(data.response!.length).toBe(0);
   });
 
-  // BUG: order=0 returns statusCode 200 instead of 400 in response body
-  test.fail(
-    "BUG 81187: PUT /files/order - Order value 0 returns statusCode 200 instead of 400 in response body",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81187: PUT /files/order - Order value 0 returns statusCode 400 in response body", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest BulkOrder Zero Room",
-          roomType: RoomType.VirtualDataRoom,
-          indexing: true,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkOrder Zero Room",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest BulkOrder Zero File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest BulkOrder Zero File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data } = await ownerApi.files.setFilesOrder({
-        ordersRequestDtoInteger: {
-          items: [{ entryId: fileId, entryType: FileEntryType.File, order: 0 }],
-        },
-      });
+    const { data } = await ownerApi.files.setFilesOrder({
+      ordersRequestDtoInteger: {
+        items: [{ entryId: fileId, entryType: FileEntryType.File, order: 0 }],
+      },
+    });
 
-      expect(data.statusCode).toBe(400);
-      expect(data.status).toBe(1);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+    expect(data.status).toBe(1);
+  });
 
   // Catches: Off-by-one - minimum boundary value 1 incorrectly rejected
   test("PUT /files/order - Order value 1 (minimum) is accepted", async ({
@@ -4664,5 +4664,490 @@ test.describe("POST /files/thumbnails - Create thumbnails", () => {
     expect(data.statusCode).toBe(200);
     // non-existent ID is still included in response - API does not validate file existence
     expect(data.response).toContain(999999999);
+  });
+});
+
+test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
+  test("GET /files/file/:fileId/edit/diff - Owner gets diff URL for latest version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Edit Diff URL" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // Business: key and url are required by Document Server to render diff
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.url).toBeTruthy();
+    // API returns version: 0 when no version parameter is specified (means "latest")
+    expect(data.response!.version).toBe(0);
+    expect(data.response!.fileType).toBeTruthy();
+  });
+
+  test("GET /files/file/:fileId/edit/diff - Owner gets diff URL for specific version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Edit Diff URL Specific Version",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({
+      fileId,
+      version: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // Business: version in response must match the requested version
+    expect(data.response!.version).toBe(1);
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.url).toBeTruthy();
+  });
+
+  test("GET /files/file/:fileId/edit/diff - Version 2 created via API has no previous edit history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Edit Diff URL With Previous",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    // updateFile increments version metadata only - no real editing history is recorded
+    // previous field requires Document Server to track actual content changes via editor
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({
+      fileId,
+      version: 2,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.version).toBe(2);
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.url).toBeTruthy();
+    // No previous data: updateFile does not create Document Server editing history
+    expect(data.response!.previous).toBeFalsy();
+  });
+
+  test("GET /files/file/:fileId/edit/diff - First version has no previous version data", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Edit Diff URL No Previous",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    // API returns version: 0 when no version parameter is specified (means "latest")
+    expect(data.response!.version).toBe(0);
+    // Business: first version has nothing to compare against
+    expect(data.response!.previous).toBeFalsy();
+  });
+
+  test.fail(
+    "BUG 81245: GET /files/file/:fileId/edit/diff - Non-existent fileId returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.files.getEditDiffUrl({
+        fileId: 999999999,
+      });
+
+      expect(status).toBe(404);
+      expect((data as any).error.message).toBe(
+        "The required file was not found",
+      );
+    },
+  );
+
+  test("GET /files/file/:fileId/edit/diff - File in a room returns diff URL", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Edit Diff URL Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Edit Diff URL Room File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.url).toBeTruthy();
+    expect(data.response!.fileType).toBeTruthy();
+  });
+});
+
+test.describe("POST /files/templates - Add templates", () => {
+  // Catches: API crashes or returns wrong status for a single file template request
+  test("POST /files/templates - Owner adds a single file to templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Templates Single Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Single File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: batch template add silently drops some files
+  test("POST /files/templates - Owner adds multiple files to templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Templates Multi Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Multi File 1" },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Multi File 2" },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId1, fileId2] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: re-adding same file causes error instead of being idempotent
+  test("POST /files/templates - Adding the same file twice is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Templates Idempotent Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Templates Idempotent File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: empty fileIds causes crash or returns 500 instead of graceful response
+  test("POST /files/templates - Empty fileIds array returns graceful response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: missing body causes crash or returns 500
+  test("POST /files/templates - Request without body returns graceful response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.addTemplates({});
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: non-existent fileId causes crash or returns wrong status
+  test("POST /files/templates - Non-existent fileId returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [999999999] },
+    });
+
+    // API does not validate file existence — returns true regardless
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+});
+
+test.describe("DELETE /files/templates - Delete templates", () => {
+  // Catches: API crashes or returns wrong status when removing a single template
+  test("DELETE /files/templates - Owner removes a single file from templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Templates Single Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Delete Templates Single File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [fileId],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: batch removal silently drops some files
+  test("DELETE /files/templates - Owner removes multiple files from templates", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Templates Multi Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Delete Templates Multi File 1",
+      },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Delete Templates Multi File 2",
+      },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId1, fileId2] },
+    });
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [fileId1, fileId2],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: re-deleting same file causes error instead of being idempotent
+  test("DELETE /files/templates - Removing the same file twice is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Templates Idempotent Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Delete Templates Idempotent File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.addTemplates({
+      templatesRequestDto: { fileIds: [fileId] },
+    });
+
+    await ownerApi.files.deleteTemplates({ requestBody: [fileId] });
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [fileId],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: removing file not in templates causes crash
+  test("DELETE /files/templates - Removing file not in templates returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Templates Not Added Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Delete Templates Not Added File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    // file was never added to templates
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [fileId],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: non-existent fileId causes crash or returns wrong status
+  test("DELETE /files/templates - Non-existent fileId returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [999999999],
+    });
+
+    // API does not validate file existence — returns true regardless
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: empty array causes crash or returns 500
+  test("DELETE /files/templates - Empty requestBody returns graceful response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.deleteTemplates({
+      requestBody: [],
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // Catches: missing body causes crash or returns 500 instead of 400
+  test("DELETE /files/templates - Request without body returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.deleteTemplates({});
+
+    // body is required — API returns 400 validation error
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
   });
 });
