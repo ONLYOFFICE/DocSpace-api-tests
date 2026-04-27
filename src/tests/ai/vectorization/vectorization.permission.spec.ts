@@ -1,6 +1,6 @@
 import { test } from "@/src/fixtures";
 import { expect } from "@playwright/test";
-import { aiProviders } from "@/src/helpers/ai-providers";
+import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
 import {
   EmbeddingProviderType,
   FileShare,
@@ -31,11 +31,7 @@ test.describe("Vectorization - startTask permissions", () => {
         const ownerApi = apiSdk.forRole("owner");
 
         const { data: providerData } = await ownerApi.providers.addProvider({
-          createProviderRequestDto: {
-            type: provider.type,
-            title: provider.title,
-            key: provider.key,
-          },
+          createProviderRequestDto: toCreateDto(provider),
         });
         const providerId = providerData.response!.id!;
 
@@ -106,11 +102,7 @@ test.describe("Vectorization - startTask permissions", () => {
         const ownerApi = apiSdk.forRole("owner");
 
         const { data: providerData } = await ownerApi.providers.addProvider({
-          createProviderRequestDto: {
-            type: provider.type,
-            title: provider.title,
-            key: provider.key,
-          },
+          createProviderRequestDto: toCreateDto(provider),
         });
         const providerId = providerData.response!.id!;
 

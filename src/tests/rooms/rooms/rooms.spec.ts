@@ -1036,44 +1036,55 @@ test.describe("API rooms methods", () => {
       });
     });
 
-    // Bug 81110: GET /files/rooms/indexexport returns error instead of completing successfully
-    test.fail(
-      "BUG 81110: GET /files/rooms/indexexport - Owner export completes without error",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Index Export Room",
-            roomType: RoomType.VirtualDataRoom,
-            indexing: true,
-          },
-        });
-        const roomId = roomData.response!.id!;
+    test("BUG 81110: GET /files/rooms/indexexport - Owner export completes without error", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Room",
+          roomType: RoomType.VirtualDataRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { indexing: true },
+      });
+      await ownerApi.folders.getMyFolder({});
 
-        await test.step("POST /files/rooms/:id/indexexport - start export", async () => {
-          const { status } = await ownerApi.rooms.startRoomIndexExport({
-            id: roomId,
-          });
-          expect(status).toBe(200);
+      await test.step("GET /files/rooms/indexexport - check no active export", async () => {
+        const { status } = await ownerApi.rooms.getRoomIndexExport();
+        expect(status).toBe(200);
+      });
+
+      await test.step("POST /files/rooms/:id/indexexport - start export", async () => {
+        const { data, status } = await ownerApi.rooms.startRoomIndexExport({
+          id: roomId,
+        });
+        expect(status).toBe(200);
+        expect(data.response!.id).toBeDefined();
+        expect(data.response!.error).toBeFalsy();
+      });
+
+      await test.step("GET /files/rooms/indexexport - poll until completed", async () => {
+        let exportData: Awaited<
+          ReturnType<typeof ownerApi.rooms.getRoomIndexExport>
+        >;
+
+        await expect(async () => {
+          exportData = await ownerApi.rooms.getRoomIndexExport();
+          expect(exportData.status).toBe(200);
+          expect(exportData.data.response!.isCompleted).toBe(true);
+          expect(exportData.data.response!.error).toBeFalsy();
+        }).toPass({
+          intervals: [2_000, 5_000, 10_000],
+          timeout: 30_000,
         });
 
-        await test.step("GET /files/rooms/indexexport - poll until completed", async () => {
-          await expect(async () => {
-            const { data, status } = await ownerApi.rooms.getRoomIndexExport();
-            expect(status).toBe(200);
-            expect(data.response!.isCompleted).toBe(true);
-          }).toPass({
-            intervals: [2_000, 5_000, 10_000],
-            timeout: 60_000,
-          });
-
-          const { data, status } = await ownerApi.rooms.getRoomIndexExport();
-          expect(status).toBe(200);
-          expect(data.response!.error).toBeFalsy();
-          expect(data.response!.resultFileId).toBeTruthy();
-        });
-      },
-    );
+        expect(exportData!.data.response!.resultFileId).toBeTruthy();
+      });
+    });
   });
 
   // Could not trigger MarkAsNew via API - new items list is always empty. Contract test only.
@@ -1552,7 +1563,7 @@ test.describe("PUT /files/fileops/duplicate", () => {
   });
 
   test.fail(
-    "PUT /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room",
+    "BUG 81232: PUT /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room",
     async ({ apiSdk }) => {
       const { api: adminApi } = await apiSdk.addAuthenticatedMember(
         "owner",

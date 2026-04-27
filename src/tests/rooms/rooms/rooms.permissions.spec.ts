@@ -312,7 +312,7 @@ test.describe("DELETE /files/rooms/:id - access control", () => {
   });
 });
 
-test.describe("POST /files/fileops/move - access control", () => {
+test.describe("PUT /files/rooms/:id/archive - access control", () => {
   test("BUG 80938: Owner can archive room created by DocSpaceAdmin", async ({
     apiSdk,
   }) => {

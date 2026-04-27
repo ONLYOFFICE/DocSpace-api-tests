@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { aiProviders } from "@/src/helpers/ai-providers";
+import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
 import { readIconAsBase64 } from "@/src/utils/icon.utils";
 import config from "@/config";
 import { RoomType, ServerType } from "@onlyoffice/docspace-api-sdk";
@@ -29,11 +29,7 @@ test.describe("MCP Servers", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data, status } = await api.mcp.addServer({
@@ -77,11 +73,7 @@ test.describe("MCP Servers - Update", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await api.mcp.addServer({
@@ -118,11 +110,7 @@ test.describe("MCP Servers - Update", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await api.mcp.addServer({
@@ -161,11 +149,7 @@ test.describe("MCP Servers - Delete", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await api.mcp.addServer({
@@ -203,11 +187,7 @@ test.describe("MCP Servers - Delete", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const ts = Date.now();
@@ -251,11 +231,7 @@ test.describe("MCP Servers - Delete", () => {
 
     const provider = aiProviders.deepSeek;
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const ts = Date.now();
@@ -304,11 +280,7 @@ test.describe("MCP Servers - Delete", () => {
 
     const provider = aiProviders.deepSeek;
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await ownerApi.mcp.addServer({
@@ -350,11 +322,7 @@ test.describe("MCP Servers - Set Status", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await api.mcp.addServer({
@@ -388,11 +356,7 @@ test.describe("MCP Servers - Set Status", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await api.mcp.addServer({
@@ -433,11 +397,7 @@ test.describe("MCP Servers - Get", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const serverName = `mcp-basic-${Date.now()}`;
@@ -478,11 +438,7 @@ test.describe("MCP Servers - Get", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const serverName = `mcp-get-${Date.now()}`;
@@ -520,11 +476,7 @@ test.describe("MCP Servers - Get", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const ts = Date.now();
@@ -579,11 +531,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -629,11 +577,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -685,11 +629,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -734,11 +674,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -790,11 +726,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
     const ts = Date.now();
 
     await adminApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await adminApi.rooms.createRoom({
@@ -836,11 +768,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -887,11 +815,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -946,11 +870,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -998,11 +918,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1053,11 +969,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1112,11 +1024,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1175,11 +1083,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room1 } = await api.rooms.createRoom({
@@ -1241,11 +1145,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1301,11 +1201,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1381,11 +1277,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1432,11 +1324,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1488,11 +1376,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1537,11 +1421,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1595,11 +1475,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room1 } = await api.rooms.createRoom({
@@ -1679,11 +1555,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1733,11 +1605,7 @@ test.describe("MCP Servers - Get Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1782,11 +1650,7 @@ test.describe("MCP Servers - Get Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1837,11 +1701,7 @@ test.describe("MCP Servers - Get Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1888,11 +1748,7 @@ test.describe("MCP Servers - Get Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1964,11 +1820,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -2030,11 +1882,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -2097,11 +1945,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -2161,11 +2005,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -2225,11 +2065,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -2289,11 +2125,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -2350,11 +2182,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -2413,11 +2241,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -2468,11 +2292,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -2531,11 +2351,7 @@ test.describe("MCP Servers - Set Tools", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room1 } = await api.rooms.createRoom({
@@ -2772,11 +2588,7 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: aiProviders.deepSeek.type,
-        title: aiProviders.deepSeek.title,
-        key: aiProviders.deepSeek.key,
-      },
+      createProviderRequestDto: toCreateDto(aiProviders.deepSeek),
     });
 
     const { data: available } = await api.mcp.getAvailableServers();
@@ -3262,19 +3074,13 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
       )!;
       const builtInServerId = builtInServer.id!;
 
-      const { status, data: deleteData } = await api.mcp.deleteServer({
+      const { status } = await api.mcp.deleteServer({
         deleteServersRequestBody: { servers: new Set([builtInServerId]) },
       });
-      console.log("[delete] status:", status);
-      console.log("[delete] response:", JSON.stringify(deleteData));
 
       const { data: afterDelete } = await api.mcp.getAvailableServers();
       const stillPresent = afterDelete.response!.find(
         (s) => s.id === builtInServerId,
-      );
-      console.log(
-        "[delete] server still present after delete:",
-        !!stillPresent,
       );
 
       expect(status).not.toBe(204);
@@ -3295,20 +3101,15 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
       const originalName = builtInServer.name!;
       const newName = `renamed-${Date.now()}`;
 
-      const { status, data: updateData } = await api.mcp.updateServer({
+      const { status } = await api.mcp.updateServer({
         id: builtInServerId,
         updateServerRequestBody: { name: newName },
       });
-      console.log("[update] status:", status);
-      console.log("[update] response:", JSON.stringify(updateData));
 
       const { data: afterUpdate } = await api.mcp.getServer({
         id: builtInServerId,
       });
       const nameAfter = afterUpdate.response?.name;
-      console.log("[update] original name:", originalName);
-      console.log("[update] name after update attempt:", nameAfter);
-      console.log("[update] name changed:", nameAfter !== originalName);
 
       expect(status).not.toBe(200);
       expect(nameAfter).toBe(originalName);

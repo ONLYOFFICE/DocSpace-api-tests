@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { aiProviders } from "@/src/helpers/ai-providers";
+import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
 import config from "@/config";
 import { FileShare, RoomType, ServerType } from "@onlyoffice/docspace-api-sdk";
 
@@ -345,11 +345,7 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { status } = await api.mcp.addServer({
@@ -379,11 +375,7 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     await api.mcp.addServer({
@@ -415,11 +407,7 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await api.mcp.addServer({
@@ -456,11 +444,7 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await api.mcp.addServer({
@@ -496,11 +480,7 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const serverName = `mcp-admin-get-${Date.now()}`;
@@ -541,11 +521,7 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await api.mcp.addServer({
@@ -581,11 +557,7 @@ test.describe("MCP Servers - DocSpaceAdmin Access", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const ts = Date.now();
@@ -681,11 +653,7 @@ test.describe("MCP Servers - Delete Edge Cases", () => {
 
     const provider = aiProviders.deepSeek;
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: created } = await api.mcp.addServer({
@@ -785,11 +753,7 @@ test.describe("MCP Servers - Delete Room Servers Validation", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -832,11 +796,7 @@ test.describe("MCP Servers - Delete Room Servers Validation", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1077,11 +1037,7 @@ test.describe("MCP Servers - Get Tools Permissions", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1128,11 +1084,7 @@ test.describe("MCP Servers - Get Tools Permissions", () => {
     const ts = Date.now();
 
     await adminApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await adminApi.rooms.createRoom({
@@ -1250,11 +1202,7 @@ test.describe("MCP Servers - Get Tools Validation", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1330,11 +1278,7 @@ test.describe("MCP Servers - Set Tools Validation", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1402,11 +1346,7 @@ test.describe("MCP Servers - Set Tools Validation", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1455,11 +1395,7 @@ test.describe("MCP Servers - Set Tools Validation", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1514,11 +1450,7 @@ test.describe("MCP Servers - Set Tools Validation", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1575,11 +1507,7 @@ test.describe("MCP Servers - Set Tools Permissions", () => {
     const ts = Date.now();
 
     await api.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await api.rooms.createRoom({
@@ -1627,11 +1555,7 @@ test.describe("MCP Servers - Set Tools Permissions", () => {
     const ts = Date.now();
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data: room } = await ownerApi.rooms.createRoom({
