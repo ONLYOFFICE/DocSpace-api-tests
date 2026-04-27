@@ -3262,19 +3262,13 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
       )!;
       const builtInServerId = builtInServer.id!;
 
-      const { status, data: deleteData } = await api.mcp.deleteServer({
+      const { status } = await api.mcp.deleteServer({
         deleteServersRequestBody: { servers: new Set([builtInServerId]) },
       });
-      console.log("[delete] status:", status);
-      console.log("[delete] response:", JSON.stringify(deleteData));
 
       const { data: afterDelete } = await api.mcp.getAvailableServers();
       const stillPresent = afterDelete.response!.find(
         (s) => s.id === builtInServerId,
-      );
-      console.log(
-        "[delete] server still present after delete:",
-        !!stillPresent,
       );
 
       expect(status).not.toBe(204);
@@ -3295,20 +3289,15 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
       const originalName = builtInServer.name!;
       const newName = `renamed-${Date.now()}`;
 
-      const { status, data: updateData } = await api.mcp.updateServer({
+      const { status } = await api.mcp.updateServer({
         id: builtInServerId,
         updateServerRequestBody: { name: newName },
       });
-      console.log("[update] status:", status);
-      console.log("[update] response:", JSON.stringify(updateData));
 
       const { data: afterUpdate } = await api.mcp.getServer({
         id: builtInServerId,
       });
       const nameAfter = afterUpdate.response?.name;
-      console.log("[update] original name:", originalName);
-      console.log("[update] name after update attempt:", nameAfter);
-      console.log("[update] name changed:", nameAfter !== originalName);
 
       expect(status).not.toBe(200);
       expect(nameAfter).toBe(originalName);
