@@ -52,7 +52,8 @@ test.describe("API profiling tests for access rights", () => {
     const { data, status } = await ownerApi.profiles.addMember({
       memberRequestDto: userData,
     } as any); // TODO(sdk): SDK method input type too narrow — some fields missing from DTO
-    expect(data.statusCode).toBe(200);
+
+    expect(data.statusCode).toBe(400);
     expect(status).toBe(400);
     expect(
       ((data as any).response.errors as Record<string, string[]>).Email,
