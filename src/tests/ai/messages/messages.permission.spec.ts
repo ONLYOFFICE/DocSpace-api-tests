@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { FileShare } from "@onlyoffice/docspace-api-sdk";
-import { aiProviders } from "@/src/helpers/ai-providers";
+import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
 
 const provider = aiProviders.deepSeek;
 
@@ -12,11 +12,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -82,11 +78,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -152,11 +144,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -222,11 +210,7 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -295,11 +279,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -372,11 +352,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -449,11 +425,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -526,11 +498,7 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -609,11 +577,7 @@ test.describe("AI Messages - Export Validation", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -665,11 +629,7 @@ test.describe("AI Messages - Export Validation", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 

@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { FileShare, ToolExecutionDecision } from "@onlyoffice/docspace-api-sdk";
-import { aiProviders } from "@/src/helpers/ai-providers";
+import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
 import { parseSseEvents } from "@/src/helpers/parse-sse-events";
 import { UserType } from "@/src/services/api-sdk";
 
@@ -14,11 +14,7 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Guest cannot start a new c
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -72,11 +68,7 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -117,11 +109,7 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -162,11 +150,7 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -207,11 +191,7 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -255,11 +235,7 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Validation", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -332,11 +308,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Validation", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -419,11 +391,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -476,11 +444,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -533,11 +497,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -590,11 +550,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -650,11 +606,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -714,11 +666,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -778,11 +726,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -842,11 +786,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -912,11 +852,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -969,11 +905,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1026,11 +958,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1083,11 +1011,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1143,11 +1067,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1207,11 +1127,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1271,11 +1187,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1335,11 +1247,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1438,11 +1346,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1502,11 +1406,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1566,11 +1466,7 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1659,11 +1555,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1711,11 +1603,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1763,11 +1651,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1815,11 +1699,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1870,11 +1750,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1929,11 +1805,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -1988,11 +1860,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -2047,11 +1915,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -2112,11 +1976,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -2171,11 +2031,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -2230,11 +2086,7 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -2291,11 +2143,7 @@ test.describe("PUT /api/2.0/ai/rooms/:roomId/chats/config - Set user chats setti
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -2337,11 +2185,7 @@ test.describe("PUT /api/2.0/ai/rooms/:roomId/chats/config - Set user chats setti
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -2392,11 +2236,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -2492,11 +2332,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -2566,11 +2402,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -2625,11 +2457,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -2706,11 +2534,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -2758,11 +2582,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -2841,11 +2661,7 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -2913,11 +2729,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -2978,11 +2790,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -3072,11 +2880,7 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -3142,11 +2946,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest with Viewe
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -3218,11 +3018,7 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -3281,11 +3077,7 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest not in age
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = providerData.response!.id!;
 
@@ -3393,11 +3185,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -3462,11 +3250,7 @@ for (const userType of [
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 
@@ -3546,11 +3330,7 @@ for (const userType of ["User", "Guest"] as UserType[]) {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = providerData.response!.id!;
 

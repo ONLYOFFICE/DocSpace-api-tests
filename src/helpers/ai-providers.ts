@@ -1,4 +1,7 @@
-import { ProviderType } from "@onlyoffice/docspace-api-sdk";
+import {
+  ProviderType,
+  CreateProviderRequestDto,
+} from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
 
 export interface AiProviderConfig {
@@ -6,6 +9,30 @@ export interface AiProviderConfig {
   title: string;
   key: string;
   modelId: string;
+}
+
+function modelSettings(
+  modelId: string,
+): CreateProviderRequestDto["modelSettings"] {
+  return new Set([
+    {
+      modelId,
+      isEnabled: true,
+      alias: modelId,
+      capabilities: { vision: false, toolCalling: false, thinking: false },
+    },
+  ]);
+}
+
+export function toCreateDto(
+  provider: AiProviderConfig,
+): CreateProviderRequestDto {
+  return {
+    type: provider.type,
+    title: provider.title,
+    key: provider.key,
+    modelSettings: modelSettings(provider.modelId),
+  };
 }
 
 export const aiProviders: Record<string, AiProviderConfig> = {
@@ -25,7 +52,7 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     type: ProviderType.DeepSeek,
     title: "DeepSeek",
     key: config.DEEPSEEK_API_KEY,
-    modelId: "deepseek-chat",
+    modelId: "deepseek-v4-pro",
   },
   xAi: {
     type: ProviderType.XAi,
