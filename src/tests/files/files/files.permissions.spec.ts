@@ -4988,35 +4988,40 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
   });
 
   // Catches: DocSpaceAdmin silently blocked from tracking editing on their own room file
-  test.fail(
-    "BUG XXXXX: GET /files/file/:fileId/trackeditfile - DocSpaceAdmin gets 403 instead of 200",
-    async ({ apiSdk }) => {
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
+  test("GET /files/file/:fileId/trackeditfile - DocSpaceAdmin can track editing", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
 
-      const { data: roomData } = await adminApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest TrackEdit Admin Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TrackEdit Admin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await adminApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest TrackEdit Admin File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest TrackEdit Admin File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data, status } = await adminApi.files.trackEditFile({ fileId });
+    const { data: editData } = await adminApi.files.openEditFile({ fileId });
+    const docKeyForTrack = editData.response!.document!.key!;
 
-      expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
-      expect(typeof data.response!.key).toBe("boolean");
-    },
-  );
+    const { data, status } = await adminApi.files.trackEditFile({
+      fileId,
+      docKeyForTrack,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response!.key).toBe("boolean");
+  });
 });
 
 test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
