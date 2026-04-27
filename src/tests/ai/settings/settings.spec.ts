@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { aiProviders } from "@/src/helpers/ai-providers";
+import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
 import {
   EmbeddingProviderType,
   EngineType,
@@ -138,11 +138,7 @@ test.describe("AI Settings - setVectorizationSettings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data, status } = await ownerApi.aiSettings.setVectorizationSettings(
@@ -167,11 +163,7 @@ test.describe("AI Settings - setVectorizationSettings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
@@ -205,11 +197,7 @@ test.describe("AI Settings - getVectorizationSettings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     await ownerApi.aiSettings.setVectorizationSettings({
@@ -235,11 +223,7 @@ test.describe("AI Settings - getVectorizationSettings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     await ownerApi.aiSettings.setVectorizationSettings({
@@ -274,11 +258,7 @@ test.describe("AI Settings - setWebSearchSettings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data, status } = await ownerApi.aiSettings.setWebSearchSettings({
@@ -305,11 +285,7 @@ test.describe("AI Settings - setWebSearchSettings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
@@ -345,11 +321,7 @@ test.describe("AI Settings - getWebSearchSettings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     await ownerApi.aiSettings.setWebSearchSettings({
@@ -376,11 +348,7 @@ test.describe("AI Settings - getWebSearchSettings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     await ownerApi.aiSettings.setWebSearchSettings({

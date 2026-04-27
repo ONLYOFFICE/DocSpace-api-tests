@@ -1,6 +1,10 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { aiProviders, onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import {
+  aiProviders,
+  onlyofficeAiProvider,
+  toCreateDto,
+} from "@/src/helpers/ai-providers";
 import { topUpDeposit, buyWalletService } from "@/src/helpers/wallet-services";
 
 const provider = aiProviders.openAi;
@@ -14,11 +18,7 @@ test.describe("AI Providers - Permissions", () => {
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
 
       const { data, status } = await api.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
 
       expect(status).toBe(403);
@@ -32,11 +32,7 @@ test.describe("AI Providers - Permissions", () => {
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     expect(status).toBe(401);
@@ -48,19 +44,11 @@ test.describe("AI Providers - Permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { data, status } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     expect(status).toBe(400);
@@ -95,11 +83,7 @@ test.describe("AI Providers - Update Permissions", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: created } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = created.response!.id!;
 
@@ -121,11 +105,7 @@ test.describe("AI Providers - Update Permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: created } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = created.response!.id!;
 
@@ -145,20 +125,12 @@ test.describe("AI Providers - Update Permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const secondProvider = aiProviders.deepSeek;
     const { data: secondCreated } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: secondProvider.type,
-        title: secondProvider.title,
-        key: secondProvider.key,
-      },
+      createProviderRequestDto: toCreateDto(secondProvider),
     });
     const secondId = secondCreated.response!.id!;
 
@@ -194,11 +166,7 @@ test.describe("AI Providers - Delete Permissions", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: created } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = created.response!.id!;
 
@@ -221,11 +189,7 @@ test.describe("AI Providers - Delete Permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: created } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
     const providerId = created.response!.id!;
 
@@ -264,11 +228,7 @@ test.describe("AI Providers - Get Permissions", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
 
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
@@ -324,11 +284,7 @@ test.describe("AI Providers - Set Default Permissions", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       const { data: created } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: {
-          type: provider.type,
-          title: provider.title,
-          key: provider.key,
-        },
+        createProviderRequestDto: toCreateDto(provider),
       });
       const providerId = created.response!.id!;
 
@@ -385,11 +341,7 @@ test.describe("AI Providers - Get Default Permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: provider.type,
-        title: provider.title,
-        key: provider.key,
-      },
+      createProviderRequestDto: toCreateDto(provider),
     });
 
     const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
