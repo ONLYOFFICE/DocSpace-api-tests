@@ -4877,44 +4877,41 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
     },
   );
 
-  // BUG: permission check missing - Guest with Read receives HTTP 200 instead of 403
-  test.fail(
-    "BUG 81224: GET /files/file/:fileId/trackeditfile - Guest with Read access gets HTTP 200 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  // Catches: Guest with Read access should not be able to track editing
+  test("GET /files/file/:fileId/trackeditfile - Guest with Read access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest TrackEdit Guest Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TrackEdit Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest TrackEdit Guest File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest TrackEdit Guest File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { api: guestApi, data: memberData } =
-        await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const { api: guestApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [
-            { id: memberData.response!.id!, access: FileShare.Read },
-          ],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { status } = await guestApi.files.trackEditFile({ fileId });
+    const { status } = await guestApi.files.trackEditFile({ fileId });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   // Catches: User with RoomManager access silently denied from tracking editing
   test("GET /files/file/:fileId/trackeditfile - User with RoomManager access can track editing", async ({
