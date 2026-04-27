@@ -3557,35 +3557,34 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
 });
 
 test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
-  test.fail(
-    "BUG 81267: POST /files/file/:fileId/startedit - editingAlone: false returns 500 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81267: POST /files/file/:fileId/startedit - editingAlone: false returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Start Edit Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Start Edit Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest Start Edit File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Start Edit File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data, status } = await ownerApi.files.startEditFile({
-        fileId,
-        startEdit: { editingAlone: false },
-      });
+    const { data, status } = await ownerApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: false },
+    });
 
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("File editing start error");
-    },
-  );
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("File editing start error");
+  });
 
   test("POST /files/file/:fileId/startedit - Owner starts editing a file alone", async ({
     apiSdk,
@@ -3718,35 +3717,34 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     expect((data as any).error.message).toBe("The required file was not found");
   });
 
-  test.fail(
-    "BUG 81267: POST /files/file/:fileId/startedit - Request without editingAlone field returns 500 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81267: POST /files/file/:fileId/startedit - Request without editingAlone field returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest StartEdit No Body Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartEdit No Body Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest StartEdit No Body File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest StartEdit No Body File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data, status } = await ownerApi.files.startEditFile({
-        fileId,
-        startEdit: {},
-      });
+    const { data, status } = await ownerApi.files.startEditFile({
+      fileId,
+      startEdit: {},
+    });
 
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("File editing start error");
-    },
-  );
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("File editing start error");
+  });
 
   test("POST /files/file/:fileId/startedit - Second user starts editing a file already being edited", async ({
     apiSdk,
@@ -4301,202 +4299,207 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
   // response.value = document key string or null
 
   // Catches: API crashes or returns wrong status for a basic tracking call without optional params
-  test("GET /files/file/:fileId/trackeditfile - Owner tracks editing without optional params", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest TrackEdit Basic Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Basic File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data, status } = await ownerApi.files.trackEditFile({ fileId });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
-    // key: boolean - indicates whether the file is being actively edited
-    expect(typeof data.response!.key).toBe("boolean");
-  });
-
-  // Catches: isFinish=false causes unexpected error or changes state when it should not
-  test("GET /files/file/:fileId/trackeditfile - Owner tracks editing with isFinish=false", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest TrackEdit NotFinish Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit NotFinish File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data, status } = await ownerApi.files.trackEditFile({
-      fileId,
-      isFinish: false,
-    });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(typeof data.response!.key).toBe("boolean");
-  });
-
-  // Catches: isFinish=true causes error or reports file as still being edited after session close
-  test("GET /files/file/:fileId/trackeditfile - Owner finishes tracking with isFinish=true", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest TrackEdit Finish Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Finish File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data, status } = await ownerApi.files.trackEditFile({
-      fileId,
-      isFinish: true,
-    });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    // isFinish=true signals the end of the editing session:
-    // no active editing session exists, so key must be false
-    expect(data.response!.key).toBe(false);
-  });
-
-  // Catches: tabId parameter silently rejected or causes unexpected error
-  test("GET /files/file/:fileId/trackeditfile - Owner tracks editing with tabId", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest TrackEdit TabId Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit TabId File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data, status } = await ownerApi.files.trackEditFile({
-      fileId,
-      tabId: faker.string.uuid(),
-    });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
-  });
-
-  // Catches: docKeyForTrack parameter silently rejected or causes unexpected error
-  test("GET /files/file/:fileId/trackeditfile - Owner tracks editing with docKeyForTrack", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest TrackEdit DocKey Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit DocKey File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data, status } = await ownerApi.files.trackEditFile({
-      fileId,
-      docKeyForTrack: "autotest-dockey-000",
-    });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
-  });
-
-  // BUG: non-existent fileId returns HTTP 200 with error in value instead of HTTP 404
   test.fail(
-    "BUG 81219: GET /files/file/:fileId/trackeditfile - Non-existent fileId returns HTTP 200 instead of 404",
+    "BUG XXXXX: GET /files/file/:fileId/trackeditfile - Owner gets 403 instead of 200",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.files.trackEditFile({
-        fileId: 999999999,
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TrackEdit Basic Room",
+          roomType: RoomType.CustomRoom,
+        },
       });
+      const roomId = roomData.response!.id!;
 
-      expect(status).toBe(404);
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest TrackEdit Basic File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.files.trackEditFile({ fileId });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+      // key: boolean - indicates whether the file is being actively edited
+      expect(typeof data.response!.key).toBe("boolean");
     },
   );
 
-  // Catches: response missing required fields or key/value have wrong types
-  test("GET /files/file/:fileId/trackeditfile - Response has correct structure", async ({
+  // Catches: isFinish=false causes unexpected error or changes state when it should not
+  test.fail(
+    "BUG XXXXX: GET /files/file/:fileId/trackeditfile - Owner tracks editing with isFinish=false gets 403 instead of 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TrackEdit NotFinish Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest TrackEdit NotFinish File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.files.trackEditFile({
+        fileId,
+        isFinish: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(typeof data.response!.key).toBe("boolean");
+    },
+  );
+
+  // Catches: isFinish=true causes error or reports file as still being edited after session close
+  test.fail(
+    "BUG XXXXX: GET /files/file/:fileId/trackeditfile - Owner finishes tracking with isFinish=true gets 403 instead of 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TrackEdit Finish Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest TrackEdit Finish File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.files.trackEditFile({
+        fileId,
+        isFinish: true,
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      // isFinish=true signals the end of the editing session:
+      // no active editing session exists, so key must be false
+      expect(data.response!.key).toBe(false);
+    },
+  );
+
+  // Catches: tabId parameter silently rejected or causes unexpected error
+  test.fail(
+    "BUG XXXXX: GET /files/file/:fileId/trackeditfile - Owner tracks editing with tabId gets 403 instead of 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TrackEdit TabId Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest TrackEdit TabId File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.files.trackEditFile({
+        fileId,
+        tabId: faker.string.uuid(),
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+    },
+  );
+
+  // Catches: docKeyForTrack parameter silently rejected or causes unexpected error
+  test.fail(
+    "BUG XXXXX: GET /files/file/:fileId/trackeditfile - Owner tracks editing with docKeyForTrack gets 403 instead of 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TrackEdit DocKey Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest TrackEdit DocKey File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.files.trackEditFile({
+        fileId,
+        docKeyForTrack: "autotest-dockey-000",
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+    },
+  );
+
+  test("BUG 81219: GET /files/file/:fileId/trackeditfile - Non-existent fileId returns 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest TrackEdit Structure Room",
-        roomType: RoomType.CustomRoom,
-      },
+    const { status } = await ownerApi.files.trackEditFile({
+      fileId: 999999999,
     });
-    const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Structure File" },
-    });
-    const fileId = fileData.response!.id!;
-
-    const { data, status } = await ownerApi.files.trackEditFile({ fileId });
-
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
-    // key: boolean - active editing indicator
-    expect(typeof data.response!.key).toBe("boolean");
-    // value: string or null - document key / session identifier
-    expect(
-      data.response!.value === null || typeof data.response!.value === "string",
-    ).toBe(true);
+    expect(status).toBe(404);
   });
+
+  // Catches: response missing required fields or key/value have wrong types
+  test.fail(
+    "BUG XXXXX: GET /files/file/:fileId/trackeditfile - Response has correct structure gets 403 instead of 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TrackEdit Structure Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest TrackEdit Structure File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.files.trackEditFile({ fileId });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+      // key: boolean - active editing indicator
+      expect(typeof data.response!.key).toBe("boolean");
+      // value: string or null - document key / session identifier
+      expect(
+        data.response!.value === null ||
+          typeof data.response!.value === "string",
+      ).toBe(true);
+    },
+  );
 });
 
 test.describe("POST /files/thumbnails - Create thumbnails", () => {
@@ -4775,21 +4778,18 @@ test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
     expect(data.response!.previous).toBeFalsy();
   });
 
-  test.fail(
-    "BUG 81245: GET /files/file/:fileId/edit/diff - Non-existent fileId returns 403 instead of 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81245: GET /files/file/:fileId/edit/diff - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.files.getEditDiffUrl({
-        fileId: 999999999,
-      });
+    const { data, status } = await ownerApi.files.getEditDiffUrl({
+      fileId: 999999999,
+    });
 
-      expect(status).toBe(404);
-      expect((data as any).error.message).toBe(
-        "The required file was not found",
-      );
-    },
-  );
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("The required file was not found");
+  });
 
   test("GET /files/file/:fileId/edit/diff - File in a room returns diff URL", async ({
     apiSdk,

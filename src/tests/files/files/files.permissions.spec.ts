@@ -4849,75 +4849,71 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
 });
 
 test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permissions", () => {
-  // BUG: auth check missing - anonymous user receives HTTP 200 instead of 401
-  test.fail(
-    "BUG 81231: GET /files/file/:fileId/trackeditfile - Unauthenticated user gets HTTP 200 instead of 401",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  // Catches: unauthenticated user should not be able to track editing
+  test("BUG 81231: GET /files/file/:fileId/trackeditfile - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest TrackEdit Anon Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TrackEdit Anon Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest TrackEdit Anon File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest TrackEdit Anon File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await apiSdk
-        .forAnonymous()
-        .files.trackEditFile({ fileId });
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.trackEditFile({ fileId });
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 
-  // BUG: permission check missing - Guest with Read receives HTTP 200 instead of 403
-  test.fail(
-    "BUG 81224: GET /files/file/:fileId/trackeditfile - Guest with Read access gets HTTP 200 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  // Catches: Guest with Read access should not be able to track editing
+  test("BUG 81224: GET /files/file/:fileId/trackeditfile - Guest with Read access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest TrackEdit Guest Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TrackEdit Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest TrackEdit Guest File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest TrackEdit Guest File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { api: guestApi, data: memberData } =
-        await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const { api: guestApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [
-            { id: memberData.response!.id!, access: FileShare.Read },
-          ],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { status } = await guestApi.files.trackEditFile({ fileId });
+    const { status } = await guestApi.files.trackEditFile({ fileId });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
-  // Catches: User with RoomManager access silently denied from tracking editing
-  test("GET /files/file/:fileId/trackeditfile - User with RoomManager access can track editing", async ({
+  // Catches: User with RoomManager access should not be able to track editing (no edit rights)
+  test("GET /files/file/:fileId/trackeditfile - User with RoomManager access gets 403", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -4951,109 +4947,105 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
 
     const { data, status } = await userApi.files.trackEditFile({ fileId });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(typeof data.response!.key).toBe("boolean");
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
   });
 
-  // BUG: permission check missing - User with Read receives HTTP 200 instead of 403
-  test.fail(
-    "BUG 81225: GET /files/file/:fileId/trackeditfile - User with Read access gets HTTP 200 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest TrackEdit Read Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest TrackEdit Read File" },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { api: userApi, data: memberData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [
-            { id: memberData.response!.id!, access: FileShare.Read },
-          ],
-          notify: false,
-        },
-      });
-
-      const { status } = await userApi.files.trackEditFile({ fileId });
-
-      expect(status).toBe(403);
-    },
-  );
-
-  // Catches: DocSpaceAdmin silently blocked from tracking editing on their own room file
-  test("GET /files/file/:fileId/trackeditfile - DocSpaceAdmin can track editing", async ({
+  // Catches: User with Read access should not be able to track editing
+  test("BUG 81225: GET /files/file/:fileId/trackeditfile - User with Read access gets 403", async ({
     apiSdk,
   }) => {
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
+    const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await adminApi.rooms.createRoom({
+    const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
-        title: "Autotest TrackEdit Admin Room",
+        title: "Autotest TrackEdit Read Room",
         roomType: RoomType.CustomRoom,
       },
     });
     const roomId = roomData.response!.id!;
 
-    const { data: fileData } = await adminApi.files.createFile({
+    const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Admin File" },
+      createFileJsonElement: { title: "Autotest TrackEdit Read File" },
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await adminApi.files.trackEditFile({ fileId });
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(typeof data.response!.key).toBe("boolean");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.files.trackEditFile({ fileId });
+
+    expect(status).toBe(403);
   });
-});
 
-test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
-  // BUG: unauthenticated user receives HTTP 403 instead of HTTP 401
+  // Catches: DocSpaceAdmin silently blocked from tracking editing on their own room file
   test.fail(
-    "BUG 81268: POST /files/thumbnails - Unauthenticated user gets HTTP 403 instead of 401",
+    "BUG XXXXX: GET /files/file/:fileId/trackeditfile - DocSpaceAdmin gets 403 instead of 200",
     async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
+      const { data: roomData } = await adminApi.rooms.createRoom({
         createRoomRequestDto: {
-          title: "Autotest Thumbnails Anon Room",
+          title: "Autotest TrackEdit Admin Room",
           roomType: RoomType.CustomRoom,
         },
       });
       const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
+      const { data: fileData } = await adminApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest Thumbnails Anon File" },
+        createFileJsonElement: { title: "Autotest TrackEdit Admin File" },
       });
       const fileId = fileData.response!.id!;
 
-      const { status } = await apiSdk
-        .forAnonymous()
-        .files.createThumbnails({ baseBatchRequestDto: { fileIds: [fileId] } });
+      const { data, status } = await adminApi.files.trackEditFile({ fileId });
 
-      expect(status).toBe(401);
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(typeof data.response!.key).toBe("boolean");
     },
   );
+});
+
+test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
+  // Catches: unauthenticated user should not be able to create thumbnails
+  test("BUG 81268: POST /files/thumbnails - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Thumbnails Anon Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Thumbnails Anon File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.createThumbnails({ baseBatchRequestDto: { fileIds: [fileId] } });
+
+    expect(status).toBe(401);
+  });
 
   // Catches: Guest with Read access silently blocked from creating thumbnails
   test("POST /files/thumbnails - Guest with Read access can create thumbnails", async ({
@@ -5661,19 +5653,18 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
     expect(status).toBe(401);
   });
 
-  // BUG: guest receives HTTP 200 instead of HTTP 403 (unlike addTemplates which correctly returns 403 for guest)
-  test.fail(
-    "BUG 81274: DELETE /files/templates - Guest gets 200 instead of 403",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+  // Catches: guest should not be able to delete templates
+  test("BUG 81274: DELETE /files/templates - Guest gets 403", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { status } = await apiSdk
-        .forRole("guest")
-        .files.deleteTemplates({ requestBody: [1] });
+    const { status } = await apiSdk
+      .forRole("guest")
+      .files.deleteTemplates({ requestBody: [1] });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   // Catches: regular user silently blocked from deleting templates
   test("DELETE /files/templates - User can delete templates", async ({
