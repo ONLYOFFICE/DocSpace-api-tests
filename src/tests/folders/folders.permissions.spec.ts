@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () => {
   test("GET /api/2.0/files/folder/:folderId/path - Owner can get path of their own folder", async ({
@@ -532,5 +533,292 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     expect(status).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /files/{folderId}/upload/check - access control", () => {
+  // Catches: unauthenticated users can bypass auth and check folder contents
+  test("POST /files/{folderId}/upload/check - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check Auth",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const anonApi = apiSdk.forAnonymous();
+    const { status } = await anonApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: ["Some File.docx"] },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  // Catches: guests with Read access can check uploads despite having no upload permissions
+  test("POST /files/{folderId}/upload/check - Guest with Read access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check Guest",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: folderId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await guestApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: ["Some File.docx"] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  // Read-only access does not grant upload rights
+  test("POST /files/{folderId}/upload/check - User with Read access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check User Read",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: folderId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: ["Some File.docx"] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  // Editing access = edit existing files only, does not grant upload/create rights
+  test("POST /files/{folderId}/upload/check - User with Editing access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check User Editing",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: folderId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: ["New File.docx"] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: RoomAdmin is blocked from checking uploads in their own room
+  test("POST /files/{folderId}/upload/check - RoomAdmin gets 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: folderId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await roomAdminApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: ["New File.docx"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  // DocSpaceAdmin needs explicit RoomManager invitation to write into owner's rooms
+  test("POST /files/{folderId}/upload/check - DocSpaceAdmin gets 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check DocSpaceAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: folderId,
+      roomInvitationRequest: {
+        invitations: [{ id: adminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await adminApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: ["New File.docx"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  // Catches: Owner is unexpectedly blocked from checking uploads in their own room
+  test("POST /files/{folderId}/upload/check - Owner gets 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check Owner",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: ["New File.docx"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  // ContentCreator has upload rights in the room — checkUpload should be allowed
+  test("POST /files/{folderId}/upload/check - ContentCreator gets 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check ContentCreator",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: folderId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: ["New File.docx"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  // Archived room is read-only — upload check should be denied
+  test("POST /files/{folderId}/upload/check - Archived room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check Archived",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: folderId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await ownerApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: ["New File.docx"] },
+    });
+
+    expect(status).toBe(403);
   });
 });
