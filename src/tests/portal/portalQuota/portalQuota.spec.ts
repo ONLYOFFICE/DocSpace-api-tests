@@ -126,3 +126,117 @@ test.describe("GET /api/2.0/portal/quota - paid portal", () => {
     });
   }
 });
+
+test.describe("GET /api/2.0/portal/quota/right", () => {
+  for (const { role, label, needsSetup } of ROLES) {
+    test(`GET /api/2.0/portal/quota/right - ${label} gets right quota compared to current`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+
+      if (needsSetup) {
+        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      }
+
+      const client = apiSdk.forRole(role);
+
+      const [{ data: currentData }, { data: rightData, status }] =
+        await Promise.all([
+          client.portalQuota.getPortalQuota(),
+          client.portalQuota.getRightQuota(),
+        ]);
+
+      expect(status).toBe(200);
+      expect(rightData.statusCode).toBe(200);
+
+      const current = currentData.response!;
+      const right = rightData.response!;
+
+      // structure
+      expect(right.tenantId).toBeDefined();
+      expect(right.name).toBeDefined();
+      expect(right.productId).toBeTruthy();
+      expect(right.visible).toBe(true);
+      expect(right.features).toBeDefined();
+      expect(right.maxFileSize).toBeGreaterThan(0);
+      expect(right.maxTotalSize).toBeGreaterThan(0);
+      expect(right.countUser).toBeDefined();
+      expect(right.countRoomAdmin).toBeDefined();
+
+      // right quota should be cheaper or equal to current (it's the minimum needed)
+      expect(right.price).toBeLessThanOrEqual(current.price!);
+
+      // right quota covers less or equal storage than current
+      expect(right.maxTotalSize).toBeLessThanOrEqual(current.maxTotalSize!);
+
+      // right quota requires fewer or equal managers than current
+      expect(right.countRoomAdmin).toBeLessThanOrEqual(current.countRoomAdmin!);
+    });
+  }
+});
+
+test.describe("GET /api/2.0/portal/usedspace", () => {
+  for (const { role, label, needsSetup } of ROLES) {
+    test(`GET /api/2.0/portal/usedspace - ${label} gets portal used space`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+
+      if (needsSetup) {
+        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      }
+
+      const { data, status } = await apiSdk
+        .forRole(role)
+        .portalQuota.getPortalUsedSpace();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(typeof data.response).toBe("number");
+      expect(data.response).toBeGreaterThanOrEqual(0);
+    });
+  }
+});
+
+test.describe("GET /api/2.0/portal/tariff", () => {
+  for (const { role, label, needsSetup } of ROLES) {
+    test(`GET /api/2.0/portal/tariff - ${label} gets portal tariff`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+
+      if (needsSetup) {
+        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      }
+
+      const { data, status } = await apiSdk
+        .forRole(role)
+        .portalQuota.getPortalTariff();
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+
+      const tariff = data.response!;
+      expect((tariff as any).openSource).toBe(false);
+      expect((tariff as any).enterprise).toBe(false);
+      expect((tariff as any).developer).toBe(false);
+      expect(tariff.id).toBeDefined();
+      expect(tariff.state).toBe(1);
+      expect(tariff.dueDate).toBeTruthy();
+      expect(tariff.delayDueDate).toBeDefined();
+      expect(tariff.licenseDate).toBeDefined();
+      expect(tariff.customerId).toBeTruthy();
+
+      expect(Array.isArray(tariff.quotas)).toBe(true);
+      expect(tariff.quotas!.length).toBeGreaterThan(0);
+      for (const quota of tariff.quotas!) {
+        expect(quota.id).toBeDefined();
+        expect(quota.quantity).toBeDefined();
+        expect(quota.wallet).toBeDefined();
+      }
+    });
+  }
+});
