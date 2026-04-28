@@ -699,7 +699,7 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
   // Catches: API returns 500 or unexpected error instead of 404 for non-existent folderId
   test.fail(
-    "BUG XXXXX: POST /files/{folderId}/upload/check - Non-existent folderId returns 404",
+    "BUG 81330: POST /files/{folderId}/upload/check - Non-existent folderId returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -715,7 +715,7 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
   // Catches: API returns 500 or 200 with empty data instead of 400 when filesTitle is absent from request body
   test.fail(
-    "BUG XXXXX: POST /files/{folderId}/upload/check - Request without filesTitle returns 400",
+    "BUG 81331: POST /files/{folderId}/upload/check - Request without filesTitle returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
