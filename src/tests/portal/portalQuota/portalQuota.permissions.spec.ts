@@ -24,7 +24,7 @@ test.describe("GET /api/2.0/portal/quota - permissions", () => {
   });
 
   for (const { role, type } of RESTRICTED_ROLES) {
-    test(`BUG : GET /api/2.0/portal/quota - ${type} cannot get portal quota`, async ({
+    test(`BUG 81340: GET /api/2.0/portal/quota - ${type} cannot get portal quota`, async ({
       apiSdk,
     }) => {
       await apiSdk.addAuthenticatedMember("owner", type);
