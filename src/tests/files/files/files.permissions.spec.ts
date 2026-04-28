@@ -7,6 +7,7 @@ import {
   FileEntryType,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { createOoForm } from "@/src/helpers/files";
 import config from "@/config";
 
 test.describe("GET /files/file/:fileId - Get file info permissions", () => {
@@ -5923,4 +5924,238 @@ test.describe("GET /files/file/:fileId/isformpdf - isFormPDF permissions", () =>
 
     expect(status).toBe(403);
   });
+});
+
+test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions", () => {
+  test("GET /files/file/:fileId/formroles - Owner can get form roles", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Owner Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileId = await createOoForm(ownerApi, roomId);
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("GET /files/file/:fileId/formroles - DocSpace admin can get form roles", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Admin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileId = await createOoForm(ownerApi, roomId);
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.files.getAllFormRoles({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("GET /files/file/:fileId/formroles - User with Read access can get form roles", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Read Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileId = await createOoForm(ownerApi, roomId);
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.getAllFormRoles({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("GET /files/file/:fileId/formroles - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Unauth Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest GetAllFormRoles Unauth File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.getAllFormRoles({ fileId });
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /files/file/:fileId/formroles - User without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles No Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest GetAllFormRoles No Access File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.files.getAllFormRoles({ fileId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /files/file/:fileId/formroles - RoomAdmin can get form roles", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles RoomAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, roomId);
+
+    const { api: roomAdminApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await roomAdminApi.files.getAllFormRoles({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("GET /files/file/:fileId/formroles - ContentCreator can get form roles", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles ContentCreator Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, roomId);
+
+    const { api: creatorApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await creatorApi.files.getAllFormRoles({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test.fail(
+    "BUG XXXXX: GET /files/file/:fileId/formroles - Guest without room access gets 200 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetAllFormRoles Guest Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const pdfFormId = await createOoForm(ownerApi, roomId);
+
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { status } = await apiSdk
+        .forRole("guest")
+        .files.getAllFormRoles({ fileId: pdfFormId });
+
+      expect(status).toBe(403);
+    },
+  );
 });
