@@ -9,6 +9,7 @@ import {
   FileEntryType,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { createOoForm } from "@/src/helpers/files";
 import { faker } from "@faker-js/faker";
 
 test.describe("POST /files/@my/file", () => {
@@ -5281,4 +5282,197 @@ test.describe("GET /files/file/:fileId/isformpdf", () => {
     expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
+
+  test("GET /files/file/:fileId/isformpdf - ONLYOFFICE PDF form returns true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF OO Form Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, roomId);
+
+    const { data, status } = await ownerApi.files.isFormPDF({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+});
+
+test.describe("GET /files/file/:fileId/formroles", () => {
+  // Freshly created ONLYOFFICE PDF form has no roles defined yet
+  test("GET /files/file/:fileId/formroles - ONLYOFFICE PDF form returns empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles OO Form Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, roomId);
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  // Regular office file is not a form — endpoint rejects with 403
+  test("GET /files/file/:fileId/formroles - Regular .docx file returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Docx Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest GetAllFormRoles Docx File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({ fileId });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  // .docxf is a form template, not a PDF form
+  test("GET /files/file/:fileId/formroles - .docxf form template returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Docxf Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: docxData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest GetAllFormRoles Source.docx" },
+    });
+    const docxId = docxData.response!.id!;
+
+    const { data: copyData } = await ownerApi.files.copyFileAs({
+      fileId: docxId,
+      copyAsJsonElement: {
+        destTitle: "Autotest GetAllFormRoles Template.docxf",
+        destFolderId: roomId,
+        toForm: true,
+      },
+    });
+    const docxfId = (copyData.response as any).id as number;
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: docxfId,
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("GET /files/file/:fileId/formroles - OO form in archived room returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Archive Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, roomId);
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /files/file/:fileId/formroles - OO form in My Documents returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsId = myDocsData.response!.current!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, myDocsId);
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /files/file/:fileId/formroles - fileId=0 returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: 0,
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test.fail(
+    "BUG XXXXX: GET /files/file/:fileId/formroles - Non-existent file returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.files.getAllFormRoles({
+        fileId: 999999999,
+      });
+
+      expect(status).toBe(404);
+      expect(data.statusCode).toBe(404);
+    },
+  );
 });
