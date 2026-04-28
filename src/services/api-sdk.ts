@@ -45,6 +45,7 @@ import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vecto
 import { MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/mcpapi";
 import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { ApiKeysApi } from "@onlyoffice/docspace-api-sdk/dist/api/api-keys/api-keys-api";
+import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -180,6 +181,7 @@ export class ApiSDK {
       users: new UsersApi(config, undefined, axiosInstance),
       mcp: new MCPApi(config, undefined, axiosInstance),
       apiKeys: new ApiKeysApi(config, undefined, axiosInstance),
+      portalQuota: new PortalQuotaApi(config, undefined, axiosInstance),
     };
   }
 
@@ -239,6 +241,7 @@ export class ApiSDK {
       users: new UsersApi(config, undefined, axiosInstance),
       mcp: new MCPApi(config, undefined, axiosInstance),
       apiKeys: new ApiKeysApi(config, undefined, axiosInstance),
+      portalQuota: new PortalQuotaApi(config, undefined, axiosInstance),
     };
   }
 
