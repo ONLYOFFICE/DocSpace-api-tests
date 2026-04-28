@@ -5168,3 +5168,117 @@ test.describe("DELETE /files/templates - Delete templates", () => {
     expect(data.statusCode).toBe(400);
   });
 });
+
+test.describe("GET /files/file/:fileId/isformpdf", () => {
+  // Regular office file is not an ONLYOFFICE PDF form
+  test("GET /files/file/:fileId/isformpdf - Regular .docx file returns false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF Docx Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest IsFormPDF Docx File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.isFormPDF({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  // Regular PDF converted from .docx is not an ONLYOFFICE PDF form
+  test("GET /files/file/:fileId/isformpdf - Regular PDF converted from .docx returns false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: sourceData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest IsFormPDF Source Docx" },
+    });
+    const sourceFileId = sourceData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF PDF Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: pdfData } = await ownerApi.files.saveFileAsPdf({
+      id: sourceFileId,
+      saveAsPdfInteger: { folderId, title: "Autotest IsFormPDF Converted PDF" },
+    });
+    const pdfFileId = pdfData.response!.id!;
+
+    const { data, status } = await ownerApi.files.isFormPDF({
+      fileId: pdfFileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  // .docxf is an OOXML form template, not an ONLYOFFICE PDF form
+  test("GET /files/file/:fileId/isformpdf - .docxf form template returns false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: sourceData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest IsFormPDF Source" },
+    });
+    const sourceFileId = sourceData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF Docxf Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: copyData } = await ownerApi.files.copyFileAs({
+      fileId: sourceFileId,
+      copyAsJsonElement: {
+        destTitle: "Autotest IsFormPDF Form.docxf",
+        destFolderId: roomId,
+        toForm: true,
+      },
+    });
+    const formFileId = (copyData.response as any).id as number;
+
+    const { data, status } = await ownerApi.files.isFormPDF({
+      fileId: formFileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("GET /files/file/:fileId/isformpdf - Non-existent file returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.isFormPDF({
+      fileId: 999999999,
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+  });
+});
