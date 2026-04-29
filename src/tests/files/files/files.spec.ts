@@ -8,6 +8,8 @@ import {
   MessageAction,
   FileEntryType,
 } from "@onlyoffice/docspace-api-sdk";
+import { readFileSync } from "fs";
+import path from "path";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { createOoForm } from "@/src/helpers/files";
 import { faker } from "@faker-js/faker";
@@ -5306,6 +5308,42 @@ test.describe("GET /files/file/:fileId/isformpdf", () => {
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
+
+  test("GET /files/file/:fileId/isformpdf - Uploaded OO form binary returns true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF Binary Form Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const buffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
+    );
+
+    const { data: insertData, status: insertStatus } =
+      await apiSdk.insertBinaryFile(
+        "owner",
+        roomId,
+        buffer,
+        "oo-form-empty.pdf",
+      );
+    expect(insertStatus, `Insert failed: ${JSON.stringify(insertData)}`).toBe(
+      200,
+    );
+    const fileId = insertData.response.id as number;
+
+    const { data, status } = await ownerApi.files.isFormPDF({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
 });
 
 test.describe("GET /files/file/:fileId/formroles", () => {
@@ -5463,7 +5501,7 @@ test.describe("GET /files/file/:fileId/formroles", () => {
   });
 
   test.fail(
-    "BUG XXXXX: GET /files/file/:fileId/formroles - Non-existent file returns 403 instead of 404",
+    "BUG 81346: GET /files/file/:fileId/formroles - Non-existent file returns 403 instead of 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -5475,4 +5513,78 @@ test.describe("GET /files/file/:fileId/formroles", () => {
       expect(data.statusCode).toBe(404);
     },
   );
+});
+
+test.describe("GET /files/file/fillresult - Get fill result", () => {
+  test("GET /files/file/fillresult - No fillingSessionId returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getFillResult({});
+
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+  });
+
+  test("GET /files/file/fillresult - Non-existent fillingSessionId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const nonExistentSessionId = faker.string.uuid();
+
+    const { data, status } = await ownerApi.files.getFillResult({
+      fillingSessionId: nonExistentSessionId,
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+
+    expect((data as any).error?.message).toBe("The record could not be found");
+  });
+
+  test("GET /files/file/fillresult - Invalid UUID format returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getFillResult({
+      fillingSessionId: "invalid-uuid-format",
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+    expect((data as any).error?.message).toBe("The record could not be found");
+  });
+
+  test("GET /files/file/fillresult - Empty fillingSessionId returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getFillResult({
+      fillingSessionId: "",
+    });
+
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+    expect((data as any).error.message).toContain("Value cannot be null");
+    expect((data as any).error.message).toContain("Parameter 'key'");
+  });
+
+  test("GET /files/file/fillresult - Very long fillingSessionId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const longId = "a".repeat(100);
+
+    const { data, status } = await ownerApi.files.getFillResult({
+      fillingSessionId: longId,
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+    expect((data as any).error?.message).toBe("The record could not be found");
+  });
 });
