@@ -9,6 +9,7 @@ import {
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { createOoForm } from "@/src/helpers/files";
 import config from "@/config";
+import { faker } from "@faker-js/faker";
 
 test.describe("GET /files/file/:fileId - Get file info permissions", () => {
   test("GET /files/file/:fileId - DocSpace admin can get file info", async ({
@@ -6135,7 +6136,7 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
   });
 
   test.fail(
-    "BUG XXXXX: GET /files/file/:fileId/formroles - Guest without room access gets 200 instead of 403",
+    "BUG 81348: GET /files/file/:fileId/formroles - Guest without room access gets 200 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -6156,6 +6157,37 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
         .files.getAllFormRoles({ fileId: pdfFormId });
 
       expect(status).toBe(403);
+    },
+  );
+});
+test.describe("GET /files/file/fillresult - Get fill result permissions", () => {
+  test("GET /files/file/fillresult - Unauthenticated returns 404", async ({
+    apiSdk,
+  }) => {
+    const sessionId = faker.string.uuid();
+
+    const { data, status } = await apiSdk.forAnonymous().files.getFillResult({
+      fillingSessionId: sessionId,
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+
+    expect((data as any).error?.message).toBe("The record could not be found");
+  });
+
+  test.fail(
+    "BUG XXXXX: GET /files/file/fillresult - Unauthenticated returns 404 instead of 401",
+    async ({ apiSdk }) => {
+      const sessionId = faker.string.uuid();
+
+      const { data, status } = await apiSdk.forAnonymous().files.getFillResult({
+        fillingSessionId: sessionId,
+      });
+
+      expect(status).toBe(401);
+      expect(data.statusCode).toBe(401);
+      expect((data as any).error?.message).toBe("Unauthorized");
     },
   );
 });
