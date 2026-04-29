@@ -24,17 +24,18 @@ test.describe("GET /api/2.0/portal/quota - permissions", () => {
   });
 
   for (const { role, type } of RESTRICTED_ROLES) {
-    test.fail(`BUG 81340: GET /api/2.0/portal/quota - ${type} cannot get portal quota`, async ({
-      apiSdk,
-    }) => {
-      await apiSdk.addAuthenticatedMember("owner", type);
+    test.fail(
+      `BUG 81340: GET /api/2.0/portal/quota - ${type} cannot get portal quota`,
+      async ({ apiSdk }) => {
+        await apiSdk.addAuthenticatedMember("owner", type);
 
-      const { data, status } = await apiSdk
-        .forRole(role)
-        .portalQuota.getPortalQuota();
-      expect(status).toBe(403);
-      expect((data as any)?.error?.message).toBe("Access denied");
-    });
+        const { data, status } = await apiSdk
+          .forRole(role)
+          .portalQuota.getPortalQuota();
+        expect(status).toBe(403);
+        expect((data as any)?.error?.message).toBe("Access denied");
+      },
+    );
   }
 });
 
