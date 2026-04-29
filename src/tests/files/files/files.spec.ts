@@ -5588,3 +5588,47 @@ test.describe("GET /files/file/fillresult - Get fill result", () => {
     expect((data as any).error?.message).toBe("The record could not be found");
   });
 });
+
+test.describe("GET /files/file/:fileId/presigned - Get presigned file URI", () => {
+  test("GET /files/file/:fileId/presigned - Valid file returns 200 with url and filetype", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetPresignedFileUri Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest GetPresignedFileUri File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getPresignedFileUri({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.url).toMatch(/^https?:\/\//);
+    expect(data.response!.filetype).toBe(".docx");
+  });
+
+  test("GET /files/file/:fileId/presigned - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getPresignedFileUri({
+      fileId: 999999999,
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+  });
+});
