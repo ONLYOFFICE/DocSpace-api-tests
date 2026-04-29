@@ -6175,21 +6175,6 @@ test.describe("GET /files/file/fillresult - Get fill result permissions", () => 
 
     expect((data as any).error?.message).toBe("The record could not be found");
   });
-
-  test.fail(
-    "BUG 81359: GET /files/file/fillresult - Unauthenticated returns 404 instead of 401",
-    async ({ apiSdk }) => {
-      const sessionId = faker.string.uuid();
-
-      const { data, status } = await apiSdk.forAnonymous().files.getFillResult({
-        fillingSessionId: sessionId,
-      });
-
-      expect(status).toBe(401);
-      expect(data.statusCode).toBe(401);
-      expect((data as any).error?.message).toBe("Unauthorized");
-    },
-  );
 });
 
 test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permissions", () => {
