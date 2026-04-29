@@ -6177,7 +6177,7 @@ test.describe("GET /files/file/fillresult - Get fill result permissions", () => 
   });
 
   test.fail(
-    "BUG XXXXX: GET /files/file/fillresult - Unauthenticated returns 404 instead of 401",
+    "BUG 81359: GET /files/file/fillresult - Unauthenticated returns 404 instead of 401",
     async ({ apiSdk }) => {
       const sessionId = faker.string.uuid();
 
@@ -6190,4 +6190,213 @@ test.describe("GET /files/file/fillresult - Get fill result permissions", () => 
       expect((data as any).error?.message).toBe("Unauthorized");
     },
   );
+});
+
+test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permissions", () => {
+  test("GET /files/file/:fileId/presigned - Unauthenticated returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetPresignedFileUri Unauth Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest GetPresignedFileUri Unauth File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.getPresignedFileUri({ fileId });
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /files/file/:fileId/presigned - DocSpace admin can get presigned URI", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetPresignedFileUri Admin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest GetPresignedFileUri Admin File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.files.getPresignedFileUri({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.url).toBeTruthy();
+  });
+
+  test("GET /files/file/:fileId/presigned - RoomAdmin can get presigned URI", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetPresignedFileUri RoomAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest GetPresignedFileUri RoomAdmin File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: roomAdminApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await roomAdminApi.files.getPresignedFileUri({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.url).toBeTruthy();
+  });
+
+  test("GET /files/file/:fileId/presigned - User with read access can get presigned URI", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetPresignedFileUri User Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest GetPresignedFileUri User File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.getPresignedFileUri({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.url).toBeTruthy();
+  });
+
+  test("GET /files/file/:fileId/presigned - User without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetPresignedFileUri No Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest GetPresignedFileUri No Access File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .files.getPresignedFileUri({ fileId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /files/file/:fileId/presigned - Guest without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetPresignedFileUri Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest GetPresignedFileUri Guest File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .files.getPresignedFileUri({ fileId });
+
+    expect(status).toBe(403);
+  });
 });
