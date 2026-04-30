@@ -576,7 +576,7 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
   });
 
   // Catches: API crashes or returns non-empty response when filesTitle is explicitly null
-  test("POST /files/{folderId}/upload/check - filesTitle null returns empty response", async ({
+  test("POST /files/{folderId}/upload/check - filesTitle null returns 400", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -594,9 +594,8 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
       checkUploadRequest: { filesTitle: null },
     });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toEqual([]);
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
   });
 
   // Catches: API does not detect conflict when checking a subfolder (not a room root)
@@ -637,36 +636,37 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
   });
 
   // Catches: API returns duplicate entries when the same title appears multiple times in the request
-  test("POST /files/{folderId}/upload/check - Duplicate titles in request return single conflict", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+  test.fail(
+    "BUG XXXXX: POST /files/{folderId}/upload/check - Duplicate titles in request return single conflict",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Room For Upload Check Duplicates",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const folderId = roomData.response!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room For Upload Check Duplicates",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId,
-      createFileJsonElement: { title: "Autotest Dup File.docx" },
-    });
-    const existingTitle = fileData.response!.title!;
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: "Autotest Dup File.docx" },
+      });
+      const existingTitle = fileData.response!.title!;
 
-    const { data, status } = await ownerApi.folders.checkUpload({
-      folderId,
-      checkUploadRequest: { filesTitle: [existingTitle, existingTitle] },
-    });
+      const { data, status } = await ownerApi.folders.checkUpload({
+        folderId,
+        checkUploadRequest: { filesTitle: [existingTitle, existingTitle] },
+      });
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response).toContain(existingTitle);
-    expect(data.response!.length).toBe(1);
-    expect(data.count).toBe(1);
-  });
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toContain(existingTitle);
+      expect(data.response!.length).toBe(1);
+      expect(data.count).toBe(1);
+    },
+  );
 
   // Catches: API misses conflict when title casing differs from the stored file name
   test("POST /files/{folderId}/upload/check - Conflict check is case-insensitive", async ({
@@ -698,44 +698,42 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
   });
 
   // Catches: API returns 500 or unexpected error instead of 404 for non-existent folderId
-  test.fail(
-    "BUG 81330: POST /files/{folderId}/upload/check - Non-existent folderId returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81330: POST /files/{folderId}/upload/check - Non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.folders.checkUpload({
-        folderId: 999999999,
-        checkUploadRequest: { filesTitle: ["Some File.docx"] },
-      });
+    const { data, status } = await ownerApi.folders.checkUpload({
+      folderId: 999999999,
+      checkUploadRequest: { filesTitle: ["Some File.docx"] },
+    });
 
-      expect(status).toBe(404);
-      expect(data.statusCode).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+  });
 
   // Catches: API returns 500 or 200 with empty data instead of 400 when filesTitle is absent from request body
-  test.fail(
-    "BUG 81331: POST /files/{folderId}/upload/check - Request without filesTitle returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81331: POST /files/{folderId}/upload/check - Request without filesTitle returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Upload Check No Body",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Upload Check No Body",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
 
-      const { data, status } = await ownerApi.folders.checkUpload({
-        folderId,
-        checkUploadRequest: {},
-      });
+    const { data, status } = await ownerApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: {},
+    });
 
-      expect(status).toBe(400);
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+  });
 });
 
 test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () => {

@@ -350,6 +350,34 @@ export class ApiSDK {
     );
   }
 
+  async insertBinaryFile(
+    role: Role,
+    folderId: number,
+    fileBuffer: Buffer,
+    title: string,
+  ) {
+    const url = new URL(
+      `${this.tokenStore.portalBaseUrl}/api/2.0/files/${folderId}/insert`,
+    );
+    url.searchParams.set("title", title);
+    const response = await this.request.fetch(url.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.tokenStore.getToken(role)}`,
+        Origin: `http://${this.tokenStore.newTenantDomain}`,
+        "Content-Type": "application/octet-stream",
+      },
+      data: fileBuffer,
+    });
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      data = await response.text();
+    }
+    return { data: data as any, status: response.status() };
+  }
+
   async uploadRoomLogo(role: Role, imageBuffer: Buffer) {
     const formData = new FormData();
     formData.append(
