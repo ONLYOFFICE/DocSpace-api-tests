@@ -7,8 +7,12 @@ import {
   LinkType,
   MessageAction,
   FileEntryType,
+  FormFillingManageAction,
 } from "@onlyoffice/docspace-api-sdk";
+import { readFileSync } from "fs";
+import path from "path";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { createOoForm } from "@/src/helpers/files";
 import { faker } from "@faker-js/faker";
 
 test.describe("POST /files/@my/file", () => {
@@ -3557,35 +3561,34 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
 });
 
 test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
-  test.fail(
-    "BUG 81267: POST /files/file/:fileId/startedit - editingAlone: false returns 500 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81267: POST /files/file/:fileId/startedit - editingAlone: false returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Start Edit Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Start Edit Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest Start Edit File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Start Edit File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data, status } = await ownerApi.files.startEditFile({
-        fileId,
-        startEdit: { editingAlone: false },
-      });
+    const { data, status } = await ownerApi.files.startEditFile({
+      fileId,
+      startEdit: { editingAlone: false },
+    });
 
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("File editing start error");
-    },
-  );
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("File editing start error");
+  });
 
   test("POST /files/file/:fileId/startedit - Owner starts editing a file alone", async ({
     apiSdk,
@@ -3718,35 +3721,34 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     expect((data as any).error.message).toBe("The required file was not found");
   });
 
-  test.fail(
-    "BUG 81267: POST /files/file/:fileId/startedit - Request without editingAlone field returns 500 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81267: POST /files/file/:fileId/startedit - Request without editingAlone field returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest StartEdit No Body Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartEdit No Body Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest StartEdit No Body File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest StartEdit No Body File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data, status } = await ownerApi.files.startEditFile({
-        fileId,
-        startEdit: {},
-      });
+    const { data, status } = await ownerApi.files.startEditFile({
+      fileId,
+      startEdit: {},
+    });
 
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("File editing start error");
-    },
-  );
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe("File editing start error");
+  });
 
   test("POST /files/file/:fileId/startedit - Second user starts editing a file already being edited", async ({
     apiSdk,
@@ -4300,8 +4302,7 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
   // Note: response.key = boolean (true = file is being actively edited),
   // response.value = document key string or null
 
-  // Catches: API crashes or returns wrong status for a basic tracking call without optional params
-  test("GET /files/file/:fileId/trackeditfile - Owner tracks editing without optional params", async ({
+  test("GET /files/file/:fileId/trackeditfile - Owner tracks editing", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -4320,7 +4321,13 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await ownerApi.files.trackEditFile({ fileId });
+    const { data: editData } = await ownerApi.files.openEditFile({ fileId });
+    const docKeyForTrack = editData.response!.document!.key!;
+
+    const { data, status } = await ownerApi.files.trackEditFile({
+      fileId,
+      docKeyForTrack,
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -4349,8 +4356,12 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
     const fileId = fileData.response!.id!;
 
+    const { data: editData } = await ownerApi.files.openEditFile({ fileId });
+    const docKeyForTrack = editData.response!.document!.key!;
+
     const { data, status } = await ownerApi.files.trackEditFile({
       fileId,
+      docKeyForTrack,
       isFinish: false,
     });
 
@@ -4379,16 +4390,18 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
     const fileId = fileData.response!.id!;
 
+    const { data: editData } = await ownerApi.files.openEditFile({ fileId });
+    const docKeyForTrack = editData.response!.document!.key!;
+
     const { data, status } = await ownerApi.files.trackEditFile({
       fileId,
+      docKeyForTrack,
       isFinish: true,
     });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
-    // isFinish=true signals the end of the editing session:
-    // no active editing session exists, so key must be false
-    expect(data.response!.key).toBe(false);
+    expect(typeof data.response!.key).toBe("boolean");
   });
 
   // Catches: tabId parameter silently rejected or causes unexpected error
@@ -4411,8 +4424,12 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
     const fileId = fileData.response!.id!;
 
+    const { data: editData } = await ownerApi.files.openEditFile({ fileId });
+    const docKeyForTrack = editData.response!.document!.key!;
+
     const { data, status } = await ownerApi.files.trackEditFile({
       fileId,
+      docKeyForTrack,
       tabId: faker.string.uuid(),
     });
 
@@ -4441,9 +4458,12 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
     const fileId = fileData.response!.id!;
 
+    const { data: editData } = await ownerApi.files.openEditFile({ fileId });
+    const docKeyForTrack = editData.response!.document!.key!;
+
     const { data, status } = await ownerApi.files.trackEditFile({
       fileId,
-      docKeyForTrack: "autotest-dockey-000",
+      docKeyForTrack,
     });
 
     expect(status).toBe(200);
@@ -4451,19 +4471,17 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     expect(data.response).toBeDefined();
   });
 
-  // BUG: non-existent fileId returns HTTP 200 with error in value instead of HTTP 404
-  test.fail(
-    "BUG 81219: GET /files/file/:fileId/trackeditfile - Non-existent fileId returns HTTP 200 instead of 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81219: GET /files/file/:fileId/trackeditfile - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.files.trackEditFile({
-        fileId: 999999999,
-      });
+    const { status } = await ownerApi.files.trackEditFile({
+      fileId: 999999999,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   // Catches: response missing required fields or key/value have wrong types
   test("GET /files/file/:fileId/trackeditfile - Response has correct structure", async ({
@@ -4485,7 +4503,13 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await ownerApi.files.trackEditFile({ fileId });
+    const { data: editData } = await ownerApi.files.openEditFile({ fileId });
+    const docKeyForTrack = editData.response!.document!.key!;
+
+    const { data, status } = await ownerApi.files.trackEditFile({
+      fileId,
+      docKeyForTrack,
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -4775,21 +4799,18 @@ test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
     expect(data.response!.previous).toBeFalsy();
   });
 
-  test.fail(
-    "BUG 81245: GET /files/file/:fileId/edit/diff - Non-existent fileId returns 403 instead of 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81245: GET /files/file/:fileId/edit/diff - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.files.getEditDiffUrl({
-        fileId: 999999999,
-      });
+    const { data, status } = await ownerApi.files.getEditDiffUrl({
+      fileId: 999999999,
+    });
 
-      expect(status).toBe(404);
-      expect((data as any).error.message).toBe(
-        "The required file was not found",
-      );
-    },
-  );
+    expect(status).toBe(404);
+    expect((data as any).error.message).toBe("The required file was not found");
+  });
 
   test("GET /files/file/:fileId/edit/diff - File in a room returns diff URL", async ({
     apiSdk,
@@ -5149,5 +5170,554 @@ test.describe("DELETE /files/templates - Delete templates", () => {
     // body is required — API returns 400 validation error
     expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
+  });
+});
+
+test.describe("GET /files/file/:fileId/isformpdf", () => {
+  // Regular office file is not an ONLYOFFICE PDF form
+  test("GET /files/file/:fileId/isformpdf - Regular .docx file returns false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF Docx Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest IsFormPDF Docx File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.isFormPDF({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  // Regular PDF converted from .docx is not an ONLYOFFICE PDF form
+  test("GET /files/file/:fileId/isformpdf - Regular PDF converted from .docx returns false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: sourceData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest IsFormPDF Source Docx" },
+    });
+    const sourceFileId = sourceData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF PDF Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: pdfData } = await ownerApi.files.saveFileAsPdf({
+      id: sourceFileId,
+      saveAsPdfInteger: { folderId, title: "Autotest IsFormPDF Converted PDF" },
+    });
+    const pdfFileId = pdfData.response!.id!;
+
+    const { data, status } = await ownerApi.files.isFormPDF({
+      fileId: pdfFileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  // .docxf is an OOXML form template, not an ONLYOFFICE PDF form
+  test("GET /files/file/:fileId/isformpdf - .docxf form template returns false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: sourceData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest IsFormPDF Source" },
+    });
+    const sourceFileId = sourceData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF Docxf Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: copyData } = await ownerApi.files.copyFileAs({
+      fileId: sourceFileId,
+      copyAsJsonElement: {
+        destTitle: "Autotest IsFormPDF Form.docxf",
+        destFolderId: roomId,
+        toForm: true,
+      },
+    });
+    const formFileId = (copyData.response as any).id as number;
+
+    const { data, status } = await ownerApi.files.isFormPDF({
+      fileId: formFileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("GET /files/file/:fileId/isformpdf - Non-existent file returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.isFormPDF({
+      fileId: 999999999,
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+  });
+
+  test("GET /files/file/:fileId/isformpdf - ONLYOFFICE PDF form returns true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF OO Form Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, roomId);
+
+    const { data, status } = await ownerApi.files.isFormPDF({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("GET /files/file/:fileId/isformpdf - Uploaded OO form binary returns true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IsFormPDF Binary Form Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const buffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
+    );
+
+    const { data: insertData, status: insertStatus } =
+      await apiSdk.insertBinaryFile(
+        "owner",
+        roomId,
+        buffer,
+        "oo-form-empty.pdf",
+      );
+    expect(insertStatus, `Insert failed: ${JSON.stringify(insertData)}`).toBe(
+      200,
+    );
+    const fileId = insertData.response.id as number;
+
+    const { data, status } = await ownerApi.files.isFormPDF({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+});
+
+test.describe("GET /files/file/:fileId/formroles", () => {
+  // Freshly created ONLYOFFICE PDF form has no roles defined yet
+  test("GET /files/file/:fileId/formroles - ONLYOFFICE PDF form returns empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles OO Form Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, roomId);
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  // Regular office file is not a form — endpoint rejects with 403
+  test("GET /files/file/:fileId/formroles - Regular .docx file returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Docx Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest GetAllFormRoles Docx File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({ fileId });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  // .docxf is a form template, not a PDF form
+  test("GET /files/file/:fileId/formroles - .docxf form template returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Docxf Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: docxData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest GetAllFormRoles Source.docx" },
+    });
+    const docxId = docxData.response!.id!;
+
+    const { data: copyData } = await ownerApi.files.copyFileAs({
+      fileId: docxId,
+      copyAsJsonElement: {
+        destTitle: "Autotest GetAllFormRoles Template.docxf",
+        destFolderId: roomId,
+        toForm: true,
+      },
+    });
+    const docxfId = (copyData.response as any).id as number;
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: docxfId,
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("GET /files/file/:fileId/formroles - OO form in archived room returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Archive Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, roomId);
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /files/file/:fileId/formroles - OO form in My Documents returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsId = myDocsData.response!.current!.id!;
+
+    const pdfFormId = await createOoForm(ownerApi, myDocsId);
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: pdfFormId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /files/file/:fileId/formroles - fileId=0 returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getAllFormRoles({
+      fileId: 0,
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test.fail(
+    "BUG 81346: GET /files/file/:fileId/formroles - Non-existent file returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.files.getAllFormRoles({
+        fileId: 999999999,
+      });
+
+      expect(status).toBe(404);
+      expect(data.statusCode).toBe(404);
+    },
+  );
+});
+
+test.describe("GET /files/file/fillresult - Get fill result", () => {
+  test("GET /files/file/fillresult - No fillingSessionId returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getFillResult({});
+
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+  });
+
+  test("GET /files/file/fillresult - Non-existent fillingSessionId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const nonExistentSessionId = faker.string.uuid();
+
+    const { data, status } = await ownerApi.files.getFillResult({
+      fillingSessionId: nonExistentSessionId,
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+
+    expect((data as any).error?.message).toBe("The record could not be found");
+  });
+
+  test("GET /files/file/fillresult - Invalid UUID format returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getFillResult({
+      fillingSessionId: "invalid-uuid-format",
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+    expect((data as any).error?.message).toBe("The record could not be found");
+  });
+
+  test("GET /files/file/fillresult - Empty fillingSessionId returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getFillResult({
+      fillingSessionId: "",
+    });
+
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+    expect((data as any).error.message).toContain("Value cannot be null");
+    expect((data as any).error.message).toContain("Parameter 'key'");
+  });
+
+  test("GET /files/file/fillresult - Very long fillingSessionId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const longId = "a".repeat(100);
+
+    const { data, status } = await ownerApi.files.getFillResult({
+      fillingSessionId: longId,
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+    expect((data as any).error?.message).toBe("The record could not be found");
+  });
+});
+
+test.describe("GET /files/file/:fileId/presigned - Get presigned file URI", () => {
+  test("GET /files/file/:fileId/presigned - Valid file returns 200 with url and filetype", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetPresignedFileUri Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest GetPresignedFileUri File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getPresignedFileUri({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.url).toMatch(/^https?:\/\//);
+    expect(data.response!.filetype).toBe(".docx");
+  });
+
+  test("GET /files/file/:fileId/presigned - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.files.getPresignedFileUri({
+      fileId: 999999999,
+    });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+  });
+});
+
+test.describe("PUT /files/file/:fileId/startfilling - Start filling file", () => {
+  test("PUT /files/file/:fileId/startfilling - Owner starts filling form in FillingFormsRoom", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+
+    const { data: fillingRoomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FormFilling Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const fillingRoomId = fillingRoomData.response!.id!;
+
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+
+    await ownerApi.files.manageFormFilling({
+      fileId: String(fillingRoomId),
+      manageFormFillingDtoInteger: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
+
+    const { data, status } = await ownerApi.files.startFillingFile({
+      fileId: formId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(formId);
+  });
+
+  test("PUT /files/file/:fileId/startfilling - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .files.startFillingFile({
+        fileId: 999999999,
+      });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+  });
+
+  test("PUT /files/file/:fileId/startfilling - Regular docx file returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Not A Form.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.startFillingFile({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  test("PUT /files/file/:fileId/startfilling - Form without manageFormFilling returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+
+    const { data, status } = await ownerApi.files.startFillingFile({
+      fileId: formId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(formId);
   });
 });

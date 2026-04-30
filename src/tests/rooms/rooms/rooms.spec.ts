@@ -1608,3 +1608,76 @@ test.describe("PUT /files/fileops/duplicate", () => {
     },
   );
 });
+
+test.describe("PUT /files/fileops/delete - Room deletion with open file", () => {
+  test.fail(
+    "BUG 81287: PUT /files/fileops/delete - deleting a room with an open file partially removes other files instead of rolling back atomically",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Delete Room With Open File",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: f1 } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "file1" },
+      });
+      const { data: f2 } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "file2" },
+      });
+      const { data: openedFile } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "opened-file" },
+      });
+
+      const file1Id = f1.response!.id!;
+      const file2Id = f2.response!.id!;
+      const openedFileId = openedFile.response!.id!;
+
+      const { data: editConfig } = await ownerApi.files.openEditFile({
+        fileId: openedFileId,
+      });
+      const docKey = editConfig.response!.document!.key!;
+      await ownerApi.files.trackEditFile({
+        fileId: openedFileId,
+        tabId: crypto.randomUUID(),
+        docKeyForTrack: docKey,
+        isFinish: false,
+      });
+
+      await test.step("PUT /files/fileops/delete - start room deletion", async () => {
+        const { status } = await ownerApi.operations.deleteBatchItems({
+          deleteBatchRequestDto: {
+            folderIds: [roomId],
+            immediately: true,
+          },
+        });
+        expect(status).toBe(200);
+      });
+
+      await test.step("GET /files/fileops - verify operation failed with open file error", async () => {
+        const operation = await waitForOperation(ownerApi.operations);
+        expect(operation.finished).toBe(true);
+        expect(operation.error).toContain("opened for editing");
+      });
+
+      await test.step("GET /files/rooms/:id - verify room still exists", async () => {
+        const { status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        expect(status).toBe(200);
+      });
+
+      await test.step("GET /files/file/:id - verify all files still exist", async () => {
+        for (const fileId of [file1Id, file2Id, openedFileId]) {
+          const { status } = await ownerApi.files.getFileInfo({ fileId });
+          expect(status).toBe(200);
+        }
+      });
+    },
+  );
+});

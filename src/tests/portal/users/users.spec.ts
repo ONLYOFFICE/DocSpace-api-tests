@@ -785,3 +785,15 @@ test.describe("GET /api/2.0/portal/users/:userID - Get user by ID", () => {
     expect(data.response!.createdBy).toBe(ownerId);
   });
 });
+
+// NOT TESTED: sendCongratulations (POST /api/2.0/portal/sendcongratulations)
+// This method sends a congratulatory email to a user after portal registration.
+// It is triggered automatically by the system and is not a user-initiated action.
+// The method returns void, so there is nothing meaningful to assert beyond the status code.
+// Email delivery cannot be verified through the API without a test inbox integration.
+// For these reasons, testing this endpoint provides no practical value.
+
+// NOT TESTED: markGiftMessageAsRead (POST /api/2.0/portal/users/gift)
+// This method marks an onboarding gift message as read.
+// There is no API endpoint to verify the read/unread state afterward,
+// making it impossible to assert any observable side effect beyond the status code.
