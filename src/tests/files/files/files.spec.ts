@@ -7,6 +7,7 @@ import {
   LinkType,
   MessageAction,
   FileEntryType,
+  FormFillingManageAction,
 } from "@onlyoffice/docspace-api-sdk";
 import { readFileSync } from "fs";
 import path from "path";
@@ -5630,5 +5631,93 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI", () =
 
     expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
+  });
+});
+
+test.describe("PUT /files/file/:fileId/startfilling - Start filling file", () => {
+  test("PUT /files/file/:fileId/startfilling - Owner starts filling form in FillingFormsRoom", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+
+    const { data: fillingRoomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FormFilling Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const fillingRoomId = fillingRoomData.response!.id!;
+
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+
+    await ownerApi.files.manageFormFilling({
+      fileId: String(fillingRoomId),
+      manageFormFillingDtoInteger: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
+
+    const { data, status } = await ownerApi.files.startFillingFile({
+      fileId: formId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(formId);
+  });
+
+  test("PUT /files/file/:fileId/startfilling - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .files.startFillingFile({
+        fileId: 999999999,
+      });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+  });
+
+  test("PUT /files/file/:fileId/startfilling - Regular docx file returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Not A Form.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.startFillingFile({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+  });
+
+  test("PUT /files/file/:fileId/startfilling - Form without manageFormFilling returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+
+    const { data, status } = await ownerApi.files.startFillingFile({
+      fileId: formId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(formId);
   });
 });

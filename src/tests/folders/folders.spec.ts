@@ -637,17 +637,12 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
   // Catches: API returns duplicate entries when the same title appears multiple times in the request
   test.fail(
-    "BUG XXXXX: POST /files/{folderId}/upload/check - Duplicate titles in request return single conflict",
+    "BUG 81365: POST /files/{folderId}/upload/check - Duplicate titles in request return single conflict",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Upload Check Duplicates",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
+      const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+      const folderId = myFolderData.response!.current!.id!;
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId,
@@ -733,6 +728,32 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
 
     expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
+  });
+
+  test("POST /files/{folderId}/upload/check - Conflict detected in My Documents folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolderData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest My Docs File.docx" },
+    });
+    const existingTitle = fileData.response!.title!;
+
+    const { data, status } = await ownerApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: [existingTitle] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toContain(existingTitle);
+    expect(data.response!.length).toBe(1);
+    expect(data.count).toBe(1);
   });
 });
 
