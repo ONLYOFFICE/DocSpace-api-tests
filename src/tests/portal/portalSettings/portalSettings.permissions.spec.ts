@@ -25,7 +25,7 @@ test.describe("POST /api/2.0/portal/suspend - permissions", () => {
   });
 
   test.fail(
-    "BUG : POST /api/2.0/portal/suspend - DocSpaceAdmin cannot send suspension instructions",
+    "BUG 81374: POST /api/2.0/portal/suspend - DocSpaceAdmin cannot send suspension instructions",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
@@ -90,7 +90,7 @@ test.describe("POST /api/2.0/portal/delete - permissions", () => {
   });
 
   test.fail(
-    "BUG : POST /api/2.0/portal/delete - DocSpaceAdmin cannot send deletion instructions",
+    "BUG 81375: POST /api/2.0/portal/delete - DocSpaceAdmin cannot send deletion instructions",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
