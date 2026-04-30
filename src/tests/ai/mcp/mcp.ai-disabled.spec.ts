@@ -165,7 +165,9 @@ test.describe("MCP Servers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.mcp.getRoomServers({ roomId: fakeRoomId });
+    const { status } = await ownerApi.mcp.getRoomServers({
+      roomId: fakeRoomId,
+    });
 
     expect(status).toBe(403);
   });
