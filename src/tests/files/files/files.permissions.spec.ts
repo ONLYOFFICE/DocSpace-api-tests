@@ -5,6 +5,7 @@ import {
   FileShare,
   SubjectType,
   FileEntryType,
+  FormFillingManageAction,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { createOoForm } from "@/src/helpers/files";
@@ -6348,11 +6349,12 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { status } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("user")
       .files.getPresignedFileUri({ fileId });
 
     expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
   });
 
   test("GET /files/file/:fileId/presigned - Guest without room access gets 403", async ({
@@ -6378,10 +6380,141 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { status } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("guest")
       .files.getPresignedFileUri({ fileId });
 
     expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
   });
+});
+
+test.describe("PUT /files/file/:fileId/startfilling - Start filling file permissions", () => {
+  test("PUT /files/file/:fileId/startfilling - Unauthenticated returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartFilling Anon Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+    await ownerApi.files.manageFormFilling({
+      fileId: String(roomId),
+      manageFormFillingDtoInteger: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
+
+    const { status } = await apiSdk.forAnonymous().files.startFillingFile({
+      fileId: formId,
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /files/file/:fileId/startfilling - DocSpaceAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartFilling Admin Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+    await ownerApi.files.manageFormFilling({
+      fileId: String(roomId),
+      manageFormFillingDtoInteger: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .files.startFillingFile({ fileId: formId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(formId);
+  });
+
+  test.fail(
+    "BUG XXXXX: PUT /files/file/:fileId/startfilling - User without file access returns 200 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+      const myDocsFolderId = myFolderData.response!.current!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest StartFilling User Room",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      const formId = await createOoForm(ownerApi, myDocsFolderId);
+      await ownerApi.files.manageFormFilling({
+        fileId: String(roomId),
+        manageFormFillingDtoInteger: {
+          formId,
+          action: FormFillingManageAction.Start,
+        },
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .files.startFillingFile({ fileId: formId });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: PUT /files/file/:fileId/startfilling - Guest without file access returns 200 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+      const myDocsFolderId = myFolderData.response!.current!.id!;
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest StartFilling Guest Room",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      const formId = await createOoForm(ownerApi, myDocsFolderId);
+      await ownerApi.files.manageFormFilling({
+        fileId: String(roomId),
+        manageFormFillingDtoInteger: {
+          formId,
+          action: FormFillingManageAction.Start,
+        },
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .files.startFillingFile({ fileId: formId });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+    },
+  );
 });
