@@ -636,32 +636,31 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
   });
 
   // Catches: API returns duplicate entries when the same title appears multiple times in the request
-  test.fail(
-    "BUG 81365: POST /files/{folderId}/upload/check - Duplicate titles in request return single conflict",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81365: POST /files/{folderId}/upload/check - Duplicate titles in request return single conflict", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-      const folderId = myFolderData.response!.current!.id!;
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolderData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId,
-        createFileJsonElement: { title: "Autotest Dup File.docx" },
-      });
-      const existingTitle = fileData.response!.title!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Dup File.docx" },
+    });
+    const existingTitle = fileData.response!.title!;
 
-      const { data, status } = await ownerApi.folders.checkUpload({
-        folderId,
-        checkUploadRequest: { filesTitle: [existingTitle, existingTitle] },
-      });
+    const { data, status } = await ownerApi.folders.checkUpload({
+      folderId,
+      checkUploadRequest: { filesTitle: [existingTitle, existingTitle] },
+    });
 
-      expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
-      expect(data.response).toContain(existingTitle);
-      expect(data.response!.length).toBe(1);
-      expect(data.count).toBe(1);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toContain(existingTitle);
+    expect(data.response!.length).toBe(1);
+    expect(data.count).toBe(1);
+  });
 
   // Catches: API misses conflict when title casing differs from the stored file name
   test("POST /files/{folderId}/upload/check - Conflict check is case-insensitive", async ({
