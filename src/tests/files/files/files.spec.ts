@@ -5781,7 +5781,7 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
   });
 
   test.fail(
-    "BUG XXXXX: PUT /files/file/:fileId/saveediting/form - Non-existent fileId returns 403 instead of 404",
+    "BUG 81416: PUT /files/file/:fileId/saveediting/form - Non-existent fileId returns 403 instead of 404",
     async ({ apiSdk }) => {
       const submittedBuffer = readFileSync(
         path.join(__dirname, "../../../assets/oo-form-submitted.pdf"),

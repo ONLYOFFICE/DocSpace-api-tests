@@ -4301,7 +4301,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
   });
 
   test.fail(
-    "BUG XXXXX: POST /files/file/referencedata - User without room access returns 200 instead of 403",
+    "BUG 81414: POST /files/file/referencedata - User without room access returns 200 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -4380,7 +4380,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
   });
 
   test.fail(
-    "BUG XXXXX: POST /files/file/referencedata - Guest without room access returns 200 instead of 403",
+    "BUG 81414: POST /files/file/referencedata - Guest without room access returns 200 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
