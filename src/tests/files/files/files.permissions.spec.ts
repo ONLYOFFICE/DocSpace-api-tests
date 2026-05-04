@@ -7,6 +7,8 @@ import {
   FileEntryType,
   FormFillingManageAction,
 } from "@onlyoffice/docspace-api-sdk";
+import { readFileSync } from "fs";
+import path from "path";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { createOoForm } from "@/src/helpers/files";
 import config from "@/config";
@@ -4267,6 +4269,154 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
     expect(data.response!.url).toBeTruthy();
     expect(data.response!.referenceData).toBeDefined();
   });
+
+  test("POST /files/file/referencedata - Unauthenticated returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest RefData Unauth Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest RefData Unauth File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+    const fileKey = openData.response!.document!.referenceData!.fileKey!;
+    const instanceId = openData.response!.document!.referenceData!.instanceId!;
+
+    const { status } = await apiSdk.forAnonymous().files.getReferenceData({
+      getReferenceDataDtoInteger: { fileKey, instanceId },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG XXXXX: POST /files/file/referencedata - User without room access returns 200 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest RefData No Access Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest RefData No Access File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+      const fileKey = openData.response!.document!.referenceData!.fileKey!;
+      const instanceId =
+        openData.response!.document!.referenceData!.instanceId!;
+
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .files.getReferenceData({
+          getReferenceDataDtoInteger: { fileKey, instanceId },
+        });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+    },
+  );
+
+  test("POST /files/file/referencedata - Guest with room Read access returns 200 with canEditRoom false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest RefData Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest RefData Guest File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+    const fileKey = openData.response!.document!.referenceData!.fileKey!;
+    const instanceId = openData.response!.document!.referenceData!.instanceId!;
+
+    const { data, status } = await guestApi.files.getReferenceData({
+      getReferenceDataDtoInteger: { fileKey, instanceId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.referenceData!.canEditRoom).toBe(false);
+  });
+
+  test.fail(
+    "BUG XXXXX: POST /files/file/referencedata - Guest without room access returns 200 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest RefData Guest No Access Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest RefData Guest No Access File",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+      const fileKey = openData.response!.document!.referenceData!.fileKey!;
+      const instanceId =
+        openData.response!.document!.referenceData!.instanceId!;
+
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .files.getReferenceData({
+          getReferenceDataDtoInteger: { fileKey, instanceId },
+        });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+    },
+  );
 });
 
 test.describe("GET /files/file/:fileId/log - Get file history permissions", () => {
@@ -6453,7 +6603,7 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
   });
 
   test.fail(
-    "BUG XXXXX: PUT /files/file/:fileId/startfilling - User without file access returns 200 instead of 403",
+    "BUG 81400: PUT /files/file/:fileId/startfilling - User without file access returns 200 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
@@ -6486,7 +6636,7 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
   );
 
   test.fail(
-    "BUG XXXXX: PUT /files/file/:fileId/startfilling - Guest without file access returns 200 instead of 403",
+    "BUG 81400: PUT /files/file/:fileId/startfilling - Guest without file access returns 200 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
@@ -6517,4 +6667,135 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
       expect(data.statusCode).toBe(403);
     },
   );
+});
+
+test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from form permissions", () => {
+  async function uploadFormToRoom(apiSdk: any, roomId: number) {
+    const buffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
+    );
+    const { data: insertData, status: insertStatus } =
+      await apiSdk.insertBinaryFile(
+        "owner",
+        roomId,
+        buffer,
+        "oo-form-empty.pdf",
+      );
+    if (insertStatus !== 200) {
+      throw new Error(`Insert failed: ${JSON.stringify(insertData)}`);
+    }
+    return insertData.response.id as number;
+  }
+
+  function makeFormFile() {
+    const submittedBuffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-submitted.pdf"),
+    );
+    return new File([submittedBuffer], "oo-form-submitted.pdf", {
+      type: "application/pdf",
+    });
+  }
+
+  test("PUT /files/file/:fileId/saveediting/form - Unauthenticated returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest SaveEditingFromForm Anon Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const fileId = await uploadFormToRoom(apiSdk, roomId);
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.saveEditingFileFromForm({ fileId, file: makeFormFile() });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /files/file/:fileId/saveediting/form - DocSpaceAdmin with room access returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest SaveEditingFromForm Admin Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const fileId = await uploadFormToRoom(apiSdk, roomId);
+
+    const { data: adminData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminId = adminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: adminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .files.saveEditingFileFromForm({ fileId, file: makeFormFile() });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.isForm).toBe(true);
+  });
+
+  test("PUT /files/file/:fileId/saveediting/form - User without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest SaveEditingFromForm User Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const fileId = await uploadFormToRoom(apiSdk, roomId);
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .files.saveEditingFileFromForm({ fileId, file: makeFormFile() });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("PUT /files/file/:fileId/saveediting/form - Guest without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest SaveEditingFromForm Guest Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const fileId = await uploadFormToRoom(apiSdk, roomId);
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .files.saveEditingFileFromForm({ fileId, file: makeFormFile() });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
 });

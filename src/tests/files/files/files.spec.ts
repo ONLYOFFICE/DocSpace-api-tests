@@ -3072,6 +3072,8 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     });
 
     expect(status).toBe(200);
+    expect(data.response!.url).toBeTruthy();
+    expect(data.response!.key).toBeTruthy();
     expect(data.response!.referenceData!.fileKey).toBe(fileKey);
     expect(data.response!.referenceData!.instanceId).toBe(instanceId);
   });
@@ -3106,9 +3108,10 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.response).toBeDefined();
     expect(data.response!.url).toBeTruthy();
-    expect(data.response!.referenceData).toBeDefined();
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.referenceData!.fileKey).toBe(fileKey);
+    expect(data.response!.referenceData!.instanceId).toBe(instanceId);
   });
 
   test("POST /files/file/referencedata - Read-only room member gets 200 with canEditRoom false", async ({
@@ -3150,6 +3153,8 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     });
 
     expect(status).toBe(200);
+    expect(data.response!.url).toBeTruthy();
+    expect(data.response!.key).toBeTruthy();
     expect(data.response!.referenceData!.canEditRoom).toBe(false);
   });
 
@@ -3192,8 +3197,9 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.response).toBeDefined();
     expect(data.response!.url).toBeTruthy();
+    expect(data.response!.key).toBeTruthy();
+    expect(data.response!.referenceData).toBeDefined();
   });
 
   test("POST /files/file/referencedata - Arbitrary fileKey not from openEditFile returns error", async ({
@@ -5719,5 +5725,128 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file", () =>
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(formId);
+  });
+});
+
+test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from form", () => {
+  test("PUT /files/file/:fileId/saveediting/form - Owner saves submitted form binary returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest SaveEditingFromForm Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const buffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
+    );
+    const { data: insertData, status: insertStatus } =
+      await apiSdk.insertBinaryFile(
+        "owner",
+        roomId,
+        buffer,
+        "oo-form-empty.pdf",
+      );
+    expect(insertStatus, `Insert failed: ${JSON.stringify(insertData)}`).toBe(
+      200,
+    );
+    const fileId = insertData.response.id as number;
+
+    const submittedBuffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-submitted.pdf"),
+    );
+    const file = new File([submittedBuffer], "oo-form-submitted.pdf", {
+      type: "application/pdf",
+    });
+
+    const { data, status } = await ownerApi.files.saveEditingFileFromForm({
+      fileId,
+      file,
+      forcesave: false,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.fileExst).toBe(".pdf");
+    expect(data.response!.isForm).toBe(true);
+    expect(data.response!.version).toBe(2);
+    expect(data.response!.pureContentLength).toBe(submittedBuffer.length);
+    expect(data.response!.comment).toBe("Edited");
+  });
+
+  test.fail(
+    "BUG XXXXX: PUT /files/file/:fileId/saveediting/form - Non-existent fileId returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const submittedBuffer = readFileSync(
+        path.join(__dirname, "../../../assets/oo-form-submitted.pdf"),
+      );
+      const file = new File([submittedBuffer], "oo-form-submitted.pdf", {
+        type: "application/pdf",
+      });
+
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .files.saveEditingFileFromForm({ fileId: 999999999, file });
+
+      expect(status).toBe(404);
+      expect(data.statusCode).toBe(404);
+      expect((data as any).error?.message).not.toContain("Object reference");
+    },
+  );
+
+  test("PUT /files/file/:fileId/saveediting/form - forcesave true saves file immediately", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest SaveEditingFromForm Forcesave Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const buffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
+    );
+    const { data: insertData, status: insertStatus } =
+      await apiSdk.insertBinaryFile(
+        "owner",
+        roomId,
+        buffer,
+        "oo-form-empty.pdf",
+      );
+    expect(insertStatus, `Insert failed: ${JSON.stringify(insertData)}`).toBe(
+      200,
+    );
+    const fileId = insertData.response.id as number;
+
+    const submittedBuffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-submitted.pdf"),
+    );
+    const file = new File([submittedBuffer], "oo-form-submitted.pdf", {
+      type: "application/pdf",
+    });
+
+    const { data, status } = await ownerApi.files.saveEditingFileFromForm({
+      fileId,
+      file,
+      forcesave: true,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    expect(data.response!.isForm).toBe(true);
+    expect(data.response!.version).toBe(2);
+    expect(data.response!.pureContentLength).toBe(submittedBuffer.length);
+    expect(data.response!.comment).toBe("Edited");
   });
 });
