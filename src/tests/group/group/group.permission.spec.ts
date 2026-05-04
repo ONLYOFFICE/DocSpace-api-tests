@@ -6,7 +6,7 @@ test.describe("POST /api/2.0/group - validation and edge cases", () => {
   // ❌ Required fields validation
 
   test.fail(
-    "POST /api/2.0/group - Owner cannot create group without groupName",
+    "BUG 81417: POST /api/2.0/group - Owner cannot create group without groupName",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
@@ -37,7 +37,7 @@ test.describe("POST /api/2.0/group - validation and edge cases", () => {
   });
 
   test.fail(
-    "POST /api/2.0/group - Owner cannot create group with empty groupName",
+    "BUG 81418: POST /api/2.0/group - Owner cannot create group with empty groupName",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
@@ -72,7 +72,7 @@ test.describe("POST /api/2.0/group - validation and edge cases", () => {
   // ⚠️ Invalid data
 
   test.fail(
-    "POST /api/2.0/group - Owner cannot create group with non-existent groupManager",
+    "BUG 81419: POST /api/2.0/group - Owner cannot create group with non-existent groupManager",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -88,7 +88,7 @@ test.describe("POST /api/2.0/group - validation and edge cases", () => {
   );
 
   test.fail(
-    "POST /api/2.0/group - Owner cannot create group with non-existent user in members",
+    "BUG 81420: POST /api/2.0/group - Owner cannot create group with non-existent user in members",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
@@ -176,7 +176,7 @@ test.describe("POST /api/2.0/group - validation and edge cases", () => {
   });
 
   test.fail(
-    "POST /api/2.0/group - Owner cannot create group with spaces-only groupName",
+    "BUG 81421: POST /api/2.0/group - Owner cannot create group with spaces-only groupName",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
