@@ -490,6 +490,187 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).toBe(firstId);
   });
+
+  test("POST /files/:folderId/text - createNewIfExist: false creates new file with suffix when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Text Suffix",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: firstData } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text Suffix",
+        content: "First",
+        createNewIfExist: true,
+      },
+    });
+    const firstId = firstData.response!.id!;
+
+    const { data: secondData, status } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text Suffix",
+        content: "Second",
+        createNewIfExist: false,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).not.toBe(firstId);
+  });
+
+  test("POST /files/:folderId/text - Missing content returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Text No Content",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { status } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text No Content",
+      },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("POST /files/:folderId/text - Non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").files.createTextFile({
+      folderId: 999999999,
+      createTextOrHtmlFile: {
+        title: "Autotest Text Bad Folder",
+        content: "some text",
+      },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /files/:folderId/text - createNewIfExist omitted creates new file with suffix when title already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Text Default",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: firstData } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text Default",
+        content: "First",
+      },
+    });
+    const firstId = firstData.response!.id!;
+
+    const { data: secondData, status } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text Default",
+        content: "Second",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(secondData.statusCode).toBe(200);
+    expect(secondData.response!.id).not.toBe(firstId);
+  });
+
+  // BUG: POST /files/:folderId/text accepts empty title and creates a file instead of returning 400
+  test.fail(
+    "POST /files/:folderId/text - Empty title returns 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room For Text Empty Title",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.files.createTextFile({
+        folderId,
+        createTextOrHtmlFile: {
+          title: "",
+          content: "some text",
+        },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  test("POST /files/:folderId/text - Title with diacritical characters is preserved", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Text Unicode",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "Ünïcödé Café résumé naïve",
+        content: "some text",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.title).toBe("Ünïcödé Café résumé naïve.txt");
+    expect(data.response!.id!).toBeGreaterThan(0);
+  });
+
+  test("POST /files/:folderId/text - Very long title returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Text Long Title",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { status } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "A".repeat(300),
+        content: "some text",
+      },
+    });
+
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
@@ -5848,5 +6029,232 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
     expect(data.response!.version).toBe(2);
     expect(data.response!.pureContentLength).toBe(submittedBuffer.length);
     expect(data.response!.comment).toBe("Edited");
+  });
+});
+
+test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form draft filling", () => {
+  // Catches: if basic flow doesn't return a fill URL for an active form draft
+  test("POST /files/masterform/:fileId/checkfillformdraft - Owner checks a valid form draft", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckFillFormDraft Owner Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+
+    await ownerApi.files.manageFormFilling({
+      fileId: String(roomId),
+      manageFormFillingDtoInteger: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
+
+    const { data, status } = await ownerApi.files.checkFillFormDraft({
+      fileId: formId,
+      checkFillFormDraft: { version: 1 },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeTruthy();
+    expect(typeof data.response).toBe("string");
+    // Catches: if response URL doesn't point to the document editor
+    expect(data.response).toContain("/doceditor");
+    // Catches: if the URL doesn't reference the correct form file
+    expect(data.response).toContain(`fileid=${formId}`);
+  });
+
+  // Catches: if requestView:true is ignored and the URL is identical to the fill URL
+  test("POST /files/masterform/:fileId/checkfillformdraft - requestView:true returns URL for view mode", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckFillFormDraft View Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+
+    await ownerApi.files.manageFormFilling({
+      fileId: String(roomId),
+      manageFormFillingDtoInteger: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
+
+    const { data, status } = await ownerApi.files.checkFillFormDraft({
+      fileId: formId,
+      checkFillFormDraft: { version: 1, requestView: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeTruthy();
+    expect(data.response).toContain("/doceditor");
+    expect(data.response).toContain(`fileid=${formId}`);
+  });
+
+  // Catches: null reference exceptions when fileId doesn't exist (should return 404, not 403/500)
+  test("POST /files/masterform/:fileId/checkfillformdraft - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .files.checkFillFormDraft({
+        fileId: 999999999,
+        checkFillFormDraft: { version: 1 },
+      });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+  });
+});
+
+test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag", () => {
+  // Catches: if enabling custom filter mode on xlsx doesn't return updated file with customFilterEnabled:true
+  test("PUT /files/file/:fileId/customfilter - Owner enables custom filter on xlsx returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CustomFilter Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest CustomFilter.xlsx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.setCustomFilterTag({
+      fileId,
+      customFilterParameters: { enabled: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    // Catches: if the customFilterEnabled flag is not updated in the response
+    expect(data.response!.customFilterEnabled).toBe(true);
+    // Catches: if WebCustomFilterEditing accessibility is not set
+    expect(data.response!.viewAccessibility!.WebCustomFilterEditing).toBe(true);
+  });
+
+  // Catches: if disabling custom filter mode doesn't clear the flag
+  test("PUT /files/file/:fileId/customfilter - Owner disables custom filter returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CustomFilter Disable Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest CustomFilter.xlsx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.setCustomFilterTag({
+      fileId,
+      customFilterParameters: { enabled: true },
+    });
+
+    const { data, status } = await ownerApi.files.setCustomFilterTag({
+      fileId,
+      customFilterParameters: { enabled: false },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(fileId);
+    // Catches: if disabling leaves customFilterEnabled:true — server omits the field when false
+    expect(data.response!.customFilterEnabled).toBeFalsy();
+  });
+
+  // Catches: if non-existent fileId causes 500 instead of 404
+  test("PUT /files/file/:fileId/customfilter - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .files.setCustomFilterTag({
+        fileId: 999999999,
+        customFilterParameters: { enabled: true },
+      });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+  });
+});
+
+test.describe("GET /files/file/:fileId/presigneduri - Get presigned URI", () => {
+  // Catches: if basic presigned URI generation fails for file owner
+  test("GET /files/file/:fileId/presigneduri - Owner gets presigned URI returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest PresignedUri Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest PresignedUri.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.getPresignedUri({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeTruthy();
+    // Catches: if URL doesn't contain the temporary auth token
+    expect(data.response).toContain("stream_auth=");
+    // Catches: if URL doesn't reference the correct file
+    expect(data.response).toContain(`fileid=${fileId}`);
+  });
+
+  // Catches: if non-existent fileId causes 500 instead of 404
+  test("GET /files/file/:fileId/presigneduri - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .files.getPresignedUri({ fileId: 999999999 });
+
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
   });
 });
