@@ -152,7 +152,7 @@ test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () 
   });
 
   test.fail(
-    "BUG : POST /api/2.0/portal/payment/buywalletservice - RoomAdmin cannot buy wallet service",
+    "BUG 81442: POST /api/2.0/portal/payment/buywalletservice - RoomAdmin cannot buy wallet service",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
@@ -170,7 +170,7 @@ test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () 
   );
 
   test.fail(
-    "BUG : POST /api/2.0/portal/payment/buywalletservice - User cannot buy wallet service",
+    "BUG 81442: POST /api/2.0/portal/payment/buywalletservice - User cannot buy wallet service",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
@@ -188,7 +188,7 @@ test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () 
   );
 
   test.fail(
-    "BUG : POST /api/2.0/portal/payment/buywalletservice - Guest cannot buy wallet service",
+    "BUG 81442: POST /api/2.0/portal/payment/buywalletservice - Guest cannot buy wallet service",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
@@ -208,7 +208,7 @@ test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () 
 
 test.describe("POST /api/2.0/portal/payment/buywalletservice - service validation", () => {
   test.fail(
-    "BUG : POST /api/2.0/portal/payment/buywalletservice - Owner cannot buy non-existent service",
+    "BUG 81443: POST /api/2.0/portal/payment/buywalletservice - Owner cannot buy non-existent service",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
