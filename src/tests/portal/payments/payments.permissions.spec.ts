@@ -70,13 +70,15 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
 
 test.describe("PUT /api/2.0/portal/payment/url - quantity validation", () => {
   test.fail(
-    "BUG : PUT /api/2.0/portal/payment/url - Owner cannot set quantity to 0",
+    "BUG 81436: PUT /api/2.0/portal/payment/url - Owner cannot set quantity to 0",
     async ({ apiSdk }) => {
-      const { status } = await apiSdk.forRole("owner").payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 0 } },
-      });
-
-      expect(status).toBe(400);
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .payment.getPaymentUrl({
+          paymentUrlRequestDto: { quantity: { admin: 0 } },
+        });
+      console.log(data);
+      expect(status).toBe(402);
     },
   );
 
@@ -98,7 +100,7 @@ test.describe("PUT /api/2.0/portal/payment/url - quantity validation", () => {
 
 test.describe("PUT /api/2.0/portal/payment/url - backUrl validation", () => {
   test.fail(
-    "BUG : PUT /api/2.0/portal/payment/url - Owner cannot set invalid backUrl format",
+    "BUG 81433: PUT /api/2.0/portal/payment/url - Owner cannot set invalid backUrl format",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.forRole("owner").payment.getPaymentUrl({
         paymentUrlRequestDto: { backUrl: "notaurl", quantity: { admin: 1 } },
@@ -109,7 +111,7 @@ test.describe("PUT /api/2.0/portal/payment/url - backUrl validation", () => {
   );
 
   test.fail(
-    "BUG : PUT /api/2.0/portal/payment/url - Owner cannot set backUrl exceeding 18000 chars (nginx 16k limit)",
+    "BUG 81434: PUT /api/2.0/portal/payment/url - Owner cannot set backUrl exceeding 18000 chars (nginx 16k limit)",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.forRole("owner").payment.getPaymentUrl({
         paymentUrlRequestDto: {
@@ -123,7 +125,7 @@ test.describe("PUT /api/2.0/portal/payment/url - backUrl validation", () => {
   );
 
   test.fail(
-    "BUG : PUT /api/2.0/portal/payment/url - Owner cannot set external domain as backUrl (open redirect)",
+    "BUG 81433: PUT /api/2.0/portal/payment/url - Owner cannot set external domain as backUrl (open redirect)",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.forRole("owner").payment.getPaymentUrl({
         paymentUrlRequestDto: {
