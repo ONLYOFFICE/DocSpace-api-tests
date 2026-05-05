@@ -323,9 +323,7 @@ test.describe("POST /api/2.0/group - permissions", () => {
     expect(status).toBe(401);
   });
 
-  test("POST /api/2.0/group - User cannot create group", async ({
-    apiSdk,
-  }) => {
+  test("POST /api/2.0/group - User cannot create group", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerProfile.response!.id!;

@@ -6936,10 +6936,9 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
     return { ownerApi, roomId, formId };
   }
 
-  // Catches: missing authentication check — unauthenticated users must not access form drafts
-  // BUG: POST /files/masterform/:fileId/checkfillformdraft returns 403 instead of 401 for unauthenticated requests
+  // BUG 81441: POST /files/masterform/:fileId/checkfillformdraft returns 403 instead of 401 for unauthenticated requests
   test.fail(
-    "POST /files/masterform/:fileId/checkfillformdraft - Unauthenticated returns 401",
+    "BUG 81441: POST /files/masterform/:fileId/checkfillformdraft - Unauthenticated returns 401",
     async ({ apiSdk }) => {
       const { formId } = await setupForm(apiSdk);
 
