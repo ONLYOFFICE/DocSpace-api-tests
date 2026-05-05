@@ -597,9 +597,9 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     expect(secondData.response!.id).not.toBe(firstId);
   });
 
-  // BUG: POST /files/:folderId/text accepts empty title and creates a file instead of returning 400
+  // BUG XXXXX: POST /files/:folderId/text accepts empty title and creates a file instead of returning 400
   test.fail(
-    "POST /files/:folderId/text - Empty title returns 400",
+    "BUG XXXXX: POST /files/:folderId/text - Empty title returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
