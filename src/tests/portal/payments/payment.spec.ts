@@ -51,6 +51,77 @@ test.describe("PUT /api/2.0/portal/payment/url", () => {
   });
 });
 
+// buyWalletService for "backup" is not tested directly.
+// Unlike "storage" and "ai-tools" (manual purchase), backup is charged automatically by the system:
+// paid portals include 2 free backups, and on the 3rd execution the system calls buyWalletService
+// and deducts funds from the wallet. Automating this would require running 3 real backups,
+// which is too slow and brittle for a unit-level API test.
+test.describe("POST /api/2.0/portal/payment/buywalletservice", () => {
+  test("POST /api/2.0/portal/payment/buywalletservice - Owner buys Storage 100GB and enables service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await topUpDeposit(ownerApi.payment, 1000);
+
+    const { status } = await buyWalletService(ownerApi.payment, "storage", 100);
+    expect(status).toBe(200);
+  });
+
+  test("POST /api/2.0/portal/payment/buywalletservice - Owner buys ai-tools service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await topUpDeposit(ownerApi.payment, 1000);
+
+    const { status } = await ownerApi.payment.buyWalletService({
+      buyWalletServiceRequestDto: { quantity: 1, serviceName: "ai-tools" },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("POST /api/2.0/portal/payment/buywalletservice - DocSpaceAdmin buys Storage 100GB", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { status } = await buyWalletService(
+      apiSdk.forRole("docSpaceAdmin").payment,
+      "storage",
+      100,
+    );
+    expect(status).toBe(200);
+  });
+
+  test("POST /api/2.0/portal/payment/buywalletservice - DocSpaceAdmin buys ai-tools service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.buyWalletService({
+        buyWalletServiceRequestDto: { quantity: 1, serviceName: "ai-tools" },
+      });
+
+    expect(status).toBe(200);
+  });
+});
+
 test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
   test("BUG 81050: GET /api/2.0/portal/payment/customer/operations - Returns 200 after disabling Disk Storage service", async ({
     apiSdk,
