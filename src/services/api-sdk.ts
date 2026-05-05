@@ -202,6 +202,7 @@ export class ApiSDK {
       files: new FilesApi(config, undefined, axiosInstance),
       folders: new FoldersApi(config, undefined, axiosInstance),
       groups: new GroupsApi(config, undefined, axiosInstance),
+      groupApi: new GroupApi(config, undefined, axiosInstance),
       sharing: new SharingApi(config, undefined, axiosInstance),
       profiles: new ProfilesApi(config, undefined, axiosInstance),
       password: new PasswordApi(config, undefined, axiosInstance),
