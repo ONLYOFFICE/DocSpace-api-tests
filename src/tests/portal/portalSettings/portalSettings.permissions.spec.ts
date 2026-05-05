@@ -24,19 +24,18 @@ test.describe("POST /api/2.0/portal/suspend - permissions", () => {
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 81374: POST /api/2.0/portal/suspend - DocSpaceAdmin cannot send suspension instructions",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+  test("BUG 81374: POST /api/2.0/portal/suspend - DocSpaceAdmin cannot send suspension instructions", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
-      const { data, status } = await apiSdk
-        .forRole("docSpaceAdmin")
-        .portalSettings.sendSuspendInstructions();
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .portalSettings.sendSuspendInstructions();
 
-      expect(status).toBe(403);
-      expect((data as any)?.error?.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 
   test("POST /api/2.0/portal/suspend - RoomAdmin cannot send suspension instructions", async ({
     apiSdk,
@@ -89,19 +88,18 @@ test.describe("POST /api/2.0/portal/delete - permissions", () => {
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 81375: POST /api/2.0/portal/delete - DocSpaceAdmin cannot send deletion instructions",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+  test("BUG 81375: POST /api/2.0/portal/delete - DocSpaceAdmin cannot send deletion instructions", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
-      const { data, status } = await apiSdk
-        .forRole("docSpaceAdmin")
-        .portalSettings.sendDeleteInstructions();
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .portalSettings.sendDeleteInstructions();
 
-      expect(status).toBe(403);
-      expect((data as any)?.error?.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 
   test("POST /api/2.0/portal/delete - RoomAdmin cannot send deletion instructions", async ({
     apiSdk,
