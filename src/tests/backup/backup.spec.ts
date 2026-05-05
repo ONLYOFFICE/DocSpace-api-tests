@@ -861,19 +861,35 @@ test.describe("GET /api/2.0/backup/getbackupprogress - Get backup progress", () 
       backupDto: { storageType: BackupStorageType.DataStore },
     });
 
-    const { data, status } = await ownerApi.backup.getBackupProgress();
+    let progressData: Awaited<
+      ReturnType<typeof ownerApi.backup.getBackupProgress>
+    >;
 
-    expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.count).toBe(1);
-    expect(data.response!.backupProgressEnum).toBe(BackupProgressEnum.Backup);
-    expect(data.response!.isCompleted).toBe(false);
-    expect(data.response!.progress).toBeGreaterThanOrEqual(0);
-    expect(data.response!.progress).toBeLessThanOrEqual(100);
-    expect(data.response!.status).toBe(DistributedTaskStatus.Running);
-    expect(data.response!.tenantId).toBeGreaterThan(0);
-    expect(data.response!.taskId).toBeTruthy();
-    expect(data.response!.error).toBeFalsy();
+    await expect(async () => {
+      progressData = await ownerApi.backup.getBackupProgress();
+      expect(progressData.data.response?.status).toBe(
+        DistributedTaskStatus.Running,
+      );
+    }).toPass({
+      intervals: [300, 500, 1_000],
+      timeout: 5_000,
+    });
+
+    expect(progressData!.status).toBe(200);
+    expect(progressData!.data.statusCode).toBe(200);
+    expect(progressData!.data.count).toBe(1);
+    expect(progressData!.data.response!.backupProgressEnum).toBe(
+      BackupProgressEnum.Backup,
+    );
+    expect(progressData!.data.response!.isCompleted).toBe(false);
+    expect(progressData!.data.response!.progress).toBeGreaterThanOrEqual(0);
+    expect(progressData!.data.response!.progress).toBeLessThanOrEqual(100);
+    expect(progressData!.data.response!.status).toBe(
+      DistributedTaskStatus.Running,
+    );
+    expect(progressData!.data.response!.tenantId).toBeGreaterThan(0);
+    expect(progressData!.data.response!.taskId).toBeTruthy();
+    expect(progressData!.data.response!.error).toBeFalsy();
   });
 
   test("Owner gets backup progress after backup completes", async ({

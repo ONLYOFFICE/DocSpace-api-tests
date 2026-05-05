@@ -246,6 +246,7 @@ export class ApiSDK {
       apiKeys: new ApiKeysApi(config, undefined, axiosInstance),
       portalQuota: new PortalQuotaApi(config, undefined, axiosInstance),
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
+      payment: new SdkPaymentApi(config, undefined, axiosInstance),
     };
   }
 
