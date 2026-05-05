@@ -1551,6 +1551,116 @@ test.describe("POST /files/@my/text permissions", () => {
   });
 });
 
+test.describe("POST /files/:folderId/text - Create text file permissions", () => {
+  async function setupRoom(apiSdk: any) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Text File Perm Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    return { ownerApi, roomId };
+  }
+
+  // Catches: if unauthenticated request is not blocked before reaching permission check
+  test("POST /files/:folderId/text - Unauthenticated returns 401", async ({
+    apiSdk,
+  }) => {
+    const { roomId } = await setupRoom(apiSdk);
+
+    const { status } = await apiSdk.forAnonymous().files.createTextFile({
+      folderId: roomId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text Anon",
+        content: "some text",
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  // Catches: if user with content-creator access cannot create files in a room
+  test("POST /files/:folderId/text - User with ContentCreator access returns 200", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, roomId } = await setupRoom(apiSdk);
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.createTextFile({
+      folderId: roomId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text ContentCreator User",
+        content: "some text",
+        createNewIfExist: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id!).toBeGreaterThan(0);
+  });
+
+  // Catches: if user with read-only access can create files (should be forbidden)
+  test("POST /files/:folderId/text - User with Read-only access returns 403", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, roomId } = await setupRoom(apiSdk);
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.createTextFile({
+      folderId: roomId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text Read User",
+        content: "some text",
+      },
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  // Catches: if user without room access can create files in that room
+  test("POST /files/:folderId/text - User without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const { roomId } = await setupRoom(apiSdk);
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk.forRole("user").files.createTextFile({
+      folderId: roomId,
+      createTextOrHtmlFile: {
+        title: "Autotest Text No Access",
+        content: "some text",
+      },
+    });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+});
+
 test.describe("PUT /files/:fileId/order permissions", () => {
   test("PUT /files/:fileId/order - Owner can set order on their own file", async ({
     apiSdk,
@@ -6794,6 +6904,267 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
     const { data, status } = await apiSdk
       .forRole("guest")
       .files.saveEditingFileFromForm({ fileId, file: makeFormFile() });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+});
+
+test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form draft filling permissions", () => {
+  async function setupForm(apiSdk: any) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckFillFormDraft Perm Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
+    const myDocsFolderId = myFolderData.response!.current!.id!;
+    const formId = await createOoForm(ownerApi, myDocsFolderId);
+
+    await ownerApi.files.manageFormFilling({
+      fileId: String(roomId),
+      manageFormFillingDtoInteger: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
+
+    return { ownerApi, roomId, formId };
+  }
+
+  // Catches: missing authentication check — unauthenticated users must not access form drafts
+  // BUG: POST /files/masterform/:fileId/checkfillformdraft returns 403 instead of 401 for unauthenticated requests
+  test.fail(
+    "POST /files/masterform/:fileId/checkfillformdraft - Unauthenticated returns 401",
+    async ({ apiSdk }) => {
+      const { formId } = await setupForm(apiSdk);
+
+      const { status } = await apiSdk.forAnonymous().files.checkFillFormDraft({
+        fileId: formId,
+        checkFillFormDraft: { version: 1 },
+      });
+
+      expect(status).toBe(401);
+    },
+  );
+
+  // Catches: if user without room access can read form drafts they have no access to
+  test("POST /files/masterform/:fileId/checkfillformdraft - User without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const { formId } = await setupForm(apiSdk);
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .files.checkFillFormDraft({
+        fileId: formId,
+        checkFillFormDraft: { version: 1 },
+      });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  // Catches: if guest without room access can read form drafts they have no access to
+  test("POST /files/masterform/:fileId/checkfillformdraft - Guest without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const { formId } = await setupForm(apiSdk);
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .files.checkFillFormDraft({
+        fileId: formId,
+        checkFillFormDraft: { version: 1 },
+      });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+});
+
+test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag permissions", () => {
+  async function setupFile(apiSdk: any) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CustomFilter Perm Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest CustomFilter.xlsx" },
+    });
+    const fileId = fileData.response!.id!;
+    return { ownerApi, roomId, fileId };
+  }
+
+  // Catches: if unauthenticated request is not blocked before reaching permission check
+  test("PUT /files/file/:fileId/customfilter - Unauthenticated returns 401", async ({
+    apiSdk,
+  }) => {
+    const { fileId } = await setupFile(apiSdk);
+
+    const { status } = await apiSdk.forAnonymous().files.setCustomFilterTag({
+      fileId,
+      customFilterParameters: { enabled: true },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  // Catches: if room admin cannot toggle custom filter mode on files in their room
+  test("PUT /files/file/:fileId/customfilter - RoomAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, roomId, fileId } = await setupFile(apiSdk);
+
+    const { data: userData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const userId = userData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .files.setCustomFilterTag({
+        fileId,
+        customFilterParameters: { enabled: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.customFilterEnabled).toBe(true);
+  });
+
+  // Catches: if user with read-only access can incorrectly toggle custom filter
+  test("PUT /files/file/:fileId/customfilter - User with read-only access returns 403", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, roomId, fileId } = await setupFile(apiSdk);
+
+    const { data: userData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const userId = userData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .files.setCustomFilterTag({
+        fileId,
+        customFilterParameters: { enabled: true },
+      });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  // Catches: if user without room access can modify file settings they have no access to
+  test("PUT /files/file/:fileId/customfilter - User without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const { fileId } = await setupFile(apiSdk);
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .files.setCustomFilterTag({
+        fileId,
+        customFilterParameters: { enabled: true },
+      });
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+});
+
+test.describe("GET /files/file/:fileId/presigneduri - Get presigned URI permissions", () => {
+  async function setupFile(apiSdk: any) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest PresignedUri Perm Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest PresignedUri.txt" },
+    });
+    const fileId = fileData.response!.id!;
+    return { ownerApi, roomId, fileId };
+  }
+
+  // Catches: if endpoint does not require authentication
+  test("GET /files/file/:fileId/presigneduri - Unauthenticated returns 401", async ({
+    apiSdk,
+  }) => {
+    const { fileId } = await setupFile(apiSdk);
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.getPresignedUri({ fileId });
+
+    expect(status).toBe(401);
+  });
+
+  // Catches: if room member with read access cannot get a presigned URI
+  test("GET /files/file/:fileId/presigneduri - User with room access returns 200", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, roomId, fileId } = await setupFile(apiSdk);
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.files.getPresignedUri({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  // Catches: if user without room access can retrieve file stream URL
+  test("GET /files/file/:fileId/presigneduri - User without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const { fileId } = await setupFile(apiSdk);
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .files.getPresignedUri({ fileId });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
