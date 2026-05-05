@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
+import { topUpDeposit } from "@/src/helpers/wallet-services";
 
 // Security tests based on white-hat report:
 // backUrl parameter in PUT /api/2.0/portal/payment/url has no length or domain validation.
@@ -135,6 +136,94 @@ test.describe("PUT /api/2.0/portal/payment/url - backUrl validation", () => {
       });
 
       expect(status).toBe(400);
+    },
+  );
+});
+
+test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () => {
+  test("POST /api/2.0/portal/payment/buywalletservice - Anonymous cannot buy wallet service", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.buyWalletService({
+      buyWalletServiceRequestDto: { quantity: 1, serviceName: "storage" },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG : POST /api/2.0/portal/payment/buywalletservice - RoomAdmin cannot buy wallet service",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment();
+      await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      const { data, status } = await apiSdk
+        .forRole("roomAdmin")
+        .payment.buyWalletService({
+          buyWalletServiceRequestDto: { quantity: 1, serviceName: "storage" },
+        });
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG : POST /api/2.0/portal/payment/buywalletservice - User cannot buy wallet service",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment();
+      await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .payment.buyWalletService({
+          buyWalletServiceRequestDto: { quantity: 1, serviceName: "storage" },
+        });
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG : POST /api/2.0/portal/payment/buywalletservice - Guest cannot buy wallet service",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment();
+      await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .payment.buyWalletService({
+          buyWalletServiceRequestDto: { quantity: 1, serviceName: "storage" },
+        });
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+});
+
+test.describe("POST /api/2.0/portal/payment/buywalletservice - service validation", () => {
+  test.fail(
+    "BUG : POST /api/2.0/portal/payment/buywalletservice - Owner cannot buy non-existent service",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment();
+      await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
+
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .payment.buyWalletService({
+          buyWalletServiceRequestDto: {
+            quantity: 1,
+            serviceName: "non-existent-service",
+          },
+        });
+
+      expect(status).toBe(404);
+      expect((data as any)?.error?.message).toBe("Service could not be found");
     },
   );
 });
