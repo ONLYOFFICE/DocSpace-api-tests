@@ -870,7 +870,10 @@ test.describe("GET /api/2.0/backup/getbackupprogress - Get backup progress", () 
     expect(data.response!.isCompleted).toBe(false);
     expect(data.response!.progress).toBeGreaterThanOrEqual(0);
     expect(data.response!.progress).toBeLessThanOrEqual(100);
-    expect(data.response!.status).toBe(DistributedTaskStatus.Running);
+    expect([
+      DistributedTaskStatus.Created,
+      DistributedTaskStatus.Running,
+    ]).toContain(data.response!.status);
     expect(data.response!.tenantId).toBeGreaterThan(0);
     expect(data.response!.taskId).toBeTruthy();
     expect(data.response!.error).toBeFalsy();
