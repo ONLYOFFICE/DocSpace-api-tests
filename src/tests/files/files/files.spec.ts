@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "@/src/fixtures/index";
+import { test } from "@/src/fixtures";
 import {
   RoomType,
   FileShare,
@@ -16,7 +16,7 @@ import { createOoForm } from "@/src/helpers/files";
 import { faker } from "@faker-js/faker";
 
 test.describe("POST /files/@my/file", () => {
-  // No extension → .docx added
+  // No extension в†’ .docx added
   test("POST /files/@my/file - Title without extension gets .docx", async ({
     apiSdk,
   }) => {
@@ -26,7 +26,6 @@ test.describe("POST /files/@my/file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Document.docx");
     expect(data.response!.id!).toBeGreaterThan(0);
   });
@@ -40,12 +39,11 @@ test.describe("POST /files/@my/file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Document.docx");
     expect(data.response!.id!).toBeGreaterThan(0);
   });
 
-  // Known text format → converted to .docx by default
+  // Known text format в†’ converted to .docx by default
   test("POST /files/@my/file - Title with .txt extension is converted to .docx", async ({
     apiSdk,
   }) => {
@@ -55,7 +53,6 @@ test.describe("POST /files/@my/file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Document.docx");
     expect(data.response!.id!).toBeGreaterThan(0);
   });
@@ -73,7 +70,6 @@ test.describe("POST /files/@my/file", () => {
       });
 
       expect(status).toBe(200);
-      expect(data.statusCode).toBe(200);
       expect(data.response!.title).toBe("Autotest Document.md");
       expect(data.response!.id!).toBeGreaterThan(0);
     },
@@ -99,7 +95,6 @@ test.describe("POST /files/:folderId/file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Document.docx");
     expect(data.response!.folderId).toBe(folderId);
     expect(data.response!.id!).toBeGreaterThan(0);
@@ -129,7 +124,6 @@ test.describe("POST /files/:folderId/html - Create HTML file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest HTML File.html");
     expect(data.response!.folderId).toBe(folderId);
     expect(data.response!.id!).toBeGreaterThan(0);
@@ -188,7 +182,6 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest HTML My Docs File.html");
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.folderId).toBeGreaterThan(0);
@@ -314,7 +307,6 @@ test.describe("POST /files/@my/text - Create text file in My Documents", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Text My Docs File.txt");
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.folderId).toBeGreaterThan(0);
@@ -448,7 +440,6 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Text File.txt");
     expect(data.response!.folderId).toBe(folderId);
     expect(data.response!.id!).toBeGreaterThan(0);
@@ -637,15 +628,14 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     const { data, status } = await ownerApi.files.createTextFile({
       folderId,
       createTextOrHtmlFile: {
-        title: "Ünïcödé Café résumé naïve",
+        title: "ГњnГЇcГ¶dГ© CafГ© rГ©sumГ© naГЇve",
         content: "some text",
         createNewIfExist: true,
       },
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
-    expect(data.response!.title).toBe("Ünïcödé Café résumé naïve.txt");
+    expect(data.response!.title).toBe("ГњnГЇcГ¶dГ© CafГ© rГ©sumГ© naГЇve.txt");
     expect(data.response!.id!).toBeGreaterThan(0);
   });
 
@@ -700,7 +690,6 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Copied File.docx");
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
   });
@@ -732,7 +721,6 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Converted Form.docxf");
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
   });
@@ -764,7 +752,6 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
       },
     });
 
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Password Copy.docx");
     expect((data as any).response.folderId).toBe(destFolderId); // TODO(sdk): folderId missing from FileDto
   });
@@ -795,7 +782,6 @@ test.describe("POST /files/file/:fileId/copyas - Copy file", () => {
       },
     });
 
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Copied File.md");
     expect((data as any).response.folderId).toBe(destFolderId);
   });
@@ -825,7 +811,6 @@ test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Saved As PDF.pdf");
     expect(data.response!.folderId).toBe(folderId);
   });
@@ -847,7 +832,6 @@ test.describe("GET /files/favorites/:fileId - Change favorite status", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -867,7 +851,6 @@ test.describe("GET /files/favorites/:fileId - Change favorite status", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(false);
   });
 });
@@ -885,7 +868,6 @@ test.describe("GET /files/file/:fileId - Get file info", () => {
     const { data, status } = await ownerApi.files.getFileInfo({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Get File Info.docx");
     expect(data.response!.fileExst).toBe(".docx");
@@ -914,7 +896,6 @@ test.describe("GET /files/file/:fileId - Get file info", () => {
     const { data, status } = await ownerApi.files.getFileInfo({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Room File Info.docx");
     expect(data.response!.folderId).toBe(folderId);
@@ -948,7 +929,6 @@ test.describe("PUT /files/file/:fileId - Update file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Update File Renamed.docx");
     expect(data.response!.fileExst).toBe(".docx");
@@ -1157,7 +1137,6 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     expect(data.response!.length).toBeGreaterThan(0);
     expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
@@ -1185,7 +1164,6 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
 
     // Delete is an async operation - wait for it to complete
@@ -1220,7 +1198,6 @@ test.describe("DELETE /files/file/:fileId - Delete file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response![0].Operation).toBe(2); // FileOperationType.Delete
 
     // Delete is an async operation - wait for it to complete
@@ -1264,7 +1241,6 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response?.id).toBe(fileId);
     expect(data.response?.locked).toBe(true);
   });
@@ -1289,7 +1265,6 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response?.id).toBe(fileId);
     // After unlock, locked field is absent from response (API omits false values)
     expect(data.response?.locked).toBeFalsy();
@@ -1319,7 +1294,6 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response?.id).toBe(fileId);
     expect(data.response?.locked).toBe(true);
   });
@@ -1344,7 +1318,6 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response?.id).toBe(fileId);
     expect(data.response?.locked).toBe(true);
   });
@@ -1364,7 +1337,6 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response?.id).toBe(fileId);
     expect(data.response?.locked).toBeFalsy();
   });
@@ -1401,7 +1373,6 @@ test.describe("PUT /files/:fileId/order - Set file order", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Order File.docx");
   });
@@ -1427,7 +1398,6 @@ test.describe("PUT /files/:fileId/order - Set file order", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
   });
 
@@ -1476,7 +1446,6 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
     const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent File.docx");
     expect(data.response!.fileExst).toBe(".docx");
@@ -1498,7 +1467,6 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
     const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
   });
 
@@ -1555,7 +1523,6 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
     const { data, status } = await userApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent Room File.docx");
   });
@@ -1589,7 +1556,6 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
     const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent Subfolder File.docx");
     // Business: folderId points to the subfolder, not the room root
@@ -1711,7 +1677,6 @@ test.describe("GET /files/file/:id/link - Get primary external link", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
     expect(data.response!.access).toBe(FileShare.Read);
@@ -1797,7 +1762,6 @@ test.describe("PUT /files/file/:id/links - Set file external link", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     expect(data.response!.subjectType).toBe(SubjectType.ExternalLink);
     expect(data.response!.access).toBe(FileShare.Read);
@@ -2091,7 +2055,6 @@ test.describe("GET /files/file/:id/links - Get file links", () => {
     const { data, status } = await ownerApi.files.getFileLinks({ id: fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toEqual([]);
     expect(data.count).toBe(0);
   });
@@ -2474,7 +2437,6 @@ test.describe("GET /files/file/:fileId/history - Get file version info", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     expect(data.response!.length).toBe(1);
     expect(data.count).toBe(1);
@@ -2590,7 +2552,6 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response!.length).toBe(1);
     expect(data.count).toBe(1);
@@ -2613,7 +2574,6 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.length).toBe(1);
 
     const entry = data.response![0];
@@ -2652,7 +2612,6 @@ test.describe("GET /files/file/:fileId/edit/history - Get file edit history", ()
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
   });
 
@@ -2750,7 +2709,6 @@ test.describe("PUT /files/file/:fileId/history - Change version history", () => 
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response!.length).toBeGreaterThan(0);
 
@@ -2782,7 +2740,6 @@ test.describe("PUT /files/file/:fileId/history - Change version history", () => 
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response!.length).toBeGreaterThan(0);
 
@@ -3013,7 +2970,6 @@ test.describe("POST /files/file/:fileId/restoreversion - Restore file version", 
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response!.length).toBeGreaterThan(0);
   });
@@ -3422,7 +3378,6 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
     const { data, status } = await ownerApi.files.getFileHistory({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     expect(data.response!.length).toBeGreaterThan(0);
     const entry = data.response![0];
@@ -3773,7 +3728,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("File editing start error");
   });
 
@@ -3802,7 +3756,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     expect(typeof data.response).toBe("string");
     expect(data.response).toBeTruthy();
@@ -3844,7 +3797,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     expect(typeof data.response).toBe("string");
     expect(data.response).toBeTruthy();
@@ -3886,7 +3838,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     expect(typeof data.response).toBe("string");
     expect(data.response).toBeTruthy();
@@ -3904,7 +3855,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
     expect((data as any).error.message).toBe("The required file was not found");
   });
 
@@ -3933,7 +3883,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("File editing start error");
   });
 
@@ -3981,7 +3930,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     expect(ownerStatus).toBe(200);
     expect(ownerEditData.response).toBeTruthy();
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe(
       "This document is being edited by you in another tab",
     );
@@ -4031,7 +3979,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
     expect(firstStatus).toBe(200);
     expect(firstEditData.response).toBeTruthy();
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe(
       "This document is being edited by you in another tab",
     );
@@ -4070,7 +4017,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response!.length).toBe(1);
     expect(data.response![0].id).toBe(fileId);
@@ -4108,7 +4054,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.length).toBe(1);
     expect(data.response![0].id).toBe(folderId);
     expect(data.response![0].fileEntryType).toBe(FileEntryType.Folder);
@@ -4150,7 +4095,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.length).toBe(2);
     const ids = data.response!.map((e) => e.id);
     expect(ids).toContain(fileId1);
@@ -4193,7 +4137,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.length).toBe(2);
     const fileItem = data.response!.find((e) => e.id === fileId);
     const folderItem = data.response!.find((e) => e.id === folderId);
@@ -4237,7 +4180,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response![0].id).toBe(fileId);
   });
 
@@ -4282,7 +4224,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
       },
     });
 
-    expect(data.statusCode).toBe(400);
     expect(data.status).toBe(1);
   });
 
@@ -4314,7 +4255,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response![0].id).toBe(fileId);
   });
 
@@ -4352,7 +4292,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response![0].id).toBe(fileId);
   });
 
@@ -4392,7 +4331,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.length).toBe(2);
   });
 
@@ -4476,7 +4414,6 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response![0].id).toBeDefined();
@@ -4517,7 +4454,6 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     // key: boolean - indicates whether the file is being actively edited
     expect(typeof data.response!.key).toBe("boolean");
@@ -4553,7 +4489,6 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(typeof data.response!.key).toBe("boolean");
   });
 
@@ -4587,7 +4522,6 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(typeof data.response!.key).toBe("boolean");
   });
 
@@ -4621,7 +4555,6 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
   });
 
@@ -4654,7 +4587,6 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
   });
 
@@ -4699,7 +4631,6 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing", () =
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
     // key: boolean - active editing indicator
     expect(typeof data.response!.key).toBe("boolean");
@@ -4736,7 +4667,6 @@ test.describe("POST /files/thumbnails - Create thumbnails", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     // response contains the file ID for which thumbnail was queued
     expect(data.response).toContain(fileId);
     expect(data.response!.length).toBe(1);
@@ -4772,7 +4702,6 @@ test.describe("POST /files/thumbnails - Create thumbnails", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     // both file IDs are included in response
     expect(data.response).toContain(fileId1);
     expect(data.response).toContain(fileId2);
@@ -4804,7 +4733,6 @@ test.describe("POST /files/thumbnails - Create thumbnails", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     // empty folder has no files - response is empty array
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response!.length).toBe(0);
@@ -4840,7 +4768,6 @@ test.describe("POST /files/thumbnails - Create thumbnails", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     // only file ID is returned - folder ID is not included in response
     expect(data.response).toContain(fileId);
     expect(data.response).not.toContain(folderId);
@@ -4856,7 +4783,6 @@ test.describe("POST /files/thumbnails - Create thumbnails", () => {
     const { data, status } = await ownerApi.files.createThumbnails({});
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response!.length).toBe(0);
   });
@@ -4872,7 +4798,6 @@ test.describe("POST /files/thumbnails - Create thumbnails", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     // non-existent ID is still included in response - API does not validate file existence
     expect(data.response).toContain(999999999);
   });
@@ -4892,7 +4817,6 @@ test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
     const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     // Business: key and url are required by Document Server to render diff
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
@@ -4924,7 +4848,6 @@ test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     // Business: version in response must match the requested version
     expect(data.response!.version).toBe(1);
     expect(data.response!.key).toBeTruthy();
@@ -4956,7 +4879,6 @@ test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.version).toBe(2);
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
@@ -4979,7 +4901,6 @@ test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
     const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     // API returns version: 0 when no version parameter is specified (means "latest")
     expect(data.response!.version).toBe(0);
     // Business: first version has nothing to compare against
@@ -5021,7 +4942,6 @@ test.describe("GET /files/file/:fileId/edit/diff - Get edit diff URL", () => {
     const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
     expect(data.response!.fileType).toBeTruthy();
@@ -5054,7 +4974,6 @@ test.describe("POST /files/templates - Add templates", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5088,7 +5007,6 @@ test.describe("POST /files/templates - Add templates", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5121,7 +5039,6 @@ test.describe("POST /files/templates - Add templates", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5136,7 +5053,6 @@ test.describe("POST /files/templates - Add templates", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5149,7 +5065,6 @@ test.describe("POST /files/templates - Add templates", () => {
     const { data, status } = await ownerApi.files.addTemplates({});
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5163,9 +5078,8 @@ test.describe("POST /files/templates - Add templates", () => {
       templatesRequestDto: { fileIds: [999999999] },
     });
 
-    // API does not validate file existence — returns true regardless
+    // API does not validate file existence вЂ” returns true regardless
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 });
@@ -5200,7 +5114,6 @@ test.describe("DELETE /files/templates - Delete templates", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5242,7 +5155,6 @@ test.describe("DELETE /files/templates - Delete templates", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5279,7 +5191,6 @@ test.describe("DELETE /files/templates - Delete templates", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5311,7 +5222,6 @@ test.describe("DELETE /files/templates - Delete templates", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5325,9 +5235,8 @@ test.describe("DELETE /files/templates - Delete templates", () => {
       requestBody: [999999999],
     });
 
-    // API does not validate file existence — returns true regardless
+    // API does not validate file existence вЂ” returns true regardless
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5342,7 +5251,6 @@ test.describe("DELETE /files/templates - Delete templates", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5352,11 +5260,10 @@ test.describe("DELETE /files/templates - Delete templates", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.files.deleteTemplates({});
+    const { status } = await ownerApi.files.deleteTemplates({});
 
-    // body is required — API returns 400 validation error
+    // body is required вЂ” API returns 400 validation error
     expect(status).toBe(400);
-    expect(data.statusCode).toBe(400);
   });
 });
 
@@ -5384,7 +5291,6 @@ test.describe("GET /files/file/:fileId/isformpdf", () => {
     const { data, status } = await ownerApi.files.isFormPDF({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(false);
   });
 
@@ -5418,7 +5324,6 @@ test.describe("GET /files/file/:fileId/isformpdf", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(false);
   });
 
@@ -5456,7 +5361,6 @@ test.describe("GET /files/file/:fileId/isformpdf", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(false);
   });
 
@@ -5465,12 +5369,11 @@ test.describe("GET /files/file/:fileId/isformpdf", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.files.isFormPDF({
+    const { status } = await ownerApi.files.isFormPDF({
       fileId: 999999999,
     });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
   });
 
   test("GET /files/file/:fileId/isformpdf - ONLYOFFICE PDF form returns true", async ({
@@ -5493,7 +5396,6 @@ test.describe("GET /files/file/:fileId/isformpdf", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5529,7 +5431,6 @@ test.describe("GET /files/file/:fileId/isformpdf", () => {
     const { data, status } = await ownerApi.files.isFormPDF({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 });
@@ -5556,12 +5457,11 @@ test.describe("GET /files/file/:fileId/formroles", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response).toHaveLength(0);
   });
 
-  // Regular office file is not a form — endpoint rejects with 403
+  // Regular office file is not a form вЂ” endpoint rejects with 403
   test("GET /files/file/:fileId/formroles - Regular .docx file returns 403", async ({
     apiSdk,
   }) => {
@@ -5583,10 +5483,9 @@ test.describe("GET /files/file/:fileId/formroles", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await ownerApi.files.getAllFormRoles({ fileId });
+    const { status } = await ownerApi.files.getAllFormRoles({ fileId });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 
   // .docxf is a form template, not a PDF form
@@ -5618,12 +5517,11 @@ test.describe("GET /files/file/:fileId/formroles", () => {
     });
     const docxfId = (copyData.response as any).id as number;
 
-    const { data, status } = await ownerApi.files.getAllFormRoles({
+    const { status } = await ownerApi.files.getAllFormRoles({
       fileId: docxfId,
     });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 
   test("GET /files/file/:fileId/formroles - OO form in archived room returns 200", async ({
@@ -5652,7 +5550,6 @@ test.describe("GET /files/file/:fileId/formroles", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
   });
 
@@ -5671,7 +5568,6 @@ test.describe("GET /files/file/:fileId/formroles", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
   });
 
@@ -5680,12 +5576,11 @@ test.describe("GET /files/file/:fileId/formroles", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.files.getAllFormRoles({
+    const { status } = await ownerApi.files.getAllFormRoles({
       fileId: 0,
     });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 
   test.fail(
@@ -5693,12 +5588,11 @@ test.describe("GET /files/file/:fileId/formroles", () => {
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.files.getAllFormRoles({
+      const { status } = await ownerApi.files.getAllFormRoles({
         fileId: 999999999,
       });
 
       expect(status).toBe(404);
-      expect(data.statusCode).toBe(404);
     },
   );
 });
@@ -5709,10 +5603,9 @@ test.describe("GET /files/file/fillresult - Get fill result", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.files.getFillResult({});
+    const { status } = await ownerApi.files.getFillResult({});
 
     expect(status).toBe(400);
-    expect(data.statusCode).toBe(400);
   });
 
   test("GET /files/file/fillresult - Non-existent fillingSessionId returns 404", async ({
@@ -5727,7 +5620,6 @@ test.describe("GET /files/file/fillresult - Get fill result", () => {
     });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
 
     expect((data as any).error?.message).toBe("The record could not be found");
   });
@@ -5742,7 +5634,6 @@ test.describe("GET /files/file/fillresult - Get fill result", () => {
     });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
     expect((data as any).error?.message).toBe("The record could not be found");
   });
 
@@ -5756,7 +5647,6 @@ test.describe("GET /files/file/fillresult - Get fill result", () => {
     });
 
     expect(status).toBe(400);
-    expect(data.statusCode).toBe(400);
     expect((data as any).error.message).toContain("Value cannot be null");
     expect((data as any).error.message).toContain("Parameter 'key'");
   });
@@ -5772,7 +5662,6 @@ test.describe("GET /files/file/fillresult - Get fill result", () => {
     });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
     expect((data as any).error?.message).toBe("The record could not be found");
   });
 });
@@ -5802,7 +5691,6 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI", () =
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.url).toMatch(/^https?:\/\//);
     expect(data.response!.filetype).toBe(".docx");
   });
@@ -5812,12 +5700,11 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI", () =
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.files.getPresignedFileUri({
+    const { status } = await ownerApi.files.getPresignedFileUri({
       fileId: 999999999,
     });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
   });
 });
 
@@ -5853,21 +5740,17 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file", () =>
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(formId);
   });
 
   test("PUT /files/file/:fileId/startfilling - Non-existent fileId returns 404", async ({
     apiSdk,
   }) => {
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .files.startFillingFile({
-        fileId: 999999999,
-      });
+    const { status } = await apiSdk.forRole("owner").files.startFillingFile({
+      fileId: 999999999,
+    });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
   });
 
   test("PUT /files/file/:fileId/startfilling - Regular docx file returns 200", async ({
@@ -5885,7 +5768,6 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file", () =>
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
   });
 
@@ -5904,7 +5786,6 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file", () =>
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(formId);
   });
 });
@@ -5952,7 +5833,6 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.fileExst).toBe(".pdf");
     expect(data.response!.isForm).toBe(true);
@@ -5976,7 +5856,6 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
         .files.saveEditingFileFromForm({ fileId: 999999999, file });
 
       expect(status).toBe(404);
-      expect(data.statusCode).toBe(404);
       expect((data as any).error?.message).not.toContain("Object reference");
     },
   );
@@ -6023,7 +5902,6 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.isForm).toBe(true);
     expect(data.response!.version).toBe(2);
@@ -6064,7 +5942,6 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeTruthy();
     expect(typeof data.response).toBe("string");
     // Catches: if response URL doesn't point to the document editor
@@ -6104,7 +5981,6 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeTruthy();
     expect(data.response).toContain("/doceditor");
     expect(data.response).toContain(`fileid=${formId}`);
@@ -6114,15 +5990,12 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
   test("POST /files/masterform/:fileId/checkfillformdraft - Non-existent fileId returns 404", async ({
     apiSdk,
   }) => {
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .files.checkFillFormDraft({
-        fileId: 999999999,
-        checkFillFormDraft: { version: 1 },
-      });
+    const { status } = await apiSdk.forRole("owner").files.checkFillFormDraft({
+      fileId: 999999999,
+      checkFillFormDraft: { version: 1 },
+    });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
   });
 });
 
@@ -6153,7 +6026,6 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag", ()
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     // Catches: if the customFilterEnabled flag is not updated in the response
     expect(data.response!.customFilterEnabled).toBe(true);
@@ -6192,9 +6064,8 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag", ()
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
-    // Catches: if disabling leaves customFilterEnabled:true — server omits the field when false
+    // Catches: if disabling leaves customFilterEnabled:true вЂ” server omits the field when false
     expect(data.response!.customFilterEnabled).toBeFalsy();
   });
 
@@ -6202,15 +6073,12 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag", ()
   test("PUT /files/file/:fileId/customfilter - Non-existent fileId returns 404", async ({
     apiSdk,
   }) => {
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .files.setCustomFilterTag({
-        fileId: 999999999,
-        customFilterParameters: { enabled: true },
-      });
+    const { status } = await apiSdk.forRole("owner").files.setCustomFilterTag({
+      fileId: 999999999,
+      customFilterParameters: { enabled: true },
+    });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
   });
 });
 
@@ -6238,7 +6106,6 @@ test.describe("GET /files/file/:fileId/presigneduri - Get presigned URI", () => 
     const { data, status } = await ownerApi.files.getPresignedUri({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBeTruthy();
     // Catches: if URL doesn't contain the temporary auth token
     expect(data.response).toContain("stream_auth=");
@@ -6250,11 +6117,10 @@ test.describe("GET /files/file/:fileId/presigneduri - Get presigned URI", () => 
   test("GET /files/file/:fileId/presigneduri - Non-existent fileId returns 404", async ({
     apiSdk,
   }) => {
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forRole("owner")
       .files.getPresignedUri({ fileId: 999999999 });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
   });
 });

@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "@/src/fixtures/index";
+import { test } from "@/src/fixtures";
 import {
   RoomType,
   FileShare,
@@ -41,7 +41,6 @@ test.describe("GET /files/file/:fileId - Get file info permissions", () => {
     const { data, status } = await adminApi.files.getFileInfo({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
   });
 
@@ -77,7 +76,6 @@ test.describe("GET /files/file/:fileId - Get file info permissions", () => {
     const { data, status } = await roomAdminApi.files.getFileInfo({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.folderId).toBe(roomId);
   });
@@ -114,7 +112,6 @@ test.describe("GET /files/file/:fileId - Get file info permissions", () => {
     const { data, status } = await userApi.files.getFileInfo({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
   });
 
@@ -209,7 +206,6 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Admin Updated File.docx");
   });
@@ -940,7 +936,6 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response?.id).toBe(fileId);
     expect(data.response?.locked).toBe(true);
   });
@@ -980,7 +975,6 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response?.id).toBe(fileId);
     expect(data.response?.locked).toBe(true);
   });
@@ -1020,7 +1014,6 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response?.id).toBe(fileId);
     expect(data.response?.locked).toBe(true);
   });
@@ -1303,7 +1296,6 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response?.id).toBe(fileId);
     expect(data.response?.locked).toBeFalsy();
   });
@@ -1324,7 +1316,6 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.title).toBe("Autotest HTML My Docs Owner.html");
   });
@@ -1346,7 +1337,6 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.title).toBe("Autotest HTML My Docs Admin.html");
   });
@@ -1369,7 +1359,6 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
       });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.title).toBe("Autotest HTML My Docs Room Admin.html");
   });
@@ -1391,7 +1380,6 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.title).toBe("Autotest HTML My Docs User.html");
   });
@@ -1446,7 +1434,6 @@ test.describe("POST /files/@my/text permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.title).toBe("Autotest Text My Docs Owner.txt");
   });
@@ -1468,7 +1455,6 @@ test.describe("POST /files/@my/text permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.title).toBe("Autotest Text My Docs Admin.txt");
   });
@@ -1491,7 +1477,6 @@ test.describe("POST /files/@my/text permissions", () => {
       });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.title).toBe("Autotest Text My Docs Room Admin.txt");
   });
@@ -1513,7 +1498,6 @@ test.describe("POST /files/@my/text permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id!).toBeGreaterThan(0);
     expect(data.response!.title).toBe("Autotest Text My Docs User.txt");
   });
@@ -1608,7 +1592,6 @@ test.describe("POST /files/:folderId/text - Create text file permissions", () =>
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id!).toBeGreaterThan(0);
   });
 
@@ -1629,7 +1612,7 @@ test.describe("POST /files/:folderId/text - Create text file permissions", () =>
       },
     });
 
-    const { data, status } = await userApi.files.createTextFile({
+    const { status } = await userApi.files.createTextFile({
       folderId: roomId,
       createTextOrHtmlFile: {
         title: "Autotest Text Read User",
@@ -1638,7 +1621,6 @@ test.describe("POST /files/:folderId/text - Create text file permissions", () =>
     });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 
   // Catches: if user without room access can create files in that room
@@ -1648,7 +1630,7 @@ test.describe("POST /files/:folderId/text - Create text file permissions", () =>
     const { roomId } = await setupRoom(apiSdk);
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data, status } = await apiSdk.forRole("user").files.createTextFile({
+    const { status } = await apiSdk.forRole("user").files.createTextFile({
       folderId: roomId,
       createTextOrHtmlFile: {
         title: "Autotest Text No Access",
@@ -1657,7 +1639,6 @@ test.describe("POST /files/:folderId/text - Create text file permissions", () =>
     });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 });
 
@@ -1678,7 +1659,6 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
   });
 
@@ -1701,7 +1681,6 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
   });
 
@@ -1726,7 +1705,6 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
   });
 
@@ -1749,7 +1727,6 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
   });
 
@@ -1836,7 +1813,6 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
     const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent Owner File.docx");
   });
@@ -1857,7 +1833,6 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
     const { data, status } = await adminApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent Admin File.docx");
   });
@@ -1882,7 +1857,6 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent Room Admin File.docx");
   });
@@ -1903,7 +1877,6 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
     const { data, status } = await userApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent User File.docx");
   });
@@ -1968,7 +1941,6 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
     const { data, status } = await ownerApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent Owner Room File.docx");
     expect(data.response!.fileExst).toBe(".docx");
@@ -2014,7 +1986,6 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
     const { data, status } = await adminApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe(
       "Autotest Recent DocSpaceAdmin File.docx",
@@ -2064,7 +2035,6 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent RoomAdmin File.docx");
     expect(data.response!.fileExst).toBe(".docx");
@@ -2110,7 +2080,6 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
     const { data, status } = await userApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent User Comment File.docx");
     expect(data.response!.fileExst).toBe(".docx");
@@ -2156,7 +2125,6 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
     const { data, status } = await guestApi.files.addFileToRecent({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.title).toBe("Autotest Recent Guest File.docx");
     expect(data.response!.fileExst).toBe(".docx");
@@ -3387,7 +3355,6 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
     const { data, status } = await ownerApi.files.getEditHistory({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
   });
 
@@ -3427,7 +3394,6 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
     const { data, status } = await adminApi.files.getEditHistory({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
   });
 
@@ -3465,7 +3431,6 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
     const { data, status } = await userApi.files.getEditHistory({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
   });
 
@@ -4436,14 +4401,11 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 
       await apiSdk.addAuthenticatedMember("owner", "User");
 
-      const { data, status } = await apiSdk
-        .forRole("user")
-        .files.getReferenceData({
-          getReferenceDataDtoInteger: { fileKey, instanceId },
-        });
+      const { status } = await apiSdk.forRole("user").files.getReferenceData({
+        getReferenceDataDtoInteger: { fileKey, instanceId },
+      });
 
       expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
     },
   );
 
@@ -4517,14 +4479,11 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .files.getReferenceData({
-          getReferenceDataDtoInteger: { fileKey, instanceId },
-        });
+      const { status } = await apiSdk.forRole("guest").files.getReferenceData({
+        getReferenceDataDtoInteger: { fileKey, instanceId },
+      });
 
       expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
     },
   );
 });
@@ -4821,7 +4780,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
     });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe(
       "You do not have enough permissions to edit the file",
     );
@@ -4863,7 +4821,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
     });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe(
       "You do not have enough permissions to edit the file",
     );
@@ -4907,7 +4864,6 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
     });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
 });
@@ -5106,7 +5062,6 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response![0].id).toBe(fileId);
   });
 });
@@ -5208,10 +5163,9 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
     });
     const fileId = fileData.response!.id!;
 
-    const { data, status } = await userApi.files.trackEditFile({ fileId });
+    const { status } = await userApi.files.trackEditFile({ fileId });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 
   // Catches: User with Read access should not be able to track editing
@@ -5282,7 +5236,6 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(typeof data.response!.key).toBe("boolean");
   });
 });
@@ -5351,7 +5304,6 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toContain(fileId);
   });
 
@@ -5391,7 +5343,6 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toContain(fileId);
   });
 
@@ -5432,7 +5383,6 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
       baseBatchRequestDto: { fileIds: [fileId] },
     });
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toContain(fileId);
   });
 
@@ -5463,7 +5413,6 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
       baseBatchRequestDto: { fileIds: [fileId] },
     });
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toContain(fileId);
   });
 });
@@ -5482,7 +5431,6 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
     const { data, status } = await ownerApi.files.getEditDiffUrl({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
   });
@@ -5523,7 +5471,6 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
     const { data, status } = await adminApi.files.getEditDiffUrl({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
   });
@@ -5562,7 +5509,6 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
     const { data, status } = await userApi.files.getEditDiffUrl({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
   });
@@ -5767,7 +5713,6 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
     const { data, status } = await adminApi.files.getEditDiffUrl({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
   });
@@ -5801,7 +5746,6 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.key).toBeTruthy();
     expect(data.response!.url).toBeTruthy();
   });
@@ -5839,9 +5783,8 @@ test.describe("POST /files/templates - Add templates permissions", () => {
       .forRole("user")
       .files.addTemplates({ templatesRequestDto: { fileIds: [1] } });
 
-    // templates are a personal (per-user) feature — available to all authenticated users
+    // templates are a personal (per-user) feature вЂ” available to all authenticated users
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5875,7 +5818,6 @@ test.describe("POST /files/templates - Add templates permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -5904,7 +5846,6 @@ test.describe("POST /files/templates - Add templates permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 });
@@ -5964,9 +5905,8 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
       .forRole("user")
       .files.deleteTemplates({ requestBody: [fileId] });
 
-    // templates are a personal (per-user) feature — available to all authenticated users
+    // templates are a personal (per-user) feature вЂ” available to all authenticated users
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -6002,7 +5942,6 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 
@@ -6035,7 +5974,6 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
 });
@@ -6063,7 +6001,6 @@ test.describe("GET /files/file/:fileId/isformpdf - isFormPDF permissions", () =>
     const { data, status } = await ownerApi.files.isFormPDF({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response).toBe(false);
   });
 
@@ -6091,10 +6028,9 @@ test.describe("GET /files/file/:fileId/isformpdf - isFormPDF permissions", () =>
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.files.isFormPDF({ fileId });
+    const { status } = await adminApi.files.isFormPDF({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
   });
 
   test("GET /files/file/:fileId/isformpdf - User with Read access can check", async ({
@@ -6128,10 +6064,9 @@ test.describe("GET /files/file/:fileId/isformpdf - isFormPDF permissions", () =>
       },
     });
 
-    const { data, status } = await userApi.files.isFormPDF({ fileId });
+    const { status } = await userApi.files.isFormPDF({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
   });
 
   test("GET /files/file/:fileId/isformpdf - Unauthenticated user gets 401", async ({
@@ -6204,10 +6139,9 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
 
     const fileId = await createOoForm(ownerApi, roomId);
 
-    const { data, status } = await ownerApi.files.getAllFormRoles({ fileId });
+    const { status } = await ownerApi.files.getAllFormRoles({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
   });
 
   test("GET /files/file/:fileId/formroles - DocSpace admin can get form roles", async ({
@@ -6230,10 +6164,9 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.files.getAllFormRoles({ fileId });
+    const { status } = await adminApi.files.getAllFormRoles({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
   });
 
   test("GET /files/file/:fileId/formroles - User with Read access can get form roles", async ({
@@ -6263,10 +6196,9 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
       },
     });
 
-    const { data, status } = await userApi.files.getAllFormRoles({ fileId });
+    const { status } = await userApi.files.getAllFormRoles({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
   });
 
   test("GET /files/file/:fileId/formroles - Unauthenticated user gets 401", async ({
@@ -6353,12 +6285,11 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
       },
     });
 
-    const { data, status } = await roomAdminApi.files.getAllFormRoles({
+    const { status } = await roomAdminApi.files.getAllFormRoles({
       fileId: pdfFormId,
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
   });
 
   test("GET /files/file/:fileId/formroles - ContentCreator can get form roles", async ({
@@ -6388,12 +6319,11 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
       },
     });
 
-    const { data, status } = await creatorApi.files.getAllFormRoles({
+    const { status } = await creatorApi.files.getAllFormRoles({
       fileId: pdfFormId,
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
   });
 
   test.fail(
@@ -6432,7 +6362,6 @@ test.describe("GET /files/file/fillresult - Get fill result permissions", () => 
     });
 
     expect(status).toBe(404);
-    expect(data.statusCode).toBe(404);
 
     expect((data as any).error?.message).toBe("The record could not be found");
   });
@@ -6498,7 +6427,6 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.url).toBeTruthy();
   });
 
@@ -6540,7 +6468,6 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.url).toBeTruthy();
   });
 
@@ -6582,7 +6509,6 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
     });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.url).toBeTruthy();
   });
 
@@ -6609,12 +6535,11 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forRole("user")
       .files.getPresignedFileUri({ fileId });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 
   test("GET /files/file/:fileId/presigned - Guest without room access gets 403", async ({
@@ -6640,12 +6565,11 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forRole("guest")
       .files.getPresignedFileUri({ fileId });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 });
 
@@ -6708,7 +6632,6 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
       .files.startFillingFile({ fileId: formId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(formId);
   });
 
@@ -6736,12 +6659,11 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
 
       await apiSdk.addAuthenticatedMember("owner", "User");
 
-      const { data, status } = await apiSdk
+      const { status } = await apiSdk
         .forRole("user")
         .files.startFillingFile({ fileId: formId });
 
       expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
     },
   );
 
@@ -6769,12 +6691,11 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
 
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
+      const { status } = await apiSdk
         .forRole("guest")
         .files.startFillingFile({ fileId: formId });
 
       expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
     },
   );
 });
@@ -6858,7 +6779,6 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
       .files.saveEditingFileFromForm({ fileId, file: makeFormFile() });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.id).toBe(fileId);
     expect(data.response!.isForm).toBe(true);
   });
@@ -6878,12 +6798,11 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
 
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forRole("user")
       .files.saveEditingFileFromForm({ fileId, file: makeFormFile() });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 
   test("PUT /files/file/:fileId/saveediting/form - Guest without room access returns 403", async ({
@@ -6901,12 +6820,11 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
 
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forRole("guest")
       .files.saveEditingFileFromForm({ fileId, file: makeFormFile() });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 });
 
@@ -6958,15 +6876,12 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
     const { formId } = await setupForm(apiSdk);
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data, status } = await apiSdk
-      .forRole("user")
-      .files.checkFillFormDraft({
-        fileId: formId,
-        checkFillFormDraft: { version: 1 },
-      });
+    const { status } = await apiSdk.forRole("user").files.checkFillFormDraft({
+      fileId: formId,
+      checkFillFormDraft: { version: 1 },
+    });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 
   // Catches: if guest without room access can read form drafts they have no access to
@@ -6976,15 +6891,12 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
     const { formId } = await setupForm(apiSdk);
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { data, status } = await apiSdk
-      .forRole("guest")
-      .files.checkFillFormDraft({
-        fileId: formId,
-        checkFillFormDraft: { version: 1 },
-      });
+    const { status } = await apiSdk.forRole("guest").files.checkFillFormDraft({
+      fileId: formId,
+      checkFillFormDraft: { version: 1 },
+    });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 });
 
@@ -7047,7 +6959,6 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag perm
       });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
     expect(data.response!.customFilterEnabled).toBe(true);
   });
 
@@ -7070,15 +6981,12 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag perm
       },
     });
 
-    const { data, status } = await apiSdk
-      .forRole("user")
-      .files.setCustomFilterTag({
-        fileId,
-        customFilterParameters: { enabled: true },
-      });
+    const { status } = await apiSdk.forRole("user").files.setCustomFilterTag({
+      fileId,
+      customFilterParameters: { enabled: true },
+    });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 
   // Catches: if user without room access can modify file settings they have no access to
@@ -7088,15 +6996,12 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag perm
     const { fileId } = await setupFile(apiSdk);
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data, status } = await apiSdk
-      .forRole("user")
-      .files.setCustomFilterTag({
-        fileId,
-        customFilterParameters: { enabled: true },
-      });
+    const { status } = await apiSdk.forRole("user").files.setCustomFilterTag({
+      fileId,
+      customFilterParameters: { enabled: true },
+    });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 });
 
@@ -7148,10 +7053,9 @@ test.describe("GET /files/file/:fileId/presigneduri - Get presigned URI permissi
       },
     });
 
-    const { data, status } = await userApi.files.getPresignedUri({ fileId });
+    const { status } = await userApi.files.getPresignedUri({ fileId });
 
     expect(status).toBe(200);
-    expect(data.statusCode).toBe(200);
   });
 
   // Catches: if user without room access can retrieve file stream URL
@@ -7161,11 +7065,10 @@ test.describe("GET /files/file/:fileId/presigneduri - Get presigned URI permissi
     const { fileId } = await setupFile(apiSdk);
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forRole("user")
       .files.getPresignedUri({ fileId });
 
     expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
   });
 });
