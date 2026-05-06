@@ -822,3 +822,225 @@ test.describe("POST /files/{folderId}/upload/check - access control", () => {
     expect(status).toBe(403);
   });
 });
+
+test.describe("GET /files/:folderId/formfilter - access control", () => {
+  test("GET /files/:folderId/formfilter - User with Read access gets 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Filter Read Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Filter Read" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.getFolder({ folderId });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /files/:folderId/formfilter - Owner gets form filter for another user's folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Owner Filter Other User",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+
+    const { data: folderData } = await userApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder By User For Owner Filter" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolder({ folderId });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+});
+
+test.describe("GET /api/2.0/files/folder/:folderId - access control", () => {
+  // BUG XXXXX: GET /api/2.0/files/folder/:folderId returns 403 instead of 401 for unauthenticated request.
+  // Actual response: { "error": { "message": "You don't have enough permission to view the folder content",
+  // "type": "System.InvalidOperationException" }, "statusCode": 403 }
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/folder/:folderId - Unauthenticated user gets 401",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room For Info Auth",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Autotest Folder Info Anon" },
+      });
+      const folderId = folderData.response!.id!;
+
+      const anonApi = apiSdk.forAnonymous();
+      const { status } = await anonApi.folders.getFolderInfo({ folderId });
+
+      expect(status).toBe(401);
+    },
+  );
+
+  test("GET /api/2.0/files/folder/:folderId - User without access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Info User No Access" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - User with Read access gets 200 and correct access field", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Info Read Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Info Read" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.response!.access).toBe(FileShare.Read);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - Guest without access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Info Guest No Access" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - Owner gets folder info for another user's folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Owner Info Other User",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+
+    const { data: folderData } = await userApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder By User For Owner Info" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(folderId);
+  });
+});

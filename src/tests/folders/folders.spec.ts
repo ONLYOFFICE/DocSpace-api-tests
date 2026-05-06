@@ -756,6 +756,473 @@ test.describe("POST /files/{folderId}/upload/check - Check file uploads", () => 
   });
 });
 
+test.describe("GET /files/:folderId/formfilter - Get folder form filter", () => {
+  test("GET /files/:folderId/formfilter - Owner gets form filter for empty folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Form Filter Empty",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Empty Folder For Filter" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolder({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toEqual([]);
+  });
+
+  test("GET /files/:folderId/formfilter - Folder with regular files (no forms) returns empty filter", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder With Uploaded Files" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Uploaded Doc" },
+    });
+    await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Uploaded Doc 2" },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolder({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toEqual([]);
+  });
+
+  test("GET /files/:folderId/formfilter - Folder with many files returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Busy Folder Filter",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Busy Folder" },
+    });
+    const folderId = folderData.response!.id!;
+
+    for (let i = 1; i <= 10; i++) {
+      await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: `Autotest File ${i}` },
+      });
+    }
+
+    const { data, status } = await ownerApi.folders.getFolder({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /files/:folderId/formfilter - Non-existent folderId returns 200 with empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getFolder({
+      folderId: 999999999,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toEqual([]);
+  });
+
+  test("GET /files/:folderId/formfilter - Deleted folder returns 200 with empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder For Filter After Delete" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
+
+    await expect(async () => {
+      const { status } = await ownerApi.folders.getFolderByFolderId({
+        folderId,
+      });
+      expect(status).not.toBe(200);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+
+    const { data, status } = await ownerApi.folders.getFolder({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.response).toEqual([]);
+  });
+
+  test("GET /files/:folderId/formfilter - Recent folder returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: recentData } = await ownerApi.folders.getRecentFolder({});
+    const recentFolderId = recentData.response!.current!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolder({
+      folderId: recentFolderId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /files/:folderId/formfilter - Favorites folder returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+    const favoritesFolderId = favData.response!.current!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolder({
+      folderId: favoritesFolderId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+});
+
+test.describe("GET /api/2.0/files/folder/:folderId - Get folder information", () => {
+  test("GET /api/2.0/files/folder/:folderId - Owner gets folder info with correct id and title", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Folder Info",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder For Info" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.id).toBe(folderId);
+    expect(data.response!.title).toBe("Autotest Folder For Info");
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - parentId points to correct parent folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Parent Check",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Parent Check" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.response!.parentId).toBe(roomId);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - filesCount and foldersCount reflect actual contents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Count Check",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Count Check" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest File 1" },
+    });
+    await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest File 2" },
+    });
+    await ownerApi.folders.createFolder({
+      folderId,
+      createFolder: { title: "Autotest Subfolder" },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.response!.filesCount).toBe(2);
+    expect(data.response!.foldersCount).toBe(1);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - Empty folder returns filesCount 0 and foldersCount 0", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Empty Folder Info",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Empty Folder Info" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.response!.filesCount).toBe(0);
+    expect(data.response!.foldersCount).toBe(0);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - Room returns correct roomType", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Type Check",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.roomType).toBe(RoomType.CustomRoom);
+  });
+
+  // BUG XXXXX: GET /api/2.0/files/folder/:folderId returns 403 instead of 404 when folder is not found
+  // (non-existent or deleted). Actual response: { "error": { "message": "The required folder was not found",
+  // "type": "System.InvalidOperationException" }, "statusCode": 403 }
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/folder/:folderId - Non-existent folderId returns 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.folders.getFolderInfo({
+        folderId: 999999999,
+      });
+
+      expect(status).toBe(404);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/folder/:folderId - Deleted folder returns 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest Folder For Info After Delete" },
+      });
+      const folderId = folderData.response!.id!;
+
+      await ownerApi.folders.deleteFolder({
+        folderId,
+        deleteFolder: { deleteAfter: true, immediately: true },
+      });
+
+      await expect(async () => {
+        const { status } = await ownerApi.folders.getFolderByFolderId({
+          folderId,
+        });
+        expect(status).not.toBe(200);
+      }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+
+      const { status } = await ownerApi.folders.getFolderInfo({ folderId });
+
+      expect(status).toBe(404);
+    },
+  );
+
+  test("GET /api/2.0/files/folder/:folderId - My Documents virtual folder returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({
+      folderId: myDocsFolderId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(myDocsFolderId);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - Trash virtual folder returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: trashData } = await ownerApi.folders.getTrashFolder();
+    const trashFolderId = trashData.response!.current!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({
+      folderId: trashFolderId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(trashFolderId);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - Recent virtual folder returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: recentData } = await ownerApi.folders.getRecentFolder({});
+    const recentFolderId = recentData.response!.current!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({
+      folderId: recentFolderId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(recentFolderId);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - Favorites virtual folder returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+    const favoritesFolderId = favData.response!.current!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({
+      folderId: favoritesFolderId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(favoritesFolderId);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - Folder with many files returns correct filesCount", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Many Files Info",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Many Files" },
+    });
+    const folderId = folderData.response!.id!;
+
+    for (let i = 1; i <= 10; i++) {
+      await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: `Autotest File ${i}` },
+      });
+    }
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.response!.filesCount).toBe(10);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId - Folder with regular uploaded files returns 200 with correct fields", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Uploaded Files Info" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Uploaded Doc 1" },
+    });
+    await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "Autotest Uploaded Doc 2" },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.filesCount).toBe(2);
+    expect(data.response!.createdBy).toBeDefined();
+  });
+});
+
 test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () => {
   test("GET /files/folder/:folderId/subfolders - Folders are returned in set order", async ({
     apiSdk,
