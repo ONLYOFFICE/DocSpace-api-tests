@@ -16,7 +16,7 @@ import { createOoForm } from "@/src/helpers/files";
 import { faker } from "@faker-js/faker";
 
 test.describe("POST /files/@my/file", () => {
-  // No extension в†’ .docx added
+  // No extension -> .docx added
   test("POST /files/@my/file - Title without extension gets .docx", async ({
     apiSdk,
   }) => {
@@ -43,7 +43,7 @@ test.describe("POST /files/@my/file", () => {
     expect(data.response!.id!).toBeGreaterThan(0);
   });
 
-  // Known text format в†’ converted to .docx by default
+  // Known text format -> converted to .docx by default
   test("POST /files/@my/file - Title with .txt extension is converted to .docx", async ({
     apiSdk,
   }) => {
@@ -5262,7 +5262,7 @@ test.describe("DELETE /files/templates - Delete templates", () => {
 
     const { status } = await ownerApi.files.deleteTemplates({});
 
-    // body is required вЂ” API returns 400 validation error
+    // body is required -- API returns 400 validation error
     expect(status).toBe(400);
   });
 });
@@ -5461,7 +5461,7 @@ test.describe("GET /files/file/:fileId/formroles", () => {
     expect(data.response).toHaveLength(0);
   });
 
-  // Regular office file is not a form вЂ” endpoint rejects with 403
+  // Regular office file is not a form -- endpoint rejects with 403
   test("GET /files/file/:fileId/formroles - Regular .docx file returns 403", async ({
     apiSdk,
   }) => {
@@ -6065,7 +6065,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag", ()
 
     expect(status).toBe(200);
     expect(data.response!.id).toBe(fileId);
-    // Catches: if disabling leaves customFilterEnabled:true вЂ” server omits the field when false
+    // Catches: if disabling leaves customFilterEnabled:true -- server omits the field when false
     expect(data.response!.customFilterEnabled).toBeFalsy();
   });
 

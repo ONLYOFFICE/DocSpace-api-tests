@@ -5783,7 +5783,7 @@ test.describe("POST /files/templates - Add templates permissions", () => {
       .forRole("user")
       .files.addTemplates({ templatesRequestDto: { fileIds: [1] } });
 
-    // templates are a personal (per-user) feature вЂ” available to all authenticated users
+    // templates are a personal (per-user) feature -- available to all authenticated users
     expect(status).toBe(200);
     expect(data.response).toBe(true);
   });
@@ -5905,7 +5905,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
       .forRole("user")
       .files.deleteTemplates({ requestBody: [fileId] });
 
-    // templates are a personal (per-user) feature вЂ” available to all authenticated users
+    // templates are a personal (per-user) feature -- available to all authenticated users
     expect(status).toBe(200);
     expect(data.response).toBe(true);
   });
