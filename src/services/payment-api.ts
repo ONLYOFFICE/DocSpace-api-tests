@@ -134,9 +134,18 @@ export class PaymentApi {
       );
     }
 
+    // Trigger customer initialization in the accounting service.
+    // setdspsaaspaid creates the tariff/license but not the accounting customer —
+    // fetching customerinfo with refresh=true links the customer entity.
+    const customerResponse = await this.apiContext.get(
+      `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/payment/customerinfo`,
+      { headers, params: { refresh: true } },
+    );
+
     return {
       tariff: await tariffResponse.json(),
       quota: await quotaResponse.json(),
+      customer: customerResponse.ok() ? await customerResponse.json() : null,
     };
   }
 
