@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
+import { SortOrder } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("POST /api/2.0/group - Add a new group", () => {
   test("POST /api/2.0/group - Owner creates group with required fields only", async ({
@@ -142,6 +143,756 @@ test.describe("POST /api/2.0/group - Add a new group", () => {
     expect(memberIds).toContain(member1Id);
     expect(memberIds).toContain(member2Id);
     expect(memberIds).toContain(member3Id);
+  });
+});
+
+test.describe("GET /api/2.0/group - Get groups basic behavior", () => {
+  test("GET /api/2.0/group - Returns 200 with array of groups", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+
+    const { data, status } = await ownerApi.groupApi.getGroups({});
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /api/2.0/group - Each group in response contains id", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+
+    const { data } = await ownerApi.groupApi.getGroups({});
+
+    for (const group of data.response!) {
+      expect(group.id).toBeDefined();
+    }
+  });
+});
+
+test.describe("GET /api/2.0/group - Query params", () => {
+  test("GET /api/2.0/group - filterValue filters groups by name", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const uniqueName = apiSdk.faker.generateString(20);
+
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: { groupName: uniqueName, groupManager: ownerId },
+    });
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      filterValue: uniqueName,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.length).toBe(1);
+    expect(data.response![0].name).toBe(uniqueName);
+  });
+
+  test("GET /api/2.0/group - userId returns only groups where user is a member", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: g1 } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const group1Id = g1.response!.id!;
+
+    const { data: g2 } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const group2Id = g2.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      userId: memberId,
+    });
+
+    expect(status).toBe(200);
+    const ids = data.response?.map((g) => g.id);
+    expect(ids).toContain(group1Id);
+    expect(ids).not.toContain(group2Id);
+  });
+
+  test("GET /api/2.0/group - manager=true returns only groups where user is manager", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: newUserData } = await apiSdk.addMember("owner", "User");
+    const userId = newUserData.response!.id!;
+
+    const { data: mg } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: userId,
+      },
+    });
+    const managerGroupId = mg.response!.id!;
+
+    const { data: memg } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [userId],
+      },
+    });
+    const memberGroupId = memg.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      userId,
+      manager: true,
+    });
+
+    expect(status).toBe(200);
+    const ids = data.response?.map((g) => g.id);
+    expect(ids).toContain(managerGroupId);
+    expect(ids).not.toContain(memberGroupId);
+  });
+
+  test("GET /api/2.0/group - count limits number of returned groups", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    for (let i = 0; i < 3; i++) {
+      await ownerApi.groupApi.addGroup({
+        groupRequestDto: {
+          groupName: apiSdk.faker.generateString(10),
+          groupManager: ownerId,
+        },
+      });
+    }
+
+    const { data, status } = await ownerApi.groupApi.getGroups({ count: 2 });
+
+    expect(status).toBe(200);
+    expect(data.response?.length).toBe(2);
+  });
+
+  test("GET /api/2.0/group - startIndex offsets returned groups", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    for (let i = 0; i < 3; i++) {
+      await ownerApi.groupApi.addGroup({
+        groupRequestDto: {
+          groupName: apiSdk.faker.generateString(10),
+          groupManager: ownerId,
+        },
+      });
+    }
+
+    const { data: page1 } = await ownerApi.groupApi.getGroups({
+      count: 1,
+      startIndex: 0,
+    });
+    const { data: page2 } = await ownerApi.groupApi.getGroups({
+      count: 1,
+      startIndex: 1,
+    });
+
+    expect(page1.response![0].id).not.toBe(page2.response![0].id);
+  });
+
+  test("GET /api/2.0/group - sortOrder=Ascending sorts groups by name ascending", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const nameA = `A_${apiSdk.faker.generateString(8)}`;
+    const nameZ = `Z_${apiSdk.faker.generateString(8)}`;
+
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: { groupName: nameZ, groupManager: ownerId },
+    });
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: { groupName: nameA, groupManager: ownerId },
+    });
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      sortBy: "Name",
+      sortOrder: SortOrder.Ascending,
+    });
+
+    expect(status).toBe(200);
+    const names = data.response!.map((g) => g.name!);
+    expect(names.indexOf(nameA)).toBeLessThan(names.indexOf(nameZ));
+  });
+
+  test("GET /api/2.0/group - sortOrder=Descending sorts groups by name descending", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const nameA = `A_${apiSdk.faker.generateString(8)}`;
+    const nameZ = `Z_${apiSdk.faker.generateString(8)}`;
+
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: { groupName: nameA, groupManager: ownerId },
+    });
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: { groupName: nameZ, groupManager: ownerId },
+    });
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      sortBy: "Name",
+      sortOrder: SortOrder.Descending,
+    });
+
+    expect(status).toBe(200);
+    const names = data.response!.map((g) => g.name!);
+    expect(names.indexOf(nameZ)).toBeLessThan(names.indexOf(nameA));
+  });
+});
+
+test.describe("GET /api/2.0/group - Filtering", () => {
+  test("GET /api/2.0/group - userId returns only groups where user is a member", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: g1 } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const memberGroupId = g1.response!.id!;
+
+    const { data: g2 } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const otherGroupId = g2.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      userId: memberId,
+    });
+
+    expect(status).toBe(200);
+    const ids = data.response?.map((g) => g.id);
+    expect(ids).toContain(memberGroupId);
+    expect(ids).not.toContain(otherGroupId);
+  });
+
+  test("GET /api/2.0/group - manager=true returns only groups where user is manager", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    const { data: mg } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: userId,
+      },
+    });
+    const managerGroupId = mg.response!.id!;
+
+    const { data: memg } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [userId],
+      },
+    });
+    const memberOnlyGroupId = memg.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      userId,
+      manager: true,
+    });
+
+    expect(status).toBe(200);
+    const ids = data.response?.map((g) => g.id);
+    expect(ids).toContain(managerGroupId);
+    expect(ids).not.toContain(memberOnlyGroupId);
+  });
+
+  test("GET /api/2.0/group - filterValue filters by partial name match", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const uniquePart = apiSdk.faker.generateString(12);
+    const fullName = `Prefix_${uniquePart}_Suffix`;
+
+    const { data: g1 } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: { groupName: fullName, groupManager: ownerId },
+    });
+    const targetGroupId = g1.response!.id!;
+
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      filterValue: uniquePart,
+    });
+
+    expect(status).toBe(200);
+    const ids = data.response?.map((g) => g.id);
+    expect(ids).toContain(targetGroupId);
+  });
+
+  test("GET /api/2.0/group - filterValue with no matches returns empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      filterValue: `NO_MATCH_${apiSdk.faker.generateString(20)}`,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toEqual([]);
+  });
+});
+
+test.describe("GET /api/2.0/group - Pagination", () => {
+  test("GET /api/2.0/group - count limits number of results", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    for (let i = 0; i < 5; i++) {
+      await ownerApi.groupApi.addGroup({
+        groupRequestDto: {
+          groupName: apiSdk.faker.generateString(10),
+          groupManager: ownerId,
+        },
+      });
+    }
+
+    const { data, status } = await ownerApi.groupApi.getGroups({ count: 3 });
+
+    expect(status).toBe(200);
+    expect(data.response?.length).toBe(3);
+  });
+
+  test("GET /api/2.0/group - startIndex shifts results", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    for (let i = 0; i < 3; i++) {
+      await ownerApi.groupApi.addGroup({
+        groupRequestDto: {
+          groupName: apiSdk.faker.generateString(10),
+          groupManager: ownerId,
+        },
+      });
+    }
+
+    const { data: withoutOffset } = await ownerApi.groupApi.getGroups({
+      count: 2,
+      startIndex: 0,
+    });
+    const { data: withOffset } = await ownerApi.groupApi.getGroups({
+      count: 2,
+      startIndex: 1,
+    });
+
+    const firstIds = withoutOffset.response!.map((g) => g.id);
+    const secondIds = withOffset.response!.map((g) => g.id);
+    expect(firstIds[0]).not.toBe(secondIds[0]);
+    expect(firstIds[1]).toBe(secondIds[0]);
+  });
+
+  test("GET /api/2.0/group - count + startIndex produce no duplicates across pages", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    for (let i = 0; i < 4; i++) {
+      await ownerApi.groupApi.addGroup({
+        groupRequestDto: {
+          groupName: apiSdk.faker.generateString(10),
+          groupManager: ownerId,
+        },
+      });
+    }
+
+    const { data: page1 } = await ownerApi.groupApi.getGroups({
+      count: 2,
+      startIndex: 0,
+    });
+    const { data: page2 } = await ownerApi.groupApi.getGroups({
+      count: 2,
+      startIndex: 2,
+    });
+
+    const page1Ids = page1.response!.map((g) => g.id);
+    const page2Ids = page2.response!.map((g) => g.id);
+    const overlap = page1Ids.filter((id) => page2Ids.includes(id));
+    expect(overlap).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/group - startIndex greater than total returns empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    for (let i = 0; i < 2; i++) {
+      await ownerApi.groupApi.addGroup({
+        groupRequestDto: {
+          groupName: apiSdk.faker.generateString(10),
+          groupManager: ownerId,
+        },
+      });
+    }
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      startIndex: 100,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toEqual([]);
+  });
+});
+
+test.describe("GET /api/2.0/group - Sorting", () => {
+  test("GET /api/2.0/group - sortBy=Name sortOrder=Ascending returns groups in ascending order", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const nameA = `A_${apiSdk.faker.generateString(8)}`;
+    const nameM = `M_${apiSdk.faker.generateString(8)}`;
+    const nameZ = `Z_${apiSdk.faker.generateString(8)}`;
+
+    for (const name of [nameZ, nameA, nameM]) {
+      await ownerApi.groupApi.addGroup({
+        groupRequestDto: { groupName: name, groupManager: ownerId },
+      });
+    }
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      sortBy: "Name",
+      sortOrder: SortOrder.Ascending,
+    });
+
+    expect(status).toBe(200);
+    const names = data.response!.map((g) => g.name!);
+    for (let i = 0; i < names.length - 1; i++) {
+      expect(names[i].localeCompare(names[i + 1])).toBeLessThanOrEqual(0);
+    }
+  });
+
+  test("GET /api/2.0/group - sortBy=Name sortOrder=Descending returns groups in descending order", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const nameA = `A_${apiSdk.faker.generateString(8)}`;
+    const nameM = `M_${apiSdk.faker.generateString(8)}`;
+    const nameZ = `Z_${apiSdk.faker.generateString(8)}`;
+
+    for (const name of [nameA, nameZ, nameM]) {
+      await ownerApi.groupApi.addGroup({
+        groupRequestDto: { groupName: name, groupManager: ownerId },
+      });
+    }
+
+    const { data, status } = await ownerApi.groupApi.getGroups({
+      sortBy: "Name",
+      sortOrder: SortOrder.Descending,
+    });
+
+    expect(status).toBe(200);
+    const names = data.response!.map((g) => g.name!);
+    for (let i = 0; i < names.length - 1; i++) {
+      expect(names[i].localeCompare(names[i + 1])).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+test.describe("PUT /api/2.0/group/{id} - Update a group", () => {
+  test("PUT /api/2.0/group/{id} - Owner updates group name", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const newName = apiSdk.faker.generateString(10);
+    const { data, status } = await ownerApi.groupApi.updateGroup({
+      id: groupId,
+      updateGroupRequest: { groupName: newName },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.name).toBe(newName);
+  });
+
+  test("PUT /api/2.0/group/{id} - Owner updates group manager", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: newManagerData } = await apiSdk.addMember("owner", "User");
+    const newManagerId = newManagerData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.updateGroup({
+      id: groupId,
+      updateGroupRequest: { groupManager: newManagerId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.manager?.id).toBe(newManagerId);
+  });
+
+  test("PUT /api/2.0/group/{id} - Owner adds members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: member1Data } = await apiSdk.addMember("owner", "User");
+    const member1Id = member1Data.response!.id!;
+    const { data: member2Data } = await apiSdk.addMember("owner", "User");
+    const member2Id = member2Data.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { status } = await ownerApi.groupApi.updateGroup({
+      id: groupId,
+      updateGroupRequest: { membersToAdd: [member1Id, member2Id] },
+    });
+
+    expect(status).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const memberIds = groupData.response?.members?.map((m) => m.id);
+    expect(memberIds).toContain(member1Id);
+    expect(memberIds).toContain(member2Id);
+  });
+
+  test("PUT /api/2.0/group/{id} - Owner removes members from group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: member1Data } = await apiSdk.addMember("owner", "User");
+    const member1Id = member1Data.response!.id!;
+    const { data: member2Data } = await apiSdk.addMember("owner", "User");
+    const member2Id = member2Data.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [member1Id, member2Id],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { status } = await ownerApi.groupApi.updateGroup({
+      id: groupId,
+      updateGroupRequest: { membersToRemove: [member1Id] },
+    });
+
+    expect(status).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const memberIds = groupData.response?.members?.map((m) => m.id);
+    expect(memberIds).not.toContain(member1Id);
+    expect(memberIds).toContain(member2Id);
+  });
+
+  test("PUT /api/2.0/group/{id} - Owner updates multiple fields at once", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberToRemoveData } = await apiSdk.addMember("owner", "User");
+    const memberToRemoveId = memberToRemoveData.response!.id!;
+    const { data: memberToAddData } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAddData.response!.id!;
+    const { data: newManagerData } = await apiSdk.addMember("owner", "User");
+    const newManagerId = newManagerData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberToRemoveId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const newName = apiSdk.faker.generateString(10);
+    const { data, status } = await ownerApi.groupApi.updateGroup({
+      id: groupId,
+      updateGroupRequest: {
+        groupName: newName,
+        groupManager: newManagerId,
+        membersToAdd: [memberToAddId],
+        membersToRemove: [memberToRemoveId],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.name).toBe(newName);
+    expect(data.response?.manager?.id).toBe(newManagerId);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const memberIds = groupData.response?.members?.map((m) => m.id);
+    expect(memberIds).toContain(memberToAddId);
+    expect(memberIds).not.toContain(memberToRemoveId);
+  });
+
+  test("PUT /api/2.0/group/{id} - Empty update body returns 200 and group is unchanged", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const originalName = apiSdk.faker.generateString(10);
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: originalName,
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.updateGroup({
+      id: groupId,
+      updateGroupRequest: {},
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.name).toBe(originalName);
+    expect(data.response?.manager?.id).toBe(ownerId);
   });
 });
 
