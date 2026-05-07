@@ -1014,6 +1014,96 @@ test.describe("PUT /api/2.0/group/{id}/members - validation and negative cases",
 });
 
 test.describe("PUT /api/2.0/group/{id}/members - permissions", () => {
+  test("PUT /api/2.0/group/{id}/members - DocSpace admin can add members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: memberToAdd } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAdd.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [memberToAddId] },
+    });
+
+    expect(status).toBe(200);
+    const memberIds = data.response?.members?.map((m) => m.id);
+    expect(memberIds).toContain(memberToAddId);
+  });
+
+  test("PUT /api/2.0/group/{id}/members - Anonymous cannot add members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: memberToAdd } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAdd.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [memberToAddId] },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/group/{id}/members - Room admin cannot add members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: memberToAdd } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAdd.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { status } = await roomAdminApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [memberToAddId] },
+    });
+
+    expect(status).toBe(403);
+  });
+
   test("PUT /api/2.0/group/{id}/members - User cannot add members to group", async ({
     apiSdk,
   }) => {
@@ -1038,6 +1128,37 @@ test.describe("PUT /api/2.0/group/{id}/members - permissions", () => {
     );
 
     const { status } = await userApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [memberToAddId] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/group/{id}/members - Guest cannot add members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: memberToAdd } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAdd.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.groupApi.addMembersTo({
       id: groupId,
       membersRequest: { members: [memberToAddId] },
     });
