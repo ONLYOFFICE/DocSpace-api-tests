@@ -829,7 +829,10 @@ test.describe("PUT /api/2.0/group/{id} - Update a group", () => {
     const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerProfile.response!.id!;
 
-    const { data: memberToRemoveData } = await apiSdk.addMember("owner", "User");
+    const { data: memberToRemoveData } = await apiSdk.addMember(
+      "owner",
+      "User",
+    );
     const memberToRemoveId = memberToRemoveData.response!.id!;
     const { data: memberToAddData } = await apiSdk.addMember("owner", "User");
     const memberToAddId = memberToAddData.response!.id!;

@@ -721,9 +721,9 @@ test.describe("PUT /api/2.0/group/{id} - validation and negative cases", () => {
       id: groupId,
       includeMembers: true,
     });
-    expect(
-      groupData.response?.members?.some((m) => m.id === nonMemberId),
-    ).toBe(false);
+    expect(groupData.response?.members?.some((m) => m.id === nonMemberId)).toBe(
+      false,
+    );
   });
 
   test("PUT /api/2.0/group/{id} - membersToRemove has priority when same user is in add and remove lists", async ({
@@ -919,8 +919,9 @@ test.describe("GET /api/2.0/group - Edge cases and invalid params", () => {
       },
     });
 
-    const { data: withEmpty, status: s1 } =
-      await ownerApi.groupApi.getGroups({});
+    const { data: withEmpty, status: s1 } = await ownerApi.groupApi.getGroups(
+      {},
+    );
     const { data: withUndefined, status: s2 } =
       await ownerApi.groupApi.getGroups();
 
@@ -951,9 +952,7 @@ test.describe("GET /api/2.0/group - Edge cases and invalid params", () => {
     expect(status).toBe(400);
   });
 
-  test("GET /api/2.0/group - invalid sortBy is ignored", async ({
-    apiSdk,
-  }) => {
+  test("GET /api/2.0/group - invalid sortBy is ignored", async ({ apiSdk }) => {
     const { status } = await apiSdk
       .forRole("owner")
       .groupApi.getGroups({ sortBy: "NonExistentField" });
