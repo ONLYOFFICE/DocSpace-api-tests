@@ -1,6 +1,11 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { FoldersApi, RoomType, SortOrder } from "@onlyoffice/docspace-api-sdk";
+import {
+  FilterType,
+  FoldersApi,
+  RoomType,
+  SortOrder,
+} from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 function getFolderSortedByCustomOrder(folders: FoldersApi, folderId: number) {
@@ -1413,12 +1418,12 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // BUG XXXXX: GET /api/2.0/files/:folderId/subfolders returns 403 instead of 404 when folder is not found
+  // BUG : GET /api/2.0/files/:folderId/subfolders returns 403 instead of 404 when folder is not found
   // (non-existent or deleted). Actual response: { "error": { "message": "Object reference not set to an
   // instance of an object.", "type": "System.InvalidOperationException", "hresult": -2146233079 },
   // "status": 1, "statusCode": 403 }
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/subfolders - Non-existent folderId returns 404",
+    "BUG 81464: GET /api/2.0/files/:folderId/subfolders - Non-existent folderId returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1431,7 +1436,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
   );
 
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/subfolders - Deleted folder returns 404",
+    "BUG 81464: GET /api/2.0/files/:folderId/subfolders - Deleted folder returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
@@ -1707,5 +1712,327 @@ test.describe("GET /files/folder/:folderId/subfolders - Get folders list", () =>
     expect(titles?.indexOf("Autotest Folder B")).toBeLessThan(
       titles!.indexOf("Autotest Folder A"),
     );
+  });
+});
+
+test.describe("GET /api/2.0/files/@root - Get root folders", () => {
+  test("GET /api/2.0/files/@root - Returns non-empty array of sections with structure", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getRootFolders({});
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(8);
+    const titles = data.response!.map((s) => s.current?.title);
+    expect(titles).toContain("My documents");
+    expect(titles).toContain("Rooms");
+    expect(titles).toContain("Trash");
+    expect(titles).toContain("Favorites");
+    expect(titles).toContain("Recent");
+    expect(titles).toContain("Archive");
+    expect(titles).toContain("Shared with me");
+    expect(titles).toContain("AI agents");
+  });
+
+  test("GET /api/2.0/files/@root - Each section has current with id, files, folders, total", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getRootFolders({});
+
+    expect(status).toBe(200);
+    for (const section of data.response!) {
+      expect(section.current!.id).toBeGreaterThan(0);
+      expect(typeof section.current!.title).toBe("string");
+      expect(section.current!.security!.Read).toBe(true);
+      expect(section.files == null || Array.isArray(section.files)).toBe(true);
+      expect(section.folders == null || Array.isArray(section.folders)).toBe(
+        true,
+      );
+      expect(typeof section.total).toBe("number");
+      expect(typeof section.startIndex).toBe("number");
+    }
+  });
+
+  test("GET /api/2.0/files/@root - withoutTrash:true excludes Trash section", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: trashData } = await ownerApi.folders.getTrashFolder();
+    const trashId = trashData.response!.current!.id!;
+
+    const { data, status } = await ownerApi.folders.getRootFolders({
+      withoutTrash: true,
+    });
+
+    expect(status).toBe(200);
+    const sectionIds = data.response!.map((s) => s.current!.id);
+    expect(sectionIds).not.toContain(trashId);
+  });
+
+  test("GET /api/2.0/files/@root - Default response includes Trash section", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: trashData } = await ownerApi.folders.getTrashFolder();
+    const trashId = trashData.response!.current!.id!;
+
+    const { data, status } = await ownerApi.folders.getRootFolders({});
+
+    expect(status).toBe(200);
+    const sectionIds = data.response!.map((s) => s.current!.id);
+    expect(sectionIds).toContain(trashId);
+  });
+
+  test("GET /api/2.0/files/@root - filterType FoldersOnly hides files from My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsId = myDocsData.response!.current!.id!;
+
+    await ownerApi.files.createFile({
+      folderId: myDocsId,
+      createFileJsonElement: { title: "Autotest File FoldersOnly Root" },
+    });
+    await ownerApi.folders.createFolder({
+      folderId: myDocsId,
+      createFolder: { title: "Autotest Subfolder FoldersOnly Root" },
+    });
+
+    const { data, status } = await ownerApi.folders.getRootFolders({
+      filterType: FilterType.FoldersOnly,
+    });
+
+    const myDocsSection = data.response!.find(
+      (s) => s.current!.id === myDocsId,
+    );
+    expect(status).toBe(200);
+    expect(myDocsSection).toBeDefined();
+    expect(myDocsSection!.files?.length ?? 0).toBe(0);
+    const folderTitles = (myDocsSection!.folders ?? []).map((f) => f.title);
+    expect(folderTitles).toContain("Autotest Subfolder FoldersOnly Root");
+  });
+
+  test("GET /api/2.0/files/@root - filterType FilesOnly hides folders from My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsId = myDocsData.response!.current!.id!;
+
+    await ownerApi.files.createFile({
+      folderId: myDocsId,
+      createFileJsonElement: { title: "Autotest File FilesOnly Root" },
+    });
+    await ownerApi.folders.createFolder({
+      folderId: myDocsId,
+      createFolder: { title: "Autotest Subfolder FilesOnly Root" },
+    });
+
+    const { data, status } = await ownerApi.folders.getRootFolders({
+      filterType: FilterType.FilesOnly,
+    });
+
+    const myDocsSection = data.response!.find(
+      (s) => s.current!.id === myDocsId,
+    );
+    expect(status).toBe(200);
+    expect(myDocsSection).toBeDefined();
+    expect(myDocsSection!.folders?.length ?? 0).toBe(0);
+    const fileTitles = (myDocsSection!.files ?? []).map((f) => f.title);
+    expect(
+      fileTitles.some((t) => t?.includes("Autotest File FilesOnly Root")),
+    ).toBe(true);
+  });
+
+  test("GET /api/2.0/files/@root - filterType CustomRooms returns only Custom rooms", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const customTitle = "Autotest Custom Room Root Filter";
+    const fillingTitle = "Autotest Filling Room Root Filter";
+
+    await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: customTitle,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: fillingTitle,
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getRootFolders({
+      filterType: FilterType.CustomRooms,
+    });
+
+    const allFolders = data.response!.flatMap((s) => s.folders ?? []);
+
+    expect(status).toBe(200);
+    const titles = allFolders.map((f) => f.title);
+    expect(titles).toContain(customTitle);
+    expect(titles).not.toContain(fillingTitle);
+  });
+
+  test("GET /api/2.0/files/@root - filterType FillingFormsRooms returns only FillingForms rooms", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const fillingTitle = "Autotest Filling Room Root FillingFilter";
+    const customTitle = "Autotest Custom Room Root FillingFilter";
+
+    await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: fillingTitle,
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: customTitle,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getRootFolders({
+      filterType: FilterType.FillingFormsRooms,
+    });
+
+    const allFolders = data.response!.flatMap((s) => s.folders ?? []);
+
+    expect(status).toBe(200);
+    const titles = allFolders.map((f) => f.title);
+    expect(titles).toContain(fillingTitle);
+    expect(titles).not.toContain(customTitle);
+  });
+
+  test("GET /api/2.0/files/@root - filterType PublicRooms returns only Public rooms", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const publicTitle = "Autotest Public Room Root PublicFilter";
+    const customTitle = "Autotest Custom Room Root PublicFilter";
+
+    await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: publicTitle,
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: customTitle,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getRootFolders({
+      filterType: FilterType.PublicRooms,
+    });
+
+    const allFolders = data.response!.flatMap((s) => s.folders ?? []);
+
+    expect(status).toBe(200);
+    const titles = allFolders.map((f) => f.title);
+    expect(titles).toContain(publicTitle);
+    expect(titles).not.toContain(customTitle);
+  });
+
+  test("GET /api/2.0/files/@root - count:1 limits items per section", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsId = myDocsData.response!.current!.id!;
+
+    for (let i = 1; i <= 3; i++) {
+      await ownerApi.files.createFile({
+        folderId: myDocsId,
+        createFileJsonElement: { title: `Autotest File Root Count ${i}` },
+      });
+    }
+
+    const { data, status } = await ownerApi.folders.getRootFolders({
+      count: 1,
+    });
+
+    expect(status).toBe(200);
+    for (const section of data.response!) {
+      const itemCount =
+        (section.files?.length ?? 0) + (section.folders?.length ?? 0);
+      expect(itemCount).toBeLessThanOrEqual(1);
+    }
+    const myDocsSection = data.response!.find(
+      (s) => s.current!.id === myDocsId,
+    );
+    // My documents has 4 files (3 created + 1 default) -- count:1 must limit to exactly 1
+    expect(myDocsSection!.total).toBeGreaterThan(1);
+    expect(
+      (myDocsSection!.files?.length ?? 0) +
+        (myDocsSection!.folders?.length ?? 0),
+    ).toBe(1);
+  });
+
+  test("GET /api/2.0/files/@root - filterValue filters content by title", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsId = myDocsData.response!.current!.id!;
+    const uniqueTitle = "Autotest FilterValue Unique Root";
+
+    await ownerApi.files.createFile({
+      folderId: myDocsId,
+      createFileJsonElement: { title: uniqueTitle },
+    });
+    await ownerApi.files.createFile({
+      folderId: myDocsId,
+      createFileJsonElement: { title: "Autotest FilterValue Other Root" },
+    });
+
+    const { data, status } = await ownerApi.folders.getRootFolders({
+      filterValue: uniqueTitle,
+    });
+
+    const allFiles = data.response!.flatMap((s) => s.files ?? []);
+
+    expect(status).toBe(200);
+    const matchingFiles = allFiles.filter((f) =>
+      f.title?.includes(uniqueTitle),
+    );
+    expect(matchingFiles.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/files/@root - filterValue with no matches returns zero total across all sections", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getRootFolders({
+      filterValue: "zzz_no_match_autotest_xyz_99999",
+    });
+
+    expect(status).toBe(200);
+    const totalItems = data.response!.reduce(
+      (sum, s) => sum + (s.total ?? 0),
+      0,
+    );
+    expect(totalItems).toBe(0);
   });
 });

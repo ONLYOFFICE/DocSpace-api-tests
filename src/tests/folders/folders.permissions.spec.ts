@@ -1287,12 +1287,12 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // BUG XXXXX: GET /api/2.0/files/:folderId/subfolders returns 403 for RoomManager access
+  // BUG 81463: GET /api/2.0/files/:folderId/subfolders returns 403 for RoomManager access
   // while lower roles (ContentCreator, Review, Comment) return 200.
   // Actual response: { "error": { "message": "You don't have enough permission to view the folder content",
   // "type": "System.InvalidOperationException", "hresult": -2146233079 }, "status": 1, "statusCode": 403 }
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/subfolders - User with RoomManager access gets 200",
+    "BUG 81463: GET /api/2.0/files/:folderId/subfolders - User with RoomManager access gets 200",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1567,5 +1567,117 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
 
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
+  });
+});
+
+test.describe("GET /api/2.0/files/@root - access control", () => {
+  test("GET /api/2.0/files/@root - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.folders.getRootFolders({});
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/files/@root - Owner gets 200 and sees non-empty sections", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .folders.getRootFolders({});
+
+    expect(status).toBe(200);
+    const ownerTitles = data.response!.map((s) => s.current?.title);
+    expect(ownerTitles).toContain("My documents");
+    expect(ownerTitles).toContain("Rooms");
+    expect(ownerTitles).toContain("Trash");
+  });
+
+  test("GET /api/2.0/files/@root - Regular User gets 200 and sees own sections", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.folders.getRootFolders({});
+
+    expect(status).toBe(200);
+    const userTitles = data.response!.map((s) => s.current?.title);
+    expect(userTitles).toContain("My documents");
+    expect(userTitles).toContain("Rooms");
+    expect(userTitles).toContain("Trash");
+  });
+
+  test("GET /api/2.0/files/@root - Guest gets 200 and does not see My documents", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.folders.getRootFolders({});
+
+    expect(status).toBe(200);
+    const guestTitles = data.response!.map((s) => s.current?.title);
+    expect(guestTitles).not.toContain("My documents");
+    expect(guestTitles).toContain("Rooms");
+    expect(guestTitles).toContain("Trash");
+  });
+
+  test("GET /api/2.0/files/@root - DocSpaceAdmin gets 200 and sees own sections", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.folders.getRootFolders({});
+
+    expect(status).toBe(200);
+    const adminTitles = data.response!.map((s) => s.current?.title);
+    expect(adminTitles).toContain("My documents");
+    expect(adminTitles).toContain("Rooms");
+    expect(adminTitles).toContain("Trash");
+  });
+
+  test("GET /api/2.0/files/@root - Room member sees their room in sections", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const roomTitle = "Autotest Room For Root Member Access";
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: roomTitle,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.getRootFolders({});
+
+    const allFolders = data.response!.flatMap((s) => s.folders ?? []);
+
+    expect(status).toBe(200);
+    const titles = allFolders.map((f) => f.title);
+    expect(titles).toContain(roomTitle);
   });
 });
