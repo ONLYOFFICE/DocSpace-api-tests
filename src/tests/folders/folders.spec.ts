@@ -2036,3 +2036,876 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     expect(totalItems).toBe(0);
   });
 });
+
+test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () => {
+  test("GET /api/2.0/files/folder/:folderId/path - Returns breadcrumb path ending with target folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Path Breadcrumb",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder For Breadcrumb" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderPath({ folderId });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest Folder For Breadcrumb");
+    expect(titles).toContain("Autotest Room For Path Breadcrumb");
+    const last = data.response![data.response!.length - 1];
+    expect(last.title).toBe("Autotest Folder For Breadcrumb");
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - Path elements are ordered from root to target", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Nested Path Order",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: parentData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Parent Folder Path Order" },
+    });
+    const parentId = parentData.response!.id!;
+
+    const { data: childData } = await ownerApi.folders.createFolder({
+      folderId: parentId,
+      createFolder: { title: "Autotest Child Folder Path Order" },
+    });
+    const childId = childData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderPath({
+      folderId: childId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThanOrEqual(2);
+    const titles = data.response!.map((e) => e.title);
+    const parentIndex = titles.indexOf("Autotest Parent Folder Path Order");
+    const childIndex = titles.indexOf("Autotest Child Folder Path Order");
+    expect(parentIndex).toBeGreaterThanOrEqual(0);
+    expect(childIndex).toBeGreaterThanOrEqual(0);
+    expect(parentIndex).toBeLessThan(childIndex);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - Each element has a non-empty title", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Path Titles",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Path Titles Check" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderPath({ folderId });
+
+    expect(status).toBe(200);
+
+    for (const element of data.response!) {
+      expect(typeof element.title).toBe("string");
+      expect(element.title!.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - Room itself returns path containing the room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room As Path Target",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderPath({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest Room As Path Target");
+    const last = data.response![data.response!.length - 1];
+    expect(last.title).toBe("Autotest Room As Path Target");
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - Folder in My Documents path includes My documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder MyDocs Path Check" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderPath({ folderId });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest Folder MyDocs Path Check");
+    expect(titles).toContain("My documents");
+    const myDocsIndex = titles.indexOf("My documents");
+    const folderIndex = titles.indexOf("Autotest Folder MyDocs Path Check");
+    expect(myDocsIndex).toBeLessThan(folderIndex);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - Folder in archived room returns 200 with path", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Archived Room For Path",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder In Archived Room Path" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.folders.getFolderPath({ folderId });
+
+    expect(status).toBe(200);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest Archived Room For Path");
+    expect(titles).toContain("Autotest Folder In Archived Room Path");
+    const roomIndex = titles.indexOf("Autotest Archived Room For Path");
+    const folderIndex = titles.indexOf("Autotest Folder In Archived Room Path");
+    expect(roomIndex).toBeLessThan(folderIndex);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - Trash virtual folder returns path containing Trash", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: trashData } = await ownerApi.folders.getTrashFolder();
+    const trashFolderId = trashData.response!.current!.id!;
+    const trashFolderTitle = trashData.response!.current!.title!;
+
+    const { data, status } = await ownerApi.folders.getFolderPath({
+      folderId: trashFolderId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain(trashFolderTitle);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - Favorites virtual folder returns path containing Favorites", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+    const favoritesFolderId = favData.response!.current!.id!;
+    const favoritesFolderTitle = favData.response!.current!.title!;
+
+    const { data, status } = await ownerApi.folders.getFolderPath({
+      folderId: favoritesFolderId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain(favoritesFolderTitle);
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - Recent virtual folder returns path containing Recent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: recentData } = await ownerApi.folders.getRecentFolder({});
+    const recentFolderId = recentData.response!.current!.id!;
+    const recentFolderTitle = recentData.response!.current!.title!;
+
+    const { data, status } = await ownerApi.folders.getFolderPath({
+      folderId: recentFolderId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain(recentFolderTitle);
+  });
+
+  // BUG: GET /api/2.0/files/folder/:folderId/path returns 403 instead of 404 when folder is not found.
+  // Actual response: { "statusCode": 403 }. Same pattern as BUG 81459 and BUG 81464.
+  test.fail(
+    "BUG: GET /api/2.0/files/folder/:folderId/path - Non-existent folderId returns 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.folders.getFolderPath({
+        folderId: 999999999,
+      });
+
+      expect(status).toBe(404);
+    },
+  );
+});
+
+test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type", () => {
+  test("GET /api/2.0/files/@favorites - Text file added to favorites appears in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createTextFile({
+      folderId: myDocsFolderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Favorites Text File.txt",
+        content: "hello",
+        createNewIfExist: true,
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response!.files)).toBe(true);
+    const titles = data.response!.files!.map((f) => f.title);
+    expect(titles).toContain("Autotest Favorites Text File.txt");
+  });
+
+  test("GET /api/2.0/files/@favorites - Document (.docx) added to favorites appears with filterType DocumentsOnly", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest Favorites Document.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({
+      filterType: FilterType.DocumentsOnly,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response!.files)).toBe(true);
+    expect(data.response!.files!.length).toBeGreaterThan(0);
+    const titles = data.response!.files!.map((f) => f.title);
+    expect(titles).toContain("Autotest Favorites Document.docx");
+    expect(data.response!.folders ?? []).toHaveLength(0);
+  });
+
+  // BUG: HTML file is counted in response.total (total: 1) but not returned in response.files
+  // (files: [], count: 0). toggleFileFavorite returns 200/true -- the file is stored as favorite,
+  // but GET /api/2.0/files/@favorites excludes it from the result set. .txt and .docx files
+  // are returned correctly. In the UI, HTML files do appear in favorites.
+  test.fail(
+    "BUG: GET /api/2.0/files/@favorites - HTML file added to favorites appears in response",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData, status: createStatus } =
+        await ownerApi.files.createHtmlFile({
+          folderId: myDocsFolderId,
+          createTextOrHtmlFile: {
+            title: "Autotest Favorites HTML File.html",
+            content: "<p>test</p>",
+            createNewIfExist: true,
+          },
+        });
+      expect(createStatus).toBe(200);
+      const fileId = fileData.response!.id!;
+      const storedTitle = fileData.response!.title!;
+
+      const { data: toggleData, status: toggleStatus } =
+        await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+      expect(toggleStatus).toBe(200);
+      expect(toggleData.response).toBe(true);
+
+      const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response!.files)).toBe(true);
+      const titles = data.response!.files!.map((f) => f.title);
+      expect(titles).toContain(storedTitle);
+    },
+  );
+
+  test("GET /api/2.0/files/@favorites - filterType FilesOnly returns all favorited files regardless of type", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: txtData } = await ownerApi.files.createTextFile({
+      folderId: myDocsFolderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Favorites Mixed Text.txt",
+        content: "a",
+        createNewIfExist: true,
+      },
+    });
+    await ownerApi.files.toggleFileFavorite({
+      fileId: txtData.response!.id!,
+      favorite: true,
+    });
+
+    const { data: docxData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest Favorites Mixed Doc.docx" },
+    });
+    await ownerApi.files.toggleFileFavorite({
+      fileId: docxData.response!.id!,
+      favorite: true,
+    });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({
+      filterType: FilterType.FilesOnly,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response!.files)).toBe(true);
+    expect(data.response!.files!.length).toBeGreaterThanOrEqual(2);
+    const titles = data.response!.files!.map((f) => f.title);
+    expect(titles).toContain("Autotest Favorites Mixed Text.txt");
+    expect(titles).toContain("Autotest Favorites Mixed Doc.docx");
+  });
+
+  test("GET /api/2.0/files/@favorites - File removed from favorites does not appear in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest Favorites Removed Doc.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+    await ownerApi.files.toggleFileFavorite({ fileId, favorite: false });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    const titles = (data.response!.files ?? []).map((f) => f.title);
+    expect(titles).not.toContain("Autotest Favorites Removed Doc.docx");
+  });
+});
+
+test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
+  test("GET /api/2.0/files/@favorites - Owner gets favorites folder metadata", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    expect(data.response!.current!.id).toBeDefined();
+    expect(typeof data.response!.current!.id).toBe("number");
+    expect(data.response!.current!.title).toBeTruthy();
+    expect(data.response!.count).toBe(
+      (data.response!.files?.length ?? 0) +
+        (data.response!.folders?.length ?? 0),
+    );
+  });
+
+  test("GET /api/2.0/files/@favorites - Empty favorites returns 200 with no files no folders and total 0", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    expect(data.response!.files).toEqual([]);
+    expect(data.response!.folders).toEqual([]);
+    expect(data.response!.total).toBe(0);
+    expect(data.response!.count).toBe(0);
+  });
+
+  test("GET /api/2.0/files/@favorites - File added to favorites has isFavorite true in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest Favorites isFavorite Check.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response!.files)).toBe(true);
+    const file = data.response!.files!.find(
+      (f) => f.title === "Autotest Favorites isFavorite Check.docx",
+    );
+    expect(file).toBeDefined();
+    expect((file as any).isFavorite).toBe(true);
+  });
+
+  test("GET /api/2.0/files/@favorites - Folder added to favorites appears in response.folders", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Favorites Folder Target" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { folderIds: [folderId] },
+    });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response!.folders)).toBe(true);
+    const folderTitles = data.response!.folders!.map((f) => f.title);
+    expect(folderTitles).toContain("Autotest Favorites Folder Target");
+  });
+
+  test("GET /api/2.0/files/@favorites - filterType FoldersOnly returns only folders", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest Favorites FolderOnly File.docx",
+      },
+    });
+    await ownerApi.files.toggleFileFavorite({
+      fileId: fileData.response!.id!,
+      favorite: true,
+    });
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Favorites FolderOnly Folder" },
+    });
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { folderIds: [folderData.response!.id!] },
+    });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({
+      filterType: FilterType.FoldersOnly,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.files ?? []).toHaveLength(0);
+    const folderTitles = data.response!.folders!.map((f) => f.title);
+    expect(folderTitles).toContain("Autotest Favorites FolderOnly Folder");
+  });
+
+  test("GET /api/2.0/files/@favorites - count=1 pagination returns exactly one file and correct startIndex", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    for (const title of [
+      "Autotest Favorites Page File A.docx",
+      "Autotest Favorites Page File B.docx",
+    ]) {
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title },
+      });
+      await ownerApi.files.toggleFileFavorite({
+        fileId: fileData.response!.id!,
+        favorite: true,
+      });
+    }
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({
+      count: 1,
+      startIndex: 0,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.files!.length).toBe(1);
+    expect(data.response!.count).toBe(1);
+    expect(data.response!.startIndex).toBe(0);
+  });
+
+  test("GET /api/2.0/files/@favorites - sortOrder Descending returns files in reverse alphabetical order", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    for (const title of [
+      "Autotest Favorites Sort AAA.docx",
+      "Autotest Favorites Sort MMM.docx",
+      "Autotest Favorites Sort ZZZ.docx",
+    ]) {
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title },
+      });
+      await ownerApi.files.toggleFileFavorite({
+        fileId: fileData.response!.id!,
+        favorite: true,
+      });
+    }
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({
+      sortBy: "AZ",
+      sortOrder: SortOrder.Descending,
+    });
+
+    expect(status).toBe(200);
+    const titles = data.response!.files!.map((f) => f.title);
+    const zzzIndex = titles.indexOf("Autotest Favorites Sort ZZZ.docx");
+    const mmmIndex = titles.indexOf("Autotest Favorites Sort MMM.docx");
+    const aaaIndex = titles.indexOf("Autotest Favorites Sort AAA.docx");
+    expect(zzzIndex).toBeGreaterThanOrEqual(0);
+    expect(mmmIndex).toBeGreaterThanOrEqual(0);
+    expect(aaaIndex).toBeGreaterThanOrEqual(0);
+    expect(zzzIndex).toBeLessThan(mmmIndex);
+    expect(mmmIndex).toBeLessThan(aaaIndex);
+  });
+
+  test("GET /api/2.0/files/@favorites - filterValue returns only files matching the search term", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: matchFile } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest Favorites FilterVal UNIQUE.docx",
+      },
+    });
+    await ownerApi.files.toggleFileFavorite({
+      fileId: matchFile.response!.id!,
+      favorite: true,
+    });
+
+    const { data: otherFile } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest Favorites FilterVal Other.docx",
+      },
+    });
+    await ownerApi.files.toggleFileFavorite({
+      fileId: otherFile.response!.id!,
+      favorite: true,
+    });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({
+      filterValue: "UNIQUE",
+    });
+
+    expect(status).toBe(200);
+    const titles = data.response!.files!.map((f) => f.title);
+    expect(titles).toContain("Autotest Favorites FilterVal UNIQUE.docx");
+    expect(titles).not.toContain("Autotest Favorites FilterVal Other.docx");
+  });
+
+  test("GET /api/2.0/files/@favorites - File deleted to trash does not appear in favorites", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest Favorites Deleted File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    const titles = (data.response!.files ?? []).map((f) => f.title);
+    expect(titles).not.toContain("Autotest Favorites Deleted File.docx");
+  });
+
+  test("GET /api/2.0/files/@favorites - count=0 returns 400 as invalid parameter", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.folders.getFavoritesFolder({
+      count: 0,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("GET /api/2.0/files/@favorites - startIndex beyond total returns empty files array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest Favorites StartIndex Beyond.docx",
+      },
+    });
+    await ownerApi.files.toggleFileFavorite({
+      fileId: fileData.response!.id!,
+      favorite: true,
+    });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({
+      startIndex: 999999,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.files ?? []).toHaveLength(0);
+    expect(data.response!.folders ?? []).toHaveLength(0);
+    expect(data.response!.count).toBe(0);
+  });
+
+  test("GET /api/2.0/files/@favorites - File from room shows correct originRoomTitle in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Favorites Origin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Favorites Room File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    const file = data.response!.files!.find(
+      (f) => f.title === "Autotest Favorites Room File.docx",
+    );
+
+    expect(status).toBe(200);
+    expect(file).toBeDefined();
+    expect((file as any).originRoomTitle).toBe(
+      "Autotest Favorites Origin Room",
+    );
+    expect((file as any).isFavorite).toBe(true);
+  });
+
+  test("GET /api/2.0/files/@favorites - filterType DocumentsOnly includes .txt files as documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: docxData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest Favorites DocOnly Doc.docx",
+      },
+    });
+    await ownerApi.files.toggleFileFavorite({
+      fileId: docxData.response!.id!,
+      favorite: true,
+    });
+
+    const { data: txtData } = await ownerApi.files.createTextFile({
+      folderId: myDocsFolderId,
+      createTextOrHtmlFile: {
+        title: "Autotest Favorites DocOnly Text.txt",
+        content: "test",
+        createNewIfExist: true,
+      },
+    });
+    await ownerApi.files.toggleFileFavorite({
+      fileId: txtData.response!.id!,
+      favorite: true,
+    });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({
+      filterType: FilterType.DocumentsOnly,
+    });
+
+    expect(status).toBe(200);
+    const titles = data.response!.files!.map((f) => f.title);
+    // .txt opens in Document Editor — classified as a document in DocSpace
+    expect(titles).toContain("Autotest Favorites DocOnly Doc.docx");
+    expect(titles).toContain("Autotest Favorites DocOnly Text.txt");
+  });
+
+  test("GET /api/2.0/files/@favorites - Folder in favorites has isFavorite true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Favorites isFavorite Folder" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { folderIds: [folderId] },
+    });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    const folder = data.response!.folders!.find(
+      (f) => f.title === "Autotest Favorites isFavorite Folder",
+    );
+
+    expect(status).toBe(200);
+    expect(folder).toBeDefined();
+    expect((folder as any).isFavorite).toBe(true);
+  });
+
+  test("GET /api/2.0/files/@favorites - Folder removed via deleteFavoritesFromBody does not appear in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Favorites Remove Folder" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { folderIds: [folderId] },
+    });
+
+    await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { folderIds: [folderId] },
+    });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    const folderTitles = (data.response!.folders ?? []).map((f) => f.title);
+    expect(folderTitles).not.toContain("Autotest Favorites Remove Folder");
+  });
+
+  test("GET /api/2.0/files/@favorites - filterValue with no matching files returns empty files array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest Favorites FilterVal NoMatch.docx",
+      },
+    });
+    await ownerApi.files.toggleFileFavorite({
+      fileId: fileData.response!.id!,
+      favorite: true,
+    });
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({
+      filterValue: "XQZNONEXISTENTXQZ",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.files ?? []).toHaveLength(0);
+    expect(data.response!.count).toBe(0);
+  });
+});
