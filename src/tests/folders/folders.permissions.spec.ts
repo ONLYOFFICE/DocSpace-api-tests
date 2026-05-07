@@ -22,6 +22,8 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response!.length).toBeGreaterThan(0);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest Folder Path Owner");
   });
 
   test("GET /api/2.0/files/folder/:folderId/path - anonymous user cannot get folder path", async ({
@@ -93,6 +95,120 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
     expect((data as any).error?.message).toContain(
       "You don't have enough permission to view the folder content",
     );
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - User with Read access gets 200 and path contains folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Path User Read",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Path User Read" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.getFolderPath({ folderId });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest Folder Path User Read");
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - Guest with Read access gets 200 and path contains folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Path Guest Read",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Path Guest Read" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await guestApi.folders.getFolderPath({ folderId });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest Folder Path Guest Read");
+  });
+
+  test("GET /api/2.0/files/folder/:folderId/path - DocSpaceAdmin gets 200 and path contains folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Path DocSpaceAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Path DocSpaceAdmin" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: adminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await adminApi.folders.getFolderPath({ folderId });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest Folder Path DocSpaceAdmin");
   });
 });
 
@@ -1679,5 +1795,261 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
     expect(status).toBe(200);
     const titles = allFolders.map((f) => f.title);
     expect(titles).toContain(roomTitle);
+  });
+});
+
+test.describe("GET /api/2.0/files/@favorites - access control", () => {
+  test("GET /api/2.0/files/@favorites - Anonymous user gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/files/@favorites - Guest user can access own empty favorites", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestApi = apiSdk.forRole("guest");
+
+    const { data, status } = await guestApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    expect(data.response?.files).toEqual([]);
+    expect(data.response?.total).toBe(0);
+  });
+
+  test("GET /api/2.0/files/@favorites - DocSpaceAdmin favorites are isolated from Owner favorites", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Fav Isolation DocSpaceAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Owner Only Favorite.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    const { data: adminFav, status: adminStatus } =
+      await adminApi.folders.getFavoritesFolder({});
+
+    expect(adminStatus).toBe(200);
+    const adminFileTitles = adminFav.response?.files?.map((f) => f.title) ?? [];
+    expect(adminFileTitles).not.toContain("Autotest Owner Only Favorite.docx");
+  });
+
+  test("GET /api/2.0/files/@favorites - RoomAdmin favorites are isolated from Owner favorites", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Fav Isolation RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Owner Only Favorite.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    const { data: roomAdminFav, status: roomAdminStatus } =
+      await roomAdminApi.folders.getFavoritesFolder({});
+
+    expect(roomAdminStatus).toBe(200);
+    const roomAdminFileTitles =
+      roomAdminFav.response?.files?.map((f) => f.title) ?? [];
+    expect(roomAdminFileTitles).not.toContain(
+      "Autotest Owner Only Favorite.docx",
+    );
+  });
+
+  test("GET /api/2.0/files/@favorites - User favorites are isolated from Owner favorites", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const userApi = apiSdk.forRole("user");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Fav Isolation User",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Owner Only Favorite.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    const { data: userFav, status: userStatus } =
+      await userApi.folders.getFavoritesFolder({});
+
+    expect(userStatus).toBe(200);
+    const userFileTitles = userFav.response?.files?.map((f) => f.title) ?? [];
+    expect(userFileTitles).not.toContain("Autotest Owner Only Favorite.docx");
+  });
+
+  test("GET /api/2.0/files/@favorites - File from room does not appear in favorites after user loses room access", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Favorites Access Check",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Favorites Access File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    await userApi.files.toggleFileFavorite({ fileId, favorite: true });
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.None }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    const titles = (data.response!.files ?? []).map((f) => f.title);
+    expect(titles).not.toContain("Autotest Favorites Access File.docx");
+  });
+
+  test("GET /api/2.0/files/@favorites - File favorited by User is not visible in Owner favorites", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Favorites Isolation Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Favorites Isolation File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    await userApi.files.toggleFileFavorite({ fileId, favorite: true });
+
+    const { data: ownerFav, status } =
+      await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    const ownerTitles = (ownerFav.response!.files ?? []).map((f) => f.title);
+    expect(ownerTitles).not.toContain("Autotest Favorites Isolation File.docx");
+  });
+
+  test("GET /api/2.0/files/@favorites - File from archived room remains in favorites", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Favorites Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Favorites Archived Room File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    const titles = (data.response!.files ?? []).map((f) => f.title);
+    expect(titles).toContain("Autotest Favorites Archived Room File.docx");
   });
 });
