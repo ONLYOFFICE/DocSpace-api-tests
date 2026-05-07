@@ -1,6 +1,9 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType, FormFillingManageAction } from "@onlyoffice/docspace-api-sdk";
+import {
+  RoomType,
+  FormFillingManageAction,
+} from "@onlyoffice/docspace-api-sdk";
 import { readFileSync } from "fs";
 import path from "path";
 
