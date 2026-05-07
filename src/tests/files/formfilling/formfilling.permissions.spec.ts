@@ -191,7 +191,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
   });
 
   test.fail(
-    "BUG XXXXX: PUT /files/file/:fileId/manageformfilling - ContentCreator can stop form filling they started",
+    "BUG 81470: PUT /files/file/:fileId/manageformfilling - ContentCreator can stop form filling they started",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
