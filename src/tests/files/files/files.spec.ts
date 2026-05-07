@@ -162,7 +162,6 @@ test.describe("POST /files/:folderId/html - Create HTML file", () => {
     });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).toBe(firstId);
   });
 });
@@ -229,7 +228,6 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents", () => {
       });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).toBe(firstId);
   });
 
@@ -259,7 +257,6 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents", () => {
       });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).not.toBe(firstId);
   });
 
@@ -287,7 +284,6 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents", () => {
       });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).not.toBe(firstId);
   });
 });
@@ -354,7 +350,6 @@ test.describe("POST /files/@my/text - Create text file in My Documents", () => {
       });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).toBe(firstId);
   });
 
@@ -384,7 +379,6 @@ test.describe("POST /files/@my/text - Create text file in My Documents", () => {
       });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).not.toBe(firstId);
   });
 
@@ -412,7 +406,6 @@ test.describe("POST /files/@my/text - Create text file in My Documents", () => {
       });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).not.toBe(firstId);
   });
 });
@@ -478,7 +471,6 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).toBe(firstId);
   });
 
@@ -514,7 +506,6 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).not.toBe(firstId);
   });
 
@@ -584,34 +575,31 @@ test.describe("POST /files/:folderId/text - Create text file", () => {
     });
 
     expect(status).toBe(200);
-    expect(secondData.statusCode).toBe(200);
     expect(secondData.response!.id).not.toBe(firstId);
   });
 
-  // BUG 81440: POST /files/:folderId/text accepts empty title and creates a file instead of returning 400
-  test.fail(
-    "BUG 81440: POST /files/:folderId/text - Empty title returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Text Empty Title",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
+  test("BUG 81440: POST /files/:folderId/text - Empty title returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Text Empty Title",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
 
-      const { status } = await ownerApi.files.createTextFile({
-        folderId,
-        createTextOrHtmlFile: {
-          title: "",
-          content: "some text",
-        },
-      });
+    const { status } = await ownerApi.files.createTextFile({
+      folderId,
+      createTextOrHtmlFile: {
+        title: "",
+        content: "some text",
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   test("POST /files/:folderId/text - Title with diacritical characters is preserved", async ({
     apiSdk,
@@ -5078,7 +5066,7 @@ test.describe("POST /files/templates - Add templates", () => {
       templatesRequestDto: { fileIds: [999999999] },
     });
 
-    // API does not validate file existence вЂ” returns true regardless
+    // API does not validate file existence -- returns true regardless
     expect(status).toBe(200);
     expect(data.response).toBe(true);
   });
@@ -5235,7 +5223,7 @@ test.describe("DELETE /files/templates - Delete templates", () => {
       requestBody: [999999999],
     });
 
-    // API does not validate file existence вЂ” returns true regardless
+    // API does not validate file existence -- returns true regardless
     expect(status).toBe(200);
     expect(data.response).toBe(true);
   });

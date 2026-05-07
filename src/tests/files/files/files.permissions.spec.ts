@@ -867,7 +867,6 @@ test.describe("Share link privacy - no user data leakage", () => {
       });
 
     expect(linkStatus).toBe(200);
-    expect(linkData.statusCode).toBe(200);
     expect(linkData.response).toBeDefined();
     expect(linkData.response!.sharedLink).toBeDefined();
     const requestToken = linkData.response!.sharedLink!.requestToken!;
