@@ -1576,9 +1576,7 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
   }) => {
     const anonApi = apiSdk.forAnonymous();
 
-    const { data, status } = await anonApi.folders.getRootFolders({});
-
-    console.log("anonymous getRootFolders:", data);
+    const { status } = await anonApi.folders.getRootFolders({});
 
     expect(status).toBe(401);
   });
@@ -1589,14 +1587,6 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .folders.getRootFolders({});
-
-    console.log(
-      "owner sections:",
-      data.response?.map((s) => ({
-        id: s.current?.id,
-        title: s.current?.title,
-      })),
-    );
 
     expect(status).toBe(200);
     const ownerTitles = data.response!.map((s) => s.current?.title);
@@ -1615,14 +1605,6 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
 
     const { data, status } = await userApi.folders.getRootFolders({});
 
-    console.log(
-      "user sections:",
-      data.response?.map((s) => ({
-        id: s.current?.id,
-        title: s.current?.title,
-      })),
-    );
-
     expect(status).toBe(200);
     const userTitles = data.response!.map((s) => s.current?.title);
     expect(userTitles).toContain("My documents");
@@ -1640,14 +1622,6 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
 
     const { data, status } = await guestApi.folders.getRootFolders({});
 
-    console.log(
-      "guest sections:",
-      data.response?.map((s) => ({
-        id: s.current?.id,
-        title: s.current?.title,
-      })),
-    );
-
     expect(status).toBe(200);
     const guestTitles = data.response!.map((s) => s.current?.title);
     expect(guestTitles).not.toContain("My documents");
@@ -1664,14 +1638,6 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
     );
 
     const { data, status } = await adminApi.folders.getRootFolders({});
-
-    console.log(
-      "docSpaceAdmin sections:",
-      data.response?.map((s) => ({
-        id: s.current?.id,
-        title: s.current?.title,
-      })),
-    );
 
     expect(status).toBe(200);
     const adminTitles = data.response!.map((s) => s.current?.title);
@@ -1709,10 +1675,6 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
     const { data, status } = await userApi.folders.getRootFolders({});
 
     const allFolders = data.response!.flatMap((s) => s.folders ?? []);
-    console.log(
-      "room member folders in sections:",
-      allFolders.map((f) => f.title),
-    );
 
     expect(status).toBe(200);
     const titles = allFolders.map((f) => f.title);

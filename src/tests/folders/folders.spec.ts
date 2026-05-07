@@ -1723,17 +1723,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
 
     const { data, status } = await ownerApi.folders.getRootFolders({});
 
-    console.log(
-      "sections:",
-      data.response?.map((s) => ({
-        id: s.current?.id,
-        title: s.current?.title,
-        total: s.total,
-        files: s.files?.length,
-        folders: s.folders?.length,
-      })),
-    );
-
     expect(status).toBe(200);
     expect(data.response!.length).toBe(8);
     const titles = data.response!.map((s) => s.current?.title);
@@ -1753,8 +1742,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.folders.getRootFolders({});
-
-    console.log("first section:", JSON.stringify(data.response?.[0], null, 2));
 
     expect(status).toBe(200);
     for (const section of data.response!) {
@@ -1782,14 +1769,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
       withoutTrash: true,
     });
 
-    console.log(
-      "sections withoutTrash:true:",
-      data.response?.map((s) => ({
-        id: s.current?.id,
-        title: s.current?.title,
-      })),
-    );
-
     expect(status).toBe(200);
     const sectionIds = data.response!.map((s) => s.current!.id);
     expect(sectionIds).not.toContain(trashId);
@@ -1804,14 +1783,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     const trashId = trashData.response!.current!.id!;
 
     const { data, status } = await ownerApi.folders.getRootFolders({});
-
-    console.log(
-      "sections default:",
-      data.response?.map((s) => ({
-        id: s.current?.id,
-        title: s.current?.title,
-      })),
-    );
 
     expect(status).toBe(200);
     const sectionIds = data.response!.map((s) => s.current!.id);
@@ -1842,11 +1813,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     const myDocsSection = data.response!.find(
       (s) => s.current!.id === myDocsId,
     );
-    console.log("FoldersOnly My Docs section:", {
-      files: myDocsSection?.files,
-      folders: myDocsSection?.folders?.map((f) => f.title),
-    });
-
     expect(status).toBe(200);
     expect(myDocsSection).toBeDefined();
     expect(myDocsSection!.files?.length ?? 0).toBe(0);
@@ -1878,11 +1844,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     const myDocsSection = data.response!.find(
       (s) => s.current!.id === myDocsId,
     );
-    console.log("FilesOnly My Docs section:", {
-      files: myDocsSection?.files?.map((f) => f.title),
-      folders: myDocsSection?.folders,
-    });
-
     expect(status).toBe(200);
     expect(myDocsSection).toBeDefined();
     expect(myDocsSection!.folders?.length ?? 0).toBe(0);
@@ -1918,10 +1879,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     });
 
     const allFolders = data.response!.flatMap((s) => s.folders ?? []);
-    console.log(
-      "CustomRooms filter folders:",
-      allFolders.map((f) => f.title),
-    );
 
     expect(status).toBe(200);
     const titles = allFolders.map((f) => f.title);
@@ -1955,10 +1912,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     });
 
     const allFolders = data.response!.flatMap((s) => s.folders ?? []);
-    console.log(
-      "FillingFormsRooms filter folders:",
-      allFolders.map((f) => f.title),
-    );
 
     expect(status).toBe(200);
     const titles = allFolders.map((f) => f.title);
@@ -1992,10 +1945,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     });
 
     const allFolders = data.response!.flatMap((s) => s.folders ?? []);
-    console.log(
-      "PublicRooms filter folders:",
-      allFolders.map((f) => f.title),
-    );
 
     expect(status).toBe(200);
     const titles = allFolders.map((f) => f.title);
@@ -2021,15 +1970,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     const { data, status } = await ownerApi.folders.getRootFolders({
       count: 1,
     });
-
-    console.log(
-      "count:1 sections:",
-      data.response?.map((s) => ({
-        title: s.current?.title,
-        files: s.files?.length,
-        folders: s.folders?.length,
-      })),
-    );
 
     expect(status).toBe(200);
     for (const section of data.response!) {
@@ -2071,10 +2011,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     });
 
     const allFiles = data.response!.flatMap((s) => s.files ?? []);
-    console.log(
-      "filterValue result files:",
-      allFiles.map((f) => f.title),
-    );
 
     expect(status).toBe(200);
     const matchingFiles = allFiles.filter((f) =>
@@ -2091,14 +2027,6 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     const { data, status } = await ownerApi.folders.getRootFolders({
       filterValue: "zzz_no_match_autotest_xyz_99999",
     });
-
-    console.log(
-      "no-match totals:",
-      data.response?.map((s) => ({
-        title: s.current?.title,
-        total: s.total,
-      })),
-    );
 
     expect(status).toBe(200);
     const totalItems = data.response!.reduce(
