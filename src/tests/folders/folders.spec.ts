@@ -1,4 +1,4 @@
-import { expect } from "@playwright/test";
+﻿import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import {
   FilterType,
@@ -99,7 +99,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("DELETE folder (immediately: true) — operation is created", async () => {
+    await test.step("DELETE folder (immediately: true) вЂ” operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -118,7 +118,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE folder — folder no longer accessible after deletion", async () => {
+    await test.step("DELETE folder вЂ” folder no longer accessible after deletion", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
@@ -142,7 +142,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("DELETE folder (immediately: false) — operation is created", async () => {
+    await test.step("DELETE folder (immediately: false) вЂ” operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: false },
@@ -161,7 +161,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE folder — folder appears in trash, not permanently deleted", async () => {
+    await test.step("DELETE folder вЂ” folder appears in trash, not permanently deleted", async () => {
       await expect(async () => {
         const { data, status } = await ownerApi.folders.getTrashFolder();
         expect(status).toBe(200);
@@ -204,7 +204,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("Owner deletes DocSpaceAdmin's folder — operation is created", async () => {
+    await test.step("Owner deletes DocSpaceAdmin's folder вЂ” operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -223,7 +223,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("Owner deletes DocSpaceAdmin's folder — folder no longer accessible", async () => {
+    await test.step("Owner deletes DocSpaceAdmin's folder вЂ” folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
@@ -251,7 +251,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("DELETE folder in room — operation is created", async () => {
+    await test.step("DELETE folder in room вЂ” operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -270,7 +270,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE folder in room — folder no longer accessible", async () => {
+    await test.step("DELETE folder in room вЂ” folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
@@ -299,7 +299,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const childId = childData.response!.id!;
 
-    await test.step("DELETE parent folder — operation is created", async () => {
+    await test.step("DELETE parent folder вЂ” operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId: parentId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -318,7 +318,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE parent folder — parent and child both inaccessible", async () => {
+    await test.step("DELETE parent folder вЂ” parent and child both inaccessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId: parentId,
@@ -350,7 +350,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       createFileJsonElement: { title: "Autotest File Inside Folder" },
     });
 
-    await test.step("DELETE folder with files — operation is created", async () => {
+    await test.step("DELETE folder with files вЂ” operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -369,7 +369,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE folder with files — folder no longer accessible", async () => {
+    await test.step("DELETE folder with files вЂ” folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
@@ -2275,10 +2275,10 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () =
     expect(titles).toContain(recentFolderTitle);
   });
 
-  // BUG: GET /api/2.0/files/folder/:folderId/path returns 403 instead of 404 when folder is not found.
+  // BUG 81483: GET /api/2.0/files/folder/:folderId/path returns 403 instead of 404 when folder is not found.
   // Actual response: { "statusCode": 403 }. Same pattern as BUG 81459 and BUG 81464.
   test.fail(
-    "BUG: GET /api/2.0/files/folder/:folderId/path - Non-existent folderId returns 404",
+    "BUG 81483: GET /api/2.0/files/folder/:folderId/path - Non-existent folderId returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2346,12 +2346,12 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type
     expect(data.response!.folders ?? []).toHaveLength(0);
   });
 
-  // BUG: HTML file is counted in response.total (total: 1) but not returned in response.files
+  // BUG 81481: HTML file is counted in response.total (total: 1) but not returned in response.files
   // (files: [], count: 0). toggleFileFavorite returns 200/true -- the file is stored as favorite,
   // but GET /api/2.0/files/@favorites excludes it from the result set. .txt and .docx files
   // are returned correctly. In the UI, HTML files do appear in favorites.
   test.fail(
-    "BUG: GET /api/2.0/files/@favorites - HTML file added to favorites appears in response",
+    "BUG 81481: GET /api/2.0/files/@favorites - HTML file added to favorites appears in response",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
@@ -2821,7 +2821,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     expect(status).toBe(200);
     const titles = data.response!.files!.map((f) => f.title);
-    // .txt opens in Document Editor — classified as a document in DocSpace
+    // .txt opens in Document Editor вЂ” classified as a document in DocSpace
     expect(titles).toContain("Autotest Favorites DocOnly Doc.docx");
     expect(titles).toContain("Autotest Favorites DocOnly Text.txt");
   });
@@ -2908,4 +2908,493 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
     expect(data.response!.files ?? []).toHaveLength(0);
     expect(data.response!.count).toBe(0);
   });
+});
+
+test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
+  test("PUT /api/2.0/files/folder/:folderId - Owner renames own folder in My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Before Rename" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "Autotest Folder After Rename" },
+    });
+
+    console.log(
+      "renameFolder (owner, My Docs):",
+      JSON.stringify(
+        {
+          status,
+          id: data.response?.id,
+          title: data.response?.title,
+          parentId: data.response?.parentId,
+          updated: data.response?.updated,
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.title).toBe("Autotest Folder After Rename");
+    expect(data.response!.id).toBe(folderId);
+    expect(data.response!.parentId).toBe(myDocsFolderId);
+  });
+
+  test("PUT /api/2.0/files/folder/:folderId - Owner renames folder inside a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Folder Rename",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Room Folder Before Rename" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "Autotest Room Folder After Rename" },
+    });
+
+    console.log(
+      "renameFolder (owner, room folder):",
+      JSON.stringify(
+        {
+          status,
+          id: data.response?.id,
+          title: data.response?.title,
+          parentId: data.response?.parentId,
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.title).toBe("Autotest Room Folder After Rename");
+    expect(data.response!.id).toBe(folderId);
+    expect(data.response!.parentId).toBe(roomId);
+  });
+
+  test("PUT /api/2.0/files/folder/:folderId - User renames own folder in My Documents", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: myDocsData } = await userApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await userApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest User Folder Before Rename" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await userApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "Autotest User Folder After Rename" },
+    });
+
+    console.log(
+      "renameFolder (user, own My Docs folder):",
+      JSON.stringify(
+        {
+          status,
+          id: data.response?.id,
+          title: data.response?.title,
+          parentId: data.response?.parentId,
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.title).toBe("Autotest User Folder After Rename");
+    expect(data.response!.id).toBe(folderId);
+    expect(data.response!.parentId).toBe(myDocsFolderId);
+  });
+
+  test("PUT /api/2.0/files/folder/:folderId - parentId stays unchanged after rename", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder ParentId Check" },
+    });
+    const folderId = folderData.response!.id!;
+    const parentIdBefore = folderData.response!.parentId!;
+
+    const { data, status } = await ownerApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "Autotest Folder ParentId Check Renamed" },
+    });
+
+    console.log(
+      "renameFolder (parentId check):",
+      JSON.stringify(
+        {
+          status,
+          parentIdBefore,
+          parentIdAfter: data.response?.parentId,
+          title: data.response?.title,
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(status).toBe(200);
+    expect(data.response!.parentId).toBe(parentIdBefore);
+    expect(data.response!.parentId).toBe(myDocsFolderId);
+  });
+
+  test("PUT /api/2.0/files/folder/:folderId - id in response matches requested folderId", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Id Integrity Check" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "Autotest Folder Id Integrity Renamed" },
+    });
+
+    console.log(
+      "renameFolder (id integrity):",
+      JSON.stringify(
+        {
+          status,
+          requestedFolderId: folderId,
+          responseFolderId: data.response?.id,
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(folderId);
+  });
+
+  test(
+    "PUT /api/2.0/files/folder/:folderId - title with Cyrillic and special characters is" +
+      " preserved",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest Folder Special Chars" },
+      });
+      const folderId = folderData.response!.id!;
+
+      const specialTitle = "РўРµСЃС‚ РџР°РїРєР° & Folder (2024)";
+
+      const { data, status } = await ownerApi.folders.renameFolder({
+        folderId,
+        createFolder: { title: specialTitle },
+      });
+
+      console.log(
+        "renameFolder (special chars):",
+        JSON.stringify(
+          {
+            status,
+            requestedTitle: specialTitle,
+            responseTitle: data.response?.title,
+          },
+          null,
+          2,
+        ),
+      );
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(specialTitle);
+    },
+  );
+
+  test("PUT /api/2.0/files/folder/:folderId - rename to same title returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const sameTitle = "Autotest Folder Same Title Rename";
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: sameTitle },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: sameTitle },
+    });
+
+    console.log(
+      "renameFolder (same title):",
+      JSON.stringify(
+        {
+          status,
+          title: data.response?.title,
+          id: data.response?.id,
+        },
+        null,
+        2,
+      ),
+    );
+
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe(sameTitle);
+  });
+
+  test("PUT /api/2.0/files/folder/:folderId - renamed title persists when retrieved via GET", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const oldTitle = "Autotest Folder Before Persist Check";
+    const newTitle = "Autotest Folder After Persist Check";
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: oldTitle },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: newTitle },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
+
+    console.log(
+      "renameFolder (persistence via getFolderInfo):",
+      JSON.stringify(
+        { status, id: data.response?.id, title: data.response?.title },
+        null,
+        2,
+      ),
+    );
+
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe(newTitle);
+    expect(data.response!.id).toBe(folderId);
+  });
+
+  test(
+    "PUT /api/2.0/files/folder/:folderId - renamed folder appears with new title in parent" +
+      " listing and old title is absent",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const oldTitle = "Autotest Folder Before Listing Check";
+      const newTitle = "Autotest Folder After Listing Check";
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: oldTitle },
+      });
+      const folderId = folderData.response!.id!;
+
+      await ownerApi.folders.renameFolder({
+        folderId,
+        createFolder: { title: newTitle },
+      });
+
+      const { data, status } = await ownerApi.folders.getFolderByFolderId({
+        folderId: myDocsFolderId,
+      });
+
+      const folderTitles = (data.response?.folders ?? []).map((f) => f.title);
+
+      console.log(
+        "renameFolder (parent listing check):",
+        JSON.stringify({ status, folderTitles }, null, 2),
+      );
+
+      expect(status).toBe(200);
+      expect(folderTitles).toContain(newTitle);
+      expect(folderTitles).not.toContain(oldTitle);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/folder/:folderId - rename preserves filesCount foldersCount type and" +
+      " rootFolderType",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest Folder Fields Before Rename" },
+      });
+      const folderId = folderData.response!.id!;
+
+      const before = {
+        filesCount: folderData.response!.filesCount,
+        foldersCount: folderData.response!.foldersCount,
+        type: folderData.response!.type,
+        rootFolderType: folderData.response!.rootFolderType,
+      };
+
+      const { data, status } = await ownerApi.folders.renameFolder({
+        folderId,
+        createFolder: { title: "Autotest Folder Fields After Rename" },
+      });
+
+      const after = {
+        filesCount: data.response!.filesCount,
+        foldersCount: data.response!.foldersCount,
+        type: data.response!.type,
+        rootFolderType: data.response!.rootFolderType,
+      };
+
+      console.log(
+        "renameFolder (field preservation):",
+        JSON.stringify({ status, before, after }, null, 2),
+      );
+
+      expect(status).toBe(200);
+      expect(after.filesCount).toBe(before.filesCount);
+      expect(after.foldersCount).toBe(before.foldersCount);
+      expect(after.type).toBe(before.type);
+      expect(after.rootFolderType).toBe(before.rootFolderType);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/folder/:folderId - non-existent folderId returns 403 instead of 404
+  test.fail(
+    "PUT /api/2.0/files/folder/:folderId - non-existent folderId returns 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const nonExistentFolderId = 999999999;
+
+      const { data, status } = await ownerApi.folders.renameFolder({
+        folderId: nonExistentFolderId,
+        createFolder: { title: "Autotest Rename Non-Existent Folder" },
+      });
+
+      console.log(
+        "renameFolder (non-existent folderId):",
+        JSON.stringify(
+          {
+            status,
+            error: (data as any).error,
+          },
+          null,
+          2,
+        ),
+      );
+
+      expect(status).toBe(404);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/folder/:folderId - empty string title accepted, returns 200 instead of 400
+  test.fail(
+    "PUT /api/2.0/files/folder/:folderId - empty string title returns 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest Folder Empty Title Check" },
+      });
+      const folderId = folderData.response!.id!;
+
+      const { data, status } = await ownerApi.folders.renameFolder({
+        folderId,
+        createFolder: { title: "" },
+      });
+
+      console.log(
+        "renameFolder (empty title):",
+        JSON.stringify(
+          {
+            status,
+            error: (data as any).error,
+          },
+          null,
+          2,
+        ),
+      );
+
+      expect(status).toBe(400);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/folder/:folderId - folderId 0 returns 403 instead of 400 or 404
+  test.fail(
+    "PUT /api/2.0/files/folder/:folderId - folderId 0 returns 404 or 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.folders.renameFolder({
+        folderId: 0,
+        createFolder: { title: "Autotest Rename FolderId Zero" },
+      });
+
+      console.log(
+        "renameFolder (folderId=0):",
+        JSON.stringify(
+          {
+            status,
+            error: (data as any).error,
+          },
+          null,
+          2,
+        ),
+      );
+
+      expect([400, 404]).toContain(status);
+    },
+  );
 });
