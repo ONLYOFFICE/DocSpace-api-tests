@@ -2033,3 +2033,539 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     expect(occurrences).toBe(1);
   });
 });
+
+test.describe("DELETE /api/2.0/group/{id}/members - Remove group members", () => {
+  test("DELETE /api/2.0/group/{id}/members - Owner removes one member from group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { status } = await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+    expect(status).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const memberIds = groupData.response?.members?.map((m) => m.id) ?? [];
+    expect(memberIds).not.toContain(memberId);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Owner removes multiple members from group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: m1 } = await apiSdk.addMember("owner", "User");
+    const m1Id = m1.response!.id!;
+    const { data: m2 } = await apiSdk.addMember("owner", "User");
+    const m2Id = m2.response!.id!;
+    const { data: m3 } = await apiSdk.addMember("owner", "User");
+    const m3Id = m3.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [m1Id, m2Id, m3Id],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { status } = await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [m1Id, m2Id, m3Id] },
+    });
+    expect(status).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const memberIds = groupData.response?.members?.map((m) => m.id) ?? [];
+    expect(memberIds).not.toContain(m1Id);
+    expect(memberIds).not.toContain(m2Id);
+    expect(memberIds).not.toContain(m3Id);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Other existing members are kept after removing selected users", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: keep } = await apiSdk.addMember("owner", "User");
+    const keepId = keep.response!.id!;
+    const { data: remove } = await apiSdk.addMember("owner", "User");
+    const removeId = remove.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [keepId, removeId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { status } = await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [removeId] },
+    });
+    expect(status).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const memberIds = groupData.response?.members?.map((m) => m.id) ?? [];
+    expect(memberIds).toContain(keepId);
+    expect(memberIds).not.toContain(removeId);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Returns updated group in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const groupName = apiSdk.faker.generateString(10);
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName,
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(groupId);
+    expect(data.response?.name).toBe(groupName);
+    expect(data.response?.manager?.id).toBe(ownerId);
+    const memberIds = data.response?.members?.map((m) => m.id) ?? [];
+    expect(memberIds).not.toContain(memberId);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - membersCount decreases after removing users", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: m1 } = await apiSdk.addMember("owner", "User");
+    const m1Id = m1.response!.id!;
+    const { data: m2 } = await apiSdk.addMember("owner", "User");
+    const m2Id = m2.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [m1Id, m2Id],
+      },
+    });
+    const groupId = created.response!.id!;
+    const initialCount = created.response!.membersCount!;
+
+    await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [m1Id, m2Id] },
+    });
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    expect(groupData.response?.membersCount).toBe(initialCount - 2);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Removed members persist after re-fetching the group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+
+    const { data: first } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const { data: second } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+
+    expect(first.response?.members?.map((m) => m.id) ?? []).not.toContain(
+      memberId,
+    );
+    expect(second.response?.members?.map((m) => m.id) ?? []).not.toContain(
+      memberId,
+    );
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Removed user is not deleted from portal", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+
+    const { data: profile, status } =
+      await ownerApi.profiles.getProfileByUserId({ userid: memberId });
+    expect(status).toBe(200);
+    expect(profile.response?.id).toBe(memberId);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Owner can remove all members from group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: m1 } = await apiSdk.addMember("owner", "User");
+    const m1Id = m1.response!.id!;
+    const { data: m2 } = await apiSdk.addMember("owner", "User");
+    const m2Id = m2.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [m1Id, m2Id],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { status } = await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [m1Id, m2Id] },
+    });
+    expect(status).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    expect(groupData.response?.id).toBe(groupId);
+    const memberIds = groupData.response?.members?.map((m) => m.id) ?? [];
+    expect(memberIds).not.toContain(m1Id);
+    expect(memberIds).not.toContain(m2Id);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Owner removes the only member from group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { status } = await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+    expect(status).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const memberIds = groupData.response?.members?.map((m) => m.id) ?? [];
+    expect(memberIds).not.toContain(memberId);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Removed user disappears from getGroup with includeMembers=true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: before } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    expect(before.response?.members?.map((m) => m.id) ?? []).toContain(
+      memberId,
+    );
+
+    await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+
+    const { data: after } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    expect(after.response?.members?.map((m) => m.id) ?? []).not.toContain(
+      memberId,
+    );
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Removed user no longer has the group in getGroupByUserId", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: before } = await ownerApi.groupApi.getGroupByUserId({
+      userid: memberId,
+    });
+    expect(before.response?.map((g) => g.id) ?? []).toContain(groupId);
+
+    await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+
+    const { data: after, status } = await ownerApi.groupApi.getGroupByUserId({
+      userid: memberId,
+    });
+    expect(status).toBe(200);
+    expect(after.response?.map((g) => g.id) ?? []).not.toContain(groupId);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Group name is preserved after removing members", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const groupName = apiSdk.faker.generateString(10);
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName,
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+    });
+    expect(groupData.response?.name).toBe(groupName);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Group manager is preserved after removing members", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+    });
+    expect(groupData.response?.manager?.id).toBe(ownerId);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Removing members from one group does not affect unrelated groups", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: shared } = await apiSdk.addMember("owner", "User");
+    const sharedId = shared.response!.id!;
+
+    const { data: groupA } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [sharedId],
+      },
+    });
+    const groupAId = groupA.response!.id!;
+
+    const { data: groupB } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [sharedId],
+      },
+    });
+    const groupBId = groupB.response!.id!;
+
+    await ownerApi.groupApi.removeMembersFrom({
+      id: groupAId,
+      membersRequest: { members: [sharedId] },
+    });
+
+    const { data: groupBData } = await ownerApi.groupApi.getGroup({
+      id: groupBId,
+      includeMembers: true,
+    });
+    const memberIds = groupBData.response?.members?.map((m) => m.id) ?? [];
+    expect(memberIds).toContain(sharedId);
+  });
+
+  test("DELETE /api/2.0/group/{id}/members - Removing the same member twice is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { status: firstStatus } = await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+    expect(firstStatus).toBe(200);
+
+    const { status: secondStatus } = await ownerApi.groupApi.removeMembersFrom({
+      id: groupId,
+      membersRequest: { members: [memberId] },
+    });
+    expect(secondStatus).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const memberIds = groupData.response?.members?.map((m) => m.id) ?? [];
+    expect(memberIds).not.toContain(memberId);
+  });
+});
