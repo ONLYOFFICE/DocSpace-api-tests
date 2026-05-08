@@ -1631,3 +1631,24 @@ test.describe("PUT /people/delete - input validation", () => {
     );
   });
 });
+
+// Security tests: CWE-918 SSRF via files parameter in POST /api/2.0/people.
+// The files field accepts an avatar photo URL — passing an external URL causes the server
+// to fetch it, allowing an authenticated user to probe internal network resources.
+test.describe("POST /api/2.0/people - files parameter SSRF", () => {
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/people - Server fetches external URL in files parameter (SSRF)",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.forRole("owner").profiles.addMember({
+        memberRequestDto: {
+          ...apiSdk.faker.generateUser(),
+          files:
+            "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
+        },
+      } as any);
+
+      // Server should reject external URLs in the files parameter
+      expect(status).toBe(400);
+    },
+  );
+});
