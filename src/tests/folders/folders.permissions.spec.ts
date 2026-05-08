@@ -874,7 +874,7 @@ test.describe("POST /files/{folderId}/upload/check - access control", () => {
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // ContentCreator has upload rights in the room вЂ” checkUpload should be allowed
+  // ContentCreator has upload rights in the room - checkUpload should be allowed
   test("POST /files/{folderId}/upload/check - ContentCreator gets 200", async ({
     apiSdk,
   }) => {
@@ -910,7 +910,7 @@ test.describe("POST /files/{folderId}/upload/check - access control", () => {
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // Archived room is read-only вЂ” upload check should be denied
+  // Archived room is read-only - upload check should be denied
   test("POST /files/{folderId}/upload/check - Archived room returns 403", async ({
     apiSdk,
   }) => {

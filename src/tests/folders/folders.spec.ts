@@ -2821,7 +2821,7 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder", () => {
 
     expect(status).toBe(200);
     const titles = data.response!.files!.map((f) => f.title);
-    // .txt opens in Document Editor вЂ” classified as a document in DocSpace
+    // .txt opens in Document Editor - classified as a document in DocSpace
     expect(titles).toContain("Autotest Favorites DocOnly Doc.docx");
     expect(titles).toContain("Autotest Favorites DocOnly Text.txt");
   });
