@@ -99,7 +99,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("DELETE folder (immediately: true) вЂ” operation is created", async () => {
+    await test.step("DELETE folder (immediately: true)  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -118,7 +118,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE folder вЂ” folder no longer accessible after deletion", async () => {
+    await test.step("DELETE folder  -  folder no longer accessible after deletion", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
@@ -142,7 +142,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("DELETE folder (immediately: false) вЂ” operation is created", async () => {
+    await test.step("DELETE folder (immediately: false)  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: false },
@@ -161,7 +161,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE folder вЂ” folder appears in trash, not permanently deleted", async () => {
+    await test.step("DELETE folder  -  folder appears in trash, not permanently deleted", async () => {
       await expect(async () => {
         const { data, status } = await ownerApi.folders.getTrashFolder();
         expect(status).toBe(200);
@@ -204,7 +204,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("Owner deletes DocSpaceAdmin's folder вЂ” operation is created", async () => {
+    await test.step("Owner deletes DocSpaceAdmin's folder  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -223,7 +223,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("Owner deletes DocSpaceAdmin's folder вЂ” folder no longer accessible", async () => {
+    await test.step("Owner deletes DocSpaceAdmin's folder  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
@@ -251,7 +251,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("DELETE folder in room вЂ” operation is created", async () => {
+    await test.step("DELETE folder in room  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -270,7 +270,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE folder in room вЂ” folder no longer accessible", async () => {
+    await test.step("DELETE folder in room  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
@@ -299,7 +299,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
     });
     const childId = childData.response!.id!;
 
-    await test.step("DELETE parent folder вЂ” operation is created", async () => {
+    await test.step("DELETE parent folder  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId: parentId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -318,7 +318,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE parent folder вЂ” parent and child both inaccessible", async () => {
+    await test.step("DELETE parent folder  -  parent and child both inaccessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId: parentId,
@@ -350,7 +350,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       createFileJsonElement: { title: "Autotest File Inside Folder" },
     });
 
-    await test.step("DELETE folder with files вЂ” operation is created", async () => {
+    await test.step("DELETE folder with files  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -369,7 +369,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - Delete folder", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DELETE folder with files вЂ” folder no longer accessible", async () => {
+    await test.step("DELETE folder with files  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
@@ -3125,7 +3125,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       });
       const folderId = folderData.response!.id!;
 
-      const specialTitle = "РўРµСЃС‚ РџР°РїРєР° & Folder (2024)";
+      const specialTitle = "Тест Папка & Folder (2024)";
 
       const { data, status } = await ownerApi.folders.renameFolder({
         folderId,

@@ -330,7 +330,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       },
     });
 
-    await test.step("DocSpaceAdmin deletes owner's folder вЂ” operation is created", async () => {
+    await test.step("DocSpaceAdmin deletes owner's folder  -  operation is created", async () => {
       const { data, status } = await adminApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -349,7 +349,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DocSpaceAdmin deletes owner's folder вЂ” folder no longer accessible", async () => {
+    await test.step("DocSpaceAdmin deletes owner's folder  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await adminApi.folders.getFolderByFolderId({
           folderId,
@@ -390,7 +390,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("ContentCreator deletes own folder вЂ” operation is created", async () => {
+    await test.step("ContentCreator deletes own folder  -  operation is created", async () => {
       const { data, status } = await userApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -409,7 +409,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("ContentCreator deletes own folder вЂ” folder no longer accessible", async () => {
+    await test.step("ContentCreator deletes own folder  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await userApi.folders.getFolderByFolderId({
           folderId,
@@ -450,7 +450,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("RoomAdmin deletes own folder вЂ” operation is created", async () => {
+    await test.step("RoomAdmin deletes own folder  -  operation is created", async () => {
       const { data, status } = await roomAdminApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -469,7 +469,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("RoomAdmin deletes own folder вЂ” folder no longer accessible", async () => {
+    await test.step("RoomAdmin deletes own folder  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await roomAdminApi.folders.getFolderByFolderId({
           folderId,
@@ -510,7 +510,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("Owner deletes RoomAdmin's folder вЂ” operation is created", async () => {
+    await test.step("Owner deletes RoomAdmin's folder  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -529,7 +529,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("Owner deletes RoomAdmin's folder вЂ” folder no longer accessible", async () => {
+    await test.step("Owner deletes RoomAdmin's folder  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
