@@ -71,11 +71,7 @@ export class PaymentApi {
       throw new Error("MACHINEKEY is not set in environment variables");
     if (!this.pKey) throw new Error("PKEY is not set in environment variables");
     const token = this.createToken();
-    const region = process.env.AWS_REGION;
-    const portalId =
-      region === "us-east-2"
-        ? `docspace.io.ohio${tenantId}`
-        : `docspace.io${tenantId}`;
+    const portalId = this.getPortalId(tenantId);
 
     const response = await this.apiContext.post(
       "https://payments.teamlab.info/api/license/setdspsaaspaid",
@@ -96,6 +92,61 @@ export class PaymentApi {
     if (!response.ok()) {
       const error = await parseResponse(response);
       throw new Error(`Payment failed: ${error.message || "Unknown error"}`);
+    }
+
+    return response.json();
+  }
+
+  private getPortalId(tenantId: string): string {
+    const region = process.env.AWS_REGION;
+    if (region === "us-east-2") return `docspace.io.ohio${tenantId}`;
+    return `docspace.io${tenantId}`;
+  }
+
+  async makeWalletTopUp(sum = 1000, currency = "USD") {
+    if (!this.machineKey)
+      throw new Error("MACHINEKEY is not set in environment variables");
+    if (!this.pKey) throw new Error("PKEY is not set in environment variables");
+    const token = this.createToken();
+    const portalInfo = await this.getPortalInfo();
+    const portalId = this.getPortalId(portalInfo.tenantId);
+
+    const response = await this.apiContext.post(
+      "https://payments.teamlab.info/api/license/setwallettopup",
+      {
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        data: {
+          portalId,
+          customerEmail: config.DOCSPACE_OWNER_EMAIL,
+          sum: String(sum),
+          currency,
+        },
+      },
+    );
+
+    if (!response.ok()) {
+      const error = await parseResponse(response);
+      throw new Error(
+        `Wallet top up failed: ${error.message || "Unknown error"}`,
+      );
+    }
+
+    const ownerToken = this.portalSetupApi.getOwnerAuthToken();
+    if (ownerToken) {
+      await this.apiContext.get(
+        `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/payment/customerinfo`,
+        {
+          headers: {
+            Authorization: `Bearer ${ownerToken}`,
+            Accept: "application/json",
+          },
+          params: { refresh: true },
+        },
+      );
     }
 
     return response.json();

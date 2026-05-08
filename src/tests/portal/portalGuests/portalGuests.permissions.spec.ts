@@ -29,7 +29,7 @@ test.describe("Portal Guests — Sharing Link — Permissions", () => {
     const { data, status } = await apiSdk
       .forRole("user")
       .portalGuests.getGuestSharingLink({ userid: guestId });
-    console.log(data);
+
     expect(status).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });

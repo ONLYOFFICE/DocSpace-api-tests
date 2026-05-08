@@ -197,48 +197,51 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
     expect((data as any).response?.current.createdBy?.profileUrl).toBe("");
   });
 
-  test("BUG 80658: GET /ai/agents - Guest cannot see agents created by Owner", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+  test.fail(
+    "BUG 81482, 80658: GET /ai/agents - Guest cannot see agents created by Owner",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
-    const providerId = providerData.response!.id!;
+      const { data: providerData } = await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+      const providerId = providerData.response!.id!;
 
-    await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
-          prompt: "You are a test assistant",
+      await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Hidden Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId,
+            modelId: aiProviders.openAi.modelId,
+            prompt: "You are a test assistant",
+          },
         },
-      },
-    });
+      });
 
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+      const guestApi = apiSdk.forRole("guest");
 
-    const { data, status } = await guestApi.agents.getAgents();
+      const { data, status } = await guestApi.agents.getAgents();
 
-    expect(status).toBe(200);
-    expect(status).toBe(200);
-    expect((data as any).response?.current.updatedBy?.id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
-    expect((data as any).response?.current.updatedBy?.displayName).toBe("");
-    expect((data as any).response?.current.updatedBy?.profileUrl).toBe("");
-    expect((data as any).response?.current.createdBy?.id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
-    expect((data as any).response?.current.createdBy?.displayName).toBe("");
-    expect((data as any).response?.current.createdBy?.profileUrl).toBe("");
-  });
+      expect(status).toBe(200);
+      expect(status).toBe(200);
+      expect((data as any).response?.current.updatedBy?.id).toBe(
+        "00000000-0000-0000-0000-000000000000",
+      );
+      expect((data as any).response?.current.updatedBy?.displayName).toBe("");
+      expect((data as any).response?.current.updatedBy?.profileUrl).toBe("");
+      expect((data as any).response?.current.createdBy?.id).toBe(
+        "00000000-0000-0000-0000-000000000000",
+      );
+      expect((data as any).response?.current.createdBy?.displayName).toBe("");
+      expect((data as any).response?.current.createdBy?.profileUrl).toBe("");
+      expect((data as any).response?.current.filesCount).toBe(0);
+      expect((data as any).response?.current.foldersCount).toBe(0);
+    },
+  );
 
   test("GET /ai/agents - Anonymous cannot get agents without authorization", async ({
     apiSdk,
