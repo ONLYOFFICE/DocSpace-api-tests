@@ -7,7 +7,7 @@ dotenv.config();
 export default defineConfig({
   testDir: "./src/tests",
   retries: process.env.CI ? 1 : 0,
-  workers: 4,
+  workers: 1,
 
   outputDir: `./test-output/${process.env.JOB_NAME ?? "local"}`,
   reporter: [
