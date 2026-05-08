@@ -721,9 +721,9 @@ test.describe("PUT /api/2.0/group/{id} - validation and negative cases", () => {
       id: groupId,
       includeMembers: true,
     });
-    expect(
-      groupData.response?.members?.some((m) => m.id === nonMemberId),
-    ).toBe(false);
+    expect(groupData.response?.members?.some((m) => m.id === nonMemberId)).toBe(
+      false,
+    );
   });
 
   test("PUT /api/2.0/group/{id} - membersToRemove has priority when same user is in add and remove lists", async ({
@@ -904,6 +904,269 @@ test.describe("PUT /api/2.0/group/{id} - permissions", () => {
   });
 });
 
+test.describe("PUT /api/2.0/group/{id}/members - validation and negative cases", () => {
+  test("PUT /api/2.0/group/{id}/members - Returns 404 for non-existing groupId", async ({
+    apiSdk,
+  }) => {
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { status } = await apiSdk.forRole("owner").groupApi.addMembersTo({
+      id: faker.string.uuid(),
+      membersRequest: { members: [memberId] },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("PUT /api/2.0/group/{id}/members - Non-existing user in members is silently ignored", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const nonExistingUserId = faker.string.uuid();
+    const { status } = await ownerApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [nonExistingUserId] },
+    });
+
+    expect(status).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    expect(
+      groupData.response?.members?.some((m) => m.id === nonExistingUserId),
+    ).toBe(false);
+  });
+
+  test("PUT /api/2.0/group/{id}/members - Empty members array returns 200 and group is unchanged", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+    const initialCount = created.response!.membersCount!;
+
+    const { status } = await ownerApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [] },
+    });
+
+    expect(status).toBe(200);
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    expect(groupData.response?.membersCount).toBe(initialCount);
+  });
+
+  test.fail(
+    "BUG TBD: PUT /api/2.0/group/{id}/members - Null members returns 200 and group is unchanged",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+      const ownerId = ownerProfile.response!.id!;
+
+      const { data: created } = await ownerApi.groupApi.addGroup({
+        groupRequestDto: {
+          groupName: apiSdk.faker.generateString(10),
+          groupManager: ownerId,
+        },
+      });
+      const groupId = created.response!.id!;
+      const initialCount = created.response!.membersCount!;
+
+      const { status } = await ownerApi.groupApi.addMembersTo({
+        id: groupId,
+        membersRequest: { members: null },
+      });
+
+      expect(status).toBe(200);
+
+      const { data: groupData } = await ownerApi.groupApi.getGroup({
+        id: groupId,
+        includeMembers: true,
+      });
+      expect(groupData.response?.membersCount).toBe(initialCount);
+    },
+  );
+});
+
+test.describe("PUT /api/2.0/group/{id}/members - permissions", () => {
+  test("PUT /api/2.0/group/{id}/members - DocSpace admin can add members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: memberToAdd } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAdd.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [memberToAddId] },
+    });
+
+    expect(status).toBe(200);
+    const memberIds = data.response?.members?.map((m) => m.id);
+    expect(memberIds).toContain(memberToAddId);
+  });
+
+  test("PUT /api/2.0/group/{id}/members - Anonymous cannot add members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: memberToAdd } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAdd.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [memberToAddId] },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/group/{id}/members - Room admin cannot add members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: memberToAdd } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAdd.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { status } = await roomAdminApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [memberToAddId] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/group/{id}/members - User cannot add members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: memberToAdd } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAdd.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [memberToAddId] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/group/{id}/members - Guest cannot add members to group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: memberToAdd } = await apiSdk.addMember("owner", "User");
+    const memberToAddId = memberToAdd.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: [memberToAddId] },
+    });
+
+    expect(status).toBe(403);
+  });
+});
+
 test.describe("GET /api/2.0/group - Edge cases and invalid params", () => {
   test("GET /api/2.0/group - empty params object and no params return same result", async ({
     apiSdk,
@@ -919,8 +1182,9 @@ test.describe("GET /api/2.0/group - Edge cases and invalid params", () => {
       },
     });
 
-    const { data: withEmpty, status: s1 } =
-      await ownerApi.groupApi.getGroups({});
+    const { data: withEmpty, status: s1 } = await ownerApi.groupApi.getGroups(
+      {},
+    );
     const { data: withUndefined, status: s2 } =
       await ownerApi.groupApi.getGroups();
 
@@ -951,9 +1215,7 @@ test.describe("GET /api/2.0/group - Edge cases and invalid params", () => {
     expect(status).toBe(400);
   });
 
-  test("GET /api/2.0/group - invalid sortBy is ignored", async ({
-    apiSdk,
-  }) => {
+  test("GET /api/2.0/group - invalid sortBy is ignored", async ({ apiSdk }) => {
     const { status } = await apiSdk
       .forRole("owner")
       .groupApi.getGroups({ sortBy: "NonExistentField" });
@@ -969,5 +1231,88 @@ test.describe("GET /api/2.0/group - Edge cases and invalid params", () => {
       .groupApi.getGroups({ sortOrder: 99 as any });
 
     expect(status).toBe(400);
+  });
+});
+
+test.describe("DELETE /api/2.0/group/{id} - negative scenarios", () => {
+  test("DELETE /api/2.0/group/{id} - Returns 404 for non-existing group id", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").groupApi.deleteGroup({
+      id: faker.string.uuid(),
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("DELETE /api/2.0/group/{id} - Deleting an already deleted group returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    await ownerApi.groupApi.deleteGroup({ id: groupId });
+
+    const { status } = await ownerApi.groupApi.deleteGroup({ id: groupId });
+
+    expect(status).toBe(404);
+  });
+});
+
+test.describe("DELETE /api/2.0/group/{id} - permissions", () => {
+  test("DELETE /api/2.0/group/{id} - User cannot delete group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.groupApi.deleteGroup({ id: groupId });
+
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /api/2.0/group/{id} - Anonymous cannot delete group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().groupApi.deleteGroup({
+      id: groupId,
+    });
+
+    expect(status).toBe(401);
   });
 });
