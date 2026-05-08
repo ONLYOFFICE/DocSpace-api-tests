@@ -1637,7 +1637,7 @@ test.describe("PUT /people/delete - input validation", () => {
 // to fetch it, allowing an authenticated user to probe internal network resources.
 test.describe("POST /api/2.0/people - files parameter SSRF", () => {
   test.fail(
-    "BUG XXXXX: POST /api/2.0/people - Server fetches external URL in files parameter (SSRF)",
+    "BUG 81491: POST /api/2.0/people - Server fetches external URL in files parameter (SSRF)",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.forRole("owner").profiles.addMember({
         memberRequestDto: {
