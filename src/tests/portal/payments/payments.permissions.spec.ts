@@ -1,6 +1,5 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { topUpDeposit } from "@/src/helpers/wallet-services";
 
 // Security tests based on white-hat report:
 // backUrl parameter in PUT /api/2.0/portal/payment/url has no length or domain validation.
@@ -31,7 +30,10 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 1 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 1 },
+        },
       });
 
     expect(status).toBe(403);
@@ -46,7 +48,10 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("user")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 1 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 1 },
+        },
       });
 
     expect(status).toBe(403);
@@ -61,7 +66,10 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("guest")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 1 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 1 },
+        },
       });
 
     expect(status).toBe(403);
@@ -76,13 +84,14 @@ test.describe("PUT /api/2.0/portal/payment/url - quantity validation", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 0 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 0 },
+        },
       });
 
     expect(status).toBe(400);
-    expect((data as any)?.response?.errors?.BackUrl[0]).toBe(
-      "The BackUrl field is required.",
-    );
+    expect((data as any)?.error?.message).toBe("Invalid quantity");
   });
 
   test("PUT /api/2.0/portal/payment/url - Owner cannot set negative quantity", async ({
@@ -91,7 +100,10 @@ test.describe("PUT /api/2.0/portal/payment/url - quantity validation", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: -1 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: -1 },
+        },
       });
 
     expect(status).toBe(402);
@@ -116,19 +128,23 @@ test.describe("PUT /api/2.0/portal/payment/url - backUrl validation", () => {
     );
   });
 
-  test.fail(
-    "BUG 81434: PUT /api/2.0/portal/payment/url - Owner cannot set backUrl exceeding 18000 chars (nginx 16k limit)",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.forRole("owner").payment.getPaymentUrl({
+  test("BUG 81434: PUT /api/2.0/portal/payment/url - Owner cannot set backUrl exceeding 18000 chars (nginx 16k limit)", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: LONG_BACK_URL_18000,
           quantity: { admin: 1 },
         },
       });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any)?.response?.errors?.BackUrl[0]).toBe(
+      "The field BackUrl must be a string with a maximum length of 255.",
+    );
+  });
 
   test("BUG 81433: PUT /api/2.0/portal/payment/url - Owner cannot set external domain as backUrl (open redirect)", async ({
     apiSdk,
@@ -152,92 +168,767 @@ test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () 
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().payment.buyWalletService({
-      buyWalletServiceRequestDto: { quantity: 1, serviceName: "storage" },
+      buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
     });
 
     expect(status).toBe(401);
   });
 
-  // BUG 81442: buyWalletService returns 200 (null response) instead of 403 for RoomAdmin/User/Guest.
-  // Root cause: the server only reaches the permission check when paymentMethodStatus == 1 (Set),
-  // i.e. when a Stripe payment method is attached to the portal.
-  // setdspsaaspaid creates the customer but with paymentMethodStatus == 0 (None), so the
-  // permission check is never triggered.
-  // Fix requires a payments.teamlab.info internal API endpoint to programmatically set
-  // paymentMethodStatus = 1 for test portals (pending developer implementation).
-  test.fail(
-    "BUG 81442: POST /api/2.0/portal/payment/buywalletservice - RoomAdmin cannot buy wallet service",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+  test("BUG 81442: POST /api/2.0/portal/payment/buywalletservice - RoomAdmin cannot buy wallet service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-      const { data, status } = await apiSdk
-        .forRole("roomAdmin")
-        .payment.buyWalletService({
-          buyWalletServiceRequestDto: { quantity: 1, serviceName: "storage" },
-        });
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.buyWalletService({
+        buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
+      });
 
-      expect(status).toBe(403);
-      expect((data as any)?.error?.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81442: POST /api/2.0/portal/payment/buywalletservice - User cannot buy wallet service",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
-      await apiSdk.addAuthenticatedMember("owner", "User");
+  test("BUG 81442: POST /api/2.0/portal/payment/buywalletservice - User cannot buy wallet service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
-      const { data, status } = await apiSdk
-        .forRole("user")
-        .payment.buyWalletService({
-          buyWalletServiceRequestDto: { quantity: 1, serviceName: "storage" },
-        });
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.buyWalletService({
+        buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
+      });
 
-      expect(status).toBe(403);
-      expect((data as any)?.error?.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81442: POST /api/2.0/portal/payment/buywalletservice - Guest cannot buy wallet service",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+  test("BUG 81442: POST /api/2.0/portal/payment/buywalletservice - Guest cannot buy wallet service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .payment.buyWalletService({
-          buyWalletServiceRequestDto: { quantity: 1, serviceName: "storage" },
-        });
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.buyWalletService({
+        buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
+      });
 
-      expect(status).toBe(403);
-      expect((data as any)?.error?.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/buywalletservice - DocSpaceAdmin cannot buy wallet service when Owner is already the payer", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.buyWalletService({
+        buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("PUT /api/2.0/portal/payment/updatewallet - permissions", () => {
+  test("PUT /api/2.0/portal/payment/updatewallet - DocSpaceAdmin cannot update wallet payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.updateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/updatewallet - RoomAdmin cannot update wallet payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.updateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/updatewallet - User cannot update wallet payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.updateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/updatewallet - Guest cannot update wallet payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.updateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/updatewallet - Anonymous cannot update wallet payment", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/portal/payment/calculatewallet - permissions", () => {
+  test("PUT /api/2.0/portal/payment/calculatewallet - Anonymous cannot calculate wallet payment", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/portal/payment/calculatewallet - DocSpaceAdmin cannot calculate wallet payment when Owner is already the payer", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/calculatewallet - RoomAdmin cannot calculate wallet payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/calculatewallet - User cannot calculate wallet payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/calculatewallet - Guest cannot calculate wallet payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("PUT /api/2.0/portal/payment/calculatewallet - permissions when storage is disabled", () => {
+  test("PUT /api/2.0/portal/payment/calculatewallet - DocSpaceAdmin cannot calculate wallet payment when storage is disabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 0 },
+        productQuantityType: 0,
+      },
+    });
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/calculatewallet - RoomAdmin cannot calculate wallet payment when storage is disabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 0 },
+        productQuantityType: 0,
+      },
+    });
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/calculatewallet - User cannot calculate wallet payment when storage is disabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 0 },
+        productQuantityType: 0,
+      },
+    });
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/calculatewallet - Guest cannot calculate wallet payment when storage is disabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 0 },
+        productQuantityType: 0,
+      },
+    });
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("PUT /api/2.0/portal/payment/updatewallet - storage validation", () => {
+  test("PUT /api/2.0/portal/payment/updatewallet - Owner cannot set negative storage value", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.updateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: -1 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(400);
+    expect((data as any)?.error?.message).toBe("Invalid quantity");
+  });
+
+  test("PUT /api/2.0/portal/payment/updatewallet - Owner cannot set string as storage value", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.updateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: "abc" as any },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(400);
+    expect(
+      (data as any)?.response?.errors?.["$.quantity.storage"][0],
+    ).toContain("The JSON value could not be converted to");
+  });
+
+  test("PUT /api/2.0/portal/payment/updatewallet - Owner cannot set special characters as storage value", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.updateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: "!@#$%" as any },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(400);
+    expect(
+      (data as any)?.response?.errors?.["$.quantity.storage"][0],
+    ).toContain("The JSON value could not be converted to");
+  });
 });
 
 test.describe("POST /api/2.0/portal/payment/buywalletservice - service validation", () => {
-  test.fail(
-    "BUG 81443: POST /api/2.0/portal/payment/buywalletservice - Owner cannot buy non-existent service",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
+  test("BUG 81443: POST /api/2.0/portal/payment/buywalletservice - Owner cannot buy non-existent service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
 
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .payment.buyWalletService({
-          buyWalletServiceRequestDto: {
-            quantity: 1,
-            serviceName: "non-existent-service",
-          },
-        });
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.buyWalletService({
+        buyWalletServiceRequestDto: {
+          quantity: 1,
+          serviceName: "non-existent-service",
+        },
+      });
 
-      expect(status).toBe(404);
-      expect((data as any)?.error?.message).toBe("Service could not be found");
-    },
-  );
+    expect(status).toBe(404);
+    expect((data as any)?.error?.message).toBe("Service could not be found");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/servicestate - permissions", () => {
+  test("POST /api/2.0/portal/payment/servicestate - Anonymous cannot change wallet service state", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.changeTenantWalletServiceState({
+        changeWalletServiceStateRequestDto: { service: -13, enabled: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - DocSpaceAdmin cannot change wallet service state", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.changeTenantWalletServiceState({
+        changeWalletServiceStateRequestDto: { service: -13, enabled: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - RoomAdmin cannot change wallet service state", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.changeTenantWalletServiceState({
+        changeWalletServiceStateRequestDto: { service: -13, enabled: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - User cannot change wallet service state", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.changeTenantWalletServiceState({
+        changeWalletServiceStateRequestDto: { service: -13, enabled: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - Guest cannot change wallet service state", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.changeTenantWalletServiceState({
+        changeWalletServiceStateRequestDto: { service: -13, enabled: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/customer/operationsreport - permissions", () => {
+  test("POST /api/2.0/portal/payment/customer/operationsreport - Anonymous cannot create operations report", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.createCustomerOperationsReport({
+        customerOperationsReportRequestDto: {
+          serviceName: "ai-tools",
+          credit: true,
+          debit: true,
+        },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/customer/operationsreport - RoomAdmin cannot create operations report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.createCustomerOperationsReport({
+        customerOperationsReportRequestDto: {
+          serviceName: "ai-tools",
+          credit: true,
+          debit: true,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/customer/operationsreport - User cannot create operations report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.createCustomerOperationsReport({
+        customerOperationsReportRequestDto: {
+          serviceName: "ai-tools",
+          credit: true,
+          debit: true,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/customer/operationsreport - Guest cannot create operations report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.createCustomerOperationsReport({
+        customerOperationsReportRequestDto: {
+          serviceName: "ai-tools",
+          credit: true,
+          debit: true,
+        },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/checkoutsetupurl - permissions", () => {
+  test("GET /api/2.0/portal/payment/checkoutsetupurl - Anonymous cannot get checkout setup URL", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getCheckoutSetupUrl();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/checkoutsetupurl - DocSpaceAdmin cannot get checkout setup URL", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getCheckoutSetupUrl({
+        backUrl: apiSdk.tokenStore.portalBaseUrl,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/checkoutsetupurl - RoomAdmin cannot get checkout setup URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCheckoutSetupUrl({
+        backUrl: apiSdk.tokenStore.portalBaseUrl,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/checkoutsetupurl - User cannot get checkout setup URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCheckoutSetupUrl({
+        backUrl: apiSdk.tokenStore.portalBaseUrl,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/checkoutsetupurl - Guest cannot get checkout setup URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCheckoutSetupUrl({
+        backUrl: apiSdk.tokenStore.portalBaseUrl,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/ai-prices - permissions", () => {
+  test("GET /api/2.0/portal/payment/ai-prices - Anonymous cannot get AI prices", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.getAiPrices();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/ai-prices - RoomAdmin cannot get AI prices", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getAiPrices();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/ai-prices - User cannot get AI prices", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk.forRole("user").payment.getAiPrices();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/ai-prices - Guest cannot get AI prices", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getAiPrices();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 });
