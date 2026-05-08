@@ -27,7 +27,6 @@ export default defineConfig({
   ],
   use: {
     trace: "retain-on-failure",
-    actionTimeout: 30000,
   },
 
   projects: [
