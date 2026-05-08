@@ -5,54 +5,53 @@ import { faker } from "@faker-js/faker";
 test.describe("POST /api/2.0/group - validation and edge cases", () => {
   // ❌ Required fields validation
 
-  test.fail(
-    "BUG 81417: POST /api/2.0/group - Owner cannot create group without groupName",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
-
-      const { status } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupManager: ownerId,
-        } as any,
-      });
-
-      expect(status).toBe(400);
-    },
-  );
-
-  test("POST /api/2.0/group - Owner can create group without groupManager", async ({
+  test("BUG 81417: POST /api/2.0/group - Owner cannot create group without groupName", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
     const { status } = await ownerApi.groupApi.addGroup({
       groupRequestDto: {
-        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
       } as any,
     });
 
-    expect(status).toBe(200);
+    expect(status).toBe(400);
   });
 
   test.fail(
-    "BUG 81418: POST /api/2.0/group - Owner cannot create group with empty groupName",
+    "POST /api/2.0/group - Owner can create group without groupManager",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
 
       const { status } = await ownerApi.groupApi.addGroup({
         groupRequestDto: {
-          groupName: "",
-          groupManager: ownerId,
-        },
+          groupName: apiSdk.faker.generateString(10),
+        } as any,
       });
 
-      expect(status).toBe(400);
+      expect(status).toBe(200);
     },
   );
+
+  test("BUG 81418: POST /api/2.0/group - Owner cannot create group with empty groupName", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { status } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: "",
+        groupManager: ownerId,
+      },
+    });
+
+    expect(status).toBe(400);
+  });
 
   test("POST /api/2.0/group - Owner cannot create group with empty groupManager", async ({
     apiSdk,
@@ -71,40 +70,38 @@ test.describe("POST /api/2.0/group - validation and edge cases", () => {
 
   // ⚠️ Invalid data
 
-  test.fail(
-    "BUG 81419: POST /api/2.0/group - Owner cannot create group with non-existent groupManager",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81419: POST /api/2.0/group - Owner cannot create group with non-existent groupManager", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: faker.string.uuid(),
-        },
-      });
+    const { status } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: faker.string.uuid(),
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 81420: POST /api/2.0/group - Owner cannot create group with non-existent user in members",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
+  test("BUG 81420: POST /api/2.0/group - Owner cannot create group with non-existent user in members", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
-      const { status } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-          members: [faker.string.uuid()],
-        },
-      });
+    const { status } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [faker.string.uuid()],
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   test("POST /api/2.0/group - Owner cannot create group when members is not an array", async ({
     apiSdk,
@@ -175,23 +172,22 @@ test.describe("POST /api/2.0/group - validation and edge cases", () => {
     expect(status).toBe(400);
   });
 
-  test.fail(
-    "BUG 81421: POST /api/2.0/group - Owner cannot create group with spaces-only groupName",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
+  test("BUG 81421: POST /api/2.0/group - Owner cannot create group with spaces-only groupName", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
-      const { status } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: "   ",
-          groupManager: ownerId,
-        },
-      });
+    const { status } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: "   ",
+        groupManager: ownerId,
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   test("POST /api/2.0/group - Owner creates group with special characters in groupName", async ({
     apiSdk,
@@ -982,7 +978,7 @@ test.describe("PUT /api/2.0/group/{id}/members - validation and negative cases",
   });
 
   test.fail(
-    "BUG TBD: PUT /api/2.0/group/{id}/members - Null members returns 200 and group is unchanged",
+    "BUG 81484: PUT /api/2.0/group/{id}/members - Null members returns 200 and group is unchanged",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
