@@ -7,7 +7,7 @@ dotenv.config();
 export default defineConfig({
   testDir: "./src/tests",
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  workers: 4,
 
   outputDir: `./test-output/${process.env.JOB_NAME ?? "local"}`,
   reporter: [
@@ -27,6 +27,7 @@ export default defineConfig({
   ],
   use: {
     trace: "retain-on-failure",
+    actionTimeout: 60000,
   },
 
   projects: [

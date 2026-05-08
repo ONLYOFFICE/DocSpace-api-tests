@@ -30,7 +30,10 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 1 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 1 },
+        },
       });
 
     expect(status).toBe(403);
@@ -45,7 +48,10 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("user")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 1 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 1 },
+        },
       });
 
     expect(status).toBe(403);
@@ -60,7 +66,10 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
     const { data, status } = await apiSdk
       .forRole("guest")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 1 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 1 },
+        },
       });
 
     expect(status).toBe(403);
@@ -75,13 +84,14 @@ test.describe("PUT /api/2.0/portal/payment/url - quantity validation", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 0 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 0 },
+        },
       });
 
     expect(status).toBe(400);
-    expect((data as any)?.response?.errors?.BackUrl[0]).toBe(
-      "The BackUrl field is required.",
-    );
+    expect((data as any)?.error?.message).toBe("Invalid quantity");
   });
 
   test("PUT /api/2.0/portal/payment/url - Owner cannot set negative quantity", async ({
