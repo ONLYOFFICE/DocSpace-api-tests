@@ -22,7 +22,7 @@ test.describe("POST /api/2.0/group - validation and edge cases", () => {
   });
 
   test.fail(
-    "POST /api/2.0/group - Owner can create group without groupManager",
+    "BUG 81485: POST /api/2.0/group - Owner can create group without groupManager",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
