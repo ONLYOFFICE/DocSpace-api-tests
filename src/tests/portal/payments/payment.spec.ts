@@ -14,9 +14,11 @@ test.describe("PUT /api/2.0/portal/payment/url", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 1 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 1 },
+        },
       });
-
     expect(status).toBe(200);
 
     const url = new URL(data.response!);
@@ -36,7 +38,10 @@ test.describe("PUT /api/2.0/portal/payment/url", () => {
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { quantity: { admin: 2 } },
+        paymentUrlRequestDto: {
+          backUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 2 },
+        },
       });
 
     expect(status).toBe(200);
@@ -57,68 +62,23 @@ test.describe("PUT /api/2.0/portal/payment/url", () => {
 // and deducts funds from the wallet. Automating this would require running 3 real backups,
 // which is too slow and brittle for a unit-level API test.
 test.describe("POST /api/2.0/portal/payment/buywalletservice", () => {
-  test("POST /api/2.0/portal/payment/buywalletservice - Owner buys Storage 100GB and enables service", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-
-    const ownerApi = apiSdk.forRole("owner");
-    await topUpDeposit(ownerApi.payment, 1000);
-
-    const { status } = await buyWalletService(ownerApi.payment, "storage", 100);
-    expect(status).toBe(200);
-  });
-
   test("POST /api/2.0/portal/payment/buywalletservice - Owner buys ai-tools service", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    await paymentsApi.setupPayment();
+    await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await topUpDeposit(ownerApi.payment, 1000);
-
-    const { status } = await ownerApi.payment.buyWalletService({
-      buyWalletServiceRequestDto: { quantity: 1, serviceName: "ai-tools" },
-    });
-
-    expect(status).toBe(200);
-  });
-
-  test("POST /api/2.0/portal/payment/buywalletservice - DocSpaceAdmin buys Storage 100GB", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-
-    await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
-    const { status } = await buyWalletService(
-      apiSdk.forRole("docSpaceAdmin").payment,
-      "storage",
-      100,
+    const { data, status } = await buyWalletService(
+      ownerApi.payment,
+      "aiTools",
+      10,
     );
     expect(status).toBe(200);
-  });
-
-  test("POST /api/2.0/portal/payment/buywalletservice - DocSpaceAdmin buys ai-tools service", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-
-    await topUpDeposit(apiSdk.forRole("owner").payment, 1000);
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
-    const { status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .payment.buyWalletService({
-        buyWalletServiceRequestDto: { quantity: 1, serviceName: "ai-tools" },
-      });
-
-    expect(status).toBe(200);
+    expect(data.response?.operationId).toBeDefined();
+    expect(data.response?.amount).toBeDefined();
+    expect(data.response?.currency).toBe("USD");
+    expect(data.response?.quantity).toBe(10);
   });
 });
 

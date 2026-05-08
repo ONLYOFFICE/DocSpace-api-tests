@@ -30,8 +30,11 @@ test.describe("Portal — Invitation Links (permissions)", () => {
           maxUseCount: 1001,
         },
       });
-      console.log(data);
+
       expect(status).toBe(400);
+      expect((data as any).response?.errors?.MaxUseCount[0]).toBe(
+        "The field MaxUseCount must be between 1 and 1000.",
+      );
     });
 
     test("POST /api/2.0/users/invitationlink - Owner cannot create invitation link with past expiration", async ({
@@ -42,7 +45,7 @@ test.describe("Portal — Invitation Links (permissions)", () => {
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 1);
 
-      const { status } = await ownerApi.users.createInvitationLink({
+      const { data, status } = await ownerApi.users.createInvitationLink({
         invitationLinkCreateRequestDto: {
           employeeType: EmployeeType.User,
           expiration: pastDate.toISOString(),
@@ -50,6 +53,7 @@ test.describe("Portal — Invitation Links (permissions)", () => {
       });
 
       expect(status).toBe(400);
+      expect((data as any).error?.message).toBe("Expiration");
     });
   });
 
