@@ -1,4 +1,4 @@
-import { expect } from "@playwright/test";
+﻿import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
@@ -330,7 +330,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       },
     });
 
-    await test.step("DocSpaceAdmin deletes owner's folder — operation is created", async () => {
+    await test.step("DocSpaceAdmin deletes owner's folder  -  operation is created", async () => {
       const { data, status } = await adminApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -349,7 +349,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("DocSpaceAdmin deletes owner's folder — folder no longer accessible", async () => {
+    await test.step("DocSpaceAdmin deletes owner's folder  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await adminApi.folders.getFolderByFolderId({
           folderId,
@@ -390,7 +390,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("ContentCreator deletes own folder — operation is created", async () => {
+    await test.step("ContentCreator deletes own folder  -  operation is created", async () => {
       const { data, status } = await userApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -409,7 +409,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("ContentCreator deletes own folder — folder no longer accessible", async () => {
+    await test.step("ContentCreator deletes own folder  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await userApi.folders.getFolderByFolderId({
           folderId,
@@ -450,7 +450,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("RoomAdmin deletes own folder — operation is created", async () => {
+    await test.step("RoomAdmin deletes own folder  -  operation is created", async () => {
       const { data, status } = await roomAdminApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -469,7 +469,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("RoomAdmin deletes own folder — folder no longer accessible", async () => {
+    await test.step("RoomAdmin deletes own folder  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await roomAdminApi.folders.getFolderByFolderId({
           folderId,
@@ -510,7 +510,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     });
     const folderId = folderData.response!.id!;
 
-    await test.step("Owner deletes RoomAdmin's folder — operation is created", async () => {
+    await test.step("Owner deletes RoomAdmin's folder  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
         deleteFolder: { deleteAfter: true, immediately: true },
@@ -529,7 +529,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
       expect(operation.error).toBeFalsy();
     });
 
-    await test.step("Owner deletes RoomAdmin's folder — folder no longer accessible", async () => {
+    await test.step("Owner deletes RoomAdmin's folder  -  folder no longer accessible", async () => {
       await expect(async () => {
         const { status } = await ownerApi.folders.getFolderByFolderId({
           folderId,
@@ -874,7 +874,7 @@ test.describe("POST /files/{folderId}/upload/check - access control", () => {
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // ContentCreator has upload rights in the room — checkUpload should be allowed
+  // ContentCreator has upload rights in the room - checkUpload should be allowed
   test("POST /files/{folderId}/upload/check - ContentCreator gets 200", async ({
     apiSdk,
   }) => {
@@ -910,7 +910,7 @@ test.describe("POST /files/{folderId}/upload/check - access control", () => {
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // Archived room is read-only — upload check should be denied
+  // Archived room is read-only - upload check should be denied
   test("POST /files/{folderId}/upload/check - Archived room returns 403", async ({
     apiSdk,
   }) => {
@@ -2051,5 +2051,527 @@ test.describe("GET /api/2.0/files/@favorites - access control", () => {
     expect(status).toBe(200);
     const titles = (data.response!.files ?? []).map((f) => f.title);
     expect(titles).toContain("Autotest Favorites Archived Room File.docx");
+  });
+});
+
+test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
+  test("PUT /api/2.0/files/folder/:folderId - anonymous user cannot rename folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Anon Rename" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const anonApi = apiSdk.forAnonymous();
+    const { data, status } = await anonApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "Autotest Folder Anon Renamed" },
+    });
+
+    console.log(
+      "renameFolder (anonymous):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/folder/:folderId - Guest cannot rename folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Guest Rename" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data, status } = await guestApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "Autotest Folder Guest Renamed" },
+    });
+
+    console.log(
+      "renameFolder (guest):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+
+  test(
+    "PUT /api/2.0/files/folder/:folderId - User cannot rename another user's My Documents" +
+      " subfolder",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest Owner Folder User Cannot Rename" },
+      });
+      const folderId = folderData.response!.id!;
+
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+      const { data, status } = await userApi.folders.renameFolder({
+        folderId,
+        createFolder: { title: "Autotest Owner Folder Renamed By User" },
+      });
+
+      console.log(
+        "renameFolder (user vs owner My Docs folder):",
+        JSON.stringify({ status, error: (data as any).error }, null, 2),
+      );
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test("PUT /api/2.0/files/folder/:folderId - User with Read access in room cannot rename folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Folder Rename Read Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Read Access Rename" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "Autotest Folder Renamed By Reader" },
+    });
+
+    console.log(
+      "renameFolder (user with Read access):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/folder/:folderId - RoomAdmin not member of room cannot rename folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Folder Rename No RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder RoomAdmin Not Member Rename" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } = await roomAdminApi.folders.renameFolder({
+      folderId,
+      createFolder: {
+        title: "Autotest Folder Renamed By Non-Member RoomAdmin",
+      },
+    });
+
+    console.log(
+      "renameFolder (RoomAdmin not in room):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/folder/:folderId - User with Editing access cannot rename folder in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Folder Rename Editing Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Editing Access Rename" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "Autotest Folder Renamed By Editing User" },
+    });
+
+    console.log(
+      "renameFolder (user with Editing access):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+
+  test(
+    "PUT /api/2.0/files/folder/:folderId - DocSpaceAdmin with ContentCreator access cannot rename" +
+      " folder in room",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room Folder Rename DocSpaceAdmin ContentCreator",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: {
+          title: "Autotest Folder DocSpaceAdmin ContentCreator Rename",
+        },
+      });
+      const folderId = folderData.response!.id!;
+
+      const { api: adminApi, data: adminData } =
+        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminId = adminData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: adminId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await adminApi.folders.renameFolder({
+        folderId,
+        createFolder: { title: "Autotest Folder Renamed By DocSpaceAdmin" },
+      });
+
+      console.log(
+        "renameFolder (DocSpaceAdmin, ContentCreator):",
+        JSON.stringify({ status, error: (data as any).error }, null, 2),
+      );
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/folder/:folderId - RoomAdmin with ContentCreator access cannot rename" +
+      " folder in room",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room Folder Rename RoomAdmin ContentCreator",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: {
+          title: "Autotest Folder RoomAdmin ContentCreator Rename",
+        },
+      });
+      const folderId = folderData.response!.id!;
+
+      const { api: roomAdminApi, data: roomAdminData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminId = roomAdminData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await roomAdminApi.folders.renameFolder({
+        folderId,
+        createFolder: { title: "Autotest Folder Renamed By RoomAdmin" },
+      });
+
+      console.log(
+        "renameFolder (RoomAdmin, ContentCreator):",
+        JSON.stringify({ status, error: (data as any).error }, null, 2),
+      );
+
+      expect(status).toBe(403);
+    },
+  );
+});
+
+test.describe("GET /api/2.0/files/:folderId/news - access control", () => {
+  test("GET /api/2.0/files/:folderId/news - anonymous user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News Anon",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const anonApi = apiSdk.forAnonymous();
+    const { status } = await anonApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/files/:folderId/news - guest without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News Guest No Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /api/2.0/files/:folderId/news - user without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News User No Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /api/2.0/files/:folderId/news - user with Read access gets 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News User Read",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /api/2.0/files/:folderId/news - guest with Read access gets 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News Guest Read",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await guestApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /api/2.0/files/:folderId/news - DocSpaceAdmin gets 200 for any room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News DocSpaceAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /api/2.0/files/:folderId/news - RoomAdmin gets 200 for their room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await roomAdminApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /api/2.0/files/:folderId/news - RoomAdmin not member of room gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News RoomAdmin No Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+    const { status } = await roomAdminApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(403);
   });
 });
