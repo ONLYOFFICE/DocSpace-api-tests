@@ -2075,7 +2075,7 @@ test.describe("DELETE /api/2.0/group/{id}/members - validation and negative case
   );
 
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/group/{id}/members - Undefined members returns 200 and group is unchanged",
+    "BUG 81510: DELETE /api/2.0/group/{id}/members - Undefined members returns 200 and group is unchanged",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
