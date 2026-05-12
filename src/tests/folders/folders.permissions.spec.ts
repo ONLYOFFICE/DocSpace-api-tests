@@ -2575,3 +2575,326 @@ test.describe("GET /api/2.0/files/:folderId/news - access control", () => {
     expect(status).toBe(403);
   });
 });
+
+test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
+  test("POST /api/2.0/files/{folderId}/upload - Anonymous user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Anon",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await apiSdk.uploadFileToFolder(
+      null,
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-anon.txt",
+    );
+
+    console.log(
+      "uploadFile (anonymous):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - User without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload User No Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk.uploadFileToFolder(
+      "user",
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-no-access.txt",
+    );
+
+    console.log(
+      "uploadFile (user, no access):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Guest without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Guest No Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk.uploadFileToFolder(
+      "guest",
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-guest-no-access.txt",
+    );
+
+    console.log(
+      "uploadFile (guest, no access):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - User with Editing access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload User Editing",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: userData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk.uploadFileToFolder(
+      "user",
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-editing.txt",
+    );
+
+    console.log(
+      "uploadFile (user, Editing):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - User with Read access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload User Read",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: userData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk.uploadFileToFolder(
+      "user",
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-read-only.txt",
+    );
+
+    console.log(
+      "uploadFile (user, Read):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Guest with Read access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Guest Read",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk.uploadFileToFolder(
+      "guest",
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-guest-read.txt",
+    );
+
+    console.log(
+      "uploadFile (guest, Read):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - DocSpaceAdmin with RoomManager access gets 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload DocSpaceAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: adminData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminId = adminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: adminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk.uploadFileToFolder(
+      "docSpaceAdmin",
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-admin.txt",
+    );
+
+    console.log(
+      "uploadFile (DocSpaceAdmin):",
+      JSON.stringify({ status, response: data.response }, null, 2),
+    );
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - RoomAdmin gets 200 for their room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload RoomAdmin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: roomAdminData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const roomAdminId = roomAdminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await apiSdk.uploadFileToFolder(
+      "roomAdmin",
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-roomadmin.txt",
+    );
+
+    console.log(
+      "uploadFile (RoomAdmin):",
+      JSON.stringify({ status, response: data.response }, null, 2),
+    );
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - RoomAdmin not member of room gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload RoomAdmin No Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk.uploadFileToFolder(
+      "roomAdmin",
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-roomadmin-noaccess.txt",
+    );
+
+    console.log(
+      "uploadFile (RoomAdmin, no access):",
+      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    );
+
+    expect(status).toBe(403);
+  });
+});
