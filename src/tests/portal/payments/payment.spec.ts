@@ -1000,6 +1000,67 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
   });
 });
 
+test.describe("GET /api/2.0/portal/payment/quota", () => {
+  test("GET /api/2.0/portal/payment/quota - Owner gets current quota information", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getQuotaPaymentInformation();
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(-3);
+    expect(data.response?.title).toBe("Startup");
+    expect(data.response?.price?.value).toBe(0);
+    expect(data.response?.free).toBe(true);
+    expect(data.response?.trial).toBe(false);
+    expect(data.response?.nonProfit).toBe(false);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/quota - DocSpaceAdmin gets current quota information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getQuotaPaymentInformation();
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(-3);
+    expect(data.response?.title).toBe("Startup");
+    expect(data.response?.price?.value).toBe(0);
+    expect(data.response?.free).toBe(true);
+    expect(data.response?.trial).toBe(false);
+    expect(data.response?.nonProfit).toBe(false);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/quota - Owner gets quota information on Business plan", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getQuotaPaymentInformation();
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(-9);
+    expect(data.response?.title).toBe("Business");
+    expect(data.response?.price?.value).toBe(200);
+    expect(data.response?.free).toBe(false);
+    expect(data.response?.trial).toBe(false);
+    expect(data.response?.nonProfit).toBe(false);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+    expect(data.response?.usersQuota?.enableQuota).toBe(false);
+    expect(data.response?.roomsQuota?.enableQuota).toBe(false);
+    expect(data.response?.aiAgentsQuota?.enableQuota).toBe(false);
+  });
+});
+
 test.describe("GET /api/2.0/portal/payment/prices", () => {
   test("GET /api/2.0/portal/payment/prices - Owner gets portal prices", async ({
     apiSdk,
