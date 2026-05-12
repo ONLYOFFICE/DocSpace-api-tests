@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
+import { restrictableAiModelIds } from "@/src/helpers/ai-providers";
 
 // Security tests based on white-hat report:
 // backUrl parameter in PUT /api/2.0/portal/payment/url has no length or domain validation.
@@ -926,6 +927,221 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport - permissio
   });
 });
 
+test.describe("DELETE /api/2.0/portal/payment/customer/operationsreport - permissions", () => {
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - Anonymous cannot terminate report generation", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(401);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - RoomAdmin cannot terminate report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - User cannot terminate report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - Guest cannot terminate report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("PUT /api/2.0/portal/payment/update - permissions", () => {
+  test("PUT /api/2.0/portal/payment/update - Anonymous cannot update payment", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.updatePayment({
+      quantityRequestDto: { quantity: { admin: 1 } },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/portal/payment/update - DocSpaceAdmin cannot update payment when Owner is the payer", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.updatePayment({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/update - RoomAdmin cannot update payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.updatePayment({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/update - User cannot update payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.updatePayment({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/update - Guest cannot update payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.updatePayment({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/deposit - permissions", () => {
+  test("POST /api/2.0/portal/payment/deposit - Anonymous cannot top up wallet deposit", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.topUpDeposit({
+      topUpDepositRequestDto: { amount: 100, currency: "USD" },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - DocSpaceAdmin cannot top up wallet deposit when Owner is the payer", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.topUpDeposit({
+        topUpDepositRequestDto: { amount: 100, currency: "USD" },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - RoomAdmin cannot top up wallet deposit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.topUpDeposit({
+        topUpDepositRequestDto: { amount: 100, currency: "USD" },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - User cannot top up wallet deposit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk.forRole("user").payment.topUpDeposit({
+      topUpDepositRequestDto: { amount: 100, currency: "USD" },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - Guest cannot top up wallet deposit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.topUpDeposit({
+        topUpDepositRequestDto: { amount: 100, currency: "USD" },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
 test.describe("GET /api/2.0/portal/payment/currencies - permissions", () => {
   test("GET /api/2.0/portal/payment/currencies - Anonymous cannot get payment currencies", async ({
     apiSdk,
@@ -1626,6 +1842,90 @@ test.describe("GET /api/2.0/portal/payment/topupsettings - permissions", () => {
   });
 });
 
+test.describe("POST /api/2.0/portal/payment/topupsettings - permissions", () => {
+  const SETTINGS = { enabled: true, minBalance: 100, upToBalance: 1000 };
+
+  test("POST /api/2.0/portal/payment/topupsettings - Anonymous cannot set wallet auto top-up settings", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/topupsettings - DocSpaceAdmin cannot set wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/topupsettings - RoomAdmin cannot set wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/topupsettings - User cannot set wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/topupsettings - Guest cannot set wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
 test.describe("GET /api/2.0/portal/payment/servicessettings - permissions", () => {
   test("GET /api/2.0/portal/payment/servicessettings - Anonymous cannot get wallet services settings", async ({
     apiSdk,
@@ -1677,6 +1977,89 @@ test.describe("GET /api/2.0/portal/payment/servicessettings - permissions", () =
     const { data, status } = await apiSdk
       .forRole("guest")
       .payment.getTenantWalletServiceSettings();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions", () => {
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Anonymous cannot set restricted AI models", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - RoomAdmin cannot set restricted AI models", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - User cannot set restricted AI models", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Guest cannot set restricted AI models", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin cannot deactivate Owner's ONLYOFFICE AI restrictions", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    await apiSdk.forRole("owner").payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set(restrictableAiModelIds),
+      },
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
