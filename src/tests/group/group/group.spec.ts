@@ -2569,3 +2569,321 @@ test.describe("DELETE /api/2.0/group/{id}/members - Remove group members", () =>
     expect(memberIds).not.toContain(memberId);
   });
 });
+
+test.describe("PUT /api/2.0/group/{id}/manager - Set a group manager", () => {
+  test("PUT /api/2.0/group/{id}/manager - Owner sets a new group manager", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: newManagerData } = await apiSdk.addMember("owner", "User");
+    const newManagerId = newManagerData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: newManagerId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.manager?.id).toBe(newManagerId);
+  });
+
+  test("PUT /api/2.0/group/{id}/manager - Replaces existing manager", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: managerA } = await apiSdk.addMember("owner", "User");
+    const managerAId = managerA.response!.id!;
+    const { data: managerB } = await apiSdk.addMember("owner", "User");
+    const managerBId = managerB.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: managerAId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: managerBId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.manager?.id).toBe(managerBId);
+    expect(data.response?.manager?.id).not.toBe(managerAId);
+  });
+
+  test("PUT /api/2.0/group/{id}/manager - Group name is not changed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: newManagerData } = await apiSdk.addMember("owner", "User");
+    const newManagerId = newManagerData.response!.id!;
+
+    const originalName = apiSdk.faker.generateString(10);
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: originalName,
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: newManagerId },
+    });
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+    });
+    expect(groupData.response?.name).toBe(originalName);
+  });
+
+  test("PUT /api/2.0/group/{id}/manager - Existing members are preserved and the new manager is added as a member", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: m1 } = await apiSdk.addMember("owner", "User");
+    const m1Id = m1.response!.id!;
+    const { data: m2 } = await apiSdk.addMember("owner", "User");
+    const m2Id = m2.response!.id!;
+    const { data: newManagerData } = await apiSdk.addMember("owner", "User");
+    const newManagerId = newManagerData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [m1Id, m2Id],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: before } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const membersBefore = before.response?.members?.map((m) => m.id) ?? [];
+
+    await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: newManagerId },
+    });
+
+    const { data: after } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const membersAfter = after.response?.members?.map((m) => m.id) ?? [];
+
+    for (const id of membersBefore) {
+      expect(membersAfter).toContain(id);
+    }
+    expect(membersAfter).toContain(newManagerId);
+  });
+
+  test("PUT /api/2.0/group/{id}/manager - Sets manager to existing group member", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: memberId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.manager?.id).toBe(memberId);
+  });
+
+  test("PUT /api/2.0/group/{id}/manager - Sets manager to user who is not a group member", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: outsiderData } = await apiSdk.addMember("owner", "User");
+    const outsiderId = outsiderData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: outsiderId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.manager?.id).toBe(outsiderId);
+  });
+
+  test("PUT /api/2.0/group/{id}/manager - Manager change persists after re-fetching the group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: newManagerData } = await apiSdk.addMember("owner", "User");
+    const newManagerId = newManagerData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: newManagerId },
+    });
+
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+    });
+    expect(groupData.response?.manager?.id).toBe(newManagerId);
+  });
+
+  test("PUT /api/2.0/group/{id}/manager - Setting the current manager again is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: ownerId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.manager?.id).toBe(ownerId);
+  });
+
+  test("PUT /api/2.0/group/{id}/manager - Updates manager and adds them to members, leaves id, name and existing members intact", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
+    const { data: newManagerData } = await apiSdk.addMember("owner", "User");
+    const newManagerId = newManagerData.response!.id!;
+
+    const originalName = apiSdk.faker.generateString(10);
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: originalName,
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data: before } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const membersBefore = before.response?.members?.map((m) => m.id) ?? [];
+
+    await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: newManagerId },
+    });
+
+    const { data: after } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    const membersAfter = after.response?.members?.map((m) => m.id) ?? [];
+
+    expect(after.response?.id).toBe(groupId);
+    expect(after.response?.name).toBe(originalName);
+    expect(after.response?.manager?.id).toBe(newManagerId);
+    for (const id of membersBefore) {
+      expect(membersAfter).toContain(id);
+    }
+    expect(membersAfter).toContain(newManagerId);
+  });
+
+  test("PUT /api/2.0/group/{id}/manager - Returns GroupWrapper with correct structure", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: newManagerData } = await apiSdk.addMember("owner", "User");
+    const newManagerId = newManagerData.response!.id!;
+
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+
+    const { data, status } = await ownerApi.groupApi.setGroupManager({
+      id: groupId,
+      setManagerRequest: { userId: newManagerId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response?.id).toBe(groupId);
+    expect(data.response?.manager?.id).toBe(newManagerId);
+  });
+});
