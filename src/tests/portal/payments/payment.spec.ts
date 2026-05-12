@@ -999,3 +999,98 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
     expect(status).toBe(200);
   });
 });
+
+test.describe("GET /api/2.0/portal/payment/prices", () => {
+  test("GET /api/2.0/portal/payment/prices - Owner gets portal prices", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getPortalPrices();
+
+    expect(status).toBe(200);
+    const prices = data.response!;
+    expect(Object.keys(prices).length).toBeGreaterThan(0);
+    for (const [id, price] of Object.entries(prices)) {
+      expect(id).toBeDefined();
+      expect(typeof price).toBe("number");
+      expect(price).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/prices - DocSpaceAdmin gets portal prices", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getPortalPrices();
+
+    expect(status).toBe(200);
+    const prices = data.response!;
+    expect(Object.keys(prices).length).toBeGreaterThan(0);
+    for (const [id, price] of Object.entries(prices)) {
+      expect(id).toBeDefined();
+      expect(typeof price).toBe("number");
+      expect(price).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/quotas", () => {
+  test("GET /api/2.0/portal/payment/quotas - Owner gets all payment quotas", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getPaymentQuotas();
+
+    expect(status).toBe(200);
+    expect(data.response?.length).toBeGreaterThan(0);
+    for (const quota of data.response ?? []) {
+      expect(quota.id).toBeDefined();
+      expect(quota.title).toBeDefined();
+      expect(quota.nonProfit).toBeDefined();
+      expect(quota.free).toBeDefined();
+      expect(quota.trial).toBeDefined();
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/quotas - Owner gets wallet-only quotas", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getPaymentQuotas({ wallet: true });
+
+    expect(status).toBe(200);
+    expect(data.response?.length).toBeGreaterThan(0);
+    for (const quota of data.response ?? []) {
+      expect(quota.id).toBeDefined();
+      expect(quota.nonProfit).toBeDefined();
+      expect(quota.free).toBeDefined();
+      expect(quota.trial).toBeDefined();
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/quotas - DocSpaceAdmin gets all payment quotas", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getPaymentQuotas();
+
+    expect(status).toBe(200);
+    expect(data.response?.length).toBeGreaterThan(0);
+    for (const quota of data.response ?? []) {
+      expect(quota.id).toBeDefined();
+      expect(quota.title).toBeDefined();
+      expect(quota.nonProfit).toBeDefined();
+      expect(quota.free).toBeDefined();
+      expect(quota.trial).toBeDefined();
+    }
+  });
+});
