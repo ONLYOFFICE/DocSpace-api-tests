@@ -7,6 +7,7 @@ import {
   enableWalletService,
   disableWalletService,
 } from "@/src/helpers/wallet-services";
+import { restrictableAiModelIds } from "@/src/helpers/ai-providers";
 
 test.describe("PUT /api/2.0/portal/payment/url", () => {
   test("PUT /api/2.0/portal/payment/url - Owner gets payment page URL", async ({
@@ -997,6 +998,339 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
     });
 
     expect(status).toBe(200);
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/request", () => {
+  const SALES_REQUEST = {
+    userName: "nctTest",
+    email: "nct@email.com",
+    message: "autoTest",
+  };
+
+  test("POST /api/2.0/portal/payment/request - Owner sends payment request", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+
+    expect(status).toBe(200);
+  });
+
+  test("POST /api/2.0/portal/payment/request - DocSpaceAdmin sends payment request", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+
+    expect(status).toBe(200);
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/walletservices", () => {
+  test("GET /api/2.0/portal/payment/walletservices - Owner gets all wallet services", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getWalletServices();
+    console.log(data);
+    expect(status).toBe(200);
+    expect(data.response?.length).toBe(3);
+
+    const serviceNames = data.response?.map((s) => s.serviceName);
+    expect(serviceNames).toContain("ai-tools");
+    expect(serviceNames).toContain("backup");
+    expect(serviceNames).toContain("disk-storage-1-hour");
+
+    for (const service of data.response ?? []) {
+      expect(service.id).toBeDefined();
+      expect(service.price?.value).toBeGreaterThan(0);
+      expect(service.features?.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/walletservices - DocSpaceAdmin gets all wallet services", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getWalletServices();
+
+    expect(status).toBe(200);
+    expect(data.response?.length).toBe(3);
+
+    const serviceNames = data.response?.map((s) => s.serviceName);
+    expect(serviceNames).toContain("ai-tools");
+    expect(serviceNames).toContain("backup");
+    expect(serviceNames).toContain("disk-storage-1-hour");
+
+    for (const service of data.response ?? []) {
+      expect(service.id).toBeDefined();
+      expect(service.price?.value).toBeGreaterThan(0);
+      expect(service.features?.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/walletservice", () => {
+  test("GET /api/2.0/portal/payment/walletservice - Owner gets AITools service info", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getWalletService({ service: TenantWalletService.AITools });
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(TenantWalletService.AITools);
+    expect(data.response?.serviceName).toBe("ai-tools");
+    expect(data.response?.price?.value).toBeGreaterThan(0);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - Owner gets Backup service info", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getWalletService({ service: TenantWalletService.Backup });
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(TenantWalletService.Backup);
+    expect(data.response?.serviceName).toBe("backup");
+    expect(data.response?.price?.value).toBeGreaterThan(0);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - Owner gets Storage service info", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getWalletService({ service: TenantWalletService.Storage });
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(TenantWalletService.Storage);
+    expect(data.response?.serviceName).toBe("disk-storage-1-hour");
+    expect(data.response?.price?.value).toBeGreaterThan(0);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - DocSpaceAdmin gets AITools service info", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getWalletService({ service: TenantWalletService.AITools });
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(TenantWalletService.AITools);
+    expect(data.response?.serviceName).toBe("ai-tools");
+    expect(data.response?.price?.value).toBeGreaterThan(0);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - DocSpaceAdmin gets Backup service info", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getWalletService({ service: TenantWalletService.Backup });
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(TenantWalletService.Backup);
+    expect(data.response?.serviceName).toBe("backup");
+    expect(data.response?.price?.value).toBeGreaterThan(0);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - DocSpaceAdmin gets Storage service info", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getWalletService({ service: TenantWalletService.Storage });
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(TenantWalletService.Storage);
+    expect(data.response?.serviceName).toBe("disk-storage-1-hour");
+    expect(data.response?.price?.value).toBeGreaterThan(0);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/topupsettings", () => {
+  test("GET /api/2.0/portal/payment/topupsettings - Owner gets wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.payment.setTenantWalletSettings({
+      tenantWalletSettingsWrapper: {
+        settings: {
+          enabled: true,
+          minBalance: 100,
+          upToBalance: 1000,
+        },
+      },
+    });
+
+    const { data, status } = await ownerApi.payment.getTenantWalletSettings();
+
+    expect(status).toBe(200);
+    expect((data as any).response?.enabled).toBe(true);
+    expect((data as any).response?.minBalance).toBe(100);
+    expect((data as any).response?.upToBalance).toBe(1000);
+    expect((data as any).response?.lastModified).toBeDefined();
+  });
+
+  test("GET /api/2.0/portal/payment/topupsettings - DocSpaceAdmin gets wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.payment.setTenantWalletSettings({
+      tenantWalletSettingsWrapper: {
+        settings: {
+          enabled: true,
+          minBalance: 100,
+          upToBalance: 1000,
+        },
+      },
+    });
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getTenantWalletSettings();
+
+    expect(status).toBe(200);
+    expect((data as any).response?.enabled).toBe(true);
+    expect((data as any).response?.minBalance).toBe(100);
+    expect((data as any).response?.upToBalance).toBe(1000);
+    expect((data as any).response?.lastModified).toBeDefined();
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/servicessettings", () => {
+  test("GET /api/2.0/portal/payment/servicessettings - Owner gets wallet services settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await enableWalletService(ownerApi.payment, "aiTools");
+    await enableWalletService(ownerApi.payment, "backup");
+    await enableWalletService(ownerApi.payment, "storage");
+
+    const { data, status } =
+      await ownerApi.payment.getTenantWalletServiceSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.enabledServices).toContain(
+      TenantWalletService.AITools,
+    );
+    expect(data.response?.enabledServices).toContain(
+      TenantWalletService.Backup,
+    );
+    expect(data.response?.enabledServices).toContain(
+      TenantWalletService.Storage,
+    );
+    expect(data.response?.lastModified).toBeDefined();
+  });
+
+  test("GET /api/2.0/portal/payment/servicessettings - DocSpaceAdmin gets wallet services settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await enableWalletService(ownerApi.payment, "aiTools");
+    await enableWalletService(ownerApi.payment, "backup");
+    await enableWalletService(ownerApi.payment, "storage");
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getTenantWalletServiceSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.enabledServices).toContain(
+      TenantWalletService.AITools,
+    );
+    expect(data.response?.enabledServices).toContain(
+      TenantWalletService.Backup,
+    );
+    expect(data.response?.enabledServices).toContain(
+      TenantWalletService.Storage,
+    );
+    expect(data.response?.lastModified).toBeDefined();
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
+  test("GET /api/2.0/portal/payment/ai-model/restrictions - Owner gets restricted AI models", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set(restrictableAiModelIds),
+      },
+    });
+
+    const { data, status } = await ownerApi.payment.getRestrictedAiModels();
+
+    expect(status).toBe(200);
+    for (const modelId of restrictableAiModelIds) {
+      expect(data.response?.models).toContain(modelId);
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin gets restricted AI models", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set(restrictableAiModelIds),
+      },
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getRestrictedAiModels();
+
+    expect(status).toBe(200);
+    for (const modelId of restrictableAiModelIds) {
+      expect(data.response?.models).toContain(modelId);
+    }
   });
 });
 
