@@ -938,7 +938,7 @@ test.describe("GET /api/2.0/portal/payment/currencies - permissions", () => {
   });
 
   test.fail(
-    "BUG : GET /api/2.0/portal/payment/currencies - RoomAdmin cannot get payment currencies",
+    "BUG 81512: GET /api/2.0/portal/payment/currencies - RoomAdmin cannot get payment currencies",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
@@ -952,7 +952,7 @@ test.describe("GET /api/2.0/portal/payment/currencies - permissions", () => {
   );
 
   test.fail(
-    "BUG : GET /api/2.0/portal/payment/currencies - User cannot get payment currencies",
+    "BUG 81512: GET /api/2.0/portal/payment/currencies - User cannot get payment currencies",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "User");
 
@@ -966,7 +966,7 @@ test.describe("GET /api/2.0/portal/payment/currencies - permissions", () => {
   );
 
   test.fail(
-    "BUG : GET /api/2.0/portal/payment/currencies - Guest cannot get payment currencies",
+    "BUG 81512: GET /api/2.0/portal/payment/currencies - Guest cannot get payment currencies",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
