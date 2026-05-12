@@ -1417,7 +1417,7 @@ test.describe("POST /api/2.0/portal/payment/request - string length validation",
 
 test.describe("POST /api/2.0/portal/payment/request - empty field validation", () => {
   test.fail(
-    "BUG : POST /api/2.0/portal/payment/request - Owner cannot send request with empty userName",
+    "BUG 81525: POST /api/2.0/portal/payment/request - Owner cannot send request with empty userName",
     async ({ apiSdk }) => {
       const { data, status } = await apiSdk
         .forRole("owner")
