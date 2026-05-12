@@ -80,6 +80,15 @@ export const aiProviders: Record<string, AiProviderConfig> = {
   },
 };
 
+export const restrictableAiModelIds = [
+  "claude-sonnet-4.6",
+  "deepseek-v3.2",
+  "gemini-3-flash-preview",
+  "gemini-3.1-pro-preview",
+  "gpt-5.2",
+  "gpt-5.4",
+] as const;
+
 export const onlyofficeAiProvider = {
   providerId: -1,
   defaultModel: "gpt-5.4",

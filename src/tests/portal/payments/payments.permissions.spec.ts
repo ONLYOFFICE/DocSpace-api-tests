@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
+import { restrictableAiModelIds } from "@/src/helpers/ai-providers";
 
 // Security tests based on white-hat report:
 // backUrl parameter in PUT /api/2.0/portal/payment/url has no length or domain validation.
@@ -926,6 +927,221 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport - permissio
   });
 });
 
+test.describe("DELETE /api/2.0/portal/payment/customer/operationsreport - permissions", () => {
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - Anonymous cannot terminate report generation", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(401);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - RoomAdmin cannot terminate report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - User cannot terminate report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - Guest cannot terminate report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("PUT /api/2.0/portal/payment/update - permissions", () => {
+  test("PUT /api/2.0/portal/payment/update - Anonymous cannot update payment", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.updatePayment({
+      quantityRequestDto: { quantity: { admin: 1 } },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/portal/payment/update - DocSpaceAdmin cannot update payment when Owner is the payer", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.updatePayment({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/update - RoomAdmin cannot update payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.updatePayment({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/update - User cannot update payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.updatePayment({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/update - Guest cannot update payment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.updatePayment({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/deposit - permissions", () => {
+  test("POST /api/2.0/portal/payment/deposit - Anonymous cannot top up wallet deposit", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.topUpDeposit({
+      topUpDepositRequestDto: { amount: 100, currency: "USD" },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - DocSpaceAdmin cannot top up wallet deposit when Owner is the payer", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.topUpDeposit({
+        topUpDepositRequestDto: { amount: 100, currency: "USD" },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - RoomAdmin cannot top up wallet deposit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.topUpDeposit({
+        topUpDepositRequestDto: { amount: 100, currency: "USD" },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - User cannot top up wallet deposit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk.forRole("user").payment.topUpDeposit({
+      topUpDepositRequestDto: { amount: 100, currency: "USD" },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - Guest cannot top up wallet deposit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.topUpDeposit({
+        topUpDepositRequestDto: { amount: 100, currency: "USD" },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
 test.describe("GET /api/2.0/portal/payment/currencies - permissions", () => {
   test("GET /api/2.0/portal/payment/currencies - Anonymous cannot get payment currencies", async ({
     apiSdk,
@@ -1293,6 +1509,762 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl - permissions", () =
       .payment.getCheckoutSetupUrl({
         backUrl: apiSdk.tokenStore.portalBaseUrl,
       });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/request - permissions", () => {
+  const SALES_REQUEST = {
+    userName: "nctTest",
+    email: "nct@email.com",
+    message: "autoTest",
+  };
+
+  test("POST /api/2.0/portal/payment/request - Anonymous cannot send payment request", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/request - RoomAdmin cannot send payment request", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/request - User cannot send payment request", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/request - Guest cannot send payment request", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/request - string length validation", () => {
+  test("POST /api/2.0/portal/payment/request - Owner cannot send request with userName exceeding 255 chars", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.sendPaymentRequest({
+        salesRequestsDto: {
+          userName: "a".repeat(256),
+          email: "nct@email.com",
+          message: "autoTest",
+        },
+      });
+
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.UserName[0]).toBe(
+      "The field UserName must be a string or array type with a maximum length of '255'.",
+    );
+  });
+
+  test("POST /api/2.0/portal/payment/request - Owner cannot send request with email exceeding 64 chars", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.sendPaymentRequest({
+        salesRequestsDto: {
+          userName: "nctTest",
+          email: "a".repeat(55) + "@email.com",
+          message: "autoTest",
+        },
+      });
+
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.Email[0]).toBe(
+      "The field Email must be a string or array type with a maximum length of '64'.",
+    );
+  });
+
+  test("POST /api/2.0/portal/payment/request - Owner cannot send request with message exceeding 255 chars", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.sendPaymentRequest({
+        salesRequestsDto: {
+          userName: "nctTest",
+          email: "nct@email.com",
+          message: "a".repeat(256),
+        },
+      });
+
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.Message[0]).toBe(
+      "The field Message must be a string or array type with a maximum length of '255'.",
+    );
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/request - empty field validation", () => {
+  test.fail(
+    "BUG 81525: POST /api/2.0/portal/payment/request - Owner cannot send request with empty userName",
+    async ({ apiSdk }) => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .payment.sendPaymentRequest({
+          salesRequestsDto: {
+            userName: "",
+            email: "nct@email.com",
+            message: "autoTest",
+          },
+        });
+
+      expect(status).toBe(400);
+      expect((data as any).error?.message).toBe("Incorrect user name");
+    },
+  );
+
+  test("POST /api/2.0/portal/payment/request - Owner cannot send request with empty email", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.sendPaymentRequest({
+        salesRequestsDto: {
+          userName: "nctTest",
+          email: "",
+          message: "autoTest",
+        },
+      });
+
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBe("Incorrect email");
+  });
+
+  test("POST /api/2.0/portal/payment/request - Owner cannot send request with empty message", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.sendPaymentRequest({
+        salesRequestsDto: {
+          userName: "nctTest",
+          email: "nct@email.com",
+          message: "",
+        },
+      });
+
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBe("Message text is empty");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/walletservices - permissions", () => {
+  test("GET /api/2.0/portal/payment/walletservices - Anonymous cannot get wallet services", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.getWalletServices();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/walletservices - RoomAdmin cannot get wallet services", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getWalletServices();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/walletservices - User cannot get wallet services", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getWalletServices();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/walletservices - Guest cannot get wallet services", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getWalletServices();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/walletservice - permissions", () => {
+  test("GET /api/2.0/portal/payment/walletservice - Anonymous cannot get wallet service info", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getWalletService({ service: -13 });
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - RoomAdmin cannot get wallet service info", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getWalletService({ service: -13 });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - User cannot get wallet service info", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getWalletService({ service: -13 });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - Guest cannot get wallet service info", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getWalletService({ service: -13 });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/topupsettings - permissions", () => {
+  test("GET /api/2.0/portal/payment/topupsettings - Anonymous cannot get wallet top-up settings", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getTenantWalletSettings();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/topupsettings - RoomAdmin cannot get wallet top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getTenantWalletSettings();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/topupsettings - User cannot get wallet top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getTenantWalletSettings();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/topupsettings - Guest cannot get wallet top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getTenantWalletSettings();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/topupsettings - permissions", () => {
+  const SETTINGS = { enabled: true, minBalance: 100, upToBalance: 1000 };
+
+  test("POST /api/2.0/portal/payment/topupsettings - Anonymous cannot set wallet auto top-up settings", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/topupsettings - DocSpaceAdmin cannot set wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/topupsettings - RoomAdmin cannot set wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/topupsettings - User cannot set wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/topupsettings - Guest cannot set wallet auto top-up settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: { settings: SETTINGS },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/servicessettings - permissions", () => {
+  test("GET /api/2.0/portal/payment/servicessettings - Anonymous cannot get wallet services settings", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getTenantWalletServiceSettings();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/servicessettings - RoomAdmin cannot get wallet services settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getTenantWalletServiceSettings();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/servicessettings - User cannot get wallet services settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getTenantWalletServiceSettings();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/servicessettings - Guest cannot get wallet services settings", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getTenantWalletServiceSettings();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions", () => {
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Anonymous cannot set restricted AI models", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - RoomAdmin cannot set restricted AI models", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - User cannot set restricted AI models", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Guest cannot set restricted AI models", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin cannot deactivate Owner's ONLYOFFICE AI restrictions", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    await apiSdk.forRole("owner").payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set(restrictableAiModelIds),
+      },
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/ai-model/restrictions - permissions", () => {
+  test("GET /api/2.0/portal/payment/ai-model/restrictions - Anonymous cannot get restricted AI models", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getRestrictedAiModels();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/ai-model/restrictions - RoomAdmin cannot get restricted AI models", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getRestrictedAiModels();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/ai-model/restrictions - User cannot get restricted AI models", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getRestrictedAiModels();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/ai-model/restrictions - Guest cannot get restricted AI models", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getRestrictedAiModels();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/quota - permissions", () => {
+  test("GET /api/2.0/portal/payment/quota - Anonymous cannot get quota information", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getQuotaPaymentInformation();
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG 70912: GET /api/2.0/portal/payment/quota - RoomAdmin cannot get quota information",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      const { data, status } = await apiSdk
+        .forRole("roomAdmin")
+        .payment.getQuotaPaymentInformation();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG 70912: GET /api/2.0/portal/payment/quota - User cannot get quota information",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .payment.getQuotaPaymentInformation();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test("GET /api/2.0/portal/payment/quota - Guest cannot get quota information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getQuotaPaymentInformation();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/prices - permissions", () => {
+  test("GET /api/2.0/portal/payment/prices - Anonymous cannot get portal prices", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.getPortalPrices();
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG 81516: GET /api/2.0/portal/payment/prices - RoomAdmin cannot get portal prices",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      const { data, status } = await apiSdk
+        .forRole("roomAdmin")
+        .payment.getPortalPrices();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG 81516: GET /api/2.0/portal/payment/prices - User cannot get portal prices",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .payment.getPortalPrices();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG 81516: GET /api/2.0/portal/payment/prices - Guest cannot get portal prices",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .payment.getPortalPrices();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+});
+
+test.describe("GET /api/2.0/portal/payment/quotas - permissions", () => {
+  test("GET /api/2.0/portal/payment/quotas - Anonymous cannot get payment quotas", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.getPaymentQuotas();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/quotas - RoomAdmin cannot get payment quotas", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getPaymentQuotas();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/quotas - User cannot get payment quotas", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getPaymentQuotas();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/quotas - Guest cannot get payment quotas", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getPaymentQuotas();
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
