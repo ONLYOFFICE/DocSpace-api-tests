@@ -731,6 +731,63 @@ test.describe("POST /api/2.0/portal/payment/servicestate - permissions", () => {
   });
 });
 
+test.describe("GET /api/2.0/portal/payment/customer/operations - permissions", () => {
+  test("GET /api/2.0/portal/payment/customer/operations - Anonymous cannot get customer operations", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getCustomerOperations();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/operations - RoomAdmin cannot get customer operations", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCustomerOperations();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/operations - User cannot get customer operations", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCustomerOperations();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/operations - Guest cannot get customer operations", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCustomerOperations();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
 test.describe("POST /api/2.0/portal/payment/customer/operationsreport - permissions", () => {
   test("POST /api/2.0/portal/payment/customer/operationsreport - Anonymous cannot create operations report", async ({
     apiSdk,
@@ -806,6 +863,362 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport - permissi
           debit: true,
         },
       });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/operationsreport - permissions", () => {
+  test("GET /api/2.0/portal/payment/customer/operationsreport - Anonymous cannot get report generation status", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getCustomerOperationsReport();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/operationsreport - RoomAdmin cannot get report generation status", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCustomerOperationsReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/operationsreport - User cannot get report generation status", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCustomerOperationsReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/operationsreport - Guest cannot get report generation status", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCustomerOperationsReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/currencies - permissions", () => {
+  test("GET /api/2.0/portal/payment/currencies - Anonymous cannot get payment currencies", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getPaymentCurrencies();
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG : GET /api/2.0/portal/payment/currencies - RoomAdmin cannot get payment currencies",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      const { data, status } = await apiSdk
+        .forRole("roomAdmin")
+        .payment.getPaymentCurrencies();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG : GET /api/2.0/portal/payment/currencies - User cannot get payment currencies",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .payment.getPaymentCurrencies();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG : GET /api/2.0/portal/payment/currencies - Guest cannot get payment currencies",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .payment.getPaymentCurrencies();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+});
+
+test.describe("GET /api/2.0/portal/payment/account - permissions", () => {
+  test("GET /api/2.0/portal/payment/account - Anonymous cannot get payment account URL", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.getPaymentAccount();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/account - DocSpaceAdmin cannot get payment account URL", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getPaymentAccount({
+        backUrl: apiSdk.tokenStore.portalBaseUrl,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/account - RoomAdmin cannot get payment account URL", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getPaymentAccount({
+        backUrl: apiSdk.tokenStore.portalBaseUrl,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/account - User cannot get payment account URL", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getPaymentAccount({
+        backUrl: apiSdk.tokenStore.portalBaseUrl,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/account - Guest cannot get payment account URL", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getPaymentAccount({
+        backUrl: apiSdk.tokenStore.portalBaseUrl,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/servicequota - permissions", () => {
+  test("GET /api/2.0/portal/payment/customer/servicequota - Anonymous cannot get service quota", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getCustomerServiceQuota({ serviceName: "ai-tools" });
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/servicequota - RoomAdmin cannot get service quota", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCustomerServiceQuota({ serviceName: "ai-tools" });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/servicequota - User cannot get service quota", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCustomerServiceQuota({ serviceName: "ai-tools" });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/servicequota - Guest cannot get service quota", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCustomerServiceQuota({ serviceName: "ai-tools" });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customerinfo - permissions", () => {
+  test("GET /api/2.0/portal/payment/customerinfo - Anonymous cannot get customer info", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.getCustomerInfo();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/customerinfo - RoomAdmin cannot get customer info", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCustomerInfo();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customerinfo - User cannot get customer info", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCustomerInfo();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customerinfo - Guest cannot get customer info", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCustomerInfo();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/balance - permissions", () => {
+  test("GET /api/2.0/portal/payment/customer/balance - Anonymous cannot get customer balance", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.getCustomerBalance();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/balance - RoomAdmin cannot get customer balance", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCustomerBalance();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/balance - User cannot get customer balance", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCustomerBalance();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/balance - Guest cannot get customer balance", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCustomerBalance();
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");

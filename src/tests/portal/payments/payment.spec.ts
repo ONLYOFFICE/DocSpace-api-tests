@@ -507,6 +507,76 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
   });
 });
 
+test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
+  test("GET /api/2.0/portal/payment/customer/operationsreport - Owner gets report generation status", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await buyWalletService(ownerApi.payment, "aiTools", 10);
+    await enableWalletService(ownerApi.payment, "aiTools");
+    await ownerApi.payment.createCustomerOperationsReport({
+      customerOperationsReportRequestDto: {
+        serviceName: "ai-tools",
+        credit: true,
+        debit: true,
+      },
+    });
+
+    let taskData: any;
+    await expect(async () => {
+      const { data } = await ownerApi.payment.getCustomerOperationsReport();
+      expect((data as any).response?.isCompleted).toBe(true);
+      taskData = (data as any).response;
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+
+    expect(taskData.id).toContain("DocumentBuilderTask_");
+    expect(taskData.percentage).toBe(100);
+    expect(taskData.isCompleted).toBe(true);
+    expect(taskData.error).toBe("");
+    expect(taskData.resultFileId).toBeDefined();
+    expect(taskData.resultFileUrl).toBeDefined();
+  });
+
+  test("GET /api/2.0/portal/payment/customer/operationsreport - DocSpaceAdmin gets report generation status", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await buyWalletService(ownerApi.payment, "aiTools", 10);
+    await enableWalletService(ownerApi.payment, "aiTools");
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const docSpaceAdminApi = apiSdk.forRole("docSpaceAdmin");
+    await docSpaceAdminApi.payment.createCustomerOperationsReport({
+      customerOperationsReportRequestDto: {
+        serviceName: "ai-tools",
+        credit: true,
+        debit: true,
+      },
+    });
+
+    let taskData: any;
+    await expect(async () => {
+      const { data } =
+        await docSpaceAdminApi.payment.getCustomerOperationsReport();
+      expect((data as any).response?.isCompleted).toBe(true);
+      taskData = (data as any).response;
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+
+    expect(taskData.id).toContain("DocumentBuilderTask_");
+    expect(taskData.percentage).toBe(100);
+    expect(taskData.isCompleted).toBe(true);
+    expect(taskData.error).toBe("");
+    expect(taskData.resultFileId).toBeDefined();
+    expect(taskData.resultFileUrl).toBeDefined();
+  });
+});
+
 test.describe("GET /api/2.0/portal/payment/ai-prices", () => {
   test("GET /api/2.0/portal/payment/ai-prices - Owner gets AI prices", async ({
     apiSdk,
@@ -595,6 +665,198 @@ test.describe("GET /api/2.0/portal/payment/ai-prices", () => {
   });
 });
 
+test.describe("GET /api/2.0/portal/payment/currencies", () => {
+  test("GET /api/2.0/portal/payment/currencies - Owner gets payment currencies", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getPaymentCurrencies();
+
+    expect(status).toBe(200);
+    expect(data.response?.length).toBeGreaterThan(0);
+    expect(data.response?.[0].isoCountryCode).toBe("US");
+    expect(data.response?.[0].isoCurrencySymbol).toBe("$");
+    expect(data.response?.[0].currencyNativeName).toBe("US Dollar");
+  });
+
+  test("GET /api/2.0/portal/payment/currencies - DocSpaceAdmin gets payment currencies", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getPaymentCurrencies();
+
+    expect(status).toBe(200);
+    expect(data.response?.length).toBeGreaterThan(0);
+    expect(data.response?.[0].isoCountryCode).toBe("US");
+    expect(data.response?.[0].isoCurrencySymbol).toBe("$");
+    expect(data.response?.[0].currencyNativeName).toBe("US Dollar");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/account", () => {
+  test("GET /api/2.0/portal/payment/account - Owner gets payment account URL", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getPaymentAccount({
+        backUrl: apiSdk.tokenStore.portalBaseUrl,
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toContain("payment.ashx");
+    expect(data.response).toContain("backUrl");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/servicequota", () => {
+  test("GET /api/2.0/portal/payment/customer/servicequota - Owner gets service quota for ai-tools", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await buyWalletService(ownerApi.payment, "aiTools", 10);
+
+    const { data, status } = await ownerApi.payment.getCustomerServiceQuota({
+      serviceName: "ai-tools",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.accountNumber).toBeDefined();
+    expect(data.response?.subAccountNumber).toBeDefined();
+    expect(data.response?.accountCurrency).toBe("USD");
+    expect(data.response?.subAccounts?.length).toBeGreaterThan(0);
+    expect(data.response?.subAccounts?.[0].currency).toBe("USD");
+    expect(data.response?.subAccounts?.[0].amount).toBe(10);
+    expect(data.response?.lastCredit?.date).toBeDefined();
+    expect(data.response?.lastCredit?.currency).toBe("USD");
+    expect(data.response?.lastCredit?.amount).toBe(10);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/servicequota - DocSpaceAdmin gets service quota for ai-tools", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await buyWalletService(ownerApi.payment, "aiTools", 10);
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getCustomerServiceQuota({
+        serviceName: "ai-tools",
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.accountNumber).toBeDefined();
+    expect(data.response?.subAccountNumber).toBeDefined();
+    expect(data.response?.accountCurrency).toBe("USD");
+    expect(data.response?.subAccounts?.length).toBeGreaterThan(0);
+    expect(data.response?.subAccounts?.[0].currency).toBe("USD");
+    expect(data.response?.subAccounts?.[0].amount).toBe(10);
+    expect(data.response?.lastCredit?.date).toBeDefined();
+    expect(data.response?.lastCredit?.currency).toBe("USD");
+    expect(data.response?.lastCredit?.amount).toBe(10);
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customerinfo", () => {
+  test("GET /api/2.0/portal/payment/customerinfo - Owner gets customer info", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getCustomerInfo();
+
+    expect(status).toBe(200);
+    expect(data.response?.portalId).toBeDefined();
+    expect(data.response?.email).toBeDefined();
+    expect(data.response?.paymentMethodStatus).toBe(1);
+    expect(data.response?.payer?.id).toBeDefined();
+    expect(data.response?.payer?.displayName).toBeDefined();
+  });
+
+  test("GET /api/2.0/portal/payment/customerinfo - DocSpaceAdmin gets customer info", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getCustomerInfo();
+
+    expect(status).toBe(200);
+    expect(data.response?.portalId).toBeDefined();
+    expect(data.response?.email).toBeDefined();
+    expect(data.response?.paymentMethodStatus).toBe(1);
+    expect(data.response?.payer?.id).toBeDefined();
+    expect(data.response?.payer?.displayName).toBeDefined();
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/balance", () => {
+  test("GET /api/2.0/portal/payment/customer/balance - Owner gets customer balance", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getCustomerBalance();
+
+    expect(status).toBe(200);
+    expect(data.response?.accountNumber).toBeDefined();
+    expect(data.response?.subAccountNumber).toBeDefined();
+    expect(data.response?.accountCurrency).toBe("USD");
+    expect(data.response?.subAccounts?.length).toBeGreaterThan(0);
+    expect(data.response?.subAccounts?.[0].currency).toBe("USD");
+    expect(data.response?.subAccounts?.[0].amount).toBeGreaterThan(0);
+    expect(data.response?.lastCredit?.date).toBeDefined();
+    expect(data.response?.lastCredit?.currency).toBe("USD");
+    expect(data.response?.lastCredit?.amount).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/balance - DocSpaceAdmin gets customer balance", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getCustomerBalance();
+
+    expect(status).toBe(200);
+    expect(data.response?.accountNumber).toBeDefined();
+    expect(data.response?.subAccountNumber).toBeDefined();
+    expect(data.response?.accountCurrency).toBe("USD");
+    expect(data.response?.subAccounts?.length).toBeGreaterThan(0);
+    expect(data.response?.subAccounts?.[0].currency).toBe("USD");
+    expect(data.response?.subAccounts?.[0].amount).toBeGreaterThan(0);
+    expect(data.response?.lastCredit?.date).toBeDefined();
+    expect(data.response?.lastCredit?.currency).toBe("USD");
+    expect(data.response?.lastCredit?.amount).toBeGreaterThan(0);
+  });
+});
+
 test.describe("GET /api/2.0/portal/payment/checkoutsetupurl", () => {
   test("GET /api/2.0/portal/payment/checkoutsetupurl - DocSpaceAdmin cannot get checkout setup URL when Owner is already the payer", async ({
     apiSdk,
@@ -640,6 +902,69 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl", () => {
 });
 
 test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
+  test("GET /api/2.0/portal/payment/customer/operations - Owner gets customer operations", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 30);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(now);
+    endDate.setHours(23, 59, 59, 0);
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getCustomerOperations({
+        offset: 0,
+        limit: 25,
+        credit: true,
+        debit: true,
+        startDate: startDate.toISOString().slice(0, 19),
+        endDate: endDate.toISOString().slice(0, 19),
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.offset).toBe(0);
+    expect(data.response?.limit).toBe(25);
+    expect(data.response?.totalQuantity).toBeGreaterThanOrEqual(0);
+    expect(data.response?.collection).toBeDefined();
+  });
+
+  test("GET /api/2.0/portal/payment/customer/operations - DocSpaceAdmin gets customer operations", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 30);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(now);
+    endDate.setHours(23, 59, 59, 0);
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getCustomerOperations({
+        offset: 0,
+        limit: 25,
+        credit: true,
+        debit: true,
+        startDate: startDate.toISOString().slice(0, 19),
+        endDate: endDate.toISOString().slice(0, 19),
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.offset).toBe(0);
+    expect(data.response?.limit).toBe(25);
+    expect(data.response?.totalQuantity).toBeGreaterThanOrEqual(0);
+    expect(data.response?.collection).toBeDefined();
+  });
+
   test("BUG 81050: GET /api/2.0/portal/payment/customer/operations - Returns 200 after disabling Disk Storage service", async ({
     apiSdk,
     paymentsApi,
