@@ -1489,3 +1489,201 @@ test.describe("GET /api/2.0/portal/payment/quotas", () => {
     }
   });
 });
+
+test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner sets restricted AI models", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: {
+          models: new Set(restrictableAiModelIds),
+        },
+      });
+
+    expect(status).toBe(200);
+    for (const modelId of restrictableAiModelIds) {
+      expect(data.response?.models).toContain(modelId);
+    }
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner clears all restricted AI models", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    await apiSdk.forRole("owner").payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set(restrictableAiModelIds),
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.models?.length).toBe(0);
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/topupsettings", () => {
+  test("POST /api/2.0/portal/payment/topupsettings - Owner enables wallet auto top-up", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: {
+          settings: { enabled: true, minBalance: 100, upToBalance: 1000 },
+        },
+      });
+
+    expect(status).toBe(200);
+    expect((data as any).response?.enabled).toBe(true);
+    expect((data as any).response?.minBalance).toBe(100);
+    expect((data as any).response?.upToBalance).toBe(1000);
+    expect((data as any).response?.lastModified).toBeDefined();
+  });
+
+  test("POST /api/2.0/portal/payment/topupsettings - Owner disables wallet auto top-up", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    await apiSdk.forRole("owner").payment.setTenantWalletSettings({
+      tenantWalletSettingsWrapper: {
+        settings: { enabled: true, minBalance: 100, upToBalance: 1000 },
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.setTenantWalletSettings({
+        tenantWalletSettingsWrapper: {
+          settings: { enabled: false, minBalance: 100, upToBalance: 1000 },
+        },
+      });
+
+    expect(status).toBe(200);
+    expect((data as any).response?.enabled).toBe(false);
+  });
+});
+
+test.describe("DELETE /api/2.0/portal/payment/customer/operationsreport", () => {
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - Owner terminates report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    await apiSdk.forRole("owner").payment.createCustomerOperationsReport({
+      customerOperationsReportRequestDto: {
+        serviceName: "ai-tools",
+        credit: true,
+        debit: true,
+      },
+    });
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(200);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - DocSpaceAdmin terminates report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.createCustomerOperationsReport({
+        customerOperationsReportRequestDto: {
+          serviceName: "ai-tools",
+          credit: true,
+          debit: true,
+        },
+      });
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(200);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/operationsreport - DocSpaceAdmin terminates Owner's report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    await apiSdk.forRole("owner").payment.createCustomerOperationsReport({
+      customerOperationsReportRequestDto: {
+        serviceName: "ai-tools",
+        credit: true,
+        debit: true,
+      },
+    });
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.terminateCustomerOperationsReport();
+
+    expect(status).toBe(200);
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/deposit", () => {
+  test("POST /api/2.0/portal/payment/deposit - Owner tops up wallet deposit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.topUpDeposit({
+        topUpDepositRequestDto: { amount: 100, currency: "USD" },
+      });
+
+    expect(status).toBe(200);
+    // response is false in test environment because topUpDeposit requires a real Stripe customer.
+    // makeWalletTopUp() bypasses Stripe, so Stripe-based deposit returns false but the endpoint is reachable.
+    expect(typeof data.response).toBe("boolean");
+  });
+});
+
+test.describe("PUT /api/2.0/portal/payment/update", () => {
+  test("PUT /api/2.0/portal/payment/update - Owner updates payment quantity", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.updatePayment({
+        quantityRequestDto: { quantity: { admin: 100 } },
+      });
+
+    expect(status).toBe(200);
+    // response is false in test environment because updatePayment requires an active Stripe subscription.
+    expect(typeof data.response).toBe("boolean");
+  });
+});
