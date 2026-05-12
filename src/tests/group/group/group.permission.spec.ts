@@ -2675,7 +2675,7 @@ test.describe("POST /api/2.0/group/{id}/members - validation and negative cases"
     expect(status).toBe(404);
   });
 
-  test("POST /api/2.0/group/{id}/members - Returns error for invalid groupId format", async ({
+  test("POST /api/2.0/group/{id}/members - Returns 404 for invalid groupId format", async ({
     apiSdk,
   }) => {
     const { data: memberData } = await apiSdk.addMember("owner", "User");
@@ -2686,8 +2686,7 @@ test.describe("POST /api/2.0/group/{id}/members - validation and negative cases"
       membersRequest: { members: [memberId] },
     });
 
-    expect(status).toBeGreaterThanOrEqual(400);
-    expect(status).toBeLessThan(500);
+    expect(status).toBe(404);
   });
 
   test("POST /api/2.0/group/{id}/members - Non-existing userId in members returns 400", async ({
@@ -2713,7 +2712,7 @@ test.describe("POST /api/2.0/group/{id}/members - validation and negative cases"
     expect(status).toBe(400);
   });
 
-  test("POST /api/2.0/group/{id}/members - Invalid userId format in members returns error", async ({
+  test("POST /api/2.0/group/{id}/members - Invalid userId format in members returns 400", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -2733,8 +2732,7 @@ test.describe("POST /api/2.0/group/{id}/members - validation and negative cases"
       membersRequest: { members: ["not-a-uuid"] },
     });
 
-    expect(status).toBeGreaterThanOrEqual(400);
-    expect(status).toBeLessThan(500);
+    expect(status).toBe(400);
   });
 
   test("POST /api/2.0/group/{id}/members - Empty members array returns 400", async ({
