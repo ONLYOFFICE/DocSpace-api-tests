@@ -2389,7 +2389,7 @@ test.describe("PUT /api/2.0/group/{id}/manager - validation and negative cases",
     expect(status).toBe(404);
   });
 
-  test("PUT /api/2.0/group/{id}/manager - Returns error for non-existing userId", async ({
+  test("PUT /api/2.0/group/{id}/manager - Returns 404 for non-existing userId", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -2409,8 +2409,7 @@ test.describe("PUT /api/2.0/group/{id}/manager - validation and negative cases",
       setManagerRequest: { userId: faker.string.uuid() },
     });
 
-    expect(status).toBeGreaterThanOrEqual(400);
-    expect(status).toBeLessThan(500);
+    expect(status).toBe(404);
   });
 
   test("PUT /api/2.0/group/{id}/manager - Returns validation error for empty userId", async ({
@@ -2433,8 +2432,7 @@ test.describe("PUT /api/2.0/group/{id}/manager - validation and negative cases",
       setManagerRequest: { userId: "" },
     });
 
-    expect(status).toBeGreaterThanOrEqual(400);
-    expect(status).toBeLessThan(500);
+    expect(status).toBe(400);
   });
 
   test("PUT /api/2.0/group/{id}/manager - Returns validation error for null userId", async ({
@@ -2457,8 +2455,7 @@ test.describe("PUT /api/2.0/group/{id}/manager - validation and negative cases",
       setManagerRequest: { userId: null } as any,
     });
 
-    expect(status).toBeGreaterThanOrEqual(400);
-    expect(status).toBeLessThan(500);
+    expect(status).toBe(400);
   });
 
   test("PUT /api/2.0/group/{id}/manager - Returns validation error when userId is missing", async ({
@@ -2481,8 +2478,7 @@ test.describe("PUT /api/2.0/group/{id}/manager - validation and negative cases",
       setManagerRequest: {} as any,
     });
 
-    expect(status).toBeGreaterThanOrEqual(400);
-    expect(status).toBeLessThan(500);
+    expect(status).toBe(400);
   });
 
   test("PUT /api/2.0/group/{id}/manager - SDK rejects null request body before sending request", async ({
