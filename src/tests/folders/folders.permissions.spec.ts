@@ -1,7 +1,13 @@
 ﻿import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import {
+  Configuration,
+  FileShare,
+  FoldersApi,
+  RoomType,
+} from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { uploadFileToFolder } from "@/src/helpers/upload-file";
 
 test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () => {
   test("GET /api/2.0/files/folder/:folderId/path - Owner can get path of their own folder", async ({
@@ -2069,15 +2075,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
     const folderId = folderData.response!.id!;
 
     const anonApi = apiSdk.forAnonymous();
-    const { data, status } = await anonApi.folders.renameFolder({
+    const { status } = await anonApi.folders.renameFolder({
       folderId,
       createFolder: { title: "Autotest Folder Anon Renamed" },
     });
-
-    console.log(
-      "renameFolder (anonymous):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
-    );
 
     expect(status).toBe(401);
   });
@@ -2099,15 +2100,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
       "owner",
       "Guest",
     );
-    const { data, status } = await guestApi.folders.renameFolder({
+    const { status } = await guestApi.folders.renameFolder({
       folderId,
       createFolder: { title: "Autotest Folder Guest Renamed" },
     });
-
-    console.log(
-      "renameFolder (guest):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
-    );
 
     expect(status).toBe(403);
   });
@@ -2130,15 +2126,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
         "owner",
         "User",
       );
-      const { data, status } = await userApi.folders.renameFolder({
+      const { status } = await userApi.folders.renameFolder({
         folderId,
         createFolder: { title: "Autotest Owner Folder Renamed By User" },
       });
-
-      console.log(
-        "renameFolder (user vs owner My Docs folder):",
-        JSON.stringify({ status, error: (data as any).error }, null, 2),
-      );
 
       expect(status).toBe(403);
     },
@@ -2174,15 +2165,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
       },
     });
 
-    const { data, status } = await userApi.folders.renameFolder({
+    const { status } = await userApi.folders.renameFolder({
       folderId,
       createFolder: { title: "Autotest Folder Renamed By Reader" },
     });
-
-    console.log(
-      "renameFolder (user with Read access):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
-    );
 
     expect(status).toBe(403);
   });
@@ -2210,17 +2196,12 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.folders.renameFolder({
+    const { status } = await roomAdminApi.folders.renameFolder({
       folderId,
       createFolder: {
         title: "Autotest Folder Renamed By Non-Member RoomAdmin",
       },
     });
-
-    console.log(
-      "renameFolder (RoomAdmin not in room):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
-    );
 
     expect(status).toBe(403);
   });
@@ -2255,15 +2236,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
       },
     });
 
-    const { data, status } = await userApi.folders.renameFolder({
+    const { status } = await userApi.folders.renameFolder({
       folderId,
       createFolder: { title: "Autotest Folder Renamed By Editing User" },
     });
-
-    console.log(
-      "renameFolder (user with Editing access):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
-    );
 
     expect(status).toBe(403);
   });
@@ -2301,15 +2277,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
         },
       });
 
-      const { data, status } = await adminApi.folders.renameFolder({
+      const { status } = await adminApi.folders.renameFolder({
         folderId,
         createFolder: { title: "Autotest Folder Renamed By DocSpaceAdmin" },
       });
-
-      console.log(
-        "renameFolder (DocSpaceAdmin, ContentCreator):",
-        JSON.stringify({ status, error: (data as any).error }, null, 2),
-      );
 
       expect(status).toBe(403);
     },
@@ -2348,15 +2319,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
         },
       });
 
-      const { data, status } = await roomAdminApi.folders.renameFolder({
+      const { status } = await roomAdminApi.folders.renameFolder({
         folderId,
         createFolder: { title: "Autotest Folder Renamed By RoomAdmin" },
       });
-
-      console.log(
-        "renameFolder (RoomAdmin, ContentCreator):",
-        JSON.stringify({ status, error: (data as any).error }, null, 2),
-      );
 
       expect(status).toBe(403);
     },
@@ -2589,16 +2555,12 @@ test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data, status } = await apiSdk.uploadFileToFolder(
+    const { status } = await uploadFileToFolder(
+      apiSdk,
       null,
       roomId,
       Buffer.from("Autotest file content"),
       "autotest-anon.txt",
-    );
-
-    console.log(
-      "uploadFile (anonymous):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
     );
 
     expect(status).toBe(401);
@@ -2618,16 +2580,12 @@ test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
 
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data, status } = await apiSdk.uploadFileToFolder(
+    const { status } = await uploadFileToFolder(
+      apiSdk,
       "user",
       roomId,
       Buffer.from("Autotest file content"),
       "autotest-no-access.txt",
-    );
-
-    console.log(
-      "uploadFile (user, no access):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
     );
 
     expect(status).toBe(403);
@@ -2647,16 +2605,12 @@ test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
 
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { data, status } = await apiSdk.uploadFileToFolder(
+    const { status } = await uploadFileToFolder(
+      apiSdk,
       "guest",
       roomId,
       Buffer.from("Autotest file content"),
       "autotest-guest-no-access.txt",
-    );
-
-    console.log(
-      "uploadFile (guest, no access):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
     );
 
     expect(status).toBe(403);
@@ -2688,16 +2642,12 @@ test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
       },
     });
 
-    const { data, status } = await apiSdk.uploadFileToFolder(
+    const { status } = await uploadFileToFolder(
+      apiSdk,
       "user",
       roomId,
       Buffer.from("Autotest file content"),
       "autotest-editing.txt",
-    );
-
-    console.log(
-      "uploadFile (user, Editing):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
     );
 
     expect(status).toBe(403);
@@ -2729,16 +2679,12 @@ test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
       },
     });
 
-    const { data, status } = await apiSdk.uploadFileToFolder(
+    const { status } = await uploadFileToFolder(
+      apiSdk,
       "user",
       roomId,
       Buffer.from("Autotest file content"),
       "autotest-read-only.txt",
-    );
-
-    console.log(
-      "uploadFile (user, Read):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
     );
 
     expect(status).toBe(403);
@@ -2770,16 +2716,12 @@ test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
       },
     });
 
-    const { data, status } = await apiSdk.uploadFileToFolder(
+    const { status } = await uploadFileToFolder(
+      apiSdk,
       "guest",
       roomId,
       Buffer.from("Autotest file content"),
       "autotest-guest-read.txt",
-    );
-
-    console.log(
-      "uploadFile (guest, Read):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
     );
 
     expect(status).toBe(403);
@@ -2811,16 +2753,12 @@ test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
       },
     });
 
-    const { data, status } = await apiSdk.uploadFileToFolder(
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
       "docSpaceAdmin",
       roomId,
       Buffer.from("Autotest file content"),
       "autotest-admin.txt",
-    );
-
-    console.log(
-      "uploadFile (DocSpaceAdmin):",
-      JSON.stringify({ status, response: data.response }, null, 2),
     );
 
     expect(status).toBe(200);
@@ -2853,16 +2791,12 @@ test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
       },
     });
 
-    const { data, status } = await apiSdk.uploadFileToFolder(
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
       "roomAdmin",
       roomId,
       Buffer.from("Autotest file content"),
       "autotest-roomadmin.txt",
-    );
-
-    console.log(
-      "uploadFile (RoomAdmin):",
-      JSON.stringify({ status, response: data.response }, null, 2),
     );
 
     expect(status).toBe(200);
@@ -2883,18 +2817,158 @@ test.describe("POST /api/2.0/files/{folderId}/upload - access control", () => {
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-    const { data, status } = await apiSdk.uploadFileToFolder(
+    const { status } = await uploadFileToFolder(
+      apiSdk,
       "roomAdmin",
       roomId,
       Buffer.from("Autotest file content"),
       "autotest-roomadmin-noaccess.txt",
     );
 
-    console.log(
-      "uploadFile (RoomAdmin, no access):",
-      JSON.stringify({ status, error: (data as any).error }, null, 2),
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("POST /api/2.0/files/@my/upload - access control", () => {
+  test("POST /api/2.0/files/@my/upload - Owner uploads to My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
+        type: "text/plain",
+      }),
+      "autotest-my-owner.txt",
     );
 
-    expect(status).toBe(403);
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/upload - DocSpaceAdmin uploads to their My Documents", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
+        type: "text/plain",
+      }),
+      "autotest-my-dsadmin.txt",
+    );
+
+    const { data, status } = await adminApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/upload - RoomAdmin uploads to their My Documents", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
+        type: "text/plain",
+      }),
+      "autotest-my-roomadmin.txt",
+    );
+
+    const { data, status } = await roomAdminApi.folders.uploadFileToMy(
+      undefined,
+      { data: formData },
+    );
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/upload - User uploads to their My Documents", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const userApi = apiSdk.forRole("user");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
+        type: "text/plain",
+      }),
+      "autotest-my-user.txt",
+    );
+
+    const { data, status } = await userApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/upload - Guest gets 404 (no My Documents)", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const guestApi = apiSdk.forRole("guest");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
+        type: "text/plain",
+      }),
+      "autotest-my-guest.txt",
+    );
+
+    const { status } = await guestApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /api/2.0/files/@my/upload - Anonymous request gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonFolders = new FoldersApi(
+      new Configuration({
+        basePath: apiSdk.tokenStore.portalBaseUrl,
+        baseOptions: {
+          headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+        },
+      }),
+      undefined,
+      apiSdk.createAxiosInstance(),
+    );
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
+        type: "text/plain",
+      }),
+      "autotest-my-anon.txt",
+    );
+
+    const { status } = await anonFolders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    expect(status).toBe(401);
   });
 });

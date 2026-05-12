@@ -83,7 +83,7 @@ export class ApiSDK {
     this.faker = new FAKER();
   }
 
-  private createAxiosInstance() {
+  createAxiosInstance() {
     const axiosInstance = axios.create({
       validateStatus: () => true, // never throw, regardless of status code
     });
@@ -398,63 +398,6 @@ export class ApiSDK {
           Origin: `http://${this.tokenStore.newTenantDomain}`,
         },
       },
-    );
-    return { data: response.data, status: response.status };
-  }
-
-  async uploadFileToFolder(
-    role: Role | null,
-    folderId: number,
-    fileBuffer: Buffer | null,
-    fileName: string,
-    options?: {
-      mimeType?: string;
-      createNewIfExist?: boolean;
-      storeOriginalFileFlag?: boolean;
-      files?: Array<{ buffer: Buffer; fileName: string; mimeType?: string }>;
-    },
-  ) {
-    const formData = new FormData();
-    if (fileBuffer !== null) {
-      formData.append(
-        "file",
-        new Blob([new Uint8Array(fileBuffer)], {
-          type: options?.mimeType ?? "application/octet-stream",
-        }),
-        fileName,
-      );
-    }
-    for (const f of options?.files ?? []) {
-      formData.append(
-        "files",
-        new Blob([new Uint8Array(f.buffer)], {
-          type: f.mimeType ?? "application/octet-stream",
-        }),
-        f.fileName,
-      );
-    }
-    if (options?.createNewIfExist !== undefined) {
-      formData.append("createNewIfExist", String(options.createNewIfExist));
-    }
-    if (options?.storeOriginalFileFlag !== undefined) {
-      formData.append(
-        "storeOriginalFileFlag",
-        String(options.storeOriginalFileFlag),
-      );
-    }
-
-    const headers: Record<string, string> = {
-      Origin: `http://${this.tokenStore.newTenantDomain}`,
-    };
-    if (role !== null) {
-      headers["Authorization"] = `Bearer ${this.tokenStore.getToken(role)}`;
-    }
-
-    const axiosInstance = this.createAxiosInstance();
-    const response = await axiosInstance.post(
-      `${this.tokenStore.portalBaseUrl}/api/2.0/files/${folderId}/upload`,
-      formData,
-      { headers },
     );
     return { data: response.data, status: response.status };
   }
