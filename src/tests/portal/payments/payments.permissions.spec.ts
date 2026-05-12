@@ -1299,6 +1299,107 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl - permissions", () =
   });
 });
 
+test.describe("GET /api/2.0/portal/payment/prices - permissions", () => {
+  test("GET /api/2.0/portal/payment/prices - Anonymous cannot get portal prices", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.getPortalPrices();
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG : GET /api/2.0/portal/payment/prices - RoomAdmin cannot get portal prices",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      const { data, status } = await apiSdk
+        .forRole("roomAdmin")
+        .payment.getPortalPrices();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG : GET /api/2.0/portal/payment/prices - User cannot get portal prices",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .payment.getPortalPrices();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+
+  test.fail(
+    "BUG : GET /api/2.0/portal/payment/prices - Guest cannot get portal prices",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .payment.getPortalPrices();
+
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+    },
+  );
+});
+
+test.describe("GET /api/2.0/portal/payment/quotas - permissions", () => {
+  test("GET /api/2.0/portal/payment/quotas - Anonymous cannot get payment quotas", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().payment.getPaymentQuotas();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/quotas - RoomAdmin cannot get payment quotas", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getPaymentQuotas();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/quotas - User cannot get payment quotas", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getPaymentQuotas();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/quotas - Guest cannot get payment quotas", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getPaymentQuotas();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
 test.describe("GET /api/2.0/portal/payment/ai-prices - permissions", () => {
   test("GET /api/2.0/portal/payment/ai-prices - Anonymous cannot get AI prices", async ({
     apiSdk,
