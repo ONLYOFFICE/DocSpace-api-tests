@@ -1309,7 +1309,7 @@ test.describe("GET /api/2.0/portal/payment/prices - permissions", () => {
   });
 
   test.fail(
-    "BUG : GET /api/2.0/portal/payment/prices - RoomAdmin cannot get portal prices",
+    "BUG 81516: GET /api/2.0/portal/payment/prices - RoomAdmin cannot get portal prices",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
@@ -1323,7 +1323,7 @@ test.describe("GET /api/2.0/portal/payment/prices - permissions", () => {
   );
 
   test.fail(
-    "BUG : GET /api/2.0/portal/payment/prices - User cannot get portal prices",
+    "BUG 81516: GET /api/2.0/portal/payment/prices - User cannot get portal prices",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "User");
 
@@ -1337,7 +1337,7 @@ test.describe("GET /api/2.0/portal/payment/prices - permissions", () => {
   );
 
   test.fail(
-    "BUG : GET /api/2.0/portal/payment/prices - Guest cannot get portal prices",
+    "BUG 81516: GET /api/2.0/portal/payment/prices - Guest cannot get portal prices",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
