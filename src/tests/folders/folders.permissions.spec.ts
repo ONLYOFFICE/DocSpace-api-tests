@@ -2968,3 +2968,136 @@ test.describe("POST /api/2.0/files/@my/upload - access control", () => {
     expect(status).toBe(401);
   });
 });
+
+test.describe("POST /api/2.0/files/@my/insert - access control", () => {
+  test("POST /api/2.0/files/@my/insert - Owner can insert a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const file = new File(
+      [new Uint8Array(Buffer.from("Autotest file content"))],
+      "autotest-insert-my-owner.txt",
+      { type: "text/plain" },
+    );
+
+    const { data, status } = await ownerApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-owner.txt",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/insert - DocSpaceAdmin inserts to their My Documents", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+    const file = new File(
+      [new Uint8Array(Buffer.from("Autotest file content"))],
+      "autotest-insert-my-dsadmin.txt",
+      { type: "text/plain" },
+    );
+
+    const { data, status } = await adminApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-dsadmin.txt",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/insert - RoomAdmin inserts to their My Documents", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const roomAdminApi = apiSdk.forRole("roomAdmin");
+    const file = new File(
+      [new Uint8Array(Buffer.from("Autotest file content"))],
+      "autotest-insert-my-roomadmin.txt",
+      { type: "text/plain" },
+    );
+
+    const { data, status } = await roomAdminApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-roomadmin.txt",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/insert - User inserts to their My Documents", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const userApi = apiSdk.forRole("user");
+    const file = new File(
+      [new Uint8Array(Buffer.from("Autotest file content"))],
+      "autotest-insert-my-user.txt",
+      { type: "text/plain" },
+    );
+
+    const { data, status } = await userApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-user.txt",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/insert - Guest gets 404 (no My Documents)", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const guestApi = apiSdk.forRole("guest");
+    const file = new File(
+      [new Uint8Array(Buffer.from("Autotest file content"))],
+      "autotest-insert-my-guest.txt",
+      { type: "text/plain" },
+    );
+
+    const { status } = await guestApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-guest.txt",
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /api/2.0/files/@my/insert - Anonymous request gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonFolders = new FoldersApi(
+      new Configuration({
+        basePath: apiSdk.tokenStore.portalBaseUrl,
+        baseOptions: {
+          headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+        },
+      }),
+      undefined,
+      apiSdk.createAxiosInstance(),
+    );
+
+    const file = new File(
+      [new Uint8Array(Buffer.from("Autotest file content"))],
+      "autotest-insert-my-anon.txt",
+      { type: "text/plain" },
+    );
+
+    const { status } = await anonFolders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-anon.txt",
+    });
+
+    expect(status).toBe(401);
+  });
+});
