@@ -1972,7 +1972,7 @@ test.describe("GET /api/2.0/group/room/{id} - Get groups with room sharing setti
 
     const { status } = await ownerApi.groupSearch.getGroupsWithRoomsShared({
       id: roomId,
-      filterValue: "тест %_$ #@!",
+      filterValue: "test %_$ #@!",
     });
 
     expect(status).toBe(200);
