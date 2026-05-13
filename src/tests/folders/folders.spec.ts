@@ -8,6 +8,7 @@ import {
   SortOrder,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { uploadFileToFolder } from "@/src/helpers/upload-file";
 
 function getFolderSortedByCustomOrder(folders: FoldersApi, folderId: number) {
   return folders.getFolderByFolderId({
@@ -2930,21 +2931,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       createFolder: { title: "Autotest Folder After Rename" },
     });
 
-    console.log(
-      "renameFolder (owner, My Docs):",
-      JSON.stringify(
-        {
-          status,
-          id: data.response?.id,
-          title: data.response?.title,
-          parentId: data.response?.parentId,
-          updated: data.response?.updated,
-        },
-        null,
-        2,
-      ),
-    );
-
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Folder After Rename");
@@ -2975,20 +2961,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       createFolder: { title: "Autotest Room Folder After Rename" },
     });
 
-    console.log(
-      "renameFolder (owner, room folder):",
-      JSON.stringify(
-        {
-          status,
-          id: data.response?.id,
-          title: data.response?.title,
-          parentId: data.response?.parentId,
-        },
-        null,
-        2,
-      ),
-    );
-
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest Room Folder After Rename");
@@ -3018,20 +2990,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       createFolder: { title: "Autotest User Folder After Rename" },
     });
 
-    console.log(
-      "renameFolder (user, own My Docs folder):",
-      JSON.stringify(
-        {
-          status,
-          id: data.response?.id,
-          title: data.response?.title,
-          parentId: data.response?.parentId,
-        },
-        null,
-        2,
-      ),
-    );
-
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBe("Autotest User Folder After Rename");
@@ -3058,20 +3016,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       createFolder: { title: "Autotest Folder ParentId Check Renamed" },
     });
 
-    console.log(
-      "renameFolder (parentId check):",
-      JSON.stringify(
-        {
-          status,
-          parentIdBefore,
-          parentIdAfter: data.response?.parentId,
-          title: data.response?.title,
-        },
-        null,
-        2,
-      ),
-    );
-
     expect(status).toBe(200);
     expect(data.response!.parentId).toBe(parentIdBefore);
     expect(data.response!.parentId).toBe(myDocsFolderId);
@@ -3094,19 +3038,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       folderId,
       createFolder: { title: "Autotest Folder Id Integrity Renamed" },
     });
-
-    console.log(
-      "renameFolder (id integrity):",
-      JSON.stringify(
-        {
-          status,
-          requestedFolderId: folderId,
-          responseFolderId: data.response?.id,
-        },
-        null,
-        2,
-      ),
-    );
 
     expect(status).toBe(200);
     expect(data.response!.id).toBe(folderId);
@@ -3133,19 +3064,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
         createFolder: { title: specialTitle },
       });
 
-      console.log(
-        "renameFolder (special chars):",
-        JSON.stringify(
-          {
-            status,
-            requestedTitle: specialTitle,
-            responseTitle: data.response?.title,
-          },
-          null,
-          2,
-        ),
-      );
-
       expect(status).toBe(200);
       expect(data.response!.title).toBe(specialTitle);
     },
@@ -3169,19 +3087,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       folderId,
       createFolder: { title: sameTitle },
     });
-
-    console.log(
-      "renameFolder (same title):",
-      JSON.stringify(
-        {
-          status,
-          title: data.response?.title,
-          id: data.response?.id,
-        },
-        null,
-        2,
-      ),
-    );
 
     expect(status).toBe(200);
     expect(data.response!.title).toBe(sameTitle);
@@ -3209,15 +3114,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
     });
 
     const { data, status } = await ownerApi.folders.getFolderInfo({ folderId });
-
-    console.log(
-      "renameFolder (persistence via getFolderInfo):",
-      JSON.stringify(
-        { status, id: data.response?.id, title: data.response?.title },
-        null,
-        2,
-      ),
-    );
 
     expect(status).toBe(200);
     expect(data.response!.title).toBe(newTitle);
@@ -3251,11 +3147,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       });
 
       const folderTitles = (data.response?.folders ?? []).map((f) => f.title);
-
-      console.log(
-        "renameFolder (parent listing check):",
-        JSON.stringify({ status, folderTitles }, null, 2),
-      );
 
       expect(status).toBe(200);
       expect(folderTitles).toContain(newTitle);
@@ -3296,11 +3187,6 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
         rootFolderType: data.response!.rootFolderType,
       };
 
-      console.log(
-        "renameFolder (field preservation):",
-        JSON.stringify({ status, before, after }, null, 2),
-      );
-
       expect(status).toBe(200);
       expect(after.filesCount).toBe(before.filesCount);
       expect(after.foldersCount).toBe(before.foldersCount);
@@ -3316,22 +3202,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       const ownerApi = apiSdk.forRole("owner");
       const nonExistentFolderId = 999999999;
 
-      const { data, status } = await ownerApi.folders.renameFolder({
+      const { status } = await ownerApi.folders.renameFolder({
         folderId: nonExistentFolderId,
         createFolder: { title: "Autotest Rename Non-Existent Folder" },
       });
-
-      console.log(
-        "renameFolder (non-existent folderId):",
-        JSON.stringify(
-          {
-            status,
-            error: (data as any).error,
-          },
-          null,
-          2,
-        ),
-      );
 
       expect(status).toBe(404);
     },
@@ -3351,22 +3225,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       });
       const folderId = folderData.response!.id!;
 
-      const { data, status } = await ownerApi.folders.renameFolder({
+      const { status } = await ownerApi.folders.renameFolder({
         folderId,
         createFolder: { title: "" },
       });
-
-      console.log(
-        "renameFolder (empty title):",
-        JSON.stringify(
-          {
-            status,
-            error: (data as any).error,
-          },
-          null,
-          2,
-        ),
-      );
 
       expect(status).toBe(400);
     },
@@ -3378,22 +3240,10 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.folders.renameFolder({
+      const { status } = await ownerApi.folders.renameFolder({
         folderId: 0,
         createFolder: { title: "Autotest Rename FolderId Zero" },
       });
-
-      console.log(
-        "renameFolder (folderId=0):",
-        JSON.stringify(
-          {
-            status,
-            error: (data as any).error,
-          },
-          null,
-          2,
-        ),
-      );
 
       expect([400, 404]).toContain(status);
     },
@@ -3441,9 +3291,9 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     expect(data.response).toEqual([]);
   });
 
-  // BUG XXXXX: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
+  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/news - File uploaded by another user appears as new item",
+    "BUG 81520: GET /api/2.0/files/:folderId/news - File uploaded by another user appears as new item",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3486,9 +3336,9 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     },
   );
 
-  // BUG XXXXX: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
+  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/news - Subfolder created by another user appears as new item",
+    "BUG 81520: GET /api/2.0/files/:folderId/news - Subfolder created by another user appears as new item",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3530,9 +3380,9 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     },
   );
 
-  // BUG XXXXX: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
+  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/news - response contains all new items added after owner visit",
+    "BUG 81520: GET /api/2.0/files/:folderId/news - response contains all new items added after owner visit",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3579,9 +3429,9 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     },
   );
 
-  // BUG XXXXX: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
+  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/news - each item has required fields title and fileEntryType",
+    "BUG 81520: GET /api/2.0/files/:folderId/news - each item has required fields title and fileEntryType",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3628,9 +3478,9 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     },
   );
 
-  // BUG XXXXX: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
+  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/news - Items added by multiple different users all appear in news",
+    "BUG 81520: GET /api/2.0/files/:folderId/news - Items added by multiple different users all appear in news",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3809,9 +3659,9 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // BUG XXXXX: GET /api/2.0/files/:folderId/news - non-existent folderId returns 403 instead of 404
+  // BUG 81519: GET /api/2.0/files/:folderId/news - non-existent folderId returns 403 instead of 404
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/news - non-existent folderId returns 404",
+    "BUG 81519: GET /api/2.0/files/:folderId/news - non-existent folderId returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -3823,9 +3673,9 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     },
   );
 
-  // BUG XXXXX: GET /api/2.0/files/:folderId/news - folderId 0 returns 403 instead of 400 or 404
+  // BUG 81519: GET /api/2.0/files/:folderId/news - folderId 0 returns 403 instead of 400 or 404
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/:folderId/news - folderId 0 returns 404 or 400",
+    "BUG 81519: GET /api/2.0/files/:folderId/news - folderId 0 returns 404 or 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -3836,4 +3686,1191 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
       expect([400, 404]).toContain(status);
     },
   );
+});
+
+test.describe("POST /api/2.0/files/{folderId}/upload - Upload file", () => {
+  test("POST /api/2.0/files/{folderId}/upload - Owner uploads a file to a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("Autotest file content"),
+      "autotest-upload.txt",
+    );
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Uploaded file appears in folder listing", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Listing Check",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileName = "autotest-listing-check.txt";
+
+    await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("Autotest file content for listing check"),
+      fileName,
+    );
+
+    const { data: folderData, status: folderStatus } =
+      await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+
+    const files = (folderData.response as any)?.files as any[];
+
+    expect(folderStatus).toBe(200);
+    expect(files).toBeDefined();
+    expect(files.some((f: any) => f.title === fileName)).toBe(true);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Response contains correct title folderId and createdBy", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Fields",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileName = "autotest-fields-check.txt";
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("Autotest file content for fields check"),
+      fileName,
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.id).toBeDefined();
+    expect(response.title).toBe(fileName);
+    expect(response.folderId).toBe(roomId);
+    expect(response.createdBy).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - createNewIfExist=true creates a new file when name already exists", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Create New",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileName = "autotest-create-new.txt";
+
+    const { data: data1 } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("First content"),
+      fileName,
+    );
+    const fileId1 = (data1.response as any)?.[0]?.id;
+
+    const { data: data2, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("Second content"),
+      fileName,
+      { createNewIfExist: true },
+    );
+    const fileId2 = (data2.response as any)?.[0]?.id;
+
+    expect(status).toBe(200);
+    expect(fileId2).toBeDefined();
+    expect(fileId2).not.toBe(fileId1);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload empty file (0 bytes) returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Empty File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.alloc(0),
+      "autotest-empty.txt",
+    );
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Response pureContentLength matches uploaded file size", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Content Length",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const content = Buffer.from("Autotest content length check");
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      content,
+      "autotest-content-length.txt",
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.pureContentLength).toBe(content.length);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Response fileExst matches uploaded file extension", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload File Ext",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("content"),
+      "autotest-ext-check.txt",
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".txt");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - createNewIfExist=false overwrites existing file keeping same ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Overwrite",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileName = "autotest-overwrite.txt";
+
+    const { data: data1 } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("First content"),
+      fileName,
+    );
+    const fileId1 = (data1.response as any)?.[0]?.id;
+    const version1 = (data1.response as any)?.[0]?.version;
+
+    const { data: data2, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("Second content"),
+      fileName,
+    );
+    const fileId2 = (data2.response as any)?.[0]?.id;
+    const version2 = (data2.response as any)?.[0]?.version;
+
+    expect(status).toBe(200);
+    expect(fileId2).toBe(fileId1);
+    expect(version2).toBeGreaterThan(version1);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Uploaded file retrievable in folder with correct size", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Round Trip",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const content = Buffer.from("Round trip content check");
+    const fileName = "autotest-round-trip.txt";
+
+    await uploadFileToFolder(apiSdk, "owner", roomId, content, fileName);
+
+    const { data: folderData, status: folderStatus } =
+      await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+
+    const files = (folderData.response as any)?.files as any[];
+    const uploaded = files?.find((f: any) => f.title === fileName);
+
+    expect(folderStatus).toBe(200);
+    expect(uploaded).toBeDefined();
+    expect(uploaded.pureContentLength).toBe(content.length);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload to subfolder inside room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Subfolder",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: subfolderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Subfolder" },
+    });
+    const subfolderId = subfolderData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      subfolderId,
+      Buffer.from("Subfolder file content"),
+      "autotest-subfolder-file.txt",
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.folderId).toBe(subfolderId);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload to My Documents folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      myDocsFolderId,
+      Buffer.from("My Documents file content"),
+      "autotest-my-docs.txt",
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.folderId).toBe(myDocsFolderId);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Multiple files via files array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Multiple Files",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      null,
+      "",
+      {
+        files: [
+          {
+            buffer: Buffer.from("File 1 content"),
+            fileName: "autotest-multi-1.txt",
+          },
+          {
+            buffer: Buffer.from("File 2 content"),
+            fileName: "autotest-multi-2.txt",
+          },
+        ],
+      },
+    );
+
+    const response = data.response as any;
+
+    // endpoint processes only the first file from the files array - remaining entries are silently skipped
+    expect(status).toBe(200);
+    expect(Array.isArray(response)).toBe(true);
+    expect(response.length).toBe(1);
+    expect(response[0].title).toBe("autotest-multi-1.txt");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Filename with special characters is accepted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Special Chars",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileName = "autotest тест (special) file.txt";
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("Special chars content"),
+      fileName,
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.title).toBe(fileName);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - storeOriginalFileFlag=true returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Store Original",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("Original format content"),
+      "autotest-store-original.docx",
+      { storeOriginalFileFlag: true },
+    );
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload to archived room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload Archived",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("Content for archived room"),
+      "autotest-archived.txt",
+    );
+
+    expect(status).toBe(403);
+  });
+
+  // BUG 81547: POST /api/2.0/files/{folderId}/upload - No file in request body returns 403 instead of 400
+  test.fail(
+    "BUG 81547: POST /api/2.0/files/{folderId}/upload - No file in request body returns 403 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room Upload No File",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { status } = await uploadFileToFolder(
+        apiSdk,
+        "owner",
+        roomId,
+        null,
+        "",
+      );
+
+      expect(status).toBe(400);
+    },
+  );
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload .pdf file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload PDF",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("fake pdf content"),
+      "autotest-format.pdf",
+      { mimeType: "application/pdf" },
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".pdf");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload .xlsx file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload XLSX",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("fake xlsx content"),
+      "autotest-format.xlsx",
+      {
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".xlsx");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload .pptx file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload PPTX",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("fake pptx content"),
+      "autotest-format.pptx",
+      {
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      },
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".pptx");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload .png file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload PNG",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("fake png content"),
+      "autotest-format.png",
+      { mimeType: "image/png" },
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".png");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload .jpg file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload JPG",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("fake jpg content"),
+      "autotest-format.jpg",
+      { mimeType: "image/jpeg" },
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".jpg");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload .zip file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload ZIP",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("fake zip content"),
+      "autotest-format.zip",
+      { mimeType: "application/zip" },
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".zip");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload .csv file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload CSV",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("id,name\n1,autotest"),
+      "autotest-format.csv",
+      { mimeType: "text/csv" },
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".csv");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Upload .md file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload MD",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("# Autotest"),
+      "autotest-format.md",
+      { mimeType: "text/markdown" },
+    );
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".md");
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - Non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      999999999,
+      Buffer.from("Autotest file content"),
+      "autotest-nonexistent.txt",
+    );
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /api/2.0/files/{folderId}/upload - folderId 0 returns 400 or 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      0,
+      Buffer.from("Autotest file content"),
+      "autotest-zero-folder.txt",
+    );
+
+    expect([400, 404]).toContain(status);
+  });
+});
+
+test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", () => {
+  test("POST /api/2.0/files/@my/upload - Owner uploads a file to My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
+        type: "text/plain",
+      }),
+      "autotest-my-upload.txt",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/upload - Uploaded file appears in My Documents listing", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const fileName = "autotest-my-listing.txt";
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("listing check"))], {
+        type: "text/plain",
+      }),
+      fileName,
+    );
+
+    await ownerApi.folders.uploadFileToMy(undefined, { data: formData });
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder();
+    const myFolderId = myFolderData.response!.current!.id!;
+    const { data: folderData, status: folderStatus } =
+      await ownerApi.folders.getFolderByFolderId({ folderId: myFolderId });
+
+    const files = (folderData.response as any)?.files as any[];
+
+    expect(folderStatus).toBe(200);
+    expect(files.some((f: any) => f.title === fileName)).toBe(true);
+  });
+
+  test("POST /api/2.0/files/@my/upload - Response contains correct title, fileExst and pureContentLength", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const content = Buffer.from("response fields check");
+    const fileName = "autotest-my-fields.txt";
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(content)], { type: "text/plain" }),
+      fileName,
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.title).toBe(fileName);
+    expect(response.fileExst).toBe(".txt");
+    expect(response.pureContentLength).toBe(content.length);
+  });
+
+  test("POST /api/2.0/files/@my/upload - createNewIfExist=false overwrites existing file keeping same ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const fileName = "autotest-my-overwrite.txt";
+
+    const formData1 = new FormData();
+    formData1.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("original content"))], {
+        type: "text/plain",
+      }),
+      fileName,
+    );
+    const { data: data1 } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData1,
+    });
+    const firstId = (data1.response as any)?.[0]?.id;
+    const firstVersion = (data1.response as any)?.[0]?.version;
+
+    const formData2 = new FormData();
+    formData2.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("updated content"))], {
+        type: "text/plain",
+      }),
+      fileName,
+    );
+    formData2.append("createNewIfExist", "false");
+    const { data: data2, status } = await ownerApi.folders.uploadFileToMy(
+      undefined,
+      { data: formData2 },
+    );
+    const secondId = (data2.response as any)?.[0]?.id;
+    const secondVersion = (data2.response as any)?.[0]?.version;
+
+    expect(status).toBe(200);
+    expect(secondId).toBe(firstId);
+    expect(secondVersion).toBeGreaterThan(firstVersion);
+  });
+
+  test("POST /api/2.0/files/@my/upload - createNewIfExist=true creates a new file with different ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const fileName = "autotest-my-duplicate.txt";
+
+    const formData1 = new FormData();
+    formData1.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("first content"))], {
+        type: "text/plain",
+      }),
+      fileName,
+    );
+    const { data: data1 } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData1,
+    });
+    const firstId = (data1.response as any)?.[0]?.id;
+
+    const formData2 = new FormData();
+    formData2.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("second content"))], {
+        type: "text/plain",
+      }),
+      fileName,
+    );
+    formData2.append("createNewIfExist", "true");
+    const { data: data2, status } = await ownerApi.folders.uploadFileToMy(
+      undefined,
+      { data: formData2 },
+    );
+    const secondId = (data2.response as any)?.[0]?.id;
+
+    expect(status).toBe(200);
+    expect(secondId).not.toBe(firstId);
+  });
+
+  test("POST /api/2.0/files/@my/upload - Filename with special characters is accepted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const fileName = "autotest-мой тест (special).txt";
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("special chars content"))], {
+        type: "text/plain",
+      }),
+      fileName,
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.title).toBe(fileName);
+  });
+
+  test("POST /api/2.0/files/@my/upload - Empty file (0 bytes) returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.alloc(0))], { type: "text/plain" }),
+      "autotest-my-empty.txt",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  // BUG 81549: POST /api/2.0/files/@my/upload - No file in request body returns 403 instead of 400
+  test.fail(
+    "BUG 81549: POST /api/2.0/files/@my/upload - No file in request body returns 403 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.folders.uploadFileToMy(undefined, {
+        data: new FormData(),
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  test("POST /api/2.0/files/@my/upload - folderId in response matches My Documents folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder();
+    const myFolderId = myFolderData.response!.current!.id!;
+
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("folder id check"))], {
+        type: "text/plain",
+      }),
+      "autotest-my-folderid.txt",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.folderId).toBe(myFolderId);
+  });
+
+  test("POST /api/2.0/files/@my/upload - createNewIfExist=false with no existing file returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("first upload, no conflict"))], {
+        type: "text/plain",
+      }),
+      "autotest-my-no-conflict.txt",
+    );
+    formData.append("createNewIfExist", "false");
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/upload - storeOriginalFileFlag=true preserves original extension", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("fake docx content"))], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
+      "autotest-my-store-flag.docx",
+    );
+    formData.append("storeOriginalFileFlag", "true");
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".docx");
+  });
+
+  test("POST /api/2.0/files/@my/upload - Upload .pdf file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("fake pdf content"))], {
+        type: "application/pdf",
+      }),
+      "autotest-my-format.pdf",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".pdf");
+  });
+
+  test("POST /api/2.0/files/@my/upload - Upload .xlsx file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("fake xlsx content"))], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      "autotest-my-format.xlsx",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".xlsx");
+  });
+
+  test("POST /api/2.0/files/@my/upload - Upload .pptx file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("fake pptx content"))], {
+        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      }),
+      "autotest-my-format.pptx",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".pptx");
+  });
+
+  test("POST /api/2.0/files/@my/upload - Upload .png file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("fake png content"))], {
+        type: "image/png",
+      }),
+      "autotest-my-format.png",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".png");
+  });
+
+  test("POST /api/2.0/files/@my/upload - Upload .jpg file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("fake jpg content"))], {
+        type: "image/jpeg",
+      }),
+      "autotest-my-format.jpg",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".jpg");
+  });
+
+  test("POST /api/2.0/files/@my/upload - Upload .zip file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("fake zip content"))], {
+        type: "application/zip",
+      }),
+      "autotest-my-format.zip",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".zip");
+  });
+
+  test("POST /api/2.0/files/@my/upload - Upload .csv file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("id,name\n1,autotest"))], {
+        type: "text/csv",
+      }),
+      "autotest-my-format.csv",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".csv");
+  });
+
+  test("POST /api/2.0/files/@my/upload - Upload .md file returns 200 and correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const formData = new FormData();
+    formData.append(
+      "file",
+      new Blob([new Uint8Array(Buffer.from("# Autotest"))], {
+        type: "text/markdown",
+      }),
+      "autotest-my-format.md",
+    );
+
+    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: formData,
+    });
+
+    const response = (data.response as any)?.[0];
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".md");
+  });
 });

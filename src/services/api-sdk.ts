@@ -84,7 +84,7 @@ export class ApiSDK {
     this.faker = new FAKER();
   }
 
-  private createAxiosInstance() {
+  createAxiosInstance() {
     const axiosInstance = axios.create({
       validateStatus: () => true, // never throw, regardless of status code
     });

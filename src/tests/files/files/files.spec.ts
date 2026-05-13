@@ -5559,7 +5559,7 @@ test.describe("GET /files/file/:fileId/formroles", () => {
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  test("GET /files/file/:fileId/formroles - fileId=0 returns 403", async ({
+  test("GET /files/file/:fileId/formroles - fileId=0 returns 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -5568,21 +5568,20 @@ test.describe("GET /files/file/:fileId/formroles", () => {
       fileId: 0,
     });
 
-    expect(status).toBe(403);
+    expect(status).toBe(404);
   });
 
-  test.fail(
-    "BUG 81346: GET /files/file/:fileId/formroles - Non-existent file returns 403 instead of 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81346: GET /files/file/:fileId/formroles - Non-existent file returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.files.getAllFormRoles({
-        fileId: 999999999,
-      });
+    const { status } = await ownerApi.files.getAllFormRoles({
+      fileId: 999999999,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 });
 
 test.describe("GET /files/file/fillresult - Get fill result", () => {
@@ -5829,24 +5828,23 @@ test.describe("PUT /files/file/:fileId/saveediting/form - Save editing file from
     expect(data.response!.comment).toBe("Edited");
   });
 
-  test.fail(
-    "BUG 81416: PUT /files/file/:fileId/saveediting/form - Non-existent fileId returns 403 instead of 404",
-    async ({ apiSdk }) => {
-      const submittedBuffer = readFileSync(
-        path.join(__dirname, "../../../assets/oo-form-submitted.pdf"),
-      );
-      const file = new File([submittedBuffer], "oo-form-submitted.pdf", {
-        type: "application/pdf",
-      });
+  test("BUG 81416: PUT /files/file/:fileId/saveediting/form - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const submittedBuffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-submitted.pdf"),
+    );
+    const file = new File([submittedBuffer], "oo-form-submitted.pdf", {
+      type: "application/pdf",
+    });
 
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .files.saveEditingFileFromForm({ fileId: 999999999, file });
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .files.saveEditingFileFromForm({ fileId: 999999999, file });
 
-      expect(status).toBe(404);
-      expect((data as any).error?.message).not.toContain("Object reference");
-    },
-  );
+    expect(status).toBe(404);
+    expect((data as any).error?.message).not.toContain("Object reference");
+  });
 
   test("PUT /files/file/:fileId/saveediting/form - forcesave true saves file immediately", async ({
     apiSdk,
