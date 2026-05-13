@@ -1535,6 +1535,335 @@ test.describe("PUT /files/tags - Update tag", () => {
   });
 });
 
+test.describe("PUT /files/rooms/:id/tags - addRoomTags", () => {
+  test("PUT /files/rooms/:id/tags - Owner adds one existing tag to room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "SingleTag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Single Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["SingleTag"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect((data.response!.tags as string[]).length).toBe(1);
+    expect(data.response!.tags as string[]).toContain("SingleTag");
+  });
+
+  test("PUT /files/rooms/:id/tags - Response returns full room object", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "FullRoomTag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Full Object",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["FullRoomTag"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(roomId);
+    expect(data.response!.title).toBe("Autotest Room Full Object");
+    expect(data.response!.roomType).toBe(RoomType.CustomRoom);
+    expect(data.response!.tags as string[]).toContain("FullRoomTag");
+  });
+
+  test("PUT /files/rooms/:id/tags - Preserves already assigned tags when adding new ones", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "PreservedA" },
+    });
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "PreservedB" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Preserve Tags",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["PreservedA"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["PreservedB"] },
+    });
+
+    expect(status).toBe(200);
+    const tags = data.response!.tags as string[];
+    expect(tags.length).toBe(2);
+    expect(tags).toContain("PreservedA");
+    expect(tags).toContain("PreservedB");
+  });
+
+  test("PUT /files/rooms/:id/tags - Idempotent when adding already assigned tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "IdempotentTag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Idempotent",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["IdempotentTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["IdempotentTag"] },
+    });
+
+    expect(status).toBe(200);
+    const tags = data.response!.tags as string[];
+    expect(tags.length).toBe(1);
+    expect(tags).toContain("IdempotentTag");
+  });
+
+  test("PUT /files/rooms/:id/tags - Tag can be re-added after deleteRoomTags", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "ReAddTag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room ReAdd",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ReAddTag"] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ReAddTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ReAddTag"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.tags as string[]).toContain("ReAddTag");
+  });
+
+  test("PUT /files/rooms/:id/tags - Duplicate tag names in request are not duplicated in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "DupTag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Duplicate Names",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["DupTag", "DupTag"] },
+    });
+
+    expect(status).toBe(200);
+    const tags = data.response!.tags as string[];
+    expect(tags.filter((t) => t === "DupTag").length).toBe(1);
+  });
+
+  // Room IDs are globally unique, so the API should return 403 instead of 404.
+  // Currently API returns 500 Internal Server Error instead.
+  test.fail(
+    "BUG XXXXX: PUT /files/rooms/:id/tags - Non-existent room id returns 500 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "GhostRoomTag" },
+      });
+
+      const { data } = await ownerApi.rooms.addRoomTags({
+        id: 999999999,
+        batchTagsRequestDto: { names: ["GhostRoomTag"] },
+      });
+
+      expect(data.statusCode).toBe(403);
+    },
+  );
+
+  // Currently API returns 500 Internal Server Error instead of 403 when the room has been deleted.
+  test.fail(
+    "BUG XXXXX: PUT /files/rooms/:id/tags - Adding tag to deleted room returns 500 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "DeletedRoomTag" },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room To Delete For Tag",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data } = await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["DeletedRoomTag"] },
+      });
+
+      expect(data.statusCode).toBe(403);
+    },
+  );
+
+  test("PUT /files/rooms/:id/tags - Empty names array is a no-op and returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Empty Names",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [] },
+    });
+
+    expect(status).toBe(200);
+    const tags = (data.response!.tags as string[]) ?? [];
+    expect(tags.length).toBe(0);
+  });
+
+  test("PUT /files/rooms/:id/tags - Missing names field returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Missing Names",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: {} as any,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("PUT /files/rooms/:id/tags - Null names returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Null Names",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: null as any },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("PUT/GET /files/rooms/:id - Added tags appear in getRoomInfo response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "VisibleTag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Get Info Tags",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["VisibleTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+    expect(status).toBe(200);
+    expect(data.response!.tags as string[]).toContain("VisibleTag");
+  });
+});
+
 test.describe("PUT /files/fileops/duplicate", () => {
   test("PUT /files/fileops/duplicate - Owner duplicates their own room", async ({
     apiSdk,
@@ -1562,51 +1891,49 @@ test.describe("PUT /files/fileops/duplicate", () => {
     expect(operation.error).toBe("");
   });
 
-  test.fail(
-    "BUG 81232: PUT /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room",
-    async ({ apiSdk }) => {
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
+  test("BUG 81232: PUT /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
 
-      const { data: roomData } = await adminApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Admin Room For Owner Duplicate",
-          roomType: RoomType.CustomRoom,
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Admin Room For Owner Duplicate",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("PUT /files/fileops/duplicate", async () => {
+      const { status } = await ownerApi.operations.duplicateBatchItems({
+        duplicateRequestDto: {
+          folderIds: [roomId as any],
         },
       });
-      const roomId = roomData.response!.id!;
+      expect(status).toBe(200);
+    });
 
-      const ownerApi = apiSdk.forRole("owner");
+    await test.step("GET /files/fileops", async () => {
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+      expect(operation.error).toBe("");
+    });
 
-      await test.step("PUT /files/fileops/duplicate", async () => {
-        const { status } = await ownerApi.operations.duplicateBatchItems({
-          duplicateRequestDto: {
-            folderIds: [roomId as any],
-          },
-        });
-        expect(status).toBe(200);
-      });
-
-      await test.step("GET /files/fileops", async () => {
-        const operation = await waitForOperation(ownerApi.operations);
-        expect(operation.finished).toBe(true);
-        // Currently fails with: "You don't have enough permission to copy the folder"
-        expect(operation.error).toBe("");
-      });
-
-      await test.step("GET /files/rooms - duplicate room appears in list", async () => {
-        const { data } = await ownerApi.rooms.getRoomsFolder({});
-        const titles = data.response!.folders!.map((f) => f.title);
-        expect(
-          titles.some((t) =>
-            t?.includes("Autotest Admin Room For Owner Duplicate"),
-          ),
-        ).toBe(true);
-      });
-    },
-  );
+    await test.step("GET /files/rooms - duplicate room appears in list", async () => {
+      const { data } = await ownerApi.rooms.getRoomsFolder({});
+      const titles = data.response!.folders!.map((f) => f.title);
+      expect(
+        titles.some((t) =>
+          t?.includes("Autotest Admin Room For Owner Duplicate"),
+        ),
+      ).toBe(true);
+    });
+  });
 });
 
 test.describe("PUT /files/fileops/delete - Room deletion with open file", () => {

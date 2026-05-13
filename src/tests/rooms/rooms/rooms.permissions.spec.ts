@@ -685,6 +685,200 @@ test.describe("DELETE /api/2.0/files/tags - Input validation", () => {
   });
 });
 
+test.describe("PUT /files/rooms/:id/tags - access control", () => {
+  test("PUT /files/rooms/:id/tags - Owner can add tag to own room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Owner AddTag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner AddTag Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Owner AddTag"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.tags as string[]).toContain("Autotest Owner AddTag");
+  });
+
+  test("PUT /files/rooms/:id/tags - DocSpaceAdmin can add tag to own room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    await adminApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Admin AddTag" },
+    });
+
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Admin AddTag Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await adminApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Admin AddTag"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.tags as string[]).toContain("Autotest Admin AddTag");
+  });
+
+  test("PUT /files/rooms/:id/tags - User not in room cannot add tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest User Outside Tag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest User Outside Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data } = await userApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest User Outside Tag"] },
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("PUT /files/rooms/:id/tags - Guest not in room cannot add tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Guest Outside Tag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Guest Outside Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data } = await guestApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Guest Outside Tag"] },
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("PUT /files/rooms/:id/tags - Unauthenticated user cannot add tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Anon AddTag" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Anon AddTag Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Anon AddTag"] },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
+  test.describe(`PUT /files/rooms/:id/tags - ${userType} invited to room`, () => {
+    for (const { label, access } of roomAccesses) {
+      // Only RoomAdmin can be assigned RoomManager access — API rejects this access level for User/Guest
+      if (
+        access === FileShare.RoomManager &&
+        (userType === "User" || userType === "Guest")
+      ) {
+        continue;
+      }
+
+      test(`Room access: ${label}`, async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        await ownerApi.rooms.createRoomTag({
+          createTagRequestDto: { name: `Autotest Tag ${userType} ${label}` },
+        });
+
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: `Autotest Room ${userType} ${label}`,
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        const { api: memberApi, data: memberData } =
+          await apiSdk.addAuthenticatedMember("owner", userType);
+        const userId = memberData.response!.id!;
+
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access }],
+            notify: false,
+          },
+        });
+
+        const { data, status } = await memberApi.rooms.addRoomTags({
+          id: roomId,
+          batchTagsRequestDto: { names: [`Autotest Tag ${userType} ${label}`] },
+        });
+
+        // Only RoomManager has permission to manage room metadata (tags)
+        if (access === FileShare.RoomManager) {
+          expect(status).toBe(200);
+          expect(data.response!.tags as string[]).toContain(
+            `Autotest Tag ${userType} ${label}`,
+          );
+        } else {
+          expect(status).toBe(403);
+        }
+      });
+    }
+  });
+}
+
 test.describe("PUT /files/tags - access control", () => {
   test("PUT /files/tags - Owner can rename a tag", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
