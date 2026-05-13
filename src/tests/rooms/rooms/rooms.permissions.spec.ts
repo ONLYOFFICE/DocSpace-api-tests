@@ -355,6 +355,192 @@ test.describe("PUT /files/rooms/:id/archive - access control", () => {
     expect(operation.finished).toBe(true);
     expect(operation.error).toBe("");
   });
+
+  test("DocSpaceAdmin can archive own room", async ({ apiSdk }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data: createData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Admin Own Room To Archive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await adminApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(adminApi.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+  });
+
+  test("RoomAdmin cannot archive owner's room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room For RoomAdmin Archive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { status } = await roomAdminApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("User cannot archive owner's room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room For User Archive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { status } = await userApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Guest cannot archive owner's room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room For Guest Archive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { status } = await guestApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Archiving room without authorization returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Anonymous Archive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  // Other room endpoints return 403 for non-existent room IDs to prevent ID
+  // enumeration, but archiveRoom currently leaks existence by returning 404.
+  test.fail(
+    "BUG TBD: PUT /files/rooms/:id/archive - non-existent room returns 404 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data } = await ownerApi.rooms.archiveRoom({
+        id: 999999999,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+
+      expect(data.statusCode).toBe(403);
+    },
+  );
+
+  // Other room endpoints return 403 for deleted rooms to prevent ID enumeration,
+  // but archiveRoom currently leaks existence by returning 404.
+  test.fail(
+    "BUG TBD: PUT /files/rooms/:id/archive - deleted room returns 404 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: createData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room To Delete Then Archive",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = createData.response!.id!;
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      const deleteOp = await waitForOperation(ownerApi.operations);
+      expect(deleteOp.finished).toBe(true);
+
+      const { data } = await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+
+      expect(data.statusCode).toBe(403);
+    },
+  );
+
+  test("Archiving an already archived room is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Already Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    const firstOp = await waitForOperation(ownerApi.operations);
+    expect(firstOp.finished).toBe(true);
+
+    const { status } = await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    const secondOp = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(secondOp.finished).toBe(true);
+    expect(secondOp.error).toBe("");
+  });
 });
 
 test.describe("POST /files/tags - access control", () => {
