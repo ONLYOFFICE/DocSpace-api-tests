@@ -2129,7 +2129,7 @@ test.describe("GET /api/2.0/portal/payment/quota - permissions", () => {
   });
 
   test.fail(
-    "BUG 70912: GET /api/2.0/portal/payment/quota - RoomAdmin cannot get quota information",
+    "BUG 81534: GET /api/2.0/portal/payment/quota - RoomAdmin cannot get quota information",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
@@ -2143,7 +2143,7 @@ test.describe("GET /api/2.0/portal/payment/quota - permissions", () => {
   );
 
   test.fail(
-    "BUG 70912: GET /api/2.0/portal/payment/quota - User cannot get quota information",
+    "BUG 81534: GET /api/2.0/portal/payment/quota - User cannot get quota information",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "User");
 
