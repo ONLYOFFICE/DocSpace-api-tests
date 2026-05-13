@@ -17,29 +17,10 @@ export function createPlaywrightAdapter(request: APIRequestContext) {
     const headers = config.headers as Record<string, string>;
 
     let data: unknown;
-    let multipart:
-      | Record<
-          string,
-          | string
-          | number
-          | boolean
-          | { name: string; mimeType: string; buffer: Buffer }
-        >
-      | undefined;
+    let multipart: FormData | undefined;
     if (config.data) {
       if (config.data instanceof FormData) {
-        multipart = {};
-        for (const [key, value] of config.data.entries()) {
-          if (value instanceof Blob) {
-            multipart[key] = {
-              name: value instanceof File ? value.name : key,
-              mimeType: value.type,
-              buffer: Buffer.from(await value.arrayBuffer()),
-            };
-          } else {
-            multipart[key] = value;
-          }
-        }
+        multipart = config.data;
         delete headers["Content-Type"];
       } else {
         data =

@@ -246,9 +246,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     });
 
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to rename the file",
-    );
+    expect((data as any).error.message).toBe("Access denied");
   });
 
   test("PUT /files/file/:fileId - Regular user with ReadWrite access cannot rename a file they don't own", async ({
@@ -286,9 +284,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     });
 
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to rename the file",
-    );
+    expect((data as any).error.message).toBe("Access denied");
   });
 
   test("PUT /files/file/:fileId - Regular user with read-only access cannot update a file", async ({
@@ -326,9 +322,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     });
 
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to rename the file",
-    );
+    expect((data as any).error.message).toBe("Access denied");
   });
 
   test("PUT /files/file/:fileId - User without room access cannot update a file", async ({
@@ -360,9 +354,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     });
 
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to rename the file",
-    );
+    expect((data as any).error.message).toBe("Access denied");
   });
 
   test("PUT /files/file/:fileId - File owner can rename their own file in a room", async ({
@@ -439,9 +431,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     });
 
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to rename the file",
-    );
+    expect((data as any).error.message).toBe("Access denied");
   });
 
   test("PUT /files/file/:fileId - DocSpace admin without room membership cannot rename a file", async ({
@@ -473,9 +463,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     });
 
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to rename the file",
-    );
+    expect((data as any).error.message).toBe("Access denied");
   });
 
   test.fail(
@@ -2410,9 +2398,7 @@ test.describe("PUT /files/file/:id/links permissions", () => {
     });
 
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
+    expect((data as any).error.message).toBe("Access denied");
   });
 
   test("PUT /files/file/:id/links - DocSpace admin cannot set external link for another user's private file", async ({
@@ -6325,30 +6311,29 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
     expect(status).toBe(200);
   });
 
-  test.fail(
-    "BUG 81348: GET /files/file/:fileId/formroles - Guest without room access gets 200 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81348: GET /files/file/:fileId/formroles - Guest without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest GetAllFormRoles Guest Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetAllFormRoles Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const pdfFormId = await createOoForm(ownerApi, roomId);
+    const pdfFormId = await createOoForm(ownerApi, roomId);
 
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { status } = await apiSdk
-        .forRole("guest")
-        .files.getAllFormRoles({ fileId: pdfFormId });
+    const { status } = await apiSdk
+      .forRole("guest")
+      .files.getAllFormRoles({ fileId: pdfFormId });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 });
 test.describe("GET /files/file/fillresult - Get fill result permissions", () => {
   test("GET /files/file/fillresult - Unauthenticated returns 404", async ({
