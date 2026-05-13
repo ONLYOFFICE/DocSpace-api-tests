@@ -504,7 +504,7 @@ test.describe("API rooms methods", () => {
     // Other write operations on archived rooms are correctly rejected with 403,
     // but createFile currently allows file creation inside an archived room.
     test.fail(
-      "BUG TBD: POST /files/{folderId}/file - createFile in archived room returns 200 instead of 403",
+      "BUG 81551: POST /files/{folderId}/file - createFile in archived room returns 200 instead of 403",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
