@@ -5,6 +5,7 @@ import {
   RoomType,
   FileShare,
   LinkType,
+  SearchArea,
 } from "@onlyoffice/docspace-api-sdk";
 import { createAllRoomTypes } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
@@ -326,40 +327,295 @@ test.describe("API rooms methods", () => {
     });
   });
 
-  test("PUT /files/rooms/:id/archive and unarchive", async ({ apiSdk }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const { data: createData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Archive Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = createData.response!.id!;
+  test.describe("PUT /files/rooms/:id/archive", () => {
+    test("PUT /files/rooms/:id/archive - Owner archives own room: status, lists, full unarchive cycle", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: createData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive Lifecycle Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = createData.response!.id!;
 
-    await test.step("archive room", async () => {
+      await test.step("archive returns 200 and operation finishes", async () => {
+        const { status } = await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(operation.error).toBe("");
+      });
+
+      await test.step("archived room is in Archive list", async () => {
+        const { data } = await ownerApi.rooms.getRoomsFolder({
+          searchArea: SearchArea.Archive,
+        });
+        const ids = data.response!.folders!.map((f) => (f as any).id);
+        expect(ids).toContain(roomId);
+      });
+
+      await test.step("archived room is not in Active list", async () => {
+        const { data } = await ownerApi.rooms.getRoomsFolder({
+          searchArea: SearchArea.Active,
+        });
+        const ids = data.response!.folders!.map((f) => (f as any).id);
+        expect(ids).not.toContain(roomId);
+      });
+
+      await test.step("unarchive returns 200 and operation finishes", async () => {
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(operation.error).toBe("");
+      });
+
+      await test.step("unarchived room is back in Active list", async () => {
+        const { data } = await ownerApi.rooms.getRoomsFolder({
+          searchArea: SearchArea.Active,
+        });
+        const ids = data.response!.folders!.map((f) => (f as any).id);
+        expect(ids).toContain(roomId);
+      });
+
+      await test.step("unarchived room is not in Archive list anymore", async () => {
+        const { data } = await ownerApi.rooms.getRoomsFolder({
+          searchArea: SearchArea.Archive,
+        });
+        const ids = data.response!.folders!.map((f) => (f as any).id);
+        expect(ids).not.toContain(roomId);
+      });
+    });
+
+    test("PUT /files/rooms/:id/archive - Room content (file and folder) is preserved after archive", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive Content Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest File Before Archive" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Autotest Folder Before Archive" },
+      });
+      const folderId = folderData.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data: folderContent, status } =
+        await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+
+      expect(status).toBe(200);
+      const folderIds = (folderContent.response!.folders ?? []).map(
+        (f) => (f as any).id,
+      );
+      const fileIds = (folderContent.response!.files ?? []).map(
+        (f) => (f as any).id,
+      );
+      expect(folderIds).toContain(folderId);
+      expect(fileIds).toContain(fileId);
+    });
+
+    test("PUT /files/rooms/:id/archive - Archived room is read-only: write operations are forbidden", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "AutotestArchiveReadonlyTag" },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive ReadOnly Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      await test.step("createFolder in archived room is forbidden", async () => {
+        const { status } = await ownerApi.folders.createFolder({
+          folderId: roomId,
+          createFolder: { title: "Autotest Folder In Archive" },
+        });
+        expect(status).toBe(403);
+      });
+
+      await test.step("updateRoom (rename) on archived room is forbidden", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { title: "Renamed Archived Room" },
+        });
+        expect(status).toBe(403);
+      });
+
+      await test.step("addRoomTags on archived room is forbidden", async () => {
+        const { status } = await ownerApi.rooms.addRoomTags({
+          id: roomId,
+          batchTagsRequestDto: { names: ["AutotestArchiveReadonlyTag"] },
+        });
+        expect(status).toBe(403);
+      });
+
+      await test.step("setRoomSecurity on archived room is forbidden", async () => {
+        const { status } = await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access: FileShare.Editing }],
+            notify: false,
+          },
+        });
+        expect(status).toBe(403);
+      });
+    });
+
+    // Other write operations on archived rooms are correctly rejected with 403,
+    // but createFile currently allows file creation inside an archived room.
+    test.fail(
+      "BUG TBD: POST /files/{folderId}/file - createFile in archived room returns 200 instead of 403",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Archive ReadOnly Room For createFile",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status } = await ownerApi.files.createFile({
+          folderId: roomId,
+          createFileJsonElement: { title: "Autotest File In Archive" },
+        });
+
+        expect(status).toBe(403);
+      },
+    );
+
+    test("PUT /files/rooms/:id/archive - Metadata (title, roomType, tags) is preserved through archive → unarchive", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "AutotestMetaTagA" },
+      });
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "AutotestMetaTagB" },
+      });
+
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive Metadata Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: {
+          names: ["AutotestMetaTagA", "AutotestMetaTagB"],
+        },
+      });
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      await ownerApi.rooms.unarchiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe("Autotest Archive Metadata Room");
+      expect(data.response!.roomType).toBe(RoomType.CustomRoom);
+      const tags = (data.response!.tags as string[]) ?? [];
+      expect(tags).toContain("AutotestMetaTagA");
+      expect(tags).toContain("AutotestMetaTagB");
+    });
+
+    test("PUT /files/rooms/:id/archive - Null deleteAfter returns 400", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive Null deleteAfter",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
       const { status } = await ownerApi.rooms.archiveRoom({
         id: roomId,
-        archiveRoomRequest: {
-          deleteAfter: false,
-        },
+        archiveRoomRequest: { deleteAfter: null as any },
       });
-      const operation = await waitForOperation(ownerApi.operations);
 
-      expect(status).toBe(200);
-      expect(operation.finished).toBe(true);
+      expect(status).toBe(400);
     });
 
-    await test.step("unarchive room", async () => {
-      const { status } = await ownerApi.rooms.unarchiveRoom({
-        id: roomId,
-        archiveRoomRequest: {
-          deleteAfter: false,
+    test("PUT /files/rooms/:id/archive - Invalid deleteAfter type (string) returns 400", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive Invalid deleteAfter Type",
+          roomType: RoomType.CustomRoom,
         },
       });
-      const operation = await waitForOperation(ownerApi.operations);
+      const roomId = roomData.response!.id!;
 
-      expect(status).toBe(200);
-      expect(operation.finished).toBe(true);
+      const { status } = await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: "false" as any },
+      });
+
+      expect(status).toBe(400);
     });
   });
 
