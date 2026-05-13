@@ -159,7 +159,7 @@ test.describe("POST /ai/agents - Create AI agent with invalid modelId", () => {
     });
     const providerId = providerData.response!.id!;
 
-    const { data, status } = await ownerApi.agents.createAgent({
+    const { data } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
         title: "Autotest Empty Model Agent",
         color: "FF5733",
@@ -173,8 +173,10 @@ test.describe("POST /ai/agents - Create AI agent with invalid modelId", () => {
       },
     });
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
+    expect(data.statusCode).toBe(400);
+    expect((data as any).error?.message).toBe(
+      "The value cannot be an empty string. (Parameter 'chatSettings.ModelId')",
+    );
   });
 });
 
