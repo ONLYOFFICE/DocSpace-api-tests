@@ -1722,7 +1722,7 @@ test.describe("PUT /files/rooms/:id/tags - addRoomTags", () => {
   // Room IDs are globally unique, so the API should return 403 instead of 404.
   // Currently API returns 500 Internal Server Error instead.
   test.fail(
-    "BUG XXXXX: PUT /files/rooms/:id/tags - Non-existent room id returns 500 instead of 403",
+    "BUG 81544: PUT /files/rooms/:id/tags - Non-existent room id returns 500 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       await ownerApi.rooms.createRoomTag({
@@ -1740,7 +1740,7 @@ test.describe("PUT /files/rooms/:id/tags - addRoomTags", () => {
 
   // Currently API returns 500 Internal Server Error instead of 403 when the room has been deleted.
   test.fail(
-    "BUG XXXXX: PUT /files/rooms/:id/tags - Adding tag to deleted room returns 500 instead of 403",
+    "BUG 81545: PUT /files/rooms/:id/tags - Adding tag to deleted room returns 500 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       await ownerApi.rooms.createRoomTag({
