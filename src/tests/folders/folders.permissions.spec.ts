@@ -1020,33 +1020,29 @@ test.describe("GET /files/:folderId/formfilter - access control", () => {
 });
 
 test.describe("GET /api/2.0/files/folder/:folderId - access control", () => {
-  // BUG 81460: GET /api/2.0/files/folder/:folderId returns 403 instead of 401 for unauthenticated request.
-  // Actual response: { "error": { "message": "You don't have enough permission to view the folder content",
-  // "type": "System.InvalidOperationException" }, "statusCode": 403 }
-  test.fail(
-    "BUG 81460: GET /api/2.0/files/folder/:folderId - Unauthenticated user gets 401",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Info Auth",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81460: GET /api/2.0/files/folder/:folderId - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Info Auth",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: "Autotest Folder Info Anon" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Folder Info Anon" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const anonApi = apiSdk.forAnonymous();
-      const { status } = await anonApi.folders.getFolderInfo({ folderId });
+    const anonApi = apiSdk.forAnonymous();
+    const { status } = await anonApi.folders.getFolderInfo({ folderId });
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 
   test("GET /api/2.0/files/folder/:folderId - User without access gets 403", async ({
     apiSdk,
