@@ -2513,9 +2513,9 @@ test.describe("GET /files/file/:id/link permissions", () => {
     expect(data.response!.sharedLink!.shareLink).toBeTruthy();
   });
 
-  // BUG XXXXX: unauthenticated user should get 401 but server returns 200 with count:0
+  // BUG 81571: unauthenticated user should get 401 but server returns 200 with count:0
   test.fail(
-    "BUG XXXXX: GET /files/file/:id/link - Unauthenticated user gets 401",
+    "BUG 81571: GET /files/file/:id/link - Unauthenticated user gets 401",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2532,9 +2532,9 @@ test.describe("GET /files/file/:id/link permissions", () => {
     },
   );
 
-  // BUG XXXXX: user without access should get 403 but server returns 200 with count:0
+  // BUG 81572: user without access should get 403 but server returns 200 with count:0
   test.fail(
-    "BUG XXXXX: GET /files/file/:id/link - User gets 403 for another user's private file",
+    "BUG 81572: GET /files/file/:id/link - User gets 403 for another user's private file",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { api: userApi } = await apiSdk.addAuthenticatedMember(

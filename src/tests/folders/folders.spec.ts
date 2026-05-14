@@ -5168,9 +5168,9 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(data.response!.sharedLink!.primary).toBe(true);
   });
 
-  // BUG XXXXX: title parameter is ignored, server always returns "Shared link"
+  // BUG 81573: title parameter is ignored, server always returns "Shared link"
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/folder/:id/link - Title is reflected in response",
+    "BUG 81573: POST /api/2.0/files/folder/:id/link - Title is reflected in response",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -5239,9 +5239,9 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(data.response!.sharedLink!.password).toBeTruthy();
   });
 
-  // BUG XXXXX: empty body {} returns count:0 with no response instead of creating link with defaults
+  // BUG 81574: empty body {} returns count:0 with no response instead of creating link with defaults
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/folder/:id/link - Empty body creates link with defaults",
+    "BUG 81574: POST /api/2.0/files/folder/:id/link - Empty body creates link with defaults",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -5388,9 +5388,9 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     );
   });
 
-  // BUG XXXXX: archived room should return 403 but server returns 200 with count:0
+  // BUG 81575: archived room should return 403 but server returns 200 with count:0
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/folder/:id/link - Archived room returns 403",
+    "BUG 81575: POST /api/2.0/files/folder/:id/link - Archived room returns 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({

@@ -3221,9 +3221,9 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(data.response!.canRevoke).toBe(false);
   });
 
-  // BUG XXXXX: User with Read access should get 403 but server returns 200 with count:0
+  // BUG 81575: User with Read access should get 403 but server returns 200 with count:0
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/folder/:id/link - User with Read access gets 403",
+    "BUG 81575: POST /api/2.0/files/folder/:id/link - User with Read access gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3253,9 +3253,9 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     },
   );
 
-  // BUG XXXXX: DocSpaceAdmin without room access should get 403 but server returns 200 with count:0
+  // BUG 81575: DocSpaceAdmin without room access should get 403 but server returns 200 with count:0
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/folder/:id/link - DocSpaceAdmin without room access gets 403",
+    "BUG 81575: POST /api/2.0/files/folder/:id/link - DocSpaceAdmin without room access gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3279,9 +3279,9 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     },
   );
 
-  // BUG XXXXX: User with ContentCreator access should get 403 but server returns 200 with count:0
+  // BUG 81575: User with ContentCreator access should get 403 but server returns 200 with count:0
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/folder/:id/link - User with ContentCreator access gets 403",
+    "BUG 81575: POST /api/2.0/files/folder/:id/link - User with ContentCreator access gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3313,9 +3313,9 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     },
   );
 
-  // BUG XXXXX: Guest without room access should get 403 but server returns 200 with count:0
+  // BUG 81575: Guest without room access should get 403 but server returns 200 with count:0
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/folder/:id/link - Guest without room access gets 403",
+    "BUG 81575: POST /api/2.0/files/folder/:id/link - Guest without room access gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
