@@ -6,6 +6,7 @@ import {
   FileShare,
   LinkType,
   SearchArea,
+  RoomDataLifetimePeriod,
 } from "@onlyoffice/docspace-api-sdk";
 import { createAllRoomTypes } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
@@ -98,6 +99,694 @@ test.describe("API rooms methods", () => {
       expect(data.response!.title).toBe("Autotest Virtual Data Room");
       expect(data.response!.roomType).toBe(RoomType.VirtualDataRoom);
       expect(data.response!.id!).toBeGreaterThan(0);
+    });
+
+    test("POST /files/rooms - Minimal payload applies safe defaults", async ({
+      apiSdk,
+    }) => {
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Defaults",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.private).toBe(false);
+      expect(data.response!.indexing).toBe(false);
+      expect(data.response!.denyDownload).toBe(false);
+      expect(data.response!.pinned).toBe(false);
+    });
+
+    test("POST /files/rooms - Created room is accessible via getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data: info, status } = await ownerApi.rooms.getRoomInfo({
+        id: roomId,
+      });
+      expect(status).toBe(200);
+      expect(info.response!.id).toBe(roomId);
+      expect(info.response!.title).toBe(created.response!.title);
+      expect(info.response!.roomType).toBe(created.response!.roomType);
+    });
+
+    test("POST /files/rooms - Multiple rooms with the same title are allowed and have unique IDs", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const title = "Duplicate Title";
+      const r1 = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      const r2 = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      expect(r1.status).toBe(200);
+      expect(r2.status).toBe(200);
+      expect(r1.data.response!.id).not.toBe(r2.data.response!.id);
+      expect(r1.data.response!.title).toBe(title);
+      expect(r2.data.response!.title).toBe(title);
+    });
+
+    test("POST /files/rooms - Multiple rooms have unique IDs", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const ids: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        const { data } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: `Autotest Unique ${i}`,
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        ids.push(data.response!.id!);
+      }
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+  });
+
+  test.describe("POST /files/rooms - title boundaries", () => {
+    test("POST /files/rooms - Long valid title (100 chars) is accepted", async ({
+      apiSdk,
+    }) => {
+      const title = "A".repeat(100);
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(title);
+    });
+
+    test("POST /files/rooms - Unicode title: Cyrillic and CJK preserved, emoji sanitized to underscores", async ({
+      apiSdk,
+    }) => {
+      // Emoji 🎉 is a supplementary-plane character (2 UTF-16 code units),
+      // each unit gets replaced with "_", so 🎉 → "__".
+      const title = "Комната 🎉 测试 ファイル";
+      const expected = "Комната __ 测试 ファイル";
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(expected);
+    });
+
+    test("POST /files/rooms - Special characters in title are sanitized to underscores", async ({
+      apiSdk,
+    }) => {
+      // API replaces ", \, <, > with "_"; & is preserved.
+      const title = `Room "with" \\slashes & <html> tags`;
+      const expected = `Room _with_ _slashes & _html_ tags`;
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(expected);
+    });
+
+    test("POST /files/rooms - SQL-injection-like title is stored without server error", async ({
+      apiSdk,
+    }) => {
+      const title = "'; DROP TABLE rooms; --";
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      expect(status).toBe(200);
+      // Apostrophe, semicolon, dash are not in the forbidden set — stored as-is.
+      expect(data.response!.title).toBe(title);
+    });
+
+    test("POST /files/rooms - XSS payload in title is sanitized (no server error)", async ({
+      apiSdk,
+    }) => {
+      // <, >, /, " are all replaced with "_".
+      const title = `<script>alert("xss")</script>`;
+      const expected = `_script_alert(_xss_)__script_`;
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(expected);
+    });
+
+    test("POST /files/rooms - Mixed RTL/LTR title is preserved", async ({
+      apiSdk,
+    }) => {
+      const title = "Mixed العربية 中文 עברית text";
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(title);
+    });
+  });
+
+  test.describe("POST /files/rooms - optional fields", () => {
+    test("POST /files/rooms - Owner creates a room with custom quota (verified via getRoomInfo)", async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      // Portal must be paid before quota settings can be enabled.
+      await paymentsApi.setupPayment();
+
+      const ownerApi = apiSdk.forRole("owner");
+      const myquota = 10 * 1024 * 1024;
+
+      // Per-room quota must be enabled portal-wide first, otherwise quota in createRoom is ignored.
+      const { data: quotaSettings } =
+        await ownerApi.settingsQuota.saveRoomQuotaSettings({
+          quotaSettingsRequestsDto: {
+            enableQuota: true,
+            defaultQuota: 100 * 1024 * 1024,
+          },
+        });
+      expect(quotaSettings.response?.enableQuota).toBe(true);
+
+      // createRoom response omits quotaLimit even when quota is set; verify via getRoomInfo.
+      const { data: created, status } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Quota",
+          roomType: RoomType.CustomRoom,
+          quota: myquota,
+        },
+      });
+      expect(status).toBe(200);
+      const roomId = created.response!.id!;
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.quotaLimit).toBe(myquota);
+    });
+
+    test("POST /files/rooms - Owner creates a VDR with indexing enabled", async ({
+      apiSdk,
+    }) => {
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Indexing",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.indexing).toBe(true);
+    });
+
+    test("POST /files/rooms - Owner creates a VDR with denyDownload", async ({
+      apiSdk,
+    }) => {
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest DenyDownload",
+          roomType: RoomType.VirtualDataRoom,
+          denyDownload: true,
+        },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.denyDownload).toBe(true);
+    });
+
+    test("POST /files/rooms - Owner creates a VDR with lifetime settings (verified via getRoomInfo)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      // `enabled` is not part of the working request shape — proven by the updateRoom VDR test below.
+      // Setting period+value+deletePermanently is enough to enable lifetime.
+      const lifetime = {
+        period: RoomDataLifetimePeriod.Day,
+        value: 30,
+        deletePermanently: false,
+      };
+      const { data: created, status } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Lifetime",
+          roomType: RoomType.VirtualDataRoom,
+          lifetime,
+        },
+      });
+      expect(status).toBe(200);
+      const roomId = created.response!.id!;
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.lifetime?.period).toBe(RoomDataLifetimePeriod.Day);
+      expect(info.response!.lifetime?.value).toBe(30);
+      expect(info.response!.lifetime?.deletePermanently).toBe(false);
+    });
+
+    test("POST /files/rooms - Owner creates a VDR with watermark", async ({
+      apiSdk,
+    }) => {
+      const watermark = { enabled: true, text: "Confidential", rotate: -45 };
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Watermark",
+          roomType: RoomType.VirtualDataRoom,
+          watermark,
+        },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.watermark?.text).toBe("Confidential");
+    });
+
+    test("POST /files/rooms - Owner creates a room with tags attached", async ({
+      apiSdk,
+    }) => {
+      const tags = ["Autotest Alpha", "Autotest Beta"];
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Tags",
+          roomType: RoomType.CustomRoom,
+          tags,
+        },
+      });
+      expect(status).toBe(200);
+      const returned = (data.response!.tags ?? []) as string[];
+      for (const t of tags) {
+        expect(returned).toContain(t);
+      }
+    });
+
+    test("POST /files/rooms - Tags created during room creation appear in tag list", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const stamp = Date.now();
+      const tags = [`autotest-create-${stamp}-a`, `autotest-create-${stamp}-b`];
+      const { status } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TagsAutoCreate",
+          roomType: RoomType.CustomRoom,
+          tags,
+        },
+      });
+      expect(status).toBe(200);
+
+      const { data: tagList } = await ownerApi.rooms.getRoomTagsInfo();
+      const all = tagList.response as unknown as string[];
+      for (const t of tags) {
+        expect(all).toContain(t);
+      }
+    });
+
+    test("POST /files/rooms - Duplicate tags in request are deduplicated", async ({
+      apiSdk,
+    }) => {
+      const tags = ["autotest-dup", "autotest-dup", "autotest-dup"];
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest DupTags",
+          roomType: RoomType.CustomRoom,
+          tags,
+        },
+      });
+      expect(status).toBe(200);
+      const returned = (data.response!.tags ?? []) as string[];
+      const occurrences = returned.filter((t) => t === "autotest-dup").length;
+      expect(occurrences).toBe(1);
+    });
+
+    test("POST /files/rooms - Owner creates a room with color", async ({
+      apiSdk,
+    }) => {
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Color",
+          roomType: RoomType.CustomRoom,
+          color: "FF5733",
+        },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.logo?.color).toBe("FF5733");
+    });
+
+    test("POST /files/rooms - Owner creates a room with cover", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: covers } = await ownerApi.rooms.getRoomCovers();
+      const coverId = covers.response![0].id!;
+
+      const { data, status } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Cover",
+          roomType: RoomType.CustomRoom,
+          cover: coverId,
+        },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.logo?.cover?.id).toBe(coverId);
+    });
+
+    test.fail(
+      "BUG XXXXX: POST /files/rooms - API silently accepts the undocumented `share` parameter (should reject it, since it is not a real feature)",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: memberData } = await apiSdk.addMember("owner", "User");
+        const userId = memberData.response!.id!;
+
+        const { status } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest ShareOnCreate",
+            roomType: RoomType.CustomRoom,
+            share: [{ shareTo: userId, access: FileShare.Editing }],
+          },
+        });
+
+        // The `share` parameter must not be exposed by createRoom at all
+        // (the field appears in OpenAPI/SDK by mistake — no backing implementation).
+        // Today the server returns 200 and silently ignores share — that is the bug.
+        expect(status).toBe(400);
+      },
+    );
+  });
+
+  test.describe("POST /files/rooms - validation", () => {
+    test("POST /files/rooms - Missing title returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          roomType: RoomType.CustomRoom,
+        } as any,
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Null title returns 400", async ({ apiSdk }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: null,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Empty title returns 400", async ({ apiSdk }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title: "", roomType: RoomType.CustomRoom },
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Whitespace-only title returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title: "   ", roomType: RoomType.CustomRoom },
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Missing roomType returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title: "Autotest" } as any,
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Null roomType returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest",
+          roomType: null,
+        } as any,
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Unknown roomType returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest",
+          roomType: 99999,
+        } as any,
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Excessively long title (1000 chars) returns 400", async ({
+      apiSdk,
+    }) => {
+      const title = "A".repeat(1000);
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Negative quota is rejected or normalized", async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      // Portal must be paid before quota settings can be enabled.
+      await paymentsApi.setupPayment();
+
+      const ownerApi = apiSdk.forRole("owner");
+      const myquota = -100;
+
+      const { data: quotaSettings } =
+        await ownerApi.settingsQuota.saveRoomQuotaSettings({
+          quotaSettingsRequestsDto: {
+            enableQuota: true,
+            defaultQuota: 100 * 1024 * 1024,
+          },
+        });
+      expect(quotaSettings.response?.enableQuota).toBe(true);
+
+      const { data: created, status } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest NegativeQuota",
+          roomType: RoomType.CustomRoom,
+          quota: myquota,
+        },
+      });
+      expect(status).toBe(200);
+      const roomId = created.response!.id!;
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(
+        info.response!.quotaLimit,
+        `Negative quota ${myquota} was accepted; getRoomInfo returned quotaLimit=${info.response!.quotaLimit}`,
+      ).toBeGreaterThanOrEqual(0);
+    });
+
+    test("POST /files/rooms - Invalid lifetime period returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest",
+          roomType: RoomType.VirtualDataRoom,
+          lifetime: { period: 999, value: 10, enabled: true } as any,
+        },
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Invalid color (not hex) returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest",
+          roomType: RoomType.CustomRoom,
+          color: "not-a-color",
+        },
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Non-existent cover ID returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest",
+          roomType: RoomType.CustomRoom,
+          cover: "this-cover-does-not-exist",
+        },
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Invalid tags type (string instead of array) returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest",
+          roomType: RoomType.CustomRoom,
+          tags: "not-an-array",
+        } as any,
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Null tags is treated as no-op", async ({
+      apiSdk,
+    }) => {
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest NullTags",
+          roomType: RoomType.CustomRoom,
+          tags: null,
+        },
+      });
+      expect(status).toBe(200);
+      expect((data.response!.tags ?? []).length).toBe(0);
+    });
+
+    test("POST /files/rooms - Invalid share payload returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest",
+          roomType: RoomType.CustomRoom,
+          share: "broken",
+        } as any,
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Invalid chatSettings returns 400", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest",
+          roomType: RoomType.CustomRoom,
+          chatSettings: "broken",
+        } as any,
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("POST /files/rooms - Unknown extra fields are silently ignored", async ({
+      apiSdk,
+    }) => {
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Extra",
+          roomType: RoomType.CustomRoom,
+          unknownField: "should be ignored",
+          somethingElse: 42,
+        } as any,
+      });
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe("Autotest Extra");
+    });
+  });
+
+  test.describe("POST /files/rooms - edge cases", () => {
+    test("POST /files/rooms - Parallel creation of 5 rooms produces 5 unique IDs", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const results = await Promise.all(
+        Array.from({ length: 5 }, (_, i) =>
+          ownerApi.rooms.createRoom({
+            createRoomRequestDto: {
+              title: `Autotest Parallel ${i}`,
+              roomType: RoomType.CustomRoom,
+            },
+          }),
+        ),
+      );
+      for (const r of results) {
+        expect(r.status).toBe(200);
+      }
+      const ids = results.map((r) => r.data.response!.id!);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    test("POST /files/rooms - Rapid identical requests all succeed and produce unique rooms", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const payload = {
+        title: "Autotest Rapid",
+        roomType: RoomType.CustomRoom,
+      };
+      const ids: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        const { data, status } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: payload,
+        });
+        expect(status).toBe(200);
+        ids.push(data.response!.id!);
+      }
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    test("POST /files/rooms - Large tags array (50 tags) is accepted", async ({
+      apiSdk,
+    }) => {
+      const stamp = Date.now();
+      const tags = Array.from(
+        { length: 50 },
+        (_, i) => `autotest-bulk-${stamp}-${i}`,
+      );
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest LargePayload",
+          roomType: RoomType.CustomRoom,
+          tags,
+        },
+      });
+      expect(status).toBe(200);
+      expect((data.response!.tags ?? []).length).toBeGreaterThanOrEqual(
+        tags.length,
+      );
+    });
+
+    test("POST /files/rooms - Response has expected schema fields", async ({
+      apiSdk,
+    }) => {
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Schema",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      expect(status).toBe(200);
+      const r = data.response!;
+      expect(typeof r.id).toBe("number");
+      expect(typeof r.title).toBe("string");
+      expect(typeof r.roomType).toBe("number");
+      expect(r.created).toBeDefined();
+      expect(r.createdBy).toBeDefined();
+    });
+
+    test("POST /files/rooms - Response does not leak sensitive fields", async ({
+      apiSdk,
+    }) => {
+      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Leak",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const json = JSON.stringify(data);
+      expect(json).not.toMatch(/"password"\s*:/i);
+      expect(json).not.toMatch(/"bearer"\s*:/i);
+      expect(json).not.toMatch(/"connectionstring"\s*:/i);
+      expect(json).not.toMatch(/"secret"\s*:/i);
     });
   });
 

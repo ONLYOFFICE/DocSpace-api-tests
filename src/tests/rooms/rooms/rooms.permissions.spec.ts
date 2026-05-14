@@ -68,6 +68,40 @@ test.describe("POST /files/rooms - access control", () => {
       "You don't have enough permission to create",
     );
   });
+
+  test("Unauthenticated request returns 401", async ({ apiSdk }) => {
+    const { status } = await apiSdk.forAnonymous().rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Anonymous",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("Disabled (terminated) user cannot create a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Disabled",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    expect(status).toBe(401);
+  });
 });
 
 test.describe("PUT /files/rooms/:id - access control", () => {
