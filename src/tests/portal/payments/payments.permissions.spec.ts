@@ -1627,23 +1627,24 @@ test.describe("POST /api/2.0/portal/payment/request - string length validation",
 });
 
 test.describe("POST /api/2.0/portal/payment/request - empty field validation", () => {
-  test.fail(
-    "BUG 81525: POST /api/2.0/portal/payment/request - Owner cannot send request with empty userName",
-    async ({ apiSdk }) => {
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .payment.sendPaymentRequest({
-          salesRequestsDto: {
-            userName: "",
-            email: "nct@email.com",
-            message: "autoTest",
-          },
-        });
+  test("BUG 81525: POST /api/2.0/portal/payment/request - Owner cannot send request with empty userName", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.sendPaymentRequest({
+        salesRequestsDto: {
+          userName: "",
+          email: "nct@email.com",
+          message: "autoTest",
+        },
+      });
 
-      expect(status).toBe(400);
-      expect((data as any).error?.message).toBe("Incorrect user name");
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBe(
+      "Incorrect firstname or lastname",
+    );
+  });
 
   test("POST /api/2.0/portal/payment/request - Owner cannot send request with empty email", async ({
     apiSdk,
