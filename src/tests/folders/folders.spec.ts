@@ -4874,3 +4874,238 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
     expect(response.fileExst).toBe(".md");
   });
 });
+
+test.describe("POST /api/2.0/files/@my/insert - Insert file to My Documents", () => {
+  test("POST /api/2.0/files/@my/insert - Owner inserts a file to My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const file = new File(
+      [new Uint8Array(Buffer.from("Autotest insert content"))],
+      "autotest-insert-my.txt",
+      { type: "text/plain" },
+    );
+
+    const { data, status } = await ownerApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my.txt",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/@my/insert - folderId in response matches My Documents folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder();
+    const myFolderId = myFolderData.response!.current!.id!;
+
+    const file = new File(
+      [new Uint8Array(Buffer.from("folder id check"))],
+      "autotest-insert-my-folderid.txt",
+      { type: "text/plain" },
+    );
+
+    const { data, status } = await ownerApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-folderid.txt",
+    });
+
+    const response = data.response as any;
+
+    expect(status).toBe(200);
+    expect(response.folderId).toBe(myFolderId);
+  });
+
+  test("POST /api/2.0/files/@my/insert - Response contains correct title, fileExst and pureContentLength", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const content = Buffer.from("response fields check");
+    const fileName = "autotest-insert-my-fields.txt";
+    const file = new File([new Uint8Array(content)], fileName, {
+      type: "text/plain",
+    });
+
+    const { data, status } = await ownerApi.folders.insertFileToMyFromBody({
+      file,
+      title: fileName,
+    });
+
+    const response = data.response as any;
+
+    expect(status).toBe(200);
+    expect(response.title).toBe(fileName);
+    expect(response.fileExst).toBe(".txt");
+    expect(response.pureContentLength).toBe(content.length);
+  });
+
+  test("POST /api/2.0/files/@my/insert - Title parameter overrides filename", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const file = new File(
+      [new Uint8Array(Buffer.from("title override check"))],
+      "original-name.txt",
+      { type: "text/plain" },
+    );
+
+    const { data, status } = await ownerApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-title-override.txt",
+    });
+
+    const response = data.response as any;
+
+    expect(status).toBe(200);
+    expect(response.title).toBe("autotest-insert-my-title-override.txt");
+  });
+
+  test("POST /api/2.0/files/@my/insert - Inserted file appears in My Documents listing", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const fileName = "autotest-insert-my-listing.txt";
+    const file = new File(
+      [new Uint8Array(Buffer.from("listing check"))],
+      fileName,
+      { type: "text/plain" },
+    );
+
+    await ownerApi.folders.insertFileToMyFromBody({ file, title: fileName });
+
+    const { data: myFolderData } = await ownerApi.folders.getMyFolder();
+    const myFolderId = myFolderData.response!.current!.id!;
+    const { data: folderData, status } =
+      await ownerApi.folders.getFolderByFolderId({ folderId: myFolderId });
+
+    const files = (folderData.response as any)?.files as any[];
+
+    expect(status).toBe(200);
+    expect(files.some((f: any) => f.title === fileName)).toBe(true);
+  });
+
+  test("POST /api/2.0/files/@my/insert - createNewIfExist=false overwrites existing file keeping same ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const fileName = "autotest-insert-my-overwrite.txt";
+
+    const { data: data1 } = await ownerApi.folders.insertFileToMyFromBody({
+      file: new File([new Uint8Array(Buffer.from("original"))], fileName, {
+        type: "text/plain",
+      }),
+      title: fileName,
+    });
+    const firstId = (data1.response as any)?.id;
+    const firstVersion = (data1.response as any)?.version;
+
+    const { data: data2, status } =
+      await ownerApi.folders.insertFileToMyFromBody({
+        file: new File([new Uint8Array(Buffer.from("updated"))], fileName, {
+          type: "text/plain",
+        }),
+        title: fileName,
+        createNewIfExist: false,
+      });
+    const secondId = (data2.response as any)?.id;
+    const secondVersion = (data2.response as any)?.version;
+
+    expect(status).toBe(200);
+    expect(secondId).toBe(firstId);
+    expect(secondVersion).toBeGreaterThan(firstVersion);
+  });
+
+  test("POST /api/2.0/files/@my/insert - createNewIfExist=true creates a new file with different ID", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const fileName = "autotest-insert-my-duplicate.txt";
+
+    const { data: data1 } = await ownerApi.folders.insertFileToMyFromBody({
+      file: new File([new Uint8Array(Buffer.from("first"))], fileName, {
+        type: "text/plain",
+      }),
+      title: fileName,
+    });
+    const firstId = (data1.response as any)?.id;
+
+    const { data: data2, status } =
+      await ownerApi.folders.insertFileToMyFromBody({
+        file: new File([new Uint8Array(Buffer.from("second"))], fileName, {
+          type: "text/plain",
+        }),
+        title: fileName,
+        createNewIfExist: true,
+      });
+    const secondId = (data2.response as any)?.id;
+
+    expect(status).toBe(200);
+    expect(secondId).not.toBe(firstId);
+  });
+
+  test("POST /api/2.0/files/@my/insert - Empty file (0 bytes) returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const file = new File(
+      [new Uint8Array(Buffer.alloc(0))],
+      "autotest-insert-my-empty.txt",
+      { type: "text/plain" },
+    );
+
+    const { data, status } = await ownerApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-empty.txt",
+    });
+
+    const response = data.response as any;
+
+    expect(status).toBe(200);
+    expect(response.contentLength).toBe("0 bytes");
+  });
+
+  test("POST /api/2.0/files/@my/insert - No file in request body returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.folders.insertFileToMyFromBody({});
+
+    expect(status).toBe(400);
+  });
+
+  test("POST /api/2.0/files/@my/insert - Insert .docx file returns correct fileExst", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const file = new File(
+      [new Uint8Array(Buffer.from("docx content"))],
+      "autotest-insert-my-format.docx",
+      {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      },
+    );
+
+    const { data, status } = await ownerApi.folders.insertFileToMyFromBody({
+      file,
+      title: "autotest-insert-my-format.docx",
+    });
+
+    const response = data.response as any;
+
+    expect(status).toBe(200);
+    expect(response.fileExst).toBe(".docx");
+  });
+});
