@@ -375,7 +375,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
-        invitations: [{ id: userId, access: FileShare.ReadWrite }],
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
         notify: false,
       },
     });
@@ -603,7 +603,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
     await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
-        invitations: [{ id: userId, access: FileShare.ReadWrite }],
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
         notify: false,
       },
     });
@@ -984,7 +984,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
     await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
-        invitations: [{ id: userId, access: FileShare.ReadWrite }],
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
         notify: false,
       },
     });
@@ -1187,7 +1187,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
     expect(status).toBe(401);
   });
 
-  test("PUT /files/file/:fileId/lock - Room manager cannot unlock a file locked by another user", async ({
+  test("PUT /files/file/:fileId/lock - Room manager can unlock a file locked by another user", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1208,7 +1208,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
       id: roomId,
       roomInvitationRequest: {
         invitations: [
-          { id: userId, access: FileShare.ReadWrite },
+          { id: userId, access: FileShare.ContentCreator },
           { id: managerId, access: FileShare.RoomManager },
         ],
         notify: false,
@@ -1237,13 +1237,11 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
       lockFileParameters: { lockFile: false },
     });
 
-    expect(status).toBe(403);
-    expect((data as any).error?.message).toBe(
-      "You do not have enough permissions to edit the file",
-    );
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(fileId);
   });
 
-  test("PUT /files/file/:fileId/lock - File creator can unlock their own file locked by portal owner", async ({
+  test("PUT /files/file/:fileId/lock - File creator cannot unlock their own file locked by portal owner", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1261,7 +1259,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
     await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
-        invitations: [{ id: userId, access: FileShare.ReadWrite }],
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
         notify: false,
       },
     });
@@ -1277,14 +1275,12 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
       lockFileParameters: { lockFile: true },
     });
 
-    const { data, status } = await userApi.files.lockFile({
+    const { status } = await userApi.files.lockFile({
       fileId,
       lockFileParameters: { lockFile: false },
     });
 
-    expect(status).toBe(200);
-    expect(data.response?.id).toBe(fileId);
-    expect(data.response?.locked).toBeFalsy();
+    expect(status).toBe(403);
   });
 });
 
@@ -2517,49 +2513,49 @@ test.describe("GET /files/file/:id/link permissions", () => {
     expect(data.response!.sharedLink!.shareLink).toBeTruthy();
   });
 
-  test("GET /files/file/:id/link - Unauthenticated user gets 200 with empty response", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+  // BUG 81571: unauthenticated user should get 401 but server returns 200 with count:0
+  test.fail(
+    "BUG 81571: GET /files/file/:id/link - Unauthenticated user gets 401",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest External Link Anon" },
-    });
-    const fileId = fileData.response!.id!;
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest External Link Anon" },
+      });
+      const fileId = fileData.response!.id!;
 
-    const { data, status } = await apiSdk
-      .forAnonymous()
-      .files.getFilePrimaryExternalLink({ id: fileId });
+      const { status } = await apiSdk
+        .forAnonymous()
+        .files.getFilePrimaryExternalLink({ id: fileId });
 
-    expect(status).toBe(200);
-    expect(data.count).toBe(0);
-    expect(data.response).toBeUndefined();
-  });
+      expect(status).toBe(401);
+    },
+  );
 
-  test("GET /files/file/:id/link - User gets 200 with empty response for another user's private file", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const { api: userApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
+  // BUG 81572: user without access should get 403 but server returns 200 with count:0
+  test.fail(
+    "BUG 81572: GET /files/file/:id/link - User gets 403 for another user's private file",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
 
-    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
-        title: "Autotest External Link Other User Private",
-      },
-    });
-    const fileId = fileData.response!.id!;
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: {
+          title: "Autotest External Link Other User Private",
+        },
+      });
+      const fileId = fileData.response!.id!;
 
-    const { data, status } = await userApi.files.getFilePrimaryExternalLink({
-      id: fileId,
-    });
+      const { status } = await userApi.files.getFilePrimaryExternalLink({
+        id: fileId,
+      });
 
-    expect(status).toBe(200);
-    expect(data.count).toBe(0);
-    expect(data.response).toBeUndefined();
-  });
+      expect(status).toBe(403);
+    },
+  );
 });
 
 test.describe("GET /files/file/:id/links permissions", () => {
@@ -4957,7 +4953,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
       },
     });
 
-    const { data: fileData } = await userApi.files.createFile({
+    const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
       createFileJsonElement: { title: "Autotest BulkOrder User File" },
     });
