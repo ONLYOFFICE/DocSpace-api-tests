@@ -1062,52 +1062,47 @@ test.describe("GET /api/2.0/files/folder/:folderId - Get folder information", ()
     expect(data.response!.roomType).toBe(RoomType.CustomRoom);
   });
 
-  // BUG 81459: GET /api/2.0/files/folder/:folderId returns 403 instead of 404 when folder is not found
-  // (non-existent or deleted). Actual response: { "error": { "message": "The required folder was not found",
-  // "type": "System.InvalidOperationException" }, "statusCode": 403 }
-  test.fail(
-    "BUG 81459: GET /api/2.0/files/folder/:folderId - Non-existent folderId returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81459: GET /api/2.0/files/folder/:folderId - Non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.folders.getFolderInfo({
-        folderId: 999999999,
-      });
+    const { status } = await ownerApi.folders.getFolderInfo({
+      folderId: 999999999,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
-  test.fail(
-    "BUG 81459: GET /api/2.0/files/folder/:folderId - Deleted folder returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 81459: GET /api/2.0/files/folder/:folderId - Deleted folder returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Folder For Info After Delete" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder For Info After Delete" },
+    });
+    const folderId = folderData.response!.id!;
 
-      await ownerApi.folders.deleteFolder({
+    await ownerApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
+
+    await expect(async () => {
+      const { status } = await ownerApi.folders.getFolderByFolderId({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
       });
+      expect(status).not.toBe(200);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
-      await expect(async () => {
-        const { status } = await ownerApi.folders.getFolderByFolderId({
-          folderId,
-        });
-        expect(status).not.toBe(200);
-      }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+    const { status } = await ownerApi.folders.getFolderInfo({ folderId });
 
-      const { status } = await ownerApi.folders.getFolderInfo({ folderId });
-
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   test("GET /api/2.0/files/folder/:folderId - My Documents virtual folder returns 200", async ({
     apiSdk,
@@ -1420,51 +1415,45 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - Get subfolders", () => 
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // BUG : GET /api/2.0/files/:folderId/subfolders returns 403 instead of 404 when folder is not found
-  // (non-existent or deleted). Actual response: { "error": { "message": "Object reference not set to an
-  // instance of an object.", "type": "System.InvalidOperationException", "hresult": -2146233079 },
-  // "status": 1, "statusCode": 403 }
-  test.fail(
-    "BUG 81464: GET /api/2.0/files/:folderId/subfolders - Non-existent folderId returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81464: GET /api/2.0/files/:folderId/subfolders - Non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.folders.getFolders({
-        folderId: 999999999,
-      });
+    const { status } = await ownerApi.folders.getFolders({
+      folderId: 999999999,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
-  test.fail(
-    "BUG 81464: GET /api/2.0/files/:folderId/subfolders - Deleted folder returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Folder For Subfolders After Delete" },
-      });
-      const folderId = folderData.response!.id!;
+  test("BUG 81464: GET /api/2.0/files/:folderId/subfolders - Deleted folder returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder For Subfolders After Delete" },
+    });
+    const folderId = folderData.response!.id!;
 
-      await ownerApi.folders.deleteFolder({
+    await ownerApi.folders.deleteFolder({
+      folderId,
+      deleteFolder: { deleteAfter: true, immediately: true },
+    });
+    await expect(async () => {
+      const { status } = await ownerApi.folders.getFolderByFolderId({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
       });
-      await expect(async () => {
-        const { status } = await ownerApi.folders.getFolderByFolderId({
-          folderId,
-        });
-        expect(status).not.toBe(200);
-      }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+      expect(status).not.toBe(200);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
-      const { status } = await ownerApi.folders.getFolders({ folderId });
+    const { status } = await ownerApi.folders.getFolders({ folderId });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   test("GET /api/2.0/files/:folderId/subfolders - Subfolder in Custom Room returns 200", async ({
     apiSdk,
@@ -2277,20 +2266,17 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () =
     expect(titles).toContain(recentFolderTitle);
   });
 
-  // BUG 81483: GET /api/2.0/files/folder/:folderId/path returns 403 instead of 404 when folder is not found.
-  // Actual response: { "statusCode": 403 }. Same pattern as BUG 81459 and BUG 81464.
-  test.fail(
-    "BUG 81483: GET /api/2.0/files/folder/:folderId/path - Non-existent folderId returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81483: GET /api/2.0/files/folder/:folderId/path - Non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.folders.getFolderPath({
-        folderId: 999999999,
-      });
+    const { status } = await ownerApi.folders.getFolderPath({
+      folderId: 999999999,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 });
 
 test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type", () => {
@@ -3195,21 +3181,19 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
     },
   );
 
-  // BUG 81508: PUT /api/2.0/files/folder/:folderId - non-existent folderId returns 403 instead of 404
-  test.fail(
-    "BUG 81508: PUT /api/2.0/files/folder/:folderId - non-existent folderId returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const nonExistentFolderId = 999999999;
+  test("BUG 81508: PUT /api/2.0/files/folder/:folderId - non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const nonExistentFolderId = 999999999;
 
-      const { status } = await ownerApi.folders.renameFolder({
-        folderId: nonExistentFolderId,
-        createFolder: { title: "Autotest Rename Non-Existent Folder" },
-      });
+    const { status } = await ownerApi.folders.renameFolder({
+      folderId: nonExistentFolderId,
+      createFolder: { title: "Autotest Rename Non-Existent Folder" },
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   // BUG 81507: PUT /api/2.0/files/folder/:folderId - empty string title accepted, returns 200 instead of 400
   test.fail(
@@ -3234,20 +3218,18 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
     },
   );
 
-  // BUG 81508: PUT /api/2.0/files/folder/:folderId - folderId 0 returns 403 instead of 400 or 404
-  test.fail(
-    "BUG 81508:PUT /api/2.0/files/folder/:folderId - folderId 0 returns 404 or 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81508:PUT /api/2.0/files/folder/:folderId - folderId 0 returns 404 or 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.folders.renameFolder({
-        folderId: 0,
-        createFolder: { title: "Autotest Rename FolderId Zero" },
-      });
+    const { status } = await ownerApi.folders.renameFolder({
+      folderId: 0,
+      createFolder: { title: "Autotest Rename FolderId Zero" },
+    });
 
-      expect([400, 404]).toContain(status);
-    },
-  );
+    expect([400, 404]).toContain(status);
+  });
 });
 
 test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => {
@@ -3659,33 +3641,29 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // BUG 81519: GET /api/2.0/files/:folderId/news - non-existent folderId returns 403 instead of 404
-  test.fail(
-    "BUG 81519: GET /api/2.0/files/:folderId/news - non-existent folderId returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81519: GET /api/2.0/files/:folderId/news - non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.folders.getNewFolderItems({
-        folderId: 999999999,
-      });
+    const { status } = await ownerApi.folders.getNewFolderItems({
+      folderId: 999999999,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
-  // BUG 81519: GET /api/2.0/files/:folderId/news - folderId 0 returns 403 instead of 400 or 404
-  test.fail(
-    "BUG 81519: GET /api/2.0/files/:folderId/news - folderId 0 returns 404 or 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81519: GET /api/2.0/files/:folderId/news - folderId 0 returns 404 or 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.folders.getNewFolderItems({
-        folderId: 0,
-      });
+    const { status } = await ownerApi.folders.getNewFolderItems({
+      folderId: 0,
+    });
 
-      expect([400, 404]).toContain(status);
-    },
-  );
+    expect([400, 404]).toContain(status);
+  });
 });
 
 test.describe("POST /api/2.0/files/{folderId}/upload - Upload file", () => {

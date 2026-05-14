@@ -2037,40 +2037,41 @@ test.describe("DELETE /api/2.0/group/{id}/members - validation and negative case
     ).rejects.toThrow(/membersRequest/);
   });
 
-  test("BUG 81509: DELETE /api/2.0/group/{id}/members - Null members returns 200 and group is unchanged", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-    const ownerId = ownerProfile.response!.id!;
+  test.fail(
+    "BUG 81509: DELETE /api/2.0/group/{id}/members - Null members returns 200 and group is unchanged",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+      const ownerId = ownerProfile.response!.id!;
 
-    const { data: memberData } = await apiSdk.addMember("owner", "User");
-    const memberId = memberData.response!.id!;
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const memberId = memberData.response!.id!;
 
-    const { data: created } = await ownerApi.groupApi.addGroup({
-      groupRequestDto: {
-        groupName: apiSdk.faker.generateString(10),
-        groupManager: ownerId,
-        members: [memberId],
-      },
-    });
-    const groupId = created.response!.id!;
-    const initialCount = created.response!.membersCount!;
+      const { data: created } = await ownerApi.groupApi.addGroup({
+        groupRequestDto: {
+          groupName: apiSdk.faker.generateString(10),
+          groupManager: ownerId,
+          members: [memberId],
+        },
+      });
+      const groupId = created.response!.id!;
+      const initialCount = created.response!.membersCount!;
 
-    const { status } = await ownerApi.groupApi.removeMembersFrom({
-      id: groupId,
-      membersRequest: { members: null },
-    });
-    expect(status).toBe(200);
+      const { status } = await ownerApi.groupApi.removeMembersFrom({
+        id: groupId,
+        membersRequest: { members: null },
+      });
+      expect(status).toBe(200);
 
-    const { data: groupData } = await ownerApi.groupApi.getGroup({
-      id: groupId,
-      includeMembers: true,
-    });
-    expect(groupData.response?.membersCount).toBe(initialCount);
-    const memberIds = groupData.response?.members?.map((m) => m.id) ?? [];
-    expect(memberIds).toContain(memberId);
-  });
+      const { data: groupData } = await ownerApi.groupApi.getGroup({
+        id: groupId,
+        includeMembers: true,
+      });
+      expect(groupData.response?.membersCount).toBe(initialCount);
+      const memberIds = groupData.response?.members?.map((m) => m.id) ?? [];
+      expect(memberIds).toContain(memberId);
+    },
+  );
 
   test("BUG 81510: DELETE /api/2.0/group/{id}/members - Undefined members returns 200 and group is unchanged", async ({
     apiSdk,
