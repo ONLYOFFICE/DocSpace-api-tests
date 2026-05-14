@@ -327,7 +327,7 @@ test.describe("Portal — Invitation Links", () => {
     // but currently it silently returns 200 with a link that downgrades the role to User.
 
     test.fail(
-      "BUG : GET /api/2.0/users/invitationlink/:employeeType - API should reject DocSpaceAdmin invitation when paid user quota is reached on Startup plan",
+      "BUG 81564: GET /api/2.0/users/invitationlink/:employeeType - API should reject DocSpaceAdmin invitation when paid user quota is reached on Startup plan",
       async ({ apiSdk }) => {
         // Fill the paid-user quota: Owner (1) + 2 DocSpaceAdmins = 3 (Startup limit)
         await apiSdk.addMember("owner", "DocSpaceAdmin");
@@ -352,7 +352,7 @@ test.describe("Portal — Invitation Links", () => {
     );
 
     test.fail(
-      "BUG : GET /api/2.0/users/invitationlink/:employeeType - API should reject RoomAdmin invitation when paid user quota is reached on Startup plan",
+      "BUG 81564: GET /api/2.0/users/invitationlink/:employeeType - API should reject RoomAdmin invitation when paid user quota is reached on Startup plan",
       async ({ apiSdk }) => {
         // Fill the paid-user quota: Owner (1) + 1 DocSpaceAdmin + 1 RoomAdmin = 3 (Startup limit)
         await apiSdk.addMember("owner", "DocSpaceAdmin");
