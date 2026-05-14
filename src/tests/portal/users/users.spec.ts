@@ -319,6 +319,63 @@ test.describe("Portal — Invitation Links", () => {
     });
   });
 
+  test.describe("GET /api/2.0/users/invitationlink/:employeeType - quota enforcement on Startup plan", () => {
+    // On the Startup (free) plan the limit of paid users (DocSpaceAdmin + RoomAdmin) is 2.
+    // Together with the Owner (who always counts as a paid seat) the total is 3.
+    // When this limit is reached the UI shows a "upgrade your plan" banner and blocks inviting
+    // paid roles. The API should behave the same way and return a quota error,
+    // but currently it silently returns 200 with a link that downgrades the role to User.
+
+    test.fail(
+      "BUG : GET /api/2.0/users/invitationlink/:employeeType - API should reject DocSpaceAdmin invitation when paid user quota is reached on Startup plan",
+      async ({ apiSdk }) => {
+        // Fill the paid-user quota: Owner (1) + 2 DocSpaceAdmins = 3 (Startup limit)
+        await apiSdk.addMember("owner", "DocSpaceAdmin");
+        await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+        const ownerApi = apiSdk.forRole("owner");
+        await ownerApi.users.createInvitationLink({
+          invitationLinkCreateRequestDto: {
+            employeeType: EmployeeType.DocSpaceAdmin,
+          },
+        });
+
+        const { data, status } =
+          await ownerApi.users.getInvitationLinkByEmployeeType({
+            employeeType: EmployeeType.DocSpaceAdmin,
+          });
+
+        // Should return a quota/payment error, not silently downgrade to User
+        expect(status).toBe(402);
+        expect(data.response).toBeUndefined();
+      },
+    );
+
+    test.fail(
+      "BUG : GET /api/2.0/users/invitationlink/:employeeType - API should reject RoomAdmin invitation when paid user quota is reached on Startup plan",
+      async ({ apiSdk }) => {
+        // Fill the paid-user quota: Owner (1) + 1 DocSpaceAdmin + 1 RoomAdmin = 3 (Startup limit)
+        await apiSdk.addMember("owner", "DocSpaceAdmin");
+        await apiSdk.addMember("owner", "RoomAdmin");
+
+        const ownerApi = apiSdk.forRole("owner");
+        await ownerApi.users.createInvitationLink({
+          invitationLinkCreateRequestDto: {
+            employeeType: EmployeeType.RoomAdmin,
+          },
+        });
+
+        const { data, status } =
+          await ownerApi.users.getInvitationLinkByEmployeeType({
+            employeeType: EmployeeType.RoomAdmin,
+          });
+
+        expect(status).toBe(402);
+        expect(data.response).toBeUndefined();
+      },
+    );
+  });
+
   // @deprecated — use getInvitationLinkByEmployeeType instead; returns StringWrapper (plain URL string) instead of InvitationLinkWrapper
   test.describe("GET /api/2.0/portal/users/invite/:employeeType - Get an invitation link (deprecated)", () => {
     test("GET /api/2.0/portal/users/invite/:employeeType - Owner gets invitation link for User", async ({
