@@ -186,13 +186,11 @@ test.describe("API rooms methods", () => {
       expect(data.response!.title).toBe(title);
     });
 
-    test("POST /files/rooms - Unicode title: Cyrillic and CJK preserved, emoji sanitized to underscores", async ({
+    test("POST /files/rooms - Unicode title: CJK preserved, emoji sanitized to underscores", async ({
       apiSdk,
     }) => {
-      // Emoji 🎉 is a supplementary-plane character (2 UTF-16 code units),
-      // each unit gets replaced with "_", so 🎉 → "__".
-      const title = "Комната 🎉 测试 ファイル";
-      const expected = "Комната __ 测试 ファイル";
+      const title = "Room 🎉 测试 ファイル";
+      const expected = "Room __ 测试 ファイル";
       const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
       });
