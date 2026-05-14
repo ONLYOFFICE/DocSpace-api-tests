@@ -466,51 +466,45 @@ test.describe("PUT /files/rooms/:id/archive - access control", () => {
     expect(status).toBe(401);
   });
 
-  // Other room endpoints return 403 for non-existent room IDs to prevent ID
-  // enumeration, but archiveRoom currently leaks existence by returning 404.
-  test.fail(
-    "BUG 81550: PUT /files/rooms/:id/archive - non-existent room returns 404 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81550: PUT /files/rooms/:id/archive - non-existent room returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data } = await ownerApi.rooms.archiveRoom({
-        id: 999999999,
-        archiveRoomRequest: { deleteAfter: false },
-      });
+    const { data } = await ownerApi.rooms.archiveRoom({
+      id: 999999999,
+      archiveRoomRequest: { deleteAfter: false },
+    });
 
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    expect(data.statusCode).toBe(404);
+  });
 
-  // Other room endpoints return 403 for deleted rooms to prevent ID enumeration,
-  // but archiveRoom currently leaks existence by returning 404.
-  test.fail(
-    "BUG 81550: PUT /files/rooms/:id/archive - deleted room returns 404 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: createData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room To Delete Then Archive",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = createData.response!.id!;
+  test("BUG 81550: PUT /files/rooms/:id/archive - deleted room returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room To Delete Then Archive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
 
-      await ownerApi.rooms.deleteRoom({
-        id: roomId,
-        deleteRoomRequest: { deleteAfter: false },
-      });
-      const deleteOp = await waitForOperation(ownerApi.operations);
-      expect(deleteOp.finished).toBe(true);
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const deleteOp = await waitForOperation(ownerApi.operations);
+    expect(deleteOp.finished).toBe(true);
 
-      const { data } = await ownerApi.rooms.archiveRoom({
-        id: roomId,
-        archiveRoomRequest: { deleteAfter: false },
-      });
+    const { data } = await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
 
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    expect(data.statusCode).toBe(404);
+  });
 
   test("Archiving an already archived room is idempotent", async ({
     apiSdk,

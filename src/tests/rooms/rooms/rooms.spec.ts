@@ -501,34 +501,31 @@ test.describe("API rooms methods", () => {
       });
     });
 
-    // Other write operations on archived rooms are correctly rejected with 403,
-    // but createFile currently allows file creation inside an archived room.
-    test.fail(
-      "BUG 81551: POST /files/{folderId}/file - createFile in archived room returns 200 instead of 403",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Archive ReadOnly Room For createFile",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = roomData.response!.id!;
+    test("BUG 81551: POST /files/{folderId}/file - createFile in archived room returns 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive ReadOnly Room For createFile",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        await ownerApi.rooms.archiveRoom({
-          id: roomId,
-          archiveRoomRequest: { deleteAfter: false },
-        });
-        await waitForOperation(ownerApi.operations);
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
 
-        const { status } = await ownerApi.files.createFile({
-          folderId: roomId,
-          createFileJsonElement: { title: "Autotest File In Archive" },
-        });
+      const { status } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest File In Archive" },
+      });
 
-        expect(status).toBe(403);
-      },
-    );
+      expect(status).toBe(403);
+    });
 
     test("PUT /files/rooms/:id/archive - Metadata (title, roomType, tags) is preserved through archive → unarchive", async ({
       apiSdk,
