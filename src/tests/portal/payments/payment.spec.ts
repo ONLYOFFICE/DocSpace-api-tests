@@ -3,7 +3,7 @@ import { expect } from "@playwright/test";
 import { TenantWalletService } from "@onlyoffice/docspace-api-sdk";
 import {
   topUpDeposit,
-  buyWalletService,
+  creditAiBalance,
   enableWalletService,
   disableWalletService,
 } from "@/src/helpers/wallet-services";
@@ -58,29 +58,19 @@ test.describe("PUT /api/2.0/portal/payment/url", () => {
   });
 });
 
-// buyWalletService for "backup" is not tested directly.
-// Unlike "storage" and "ai-tools" (manual purchase), backup is charged automatically by the system:
-// paid portals include 2 free backups, and on the 3rd execution the system calls buyWalletService
-// and deducts funds from the wallet. Automating this would require running 3 real backups,
-// which is too slow and brittle for a unit-level API test.
-test.describe("POST /api/2.0/portal/payment/buywalletservice", () => {
-  test("POST /api/2.0/portal/payment/buywalletservice - Owner buys ai-tools service", async ({
+test.describe("POST /api/2.0/portal/payment/creditaibalance", () => {
+  test("POST /api/2.0/portal/payment/creditaibalance - Owner credits AI balance", async ({
     apiSdk,
     paymentsApi,
   }) => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    const { data, status } = await buyWalletService(
-      ownerApi.payment,
-      "aiTools",
-      10,
-    );
+    const { data, status } = await creditAiBalance(ownerApi.payment, 10);
     expect(status).toBe(200);
     expect(data.response?.operationId).toBeDefined();
     expect(data.response?.amount).toBeDefined();
     expect(data.response?.currency).toBe("USD");
-    expect(data.response?.quantity).toBe(10);
   });
 });
 
@@ -350,7 +340,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await buyWalletService(ownerApi.payment, "aiTools", 10);
+    await creditAiBalance(ownerApi.payment, 10);
     await enableWalletService(ownerApi.payment, "aiTools");
 
     const { data, status } =
@@ -429,7 +419,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await buyWalletService(ownerApi.payment, "aiTools", 10);
+    await creditAiBalance(ownerApi.payment, 10);
     await enableWalletService(ownerApi.payment, "aiTools");
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
@@ -516,7 +506,7 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await buyWalletService(ownerApi.payment, "aiTools", 10);
+    await creditAiBalance(ownerApi.payment, 10);
     await enableWalletService(ownerApi.payment, "aiTools");
     await ownerApi.payment.createCustomerOperationsReport({
       customerOperationsReportRequestDto: {
@@ -548,7 +538,7 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await buyWalletService(ownerApi.payment, "aiTools", 10);
+    await creditAiBalance(ownerApi.payment, 10);
     await enableWalletService(ownerApi.payment, "aiTools");
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
@@ -717,19 +707,17 @@ test.describe("GET /api/2.0/portal/payment/account", () => {
   });
 });
 
-test.describe("GET /api/2.0/portal/payment/customer/servicequota", () => {
-  test("GET /api/2.0/portal/payment/customer/servicequota - Owner gets service quota for ai-tools", async ({
+test.describe("GET /api/2.0/portal/payment/customer/aibalance", () => {
+  test("GET /api/2.0/portal/payment/customer/aibalance - Owner gets AI balance", async ({
     apiSdk,
     paymentsApi,
   }) => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await buyWalletService(ownerApi.payment, "aiTools", 10);
+    await creditAiBalance(ownerApi.payment, 10);
 
-    const { data, status } = await ownerApi.payment.getCustomerServiceQuota({
-      serviceName: "ai-tools",
-    });
+    const { data, status } = await ownerApi.payment.getCustomerAiBalance({});
 
     expect(status).toBe(200);
     expect(data.response?.accountNumber).toBeDefined();
@@ -743,21 +731,19 @@ test.describe("GET /api/2.0/portal/payment/customer/servicequota", () => {
     expect(data.response?.lastCredit?.amount).toBe(10);
   });
 
-  test("GET /api/2.0/portal/payment/customer/servicequota - DocSpaceAdmin gets service quota for ai-tools", async ({
+  test("GET /api/2.0/portal/payment/customer/aibalance - DocSpaceAdmin gets AI balance", async ({
     apiSdk,
     paymentsApi,
   }) => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await buyWalletService(ownerApi.payment, "aiTools", 10);
+    await creditAiBalance(ownerApi.payment, 10);
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
-      .payment.getCustomerServiceQuota({
-        serviceName: "ai-tools",
-      });
+      .payment.getCustomerAiBalance({});
 
     expect(status).toBe(200);
     expect(data.response?.accountNumber).toBeDefined();
@@ -975,7 +961,12 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await topUpDeposit(ownerApi.payment, 1000);
-    await buyWalletService(ownerApi.payment, "storage", 100);
+    await ownerApi.payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
     await enableWalletService(ownerApi.payment, "storage");
     await disableWalletService(ownerApi.payment, "storage");
     await enableWalletService(ownerApi.payment, "storage");

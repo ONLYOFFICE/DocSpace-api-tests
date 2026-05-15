@@ -17,7 +17,10 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().payment.getPaymentUrl({
-      paymentUrlRequestDto: { quantity: { admin: 1 } },
+      paymentUrlRequestDto: {
+        backUrl: "https://example.com",
+        quantity: { admin: 1 },
+      },
     });
 
     expect(status).toBe(401);
@@ -162,18 +165,18 @@ test.describe("PUT /api/2.0/portal/payment/url - backUrl validation", () => {
   });
 });
 
-test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () => {
-  test("POST /api/2.0/portal/payment/buywalletservice - Anonymous cannot buy wallet service", async ({
+test.describe("POST /api/2.0/portal/payment/creditaibalance - permissions", () => {
+  test("POST /api/2.0/portal/payment/creditaibalance - Anonymous cannot credit AI balance", async ({
     apiSdk,
   }) => {
-    const { status } = await apiSdk.forAnonymous().payment.buyWalletService({
-      buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
+    const { status } = await apiSdk.forAnonymous().payment.creditAiBalance({
+      creditAiBalanceRequestDto: { amount: 10 },
     });
 
     expect(status).toBe(401);
   });
 
-  test("BUG 81442: POST /api/2.0/portal/payment/buywalletservice - RoomAdmin cannot buy wallet service", async ({
+  test("POST /api/2.0/portal/payment/creditaibalance - RoomAdmin cannot credit AI balance", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -182,15 +185,15 @@ test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () 
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .payment.buyWalletService({
-        buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
+      .payment.creditAiBalance({
+        creditAiBalanceRequestDto: { amount: 10 },
       });
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
   });
 
-  test("BUG 81442: POST /api/2.0/portal/payment/buywalletservice - User cannot buy wallet service", async ({
+  test("POST /api/2.0/portal/payment/creditaibalance - User cannot credit AI balance", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -199,15 +202,15 @@ test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () 
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .payment.buyWalletService({
-        buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
+      .payment.creditAiBalance({
+        creditAiBalanceRequestDto: { amount: 10 },
       });
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
   });
 
-  test("BUG 81442: POST /api/2.0/portal/payment/buywalletservice - Guest cannot buy wallet service", async ({
+  test("POST /api/2.0/portal/payment/creditaibalance - Guest cannot credit AI balance", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -216,15 +219,15 @@ test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () 
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .payment.buyWalletService({
-        buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
+      .payment.creditAiBalance({
+        creditAiBalanceRequestDto: { amount: 10 },
       });
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
   });
 
-  test("POST /api/2.0/portal/payment/buywalletservice - DocSpaceAdmin cannot buy wallet service when Owner is already the payer", async ({
+  test("POST /api/2.0/portal/payment/creditaibalance - DocSpaceAdmin cannot credit AI balance when Owner is already the payer", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -233,8 +236,8 @@ test.describe("POST /api/2.0/portal/payment/buywalletservice - permissions", () 
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
-      .payment.buyWalletService({
-        buyWalletServiceRequestDto: { quantity: 10, serviceName: "ai-tools" },
+      .payment.creditAiBalance({
+        creditAiBalanceRequestDto: { amount: 10 },
       });
 
     expect(status).toBe(403);
@@ -624,27 +627,6 @@ test.describe("PUT /api/2.0/portal/payment/updatewallet - storage validation", (
     expect(
       (data as any)?.response?.errors?.["$.quantity.storage"][0],
     ).toContain("The JSON value could not be converted to");
-  });
-});
-
-test.describe("POST /api/2.0/portal/payment/buywalletservice - service validation", () => {
-  test("BUG 81443: POST /api/2.0/portal/payment/buywalletservice - Owner cannot buy non-existent service", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .payment.buyWalletService({
-        buyWalletServiceRequestDto: {
-          quantity: 1,
-          serviceName: "non-existent-service",
-        },
-      });
-
-    expect(status).toBe(404);
-    expect((data as any)?.error?.message).toBe("Service could not be found");
   });
 });
 
@@ -1269,18 +1251,18 @@ test.describe("GET /api/2.0/portal/payment/account - permissions", () => {
   });
 });
 
-test.describe("GET /api/2.0/portal/payment/customer/servicequota - permissions", () => {
-  test("GET /api/2.0/portal/payment/customer/servicequota - Anonymous cannot get service quota", async ({
+test.describe("GET /api/2.0/portal/payment/customer/aibalance - permissions", () => {
+  test("GET /api/2.0/portal/payment/customer/aibalance - Anonymous cannot get AI balance", async ({
     apiSdk,
   }) => {
     const { status } = await apiSdk
       .forAnonymous()
-      .payment.getCustomerServiceQuota({ serviceName: "ai-tools" });
+      .payment.getCustomerAiBalance({});
 
     expect(status).toBe(401);
   });
 
-  test("GET /api/2.0/portal/payment/customer/servicequota - RoomAdmin cannot get service quota", async ({
+  test("GET /api/2.0/portal/payment/customer/aibalance - RoomAdmin cannot get AI balance", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1289,13 +1271,13 @@ test.describe("GET /api/2.0/portal/payment/customer/servicequota - permissions",
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .payment.getCustomerServiceQuota({ serviceName: "ai-tools" });
+      .payment.getCustomerAiBalance({});
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
   });
 
-  test("GET /api/2.0/portal/payment/customer/servicequota - User cannot get service quota", async ({
+  test("GET /api/2.0/portal/payment/customer/aibalance - User cannot get AI balance", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1304,13 +1286,13 @@ test.describe("GET /api/2.0/portal/payment/customer/servicequota - permissions",
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .payment.getCustomerServiceQuota({ serviceName: "ai-tools" });
+      .payment.getCustomerAiBalance({});
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
   });
 
-  test("GET /api/2.0/portal/payment/customer/servicequota - Guest cannot get service quota", async ({
+  test("GET /api/2.0/portal/payment/customer/aibalance - Guest cannot get AI balance", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1319,7 +1301,7 @@ test.describe("GET /api/2.0/portal/payment/customer/servicequota - permissions",
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .payment.getCustomerServiceQuota({ serviceName: "ai-tools" });
+      .payment.getCustomerAiBalance({});
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");

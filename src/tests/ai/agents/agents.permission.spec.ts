@@ -7,7 +7,7 @@ import {
 } from "@/src/helpers/ai-providers";
 import {
   topUpDeposit,
-  buyWalletService,
+  creditAiBalance,
   enableWalletService,
 } from "@/src/helpers/wallet-services";
 
@@ -18,9 +18,11 @@ test.describe("POST /ai/agents - User cannot create AI agent", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
+      const { data: providerData, status: providerStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(providerStatus).toBe(200);
       const providerId = providerData.response!.id!;
 
       await apiSdk.addAuthenticatedMember("owner", "User");
@@ -56,9 +58,11 @@ test.describe("POST /ai/agents - Guest cannot create AI agent", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
+      const { data: providerData, status: providerStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(providerStatus).toBe(200);
       const providerId = providerData.response!.id!;
 
       await apiSdk.addAuthenticatedMember("owner", "Guest");
@@ -1582,7 +1586,7 @@ test.describe("POST /ai/agents - Create agent with restricted model via ONLYOFFI
     const ownerApi = apiSdk.forRole("owner");
 
     await topUpDeposit(ownerApi.payment, 100);
-    await buyWalletService(ownerApi.payment, "aiTools", 50);
+    await creditAiBalance(ownerApi.payment, 50);
     await enableWalletService(ownerApi.payment, "aiTools");
 
     const nonGptModelIds = Object.values(aiProviders)
