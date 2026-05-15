@@ -3529,3 +3529,293 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history per
     expect(status).toBe(401);
   });
 });
+
+test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report of folder history permissions", () => {
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Owner can generate report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Owner Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.createReportFolderHistory({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(typeof data.response).toBe("string");
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - DocSpaceAdmin can generate report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const ownerApi = apiSdk.forRole("owner");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Admin Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await adminApi.folders.createReportFolderHistory({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - RoomAdmin with RoomManager access can generate report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report RoomManager Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } =
+      await roomAdminApi.folders.createReportFolderHistory({
+        folderId: roomId,
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - User with Read access result", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report User Read Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.folders.createReportFolderHistory({
+      folderId: roomId,
+    });
+
+    expect([200, 403]).toContain(status);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - User without room access cannot generate report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report User No Access Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .folders.createReportFolderHistory({ folderId: roomId });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Guest without room access cannot generate report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Guest Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .folders.createReportFolderHistory({ folderId: roomId });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Anonymous request returns 401", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Anon Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .folders.createReportFolderHistory({ folderId: roomId });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - RoomAdmin with Editing access can generate report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Editing Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminData.response!.id!, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } =
+      await roomAdminApi.folders.createReportFolderHistory({
+        folderId: roomId,
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - User with Comment access can generate report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Comment Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: userData.response!.id!, access: FileShare.Comment },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.createReportFolderHistory({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  // BUG XXXXX: Guest with room Read access should get 403 but gets 404 (DirectoryNotFoundException)
+  // because the server attempts to upload the CSV report before checking permissions
+  test.fail(
+    "POST /api/2.0/files/folder/{folderId}/log/report - Guest with room Read access cannot generate report",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Report Guest Read Perm",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: guestApi, data: guestData } =
+        await apiSdk.addAuthenticatedMember("owner", "Guest");
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: guestData.response!.id!, access: FileShare.Read },
+          ],
+          notify: false,
+        },
+      });
+
+      const { status } = await guestApi.folders.createReportFolderHistory({
+        folderId: roomId,
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+});

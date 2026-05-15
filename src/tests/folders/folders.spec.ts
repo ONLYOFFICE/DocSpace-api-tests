@@ -6294,3 +6294,194 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(actionIds).toContain(MessageAction.FileCreated);
   });
 });
+
+test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report of folder history", () => {
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Owner generates report for a room", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Folder History Owner",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.createReportFolderHistory({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(typeof data.response).toBe("string");
+    expect(data.response!.length).toBeGreaterThan(0);
+    expect(data.response).toContain("/doceditor");
+    expect(data.response).toContain("fileid=");
+    expect(data.response).toContain(apiSdk.tokenStore.portalBaseUrl);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Response has correct structure", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Folder History Structure",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.createReportFolderHistory({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.status).toBeDefined();
+    expect(data.statusCode).toBeDefined();
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Owner generates report for a room with rich history", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Folder History Rich",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        title: "Autotest Report Folder History Rich Renamed",
+      },
+    });
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Report Rich History File" },
+    });
+
+    const { data, status } = await ownerApi.folders.createReportFolderHistory({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Owner generates report for an archived room", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Folder History Archived",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.folders.createReportFolderHistory({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Non-existent folderId returns 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const { status } = await apiSdk
+      .forRole("owner")
+      .folders.createReportFolderHistory({ folderId: 999999999 });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - folderId 0 returns 400 or 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const { status } = await apiSdk
+      .forRole("owner")
+      .folders.createReportFolderHistory({ folderId: 0 });
+
+    expect([400, 404]).toContain(status);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Negative folderId returns 400 or 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const { status } = await apiSdk
+      .forRole("owner")
+      .folders.createReportFolderHistory({ folderId: -1 });
+
+    expect([400, 404]).toContain(status);
+  });
+
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Subfolder (non-room) as target", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Subfolder",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Report Subfolder Child" },
+    });
+    const subFolderId = folderData.response!.id!;
+
+    const { status } = await ownerApi.folders.createReportFolderHistory({
+      folderId: subFolderId,
+    });
+
+    expect([200, 403]).toContain(status);
+  });
+});
