@@ -962,7 +962,10 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
 
     await topUpDeposit(ownerApi.payment, 1000);
     await ownerApi.payment.updateWalletPayment({
-      walletQuantityRequestDto: { quantity: { storage: 100 }, productQuantityType: 1 },
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
     });
     await enableWalletService(ownerApi.payment, "storage");
     await disableWalletService(ownerApi.payment, "storage");

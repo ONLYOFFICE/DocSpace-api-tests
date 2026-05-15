@@ -17,7 +17,10 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().payment.getPaymentUrl({
-      paymentUrlRequestDto: { backUrl: "https://example.com", quantity: { admin: 1 } },
+      paymentUrlRequestDto: {
+        backUrl: "https://example.com",
+        quantity: { admin: 1 },
+      },
     });
 
     expect(status).toBe(401);
@@ -626,7 +629,6 @@ test.describe("PUT /api/2.0/portal/payment/updatewallet - storage validation", (
     ).toContain("The JSON value could not be converted to");
   });
 });
-
 
 test.describe("POST /api/2.0/portal/payment/servicestate - permissions", () => {
   test("POST /api/2.0/portal/payment/servicestate - Anonymous cannot change wallet service state", async ({
