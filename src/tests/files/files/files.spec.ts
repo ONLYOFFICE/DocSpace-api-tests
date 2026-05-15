@@ -3688,6 +3688,87 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
     expect(status).toBe(200);
     expect(data.response!.length).toBeGreaterThan(0);
   });
+
+  test("GET /files/file/:fileId/log - History contains FileLocked after file is locked", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest File History FileLocked",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "File To Lock" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.files.getFileHistory({
+      fileId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileLocked,
+    );
+
+    await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    const { data, status } = await ownerApi.files.getFileHistory({ fileId });
+    console.log("getFileHistory FileLocked:", status, JSON.stringify(data));
+
+    expect(status).toBe(200);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).toContain(MessageAction.FileLocked);
+  });
+
+  test("GET /files/file/:fileId/log - History contains FileUnlocked after file is unlocked", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest File History FileUnlocked",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "File To Unlock" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    const { data: beforeData } = await ownerApi.files.getFileHistory({
+      fileId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileUnlocked,
+    );
+
+    await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: false },
+    });
+
+    const { data, status } = await ownerApi.files.getFileHistory({ fileId });
+    console.log("getFileHistory FileUnlocked:", status, JSON.stringify(data));
+
+    expect(status).toBe(200);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).toContain(MessageAction.FileUnlocked);
+  });
 });
 
 test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {

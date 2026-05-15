@@ -3363,3 +3363,169 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(status).toBe(401);
   });
 });
+
+test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history permissions", () => {
+  test("GET /api/2.0/files/folder/{folderId}/log - Owner can get room history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FolderLog Owner Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+    expect(data.response![0].initiator?.displayName).toBeTruthy();
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - DocSpaceAdmin can get room history", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const ownerApi = apiSdk.forRole("owner");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FolderLog Admin Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await adminApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - User with RoomManager access can get room history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FolderLog RoomManager Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await roomAdminApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - User with Read access can get room history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FolderLog User Read Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - User without room access cannot get room history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FolderLog NoAccess Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .folders.getFolderHistory({ folderId: roomId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - Guest without room access cannot get room history", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FolderLog Guest Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .folders.getFolderHistory({ folderId: roomId });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - Anonymous request returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FolderLog Anon Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .folders.getFolderHistory({ folderId: roomId });
+
+    expect(status).toBe(401);
+  });
+});
