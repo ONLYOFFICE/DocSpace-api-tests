@@ -3230,7 +3230,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       createFolder: { title: "Autotest Rename FolderId Zero" },
     });
 
-    expect([400, 404]).toContain(status);
+    expect(status).toBe(404);
   });
 });
 
@@ -3664,7 +3664,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
       folderId: 0,
     });
 
-    expect([400, 404]).toContain(status);
+    expect(status).toBe(404);
   });
 });
 
@@ -4385,7 +4385,7 @@ test.describe("POST /api/2.0/files/{folderId}/upload - Upload file", () => {
       "autotest-zero-folder.txt",
     );
 
-    expect([400, 404]).toContain(status);
+    expect(status).toBe(404);
   });
 });
 
@@ -5287,7 +5287,7 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
       folderLinkRequest: { access: FileShare.Read },
     });
 
-    expect([400, 404]).toContain(status);
+    expect(status).toBe(404);
   });
 
   test("POST /api/2.0/files/folder/:id/link - Creates link for a subfolder in My Documents", async ({
@@ -5685,7 +5685,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       .forRole("owner")
       .folders.getFolderHistory({ folderId: 0 });
 
-    expect([400, 404]).toContain(status);
+    expect(status).toBe(404);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - Owner can get history of archived room", async ({
@@ -6434,7 +6434,7 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     expect(status).toBe(404);
   });
 
-  test("POST /api/2.0/files/folder/{folderId}/log/report - folderId 0 returns 400 or 404", async ({
+  test("POST /api/2.0/files/folder/{folderId}/log/report - folderId 0 returns 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6443,10 +6443,10 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
       .forRole("owner")
       .folders.createReportFolderHistory({ folderId: 0 });
 
-    expect([400, 404]).toContain(status);
+    expect(status).toBe(404);
   });
 
-  test("POST /api/2.0/files/folder/{folderId}/log/report - Negative folderId returns 400 or 404", async ({
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Negative folderId returns 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6455,10 +6455,10 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
       .forRole("owner")
       .folders.createReportFolderHistory({ folderId: -1 });
 
-    expect([400, 404]).toContain(status);
+    expect(status).toBe(404);
   });
 
-  test("POST /api/2.0/files/folder/{folderId}/log/report - Subfolder (non-room) as target", async ({
+  test("POST /api/2.0/files/folder/{folderId}/log/report - Owner generates report for a subfolder", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6478,10 +6478,13 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     });
     const subFolderId = folderData.response!.id!;
 
-    const { status } = await ownerApi.folders.createReportFolderHistory({
+    const { data, status } = await ownerApi.folders.createReportFolderHistory({
       folderId: subFolderId,
     });
 
-    expect([200, 403]).toContain(status);
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response).toContain("/doceditor");
+    expect(data.response).toContain("fileid=");
   });
 });

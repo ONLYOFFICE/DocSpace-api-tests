@@ -3088,7 +3088,7 @@ test.describe("POST /files/file/:fileId/restoreversion - Restore file version", 
       version: 1,
     });
 
-    expect([403, 404]).toContain(status);
+    expect(status).toBe(404);
   });
 
   test("POST /files/file/:fileId/restoreversion - File in archived room returns 403", async ({
@@ -3720,7 +3720,6 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
     });
 
     const { data, status } = await ownerApi.files.getFileHistory({ fileId });
-    console.log("getFileHistory FileLocked:", status, JSON.stringify(data));
 
     expect(status).toBe(200);
     const actionIds = data.response!.map((e) => e.action?.id);
@@ -3763,7 +3762,6 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
     });
 
     const { data, status } = await ownerApi.files.getFileHistory({ fileId });
-    console.log("getFileHistory FileUnlocked:", status, JSON.stringify(data));
 
     expect(status).toBe(200);
     const actionIds = data.response!.map((e) => e.action?.id);

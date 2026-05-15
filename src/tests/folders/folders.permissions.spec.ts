@@ -3617,7 +3617,7 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     expect(data.response!.length).toBeGreaterThan(0);
   });
 
-  test("POST /api/2.0/files/folder/{folderId}/log/report - User with Read access result", async ({
+  test("POST /api/2.0/files/folder/{folderId}/log/report - User with Read access can generate report", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3641,11 +3641,13 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
       },
     });
 
-    const { status } = await userApi.folders.createReportFolderHistory({
+    const { data, status } = await userApi.folders.createReportFolderHistory({
       folderId: roomId,
     });
 
-    expect([200, 403]).toContain(status);
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
   });
 
   test("POST /api/2.0/files/folder/{folderId}/log/report - User without room access cannot generate report", async ({
@@ -3784,10 +3786,10 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     expect(data.response!.length).toBeGreaterThan(0);
   });
 
-  // BUG XXXXX: Guest with room Read access should get 403 but gets 404 (DirectoryNotFoundException)
+  // BUG 81592: Guest with room Read access should get 403 but gets 404 (DirectoryNotFoundException)
   // because the server attempts to upload the CSV report before checking permissions
   test.fail(
-    "POST /api/2.0/files/folder/{folderId}/log/report - Guest with room Read access cannot generate report",
+    "BUG 81592:POST /api/2.0/files/folder/{folderId}/log/report - Guest with room Read access cannot generate report",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       const ownerApi = apiSdk.forRole("owner");
