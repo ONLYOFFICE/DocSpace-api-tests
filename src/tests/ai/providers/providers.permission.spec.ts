@@ -5,7 +5,7 @@ import {
   onlyofficeAiProvider,
   toCreateDto,
 } from "@/src/helpers/ai-providers";
-import { topUpDeposit, buyWalletService } from "@/src/helpers/wallet-services";
+import { topUpDeposit, creditAiBalance } from "@/src/helpers/wallet-services";
 
 const provider = aiProviders.openAi;
 const forbiddenRoles = ["RoomAdmin", "User", "Guest"] as const;
@@ -361,7 +361,7 @@ test.describe("AI Providers - Get Default Permissions", () => {
     const onlyofficeAi = onlyofficeAiProvider;
 
     await topUpDeposit(ownerApi.payment, 100);
-    await buyWalletService(ownerApi.payment, "aiTools", 50);
+    await creditAiBalance(ownerApi.payment, 50);
 
     await ownerApi.providers.setDefaultProvider({
       setDefaultProviderRequestDto: {

@@ -76,7 +76,7 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     type: ProviderType.TogetherAi,
     title: "Together AI",
     key: config.TOGETHER_AI_API_KEY,
-    modelId: "deepseek-ai/DeepSeek-V3.1",
+    modelId: "Qwen/Qwen3.6-Plus",
   },
 };
 
