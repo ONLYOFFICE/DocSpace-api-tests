@@ -444,7 +444,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: POST /files/rooms - API silently accepts the undocumented `share` parameter (should reject it, since it is not a real feature)",
+      "BUG 81582: POST /files/rooms - API silently accepts the undocumented `share` parameter (should reject it, since it is not a real feature)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: memberData } = await apiSdk.addMember("owner", "User");
