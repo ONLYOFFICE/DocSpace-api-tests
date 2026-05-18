@@ -11,9 +11,11 @@ test.describe("AI Messages - Export", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(provider),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -71,9 +73,11 @@ test.describe("AI Messages - Export", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(provider),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
@@ -134,9 +138,11 @@ test.describe("AI Messages - Export", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(provider),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
@@ -197,9 +203,11 @@ test.describe("AI Messages - Export", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(provider),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
