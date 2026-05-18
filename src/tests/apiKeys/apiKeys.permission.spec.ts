@@ -156,7 +156,7 @@ test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
   });
 
   test.fail(
-    "BUG : DELETE /api/2.0/keys/{keyId} - RoomAdmin cannot delete Owner's API key",
+    "BUG 81609: DELETE /api/2.0/keys/{keyId} - RoomAdmin cannot delete Owner's API key",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
@@ -170,7 +170,7 @@ test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
   );
 
   test.fail(
-    "BUG :DELETE /api/2.0/keys/{keyId} - User cannot delete Owner's API key",
+    "BUG 81609: DELETE /api/2.0/keys/{keyId} - User cannot delete Owner's API key",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "User");
 
@@ -184,7 +184,7 @@ test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
   );
 
   test.fail(
-    "BUG : DELETE /api/2.0/keys/{keyId} - Guest cannot delete Owner's API key",
+    "BUG 81609: DELETE /api/2.0/keys/{keyId} - Guest cannot delete Owner's API key",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
