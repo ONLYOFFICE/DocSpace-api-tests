@@ -152,7 +152,7 @@ test.describe("GET /api/2.0/keys/permissions - permissions", () => {
   });
 
   test.fail(
-    "BUG : GET /api/2.0/keys/permissions - Guest cannot get all permissions",
+    "BUG 81611: GET /api/2.0/keys/permissions - Guest cannot get all permissions",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
