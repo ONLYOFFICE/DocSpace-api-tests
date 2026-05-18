@@ -6795,9 +6795,9 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
-  // BUG XXXXX: POST /api/2.0/files/{folderId}/upload does not write FileUploaded event to room history (chunked upload via session does)
+  // BUG 81623: POST /api/2.0/files/{folderId}/upload does not write FileUploaded event to room history
   test.fail(
-    "GET /api/2.0/files/folder/{folderId}/log - BUG XXXXX: History contains FileUploaded after file is uploaded via POST /files/{folderId}/upload",
+    "BUG 81623: GET /api/2.0/files/folder/{folderId}/log - History contains FileUploaded after file is uploaded via POST /files/{folderId}/upload",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: profileData } = await ownerApi.profiles.getSelfProfile();
