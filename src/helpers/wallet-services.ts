@@ -12,12 +12,6 @@ export const walletServices = {
 
 export type WalletServiceName = keyof typeof walletServices;
 
-export const walletServiceNames: Record<WalletServiceName, string> = {
-  aiTools: "ai-tools",
-  backup: "backup",
-  storage: "storage",
-};
-
 export async function topUpDeposit(
   paymentApi: Pick<PaymentApi, "topUpDeposit">,
   amount: number,
@@ -28,16 +22,13 @@ export async function topUpDeposit(
   });
 }
 
-export async function buyWalletService(
-  paymentApi: Pick<PaymentApi, "buyWalletService">,
-  service: WalletServiceName,
-  quantity: number,
+export async function creditAiBalance(
+  paymentApi: Pick<PaymentApi, "creditAiBalance">,
+  amount: number,
+  currency = "USD",
 ) {
-  return paymentApi.buyWalletService({
-    buyWalletServiceRequestDto: {
-      quantity,
-      serviceName: walletServiceNames[service],
-    },
+  return paymentApi.creditAiBalance({
+    creditAiBalanceRequestDto: { amount, currency },
   });
 }
 

@@ -7,7 +7,7 @@ import {
 } from "@/src/helpers/ai-providers";
 import {
   topUpDeposit,
-  buyWalletService,
+  creditAiBalance,
   enableWalletService,
 } from "@/src/helpers/wallet-services";
 
@@ -18,9 +18,11 @@ test.describe("POST /ai/agents - User cannot create AI agent", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
+      const { data: providerData, status: providerStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(providerStatus).toBe(200);
       const providerId = providerData.response!.id!;
 
       await apiSdk.addAuthenticatedMember("owner", "User");
@@ -56,9 +58,11 @@ test.describe("POST /ai/agents - Guest cannot create AI agent", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
+      const { data: providerData, status: providerStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(providerStatus).toBe(200);
       const providerId = providerData.response!.id!;
 
       await apiSdk.addAuthenticatedMember("owner", "Guest");
@@ -117,9 +121,11 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await ownerApi.agents.createAgent({
@@ -159,9 +165,11 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await ownerApi.agents.createAgent({
@@ -202,9 +210,11 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
+      const { data: providerData, status: providerStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(aiProviders.openAi),
+        });
+      expect(providerStatus).toBe(200);
       const providerId = providerData.response!.id!;
 
       await ownerApi.agents.createAgent({
@@ -260,9 +270,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -298,9 +310,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -334,9 +348,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -372,9 +388,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -406,9 +424,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -443,9 +463,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -480,9 +502,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -515,9 +539,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -577,9 +603,11 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -626,9 +654,11 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -675,9 +705,11 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -724,9 +756,11 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -773,9 +807,11 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -818,9 +854,11 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -868,9 +906,11 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -921,9 +961,11 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -974,9 +1016,11 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1027,9 +1071,11 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1080,9 +1126,11 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1123,9 +1171,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1229,9 +1279,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1270,9 +1322,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
@@ -1359,9 +1413,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
@@ -1404,9 +1460,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
@@ -1449,9 +1507,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { userData: adminUserData } = await apiSdk.addMember(
@@ -1540,9 +1600,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1582,7 +1644,7 @@ test.describe("POST /ai/agents - Create agent with restricted model via ONLYOFFI
     const ownerApi = apiSdk.forRole("owner");
 
     await topUpDeposit(ownerApi.payment, 100);
-    await buyWalletService(ownerApi.payment, "aiTools", 50);
+    await creditAiBalance(ownerApi.payment, 50);
     await enableWalletService(ownerApi.payment, "aiTools");
 
     const nonGptModelIds = Object.values(aiProviders)

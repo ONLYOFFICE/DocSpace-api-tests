@@ -11,9 +11,11 @@ test.describe("POST /ai/agents - Create AI agent", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
+      const { data: providerData, status: providerStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(providerStatus).toBe(200);
       const providerId = providerData.response!.id!;
 
       const { data, status } = await ownerApi.agents.createAgent({
@@ -50,9 +52,11 @@ test.describe("POST /ai/agents - DocSpace Admin creates AI agent", () => {
       await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
       const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
+      const { data: providerData, status: providerStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(providerStatus).toBe(200);
       const providerId = providerData.response!.id!;
 
       const { data, status } = await adminApi.agents.createAgent({
@@ -87,9 +91,11 @@ test.describe("POST /ai/agents - Room Admin creates AI agent", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
+      const { data: providerData, status: providerStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(providerStatus).toBe(200);
       const providerId = providerData.response!.id!;
 
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
@@ -126,9 +132,11 @@ test.describe("POST /ai/agents - Create AI agent with invalid modelId", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data, status } = await ownerApi.agents.createAgent({
@@ -154,9 +162,11 @@ test.describe("POST /ai/agents - Create AI agent with invalid modelId", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data } = await ownerApi.agents.createAgent({
@@ -190,9 +200,11 @@ test.describe("GET /ai/agents - Get AI agents", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -236,9 +248,11 @@ test.describe("GET /ai/agents - Get AI agents", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -287,9 +301,11 @@ test.describe("GET /ai/agents - Users can see agent", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -349,9 +365,11 @@ test.describe("GET /ai/agents - Users can see agent", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -411,9 +429,11 @@ test.describe("GET /ai/agents - Users can see agent", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -475,9 +495,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -521,9 +543,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -572,9 +596,11 @@ test.describe("GET /ai/agents/:id - Users can get agent info", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -634,9 +660,11 @@ test.describe("GET /ai/agents/:id - Users can get agent info", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -694,9 +722,11 @@ test.describe("GET /ai/agents/:id - Users can get agent info", () => {
     const ownerId = ownerProfile.response!.id!;
     const ownerDisplayName = ownerProfile.response!.displayName!;
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -752,9 +782,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent", () => {
   test("DELETE /ai/agents/:id - Owner deletes an agent", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -792,9 +824,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent", () => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await adminApi.agents.createAgent({
@@ -830,9 +864,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
@@ -891,9 +927,11 @@ test.describe("GET /ai/agents/news - Get AI agents new items", () => {
     const guestMemberId = guestMemberData.response!.id!;
 
     // Step 2: Create AI agent
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1004,9 +1042,11 @@ test.describe("GET /ai/agents/news - Get AI agents new items", () => {
     const guestMemberId = guestMemberData.response!.id!;
 
     // Step 2: Create AI agent
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1092,9 +1132,11 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1138,9 +1180,11 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agent1Data } = await ownerApi.agents.createAgent({
@@ -1201,9 +1245,11 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
@@ -1250,9 +1296,11 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
@@ -1301,9 +1349,11 @@ test.describe("PUT /ai/agents/resetagentquota - Reset AI agent quota", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agentData } = await ownerApi.agents.createAgent({
@@ -1355,9 +1405,11 @@ test.describe("PUT /ai/agents/resetagentquota - Reset AI agent quota", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     const { data: agent1Data } = await ownerApi.agents.createAgent({
@@ -1428,9 +1480,11 @@ test.describe("PUT /ai/agents/resetagentquota - Reset AI agent quota", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
@@ -1485,9 +1539,11 @@ test.describe("PUT /ai/agents/resetagentquota - Reset AI agent quota", () => {
       },
     });
 
-    const { data: providerData } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.openAi),
-    });
+    const { data: providerData, status: providerStatus } =
+      await ownerApi.providers.addProvider({
+        createProviderRequestDto: toCreateDto(aiProviders.openAi),
+      });
+    expect(providerStatus).toBe(200);
     const providerId = providerData.response!.id!;
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");

@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
+import { faker } from "@faker-js/faker";
 
 test.describe("POST /api/2.0/keys - permissions", () => {
   test.fail(
@@ -139,4 +140,94 @@ test.describe("POST /api/2.0/keys - permissions", () => {
       "Incorrect name. Length must be less than 30",
     );
   });
+});
+
+test.describe("GET /api/2.0/keys/permissions - permissions", () => {
+  test("GET /api/2.0/keys/permissions - Anonymous cannot get all permissions", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().apiKeys.getAllPermissions();
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG 81611: GET /api/2.0/keys/permissions - Guest cannot get all permissions",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .apiKeys.getAllPermissions();
+
+      expect(status).toBe(403);
+      expect((data.response as any)?.error?.message).toBe("Access denied.");
+    },
+  );
+});
+
+test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
+  let keyId: string;
+
+  test.beforeEach(async ({ apiSdk }) => {
+    const { data: created } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+    keyId = created.response!.id!;
+  });
+
+  test("DELETE /api/2.0/keys/{keyId} - Anonymous cannot delete an API key", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .apiKeys.deleteApiKey({ keyId });
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG 81609: DELETE /api/2.0/keys/{keyId} - RoomAdmin cannot delete Owner's API key",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      const { data, status } = await apiSdk
+        .forRole("roomAdmin")
+        .apiKeys.deleteApiKey({ keyId });
+
+      expect(status).toBe(403);
+      expect((data.response as any)?.error?.message).toBe("Access denied.");
+    },
+  );
+
+  test.fail(
+    "BUG 81609: DELETE /api/2.0/keys/{keyId} - User cannot delete Owner's API key",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .apiKeys.deleteApiKey({ keyId });
+
+      expect(status).toBe(403);
+      expect((data.response as any)?.error?.message).toBe("Access denied.");
+    },
+  );
+
+  test.fail(
+    "BUG 81609: DELETE /api/2.0/keys/{keyId} - Guest cannot delete Owner's API key",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .apiKeys.deleteApiKey({ keyId });
+
+      expect(status).toBe(403);
+      expect((data.response as any)?.error?.message).toBe("Access denied.");
+    },
+  );
 });

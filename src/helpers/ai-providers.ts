@@ -58,7 +58,7 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     type: ProviderType.XAi,
     title: "xAI",
     key: config.XAI_API_KEY,
-    modelId: "grok-4-1-fast-reasoning",
+    modelId: "grok-4.3",
   },
   googleAi: {
     type: ProviderType.GoogleAi,
@@ -76,7 +76,7 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     type: ProviderType.TogetherAi,
     title: "Together AI",
     key: config.TOGETHER_AI_API_KEY,
-    modelId: "deepseek-ai/DeepSeek-V3.1",
+    modelId: "Qwen/Qwen3.6-Plus",
   },
 };
 
