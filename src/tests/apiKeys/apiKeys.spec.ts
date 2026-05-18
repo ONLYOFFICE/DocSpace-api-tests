@@ -513,6 +513,84 @@ test.describe("DELETE /api/2.0/keys/{keyId}", () => {
   });
 });
 
+test.describe("GET /api/2.0/keys/@self", () => {
+  for (const { role, label } of ROLES) {
+    test.describe(label, () => {
+      test.beforeEach(async ({ apiSdk }) => {
+        if (role === "docSpaceAdmin") {
+          await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+        } else if (role === "roomAdmin") {
+          await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+        }
+      });
+
+      test(`GET /api/2.0/keys/@self - ${label} gets own API key info`, async ({
+        apiSdk,
+      }) => {
+        const keyName = faker.lorem.words(3);
+
+        const { data: created } = await apiSdk
+          .forRole(role)
+          .apiKeys.createApiKey({
+            createApiKeyRequestDto: { name: keyName },
+          });
+
+        const keyId = created.response!.id!;
+        const apiKeyToken = created.response!.key!;
+
+        const { data, status } = await apiSdk
+          .forApiKey(apiKeyToken)
+          .apiKeys.getApiKey();
+
+        expect(status).toBe(200);
+        expect(data.response?.id).toBe(keyId);
+        expect(data.response?.name).toBe(keyName);
+        expect(data.response?.key).toMatch(/^sk-\*{3}/);
+        expect(data.response?.keyPostfix).toBe(apiKeyToken.slice(-4));
+        expect(data.response?.permissions).toEqual([]);
+        expect(data.response?.isActive).toBe(true);
+        expect(data.count).toBe(1);
+        expect(data.links?.[0].action).toBe("GET");
+      });
+    });
+  }
+
+  test.describe("User", () => {
+    test.beforeEach(async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    });
+
+    test("GET /api/2.0/keys/@self - User gets own API key info", async ({
+      apiSdk,
+    }) => {
+      const keyName = faker.lorem.words(3);
+
+      const { data: created } = await apiSdk
+        .forRole("user")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: { name: keyName },
+        });
+
+      const keyId = created.response!.id!;
+      const apiKeyToken = created.response!.key!;
+
+      const { data, status } = await apiSdk
+        .forApiKey(apiKeyToken)
+        .apiKeys.getApiKey();
+
+      expect(status).toBe(200);
+      expect(data.response?.id).toBe(keyId);
+      expect(data.response?.name).toBe(keyName);
+      expect(data.response?.key).toMatch(/^sk-\*{3}/);
+      expect(data.response?.keyPostfix).toBe(apiKeyToken.slice(-4));
+      expect(data.response?.permissions).toEqual([]);
+      expect(data.response?.isActive).toBe(true);
+      expect(data.count).toBe(1);
+      expect(data.links?.[0].action).toBe("GET");
+    });
+  });
+});
+
 const EXPECTED_PERMISSIONS = [
   "*",
   "*:read",
@@ -570,5 +648,126 @@ test.describe("GET /api/2.0/keys/permissions", () => {
       expect(data.count).toBe(EXPECTED_PERMISSIONS.length);
       expect(data.links?.[0].action).toBe("GET");
     });
+  });
+});
+
+test.describe("GET /api/2.0/keys", () => {
+  test("GET /api/2.0/keys - Owner sees keys of all users", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data: ownerKey } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+    const { data: adminKey } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+    const { data: userKey } = await apiSdk
+      .forRole("user")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+    const ownerKeyId = ownerKey.response!.id!;
+    const adminKeyId = adminKey.response!.id!;
+    const userKeyId = userKey.response!.id!;
+
+    const { data, status } = await apiSdk.forRole("owner").apiKeys.getApiKeys();
+
+    expect(status).toBe(200);
+    const ids = data.response!.map((k) => k.id);
+    expect(ids).toContain(ownerKeyId);
+    expect(ids).toContain(adminKeyId);
+    expect(ids).toContain(userKeyId);
+  });
+
+  test("GET /api/2.0/keys - DocSpaceAdmin sees keys of all users", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data: ownerKey } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+    const { data: userKey } = await apiSdk
+      .forRole("user")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+    const ownerKeyId = ownerKey.response!.id!;
+    const userKeyId = userKey.response!.id!;
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .apiKeys.getApiKeys();
+
+    expect(status).toBe(200);
+    const ids = data.response!.map((k) => k.id);
+    expect(ids).toContain(ownerKeyId);
+    expect(ids).toContain(userKeyId);
+  });
+
+  test("GET /api/2.0/keys - RoomAdmin sees only own keys", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data: ownerKey } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+    const { data: roomAdminKey } = await apiSdk
+      .forRole("roomAdmin")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+    const ownerKeyId = ownerKey.response!.id!;
+    const roomAdminKeyId = roomAdminKey.response!.id!;
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .apiKeys.getApiKeys();
+
+    expect(status).toBe(200);
+    const ids = data.response!.map((k) => k.id);
+    expect(ids).toContain(roomAdminKeyId);
+    expect(ids).not.toContain(ownerKeyId);
+  });
+
+  test("GET /api/2.0/keys - User sees only own keys", async ({ apiSdk }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data: ownerKey } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+    const { data: userKey } = await apiSdk
+      .forRole("user")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+    const ownerKeyId = ownerKey.response!.id!;
+    const userKeyId = userKey.response!.id!;
+
+    const { data, status } = await apiSdk.forRole("user").apiKeys.getApiKeys();
+
+    expect(status).toBe(200);
+    const ids = data.response!.map((k) => k.id);
+    expect(ids).toContain(userKeyId);
+    expect(ids).not.toContain(ownerKeyId);
   });
 });
