@@ -194,7 +194,7 @@ test.describe("GET /api/2.0/keys - permissions", () => {
         createApiKeyRequestDto: { name: faker.lorem.words(3) },
       });
 
-        const { data, status } = await apiSdk
+      const { data, status } = await apiSdk
         .forRole("guest")
         .apiKeys.getApiKeys();
 
