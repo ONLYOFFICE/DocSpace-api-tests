@@ -5,9 +5,11 @@ import {
   FilterType,
   FoldersApi,
   MessageAction,
+  RoomDataLifetimePeriod,
   RoomType,
   SortOrder,
   SubjectType,
+  WatermarkAdditions,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { uploadFileToFolder } from "@/src/helpers/upload-file";
@@ -6728,6 +6730,500 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     );
     expect(groupEntry).toBeDefined();
     expect(groupEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomUnarchived after room is restored from archive", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomUnarchived",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomUnarchived,
+    );
+
+    await ownerApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomUnarchived,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomInviteResend after invitations are resent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomInviteResend",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          {
+            id: memberData.response!.id!,
+            access: FileShare.Read,
+          },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomInviteResend,
+    );
+
+    await ownerApi.rooms.resendEmailInvitations({
+      id: roomId,
+      userInvitation: { resendAll: true },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomInviteResend,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomLifeTimeSet after file lifetime is set for room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomLifeTimeSet",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomLifeTimeSet,
+    );
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        lifetime: {
+          enabled: true,
+          value: 30,
+          period: RoomDataLifetimePeriod.Day,
+          deletePermanently: false,
+        },
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomLifeTimeSet,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomLifeTimeDisabled after file lifetime is disabled for room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomLifeTimeDisabled",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        lifetime: {
+          enabled: true,
+          value: 30,
+          period: RoomDataLifetimePeriod.Day,
+          deletePermanently: false,
+        },
+      },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomLifeTimeDisabled,
+    );
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { lifetime: { enabled: false } },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomLifeTimeDisabled,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomIndexingEnabled after file indexing is enabled in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomIndexingEnabled",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomIndexingEnabled,
+    );
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { indexing: true },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomIndexingEnabled,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomIndexingDisabled after file indexing is disabled in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomIndexingDisabled",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { indexing: true },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomIndexingDisabled,
+    );
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { indexing: false },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomIndexingDisabled,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderIndexReordered after room index is reordered", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FolderIndexReordered",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { indexing: true },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FolderIndexReordered,
+    );
+
+    await ownerApi.rooms.reorderRoom({ id: roomId });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FolderIndexReordered,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomWatermarkSet after watermark is enabled in room", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomWatermarkSet",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomWatermarkSet,
+    );
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        watermark: {
+          enabled: true,
+          additions: WatermarkAdditions.UserName,
+        },
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomWatermarkSet,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomWatermarkDisabled after watermark is disabled in room", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomWatermarkDisabled",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        watermark: {
+          enabled: true,
+          additions: WatermarkAdditions.UserName,
+        },
+      },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomWatermarkDisabled,
+    );
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { watermark: { enabled: false } },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomWatermarkDisabled,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomDenyDownloadEnabled after downloading is restricted in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomDenyDownloadEnabled",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomDenyDownloadEnabled,
+    );
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { denyDownload: true },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomDenyDownloadEnabled,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomDenyDownloadDisabled after downloading is unrestricted in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomDenyDownloadDisabled",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { denyDownload: true },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomDenyDownloadDisabled,
+    );
+
+    await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { denyDownload: false },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomDenyDownloadDisabled,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileUploaded after file is uploaded to room", async ({
