@@ -512,3 +512,63 @@ test.describe("DELETE /api/2.0/keys/{keyId}", () => {
     expect(data.links?.[0].href).toContain(keyId);
   });
 });
+
+const EXPECTED_PERMISSIONS = [
+  "*",
+  "*:read",
+  "*:write",
+  "accounts:read",
+  "accounts:write",
+  "accounts.self:read",
+  "accounts.self:write",
+  "files:read",
+  "files:write",
+  "rooms:read",
+  "rooms:write",
+];
+
+test.describe("GET /api/2.0/keys/permissions", () => {
+  for (const { role, label } of ROLES) {
+    test.describe(label, () => {
+      test.beforeEach(async ({ apiSdk }) => {
+        if (role === "docSpaceAdmin") {
+          await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+        } else if (role === "roomAdmin") {
+          await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+        }
+      });
+
+      test(`GET /api/2.0/keys/permissions - ${label} gets all permissions`, async ({
+        apiSdk,
+      }) => {
+        const { data, status } = await apiSdk
+          .forRole(role)
+          .apiKeys.getAllPermissions();
+
+        expect(status).toBe(200);
+        expect(data.response).toEqual(EXPECTED_PERMISSIONS);
+        expect(data.count).toBe(EXPECTED_PERMISSIONS.length);
+        expect(data.links?.[0].action).toBe("GET");
+      });
+    });
+  }
+
+  test.describe("User", () => {
+    test.beforeEach(async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    });
+
+    test("GET /api/2.0/keys/permissions - User gets all permissions", async ({
+      apiSdk,
+    }) => {
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .apiKeys.getAllPermissions();
+
+      expect(status).toBe(200);
+      expect(data.response).toEqual(EXPECTED_PERMISSIONS);
+      expect(data.count).toBe(EXPECTED_PERMISSIONS.length);
+      expect(data.links?.[0].action).toBe("GET");
+    });
+  });
+});

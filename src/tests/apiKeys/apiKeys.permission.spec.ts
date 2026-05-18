@@ -142,6 +142,30 @@ test.describe("POST /api/2.0/keys - permissions", () => {
   });
 });
 
+test.describe("GET /api/2.0/keys/permissions - permissions", () => {
+  test("GET /api/2.0/keys/permissions - Anonymous cannot get all permissions", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().apiKeys.getAllPermissions();
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG : GET /api/2.0/keys/permissions - Guest cannot get all permissions",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .apiKeys.getAllPermissions();
+
+      expect(status).toBe(403);
+      expect((data.response as any)?.error?.message).toBe("Access denied.");
+    },
+  );
+});
+
 test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
   let keyId: string;
 
@@ -153,6 +177,16 @@ test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
       });
 
     keyId = created.response!.id!;
+  });
+
+  test("DELETE /api/2.0/keys/{keyId} - Anonymous cannot delete an API key", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .apiKeys.deleteApiKey({ keyId });
+
+    expect(status).toBe(401);
   });
 
   test.fail(
