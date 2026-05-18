@@ -229,7 +229,7 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
   });
 
   test.fail(
-    "BUG : PUT /api/2.0/keys/{keyId} - RoomAdmin cannot update Owner's API key",
+    "BUG 81616: PUT /api/2.0/keys/{keyId} - RoomAdmin cannot update Owner's API key",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
@@ -246,7 +246,7 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
   );
 
   test.fail(
-    "BUG : PUT /api/2.0/keys/{keyId} - User cannot update Owner's API key",
+    "BUG 81616: PUT /api/2.0/keys/{keyId} - User cannot update Owner's API key",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "User");
 
@@ -263,7 +263,7 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
   );
 
   test.fail(
-    "BUG : PUT /api/2.0/keys/{keyId} - Guest cannot update Owner's API key",
+    "BUG 81616: PUT /api/2.0/keys/{keyId} - Guest cannot update Owner's API key",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
