@@ -6,7 +6,7 @@ import {
   onlyofficeAiProvider,
   toCreateDto,
 } from "@/src/helpers/ai-providers";
-import { topUpDeposit, buyWalletService } from "@/src/helpers/wallet-services";
+import { topUpDeposit, creditAiBalance } from "@/src/helpers/wallet-services";
 
 test.describe("AI Providers", () => {
   for (const [, provider] of Object.entries(aiProviders)) {
@@ -411,7 +411,7 @@ test.describe("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)"
     const ownerApi = apiSdk.forRole("owner");
 
     await topUpDeposit(ownerApi.payment, 100);
-    await buyWalletService(ownerApi.payment, "aiTools", 50);
+    await creditAiBalance(ownerApi.payment, 50);
 
     await ownerApi.providers.setDefaultProvider({
       setDefaultProviderRequestDto: {
@@ -436,7 +436,7 @@ test.describe("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)"
     const ownerApi = apiSdk.forRole("owner");
 
     await topUpDeposit(ownerApi.payment, 100);
-    await buyWalletService(ownerApi.payment, "aiTools", 50);
+    await creditAiBalance(ownerApi.payment, 50);
 
     await ownerApi.providers.setDefaultProvider({
       setDefaultProviderRequestDto: {
@@ -466,7 +466,7 @@ test.describe("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)"
     const ownerApi = apiSdk.forRole("owner");
 
     await topUpDeposit(ownerApi.payment, 100);
-    await buyWalletService(ownerApi.payment, "aiTools", 50);
+    await creditAiBalance(ownerApi.payment, 50);
 
     await ownerApi.providers.setDefaultProvider({
       setDefaultProviderRequestDto: {
@@ -496,7 +496,7 @@ test.describe("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)"
     const ownerApi = apiSdk.forRole("owner");
 
     await topUpDeposit(ownerApi.payment, 100);
-    await buyWalletService(ownerApi.payment, "aiTools", 50);
+    await creditAiBalance(ownerApi.payment, 50);
 
     await ownerApi.providers.setDefaultProvider({
       setDefaultProviderRequestDto: {
