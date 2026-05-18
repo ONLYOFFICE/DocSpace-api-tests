@@ -11,6 +11,7 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { uploadFileToFolder } from "@/src/helpers/upload-file";
+import { createTestImageBuffer } from "@/src/utils/test-image";
 
 function getFolderSortedByCustomOrder(folders: FoldersApi, folderId: number) {
   return folders.getFolderByFolderId({
@@ -5668,6 +5669,44 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(actionIds).toContain(MessageAction.FolderCreated);
   });
 
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderCreated after subfolder is created in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FolderCreated In Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FolderCreated,
+    );
+
+    await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "New Subfolder In Room" },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const folderEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FolderCreated,
+    );
+    expect(folderEntry).toBeDefined();
+    expect(folderEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
   test("GET /api/2.0/files/folder/{folderId}/log - Non-existent folderId returns 404", async ({
     apiSdk,
   }) => {
@@ -5946,6 +5985,51 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(status).toBe(200);
     const actionIds = data.response!.map((e) => e.action?.id);
     expect(actionIds).toContain(MessageAction.FolderMovedToTrash);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderDeleted after subfolder is permanently deleted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FolderDeleted",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Subfolder Permanently Deleted" },
+    });
+    const subFolderId = folderData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FolderDeleted,
+    );
+
+    await ownerApi.folders.deleteFolder({
+      folderId: subFolderId,
+      deleteFolder: { deleteAfter: false, immediately: true },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const folderEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FolderDeleted,
+    );
+    expect(folderEntry).toBeDefined();
+    expect(folderEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileMovedToTrash after file is deleted to trash", async ({
@@ -6228,6 +6312,9 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
     const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
         title: "Autotest Folder History FolderRenamed",
@@ -6258,8 +6345,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       folderId: roomId,
     });
     expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.FolderRenamed);
+    const folderEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FolderRenamed,
+    );
+    expect(folderEntry).toBeDefined();
+    expect(folderEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileCreated after file is created in room", async ({
@@ -6292,6 +6382,506 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(status).toBe(200);
     const actionIds = data.response!.map((e) => e.action?.id);
     expect(actionIds).toContain(MessageAction.FileCreated);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains AddedRoomTags after tag is added to room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History AddedRoomTags",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "AutotestHistoryTag" },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.AddedRoomTags,
+    );
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["AutotestHistoryTag"] },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const tagEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.AddedRoomTags,
+    );
+    expect(tagEntry).toBeDefined();
+    expect(tagEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains DeletedRoomTags after tag is removed from room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History DeletedRoomTags",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "AutotestHistoryTagDelete" },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["AutotestHistoryTagDelete"] },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.DeletedRoomTags,
+    );
+
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["AutotestHistoryTagDelete"] },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const tagEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.DeletedRoomTags,
+    );
+    expect(tagEntry).toBeDefined();
+    expect(tagEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomLogoCreated after room logo is set", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomLogoCreated",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomLogoCreated,
+    );
+
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    const tmpFile = uploadResult.data.response.data as string;
+    const { data: logoData } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile },
+    });
+    expect(logoData.response!.logo?.original).toBeTruthy();
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const logoEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomLogoCreated,
+    );
+    expect(logoEntry).toBeDefined();
+    expect(logoEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomLogoDeleted after room logo is removed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomLogoDeleted",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    const tmpFile = uploadResult.data.response.data as string;
+    await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomLogoDeleted,
+    );
+
+    const { data: deleteData } = await ownerApi.rooms.deleteRoomLogo({
+      id: roomId,
+    });
+    expect(deleteData.response!.logo?.original).toBeFalsy();
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const logoEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomLogoDeleted,
+    );
+    expect(logoEntry).toBeDefined();
+    expect(logoEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomGroupAdded after group is added to room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+    const ownerId = profileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomGroupAdded",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: groupData } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = groupData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomGroupAdded,
+    );
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: groupId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const groupEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomGroupAdded,
+    );
+    expect(groupEntry).toBeDefined();
+    expect(groupEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomUpdateAccessForGroup after group role is changed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+    const ownerId = profileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomUpdateAccessForGroup",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: groupData } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = groupData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: groupId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomUpdateAccessForGroup,
+    );
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: groupId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const groupEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomUpdateAccessForGroup,
+    );
+    expect(groupEntry).toBeDefined();
+    expect(groupEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomGroupRemove after group is removed from room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+    const ownerId = profileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomGroupRemove",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: groupData } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = groupData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: groupId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomGroupRemove,
+    );
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: groupId, access: FileShare.None }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const groupEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomGroupRemove,
+    );
+    expect(groupEntry).toBeDefined();
+    expect(groupEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FileUploaded after file is uploaded to room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FileUploaded",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileUploaded,
+    );
+
+    const fileContent = Buffer.from("test content");
+    const { data: sessionData, status: sessionStatus } =
+      await ownerApi.operations.createUploadSessionInFolder({
+        folderId: roomId,
+        sessionRequest: {
+          fileName: "Uploaded File.docx",
+          fileSize: fileContent.length,
+          createNewIfExist: true,
+        },
+      });
+    expect(sessionStatus).toBe(200);
+    const sessionId = sessionData.response!.id!;
+
+    const file = new File([fileContent], "Uploaded File.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    const { status: uploadStatus } =
+      await ownerApi.operations.uploadAsyncSession({
+        folderId: roomId,
+        sessionId,
+        chunkNumber: 1,
+        file,
+      });
+    expect(uploadStatus).toBe(200);
+
+    const { status: finalizeStatus } =
+      await ownerApi.operations.finalizeSession({
+        folderId: roomId,
+        sessionId,
+      });
+    expect(finalizeStatus).toBe(201);
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const fileEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FileUploaded,
+    );
+    expect(fileEntry).toBeDefined();
+    expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FileRenamed after file is renamed in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FileRenamed",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "File Before Rename" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileRenamed,
+    );
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "File After Rename" },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const fileEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FileRenamed,
+    );
+    expect(fileEntry).toBeDefined();
+    expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FileDeleted after file is permanently deleted from room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FileDeleted",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "File To Delete Permanently" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileDeleted,
+    );
+
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: true },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const fileEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FileDeleted,
+    );
+    expect(fileEntry).toBeDefined();
+    expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
 });
 
