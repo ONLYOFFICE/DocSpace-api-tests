@@ -239,7 +239,7 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
           keyId,
           updateApiKeyRequest: { name: faker.lorem.words(3) },
         });
-      console.log(data);
+
       expect(status).toBe(403);
       expect((data.response as any)?.error?.message).toBe("Access denied.");
     },

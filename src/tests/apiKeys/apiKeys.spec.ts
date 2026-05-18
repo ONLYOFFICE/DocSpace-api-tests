@@ -846,4 +846,91 @@ test.describe("PUT /api/2.0/keys/{keyId}", () => {
       expect(data.links?.[0].href).toContain(keyId);
     });
   });
+
+  test("PUT /api/2.0/keys/{keyId} - DocSpaceAdmin updates Owner's API key", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data: created } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+    const keyId = created.response!.id!;
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .apiKeys.updateApiKey({
+        keyId,
+        updateApiKeyRequest: {
+          name: faker.lorem.words(3),
+          permissions: ["files:read", "rooms:read"],
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+    expect(data.count).toBe(1);
+    expect(data.links?.[0].action).toBe("PUT");
+    expect(data.links?.[0].href).toContain(keyId);
+  });
+
+  test("PUT /api/2.0/keys/{keyId} - Owner deactivates own API key", async ({
+    apiSdk,
+  }) => {
+    const { data: created } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+    const keyId = created.response!.id!;
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .apiKeys.updateApiKey({
+        keyId,
+        updateApiKeyRequest: { isActive: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+
+    const { data: keys } = await apiSdk.forRole("owner").apiKeys.getApiKeys();
+    const updated = keys.response!.find((k) => k.id === keyId);
+    expect(updated?.isActive).toBe(false);
+  });
+
+  test("PUT /api/2.0/keys/{keyId} - Owner activates own API key", async ({
+    apiSdk,
+  }) => {
+    const { data: created } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+    const keyId = created.response!.id!;
+
+    await apiSdk.forRole("owner").apiKeys.updateApiKey({
+      keyId,
+      updateApiKeyRequest: { isActive: false },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .apiKeys.updateApiKey({
+        keyId,
+        updateApiKeyRequest: { isActive: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+
+    const { data: keys } = await apiSdk.forRole("owner").apiKeys.getApiKeys();
+    const updated = keys.response!.find((k) => k.id === keyId);
+    expect(updated?.isActive).toBe(true);
+  });
 });
