@@ -204,6 +204,82 @@ test.describe("GET /api/2.0/keys - permissions", () => {
   );
 });
 
+test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
+  let keyId: string;
+
+  test.beforeEach(async ({ apiSdk }) => {
+    const { data: created } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+    keyId = created.response!.id!;
+  });
+
+  test("PUT /api/2.0/keys/{keyId} - Anonymous cannot update an API key", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().apiKeys.updateApiKey({
+      keyId,
+      updateApiKeyRequest: { name: faker.lorem.words(3) },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG : PUT /api/2.0/keys/{keyId} - RoomAdmin cannot update Owner's API key",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      const { data, status } = await apiSdk
+        .forRole("roomAdmin")
+        .apiKeys.updateApiKey({
+          keyId,
+          updateApiKeyRequest: { name: faker.lorem.words(3) },
+        });
+      console.log(data);
+      expect(status).toBe(403);
+      expect((data.response as any)?.error?.message).toBe("Access denied.");
+    },
+  );
+
+  test.fail(
+    "BUG : PUT /api/2.0/keys/{keyId} - User cannot update Owner's API key",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .apiKeys.updateApiKey({
+          keyId,
+          updateApiKeyRequest: { name: faker.lorem.words(3) },
+        });
+
+      expect(status).toBe(403);
+      expect((data.response as any)?.error?.message).toBe("Access denied.");
+    },
+  );
+
+  test.fail(
+    "BUG : PUT /api/2.0/keys/{keyId} - Guest cannot update Owner's API key",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .apiKeys.updateApiKey({
+          keyId,
+          updateApiKeyRequest: { name: faker.lorem.words(3) },
+        });
+
+      expect(status).toBe(403);
+      expect((data.response as any)?.error?.message).toBe("Access denied.");
+    },
+  );
+});
+
 test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
   let keyId: string;
 
