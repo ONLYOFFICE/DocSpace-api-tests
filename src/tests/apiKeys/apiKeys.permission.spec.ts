@@ -142,6 +142,16 @@ test.describe("POST /api/2.0/keys - permissions", () => {
   });
 });
 
+test.describe("GET /api/2.0/keys/@self - permissions", () => {
+  test("GET /api/2.0/keys/@self - Anonymous cannot get API key info", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().apiKeys.getApiKey();
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("GET /api/2.0/keys/permissions - permissions", () => {
   test("GET /api/2.0/keys/permissions - Anonymous cannot get all permissions", async ({
     apiSdk,
@@ -159,6 +169,34 @@ test.describe("GET /api/2.0/keys/permissions - permissions", () => {
       const { data, status } = await apiSdk
         .forRole("guest")
         .apiKeys.getAllPermissions();
+
+      expect(status).toBe(403);
+      expect((data.response as any)?.error?.message).toBe("Access denied.");
+    },
+  );
+});
+
+test.describe("GET /api/2.0/keys - permissions", () => {
+  test("GET /api/2.0/keys - Anonymous cannot get API keys", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().apiKeys.getApiKeys();
+
+    expect(status).toBe(401);
+  });
+
+  test.fail(
+    "BUG : GET /api/2.0/keys - Guest cannot get API keys",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      await apiSdk.forRole("owner").apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: faker.lorem.words(3) },
+      });
+
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .apiKeys.getApiKeys();
 
       expect(status).toBe(403);
       expect((data.response as any)?.error?.message).toBe("Access denied.");
