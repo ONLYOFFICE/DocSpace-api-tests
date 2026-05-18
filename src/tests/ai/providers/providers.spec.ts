@@ -50,9 +50,11 @@ test.describe("AI Providers - Delete", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: created } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
+      const { data: created, status: createdStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(createdStatus).toBe(200);
       const providerId = created.response!.id!;
 
       const { data, status } = await ownerApi.providers.deleteProviders({
@@ -72,9 +74,11 @@ test.describe("AI Providers - Delete", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: created } = await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
+      const { data: created, status: createdStatus } =
+        await ownerApi.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(createdStatus).toBe(200);
       const providerId = created.response!.id!;
 
       const { api: adminApi } = await apiSdk.addAuthenticatedMember(

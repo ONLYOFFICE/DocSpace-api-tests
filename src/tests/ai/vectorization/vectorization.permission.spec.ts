@@ -30,9 +30,11 @@ test.describe("Vectorization - startTask permissions", () => {
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
 
-        const { data: providerData } = await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
+        const { data: providerData, status: providerStatus } =
+          await ownerApi.providers.addProvider({
+            createProviderRequestDto: toCreateDto(provider),
+          });
+        expect(providerStatus).toBe(200);
         const providerId = providerData.response!.id!;
 
         await ownerApi.aiSettings.setVectorizationSettings({
@@ -101,9 +103,11 @@ test.describe("Vectorization - startTask permissions", () => {
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
 
-        const { data: providerData } = await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
+        const { data: providerData, status: providerStatus } =
+          await ownerApi.providers.addProvider({
+            createProviderRequestDto: toCreateDto(provider),
+          });
+        expect(providerStatus).toBe(200);
         const providerId = providerData.response!.id!;
 
         await ownerApi.aiSettings.setVectorizationSettings({
