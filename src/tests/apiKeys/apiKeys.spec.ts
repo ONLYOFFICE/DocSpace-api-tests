@@ -418,3 +418,97 @@ test.describe("POST /api/2.0/keys", () => {
     });
   });
 });
+
+test.describe("DELETE /api/2.0/keys/{keyId}", () => {
+  for (const { role, label } of ROLES) {
+    test.describe(label, () => {
+      test.beforeEach(async ({ apiSdk }) => {
+        if (role === "docSpaceAdmin") {
+          await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+        } else if (role === "roomAdmin") {
+          await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+        }
+      });
+
+      test(`DELETE /api/2.0/keys/{keyId} - ${label} deletes own API key`, async ({
+        apiSdk,
+      }) => {
+        const keyName = faker.lorem.words(3);
+
+        const { data: created } = await apiSdk
+          .forRole(role)
+          .apiKeys.createApiKey({
+            createApiKeyRequestDto: { name: keyName },
+          });
+
+        const keyId = created.response!.id!;
+
+        const { data, status } = await apiSdk
+          .forRole(role)
+          .apiKeys.deleteApiKey({ keyId });
+
+        expect(status).toBe(200);
+        expect(data.response).toBe(true);
+        expect(data.count).toBe(1);
+        expect(data.links?.[0].action).toBe("DELETE");
+        expect(data.links?.[0].href).toContain(keyId);
+      });
+    });
+  }
+
+  test.describe("User", () => {
+    test.beforeEach(async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    });
+
+    test("DELETE /api/2.0/keys/{keyId} - User deletes own API key", async ({
+      apiSdk,
+    }) => {
+      const keyName = faker.lorem.words(3);
+
+      const { data: created } = await apiSdk
+        .forRole("user")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: { name: keyName },
+        });
+
+      const keyId = created.response!.id!;
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .apiKeys.deleteApiKey({ keyId });
+
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+      expect(data.count).toBe(1);
+      expect(data.links?.[0].action).toBe("DELETE");
+      expect(data.links?.[0].href).toContain(keyId);
+    });
+  });
+
+  test("DELETE /api/2.0/keys/{keyId} - DocSpaceAdmin deletes Owner's API key", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const keyName = faker.lorem.words(3);
+
+    const { data: created } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: { name: keyName },
+      });
+
+    const keyId = created.response!.id!;
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .apiKeys.deleteApiKey({ keyId });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+    expect(data.count).toBe(1);
+    expect(data.links?.[0].action).toBe("DELETE");
+    expect(data.links?.[0].href).toContain(keyId);
+  });
+});
