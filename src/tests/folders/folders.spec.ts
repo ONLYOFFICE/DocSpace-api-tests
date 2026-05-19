@@ -8298,11 +8298,11 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 });
 
 test.describe("GET /api/2.0/files/filesusedspace - Reports zero space when files already exist in My Documents", () => {
-  // BUG XXXXX: getFilesUsedSpace returns {} (no myDocumentsUsedSpace) even when files already
+  // BUG 81648: getFilesUsedSpace returns {} (no myDocumentsUsedSpace) even when files already
   // exist in My Documents. The method only starts counting space after a write operation
   // (e.g. createFileInMyDocuments) triggers a recalculation. Pre-existing files are ignored.
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/filesusedspace - Returns myDocumentsUsedSpace when files already exist in My Documents",
+    "BUG 81648: GET /api/2.0/files/filesusedspace - Returns myDocumentsUsedSpace when files already exist in My Documents",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
