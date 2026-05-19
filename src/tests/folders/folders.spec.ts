@@ -5895,9 +5895,9 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(actionIds).toContain(MessageAction.RoomUpdateAccessForUser);
   });
 
-  // BUG XXXXX: UsersUpdatedType (4019) is not written to room history via REST API when user type is changed via updateUserType
+  // BUG 81641: UsersUpdatedType (4019) is not written to room history via REST API when user type is changed via updateUserType
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/folder/{folderId}/log - History contains UsersUpdatedType after room member is promoted to DocSpace Admin",
+    "BUG 81641: GET /api/2.0/files/folder/{folderId}/log - History contains UsersUpdatedType after room member is promoted to DocSpace Admin",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: profileData } = await ownerApi.profiles.getSelfProfile();
@@ -7172,9 +7172,9 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(entry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
-  // BUG XXXXX: RoomIndexExportSaved event is not written to room history after index export completes via API
+  // BUG 81640: RoomIndexExportSaved event is not written to room history after index export completes via API
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/folder/{folderId}/log - History contains RoomIndexExportSaved after room index export is completed",
+    "BUG 81640: GET /api/2.0/files/folder/{folderId}/log - History contains RoomIndexExportSaved after room index export is completed",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: profileData } = await ownerApi.profiles.getSelfProfile();
@@ -8146,4 +8146,182 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     expect(data.response).toContain("/doceditor");
     expect(data.response).toContain("fileid=");
   });
+});
+
+test.describe("GET /api/2.0/files/filesusedspace - Get files used space statistics", () => {
+  // Catches: if the statistics endpoint fails for an authenticated owner (broken handler, wrong route)
+  test("GET /api/2.0/files/filesusedspace - Owner gets used space statistics returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  // Catches: if any mandatory section (myDocuments, trash, archive, rooms) is missing from the response
+  // or if the section model loses the title/usedSpace fields
+  test("GET /api/2.0/files/filesusedspace - Response contains all required space sections with title and usedSpace fields", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("initialize space sections", async () => {
+      await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Structure Init" },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Structure Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.archiveRoom({
+        id: roomData.response!.id!,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+    });
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    expect(data.response!.myDocumentsUsedSpace).toBeDefined();
+    // Catches: if section title is renamed or localisation key is broken
+    expect(data.response!.myDocumentsUsedSpace!.title).toBe("My documents");
+    expect(typeof data.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+      "number",
+    );
+    expect(data.response!.trashUsedSpace).toBeDefined();
+    expect(data.response!.trashUsedSpace!.title).toBe("Trash");
+    expect(typeof data.response!.trashUsedSpace!.usedSpace).toBe("number");
+    expect(data.response!.archiveUsedSpace).toBeDefined();
+    expect(data.response!.archiveUsedSpace!.title).toBeDefined();
+    expect(typeof data.response!.archiveUsedSpace!.usedSpace).toBe("number");
+    expect(data.response!.roomsUsedSpace).toBeDefined();
+    expect(data.response!.roomsUsedSpace!.title).toBe("Rooms");
+    expect(typeof data.response!.roomsUsedSpace!.usedSpace).toBe("number");
+  });
+
+  // Catches: if usedSpace counters return negative values due to integer underflow or serialization bug
+  test("GET /api/2.0/files/filesusedspace - All usedSpace values are non-negative numbers", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("initialize space sections", async () => {
+      await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest NonNeg Init" },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest NonNeg Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.archiveRoom({
+        id: roomData.response!.id!,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+    });
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+    const response = data.response!;
+
+    expect(status).toBe(200);
+    expect(response.myDocumentsUsedSpace!.usedSpace).toBeGreaterThanOrEqual(0);
+    expect(response.trashUsedSpace!.usedSpace).toBeGreaterThanOrEqual(0);
+    expect(response.archiveUsedSpace!.usedSpace).toBeGreaterThanOrEqual(0);
+    expect(response.roomsUsedSpace!.usedSpace).toBeGreaterThanOrEqual(0);
+  });
+
+  // Catches: if myDocumentsUsedSpace is not recalculated after a file is added to My Documents
+  // (counter is cached without invalidation, or the file size is not attributed to myDocuments)
+  test("GET /api/2.0/files/filesusedspace - myDocumentsUsedSpace increases after file is created in My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest UsedSpace Init" },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
+
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest UsedSpace Check" },
+    });
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+    const spaceAfter = afterData.response!.myDocumentsUsedSpace!.usedSpace!;
+
+    expect(status).toBe(200);
+    expect(spaceAfter).toBeGreaterThan(spaceBefore);
+  });
+
+  // Catches: if trashUsedSpace is not recalculated after a file is moved to the trash
+  // (counter is not updated on soft delete, or file size is removed from trash bucket immediately)
+  test("GET /api/2.0/files/filesusedspace - trashUsedSpace increases after file is moved to trash", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Trash UsedSpace" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const trashBefore = beforeData.response!.trashUsedSpace!.usedSpace!;
+
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+    const trashAfter = afterData.response!.trashUsedSpace!.usedSpace!;
+
+    expect(status).toBe(200);
+    // Catches: if trashUsedSpace is not recalculated after soft delete
+    expect(trashAfter).toBeGreaterThan(trashBefore);
+  });
+});
+
+test.describe("GET /api/2.0/files/filesusedspace - Reports zero space when files already exist in My Documents", () => {
+  // BUG XXXXX: getFilesUsedSpace returns {} (no myDocumentsUsedSpace) even when files already
+  // exist in My Documents. The method only starts counting space after a write operation
+  // (e.g. createFileInMyDocuments) triggers a recalculation. Pre-existing files are ignored.
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/filesusedspace - Returns myDocumentsUsedSpace when files already exist in My Documents",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      // Call getFilesUsedSpace FIRST (before any other folder API calls) to reproduce
+      // the bug: pre-existing files are ignored until another folder API call warms up the index
+      const { data: initData, status } =
+        await ownerApi.folders.getFilesUsedSpace();
+
+      // Confirm files actually exist in My Documents at the time of the call
+      const { data: myFolderData } = await ownerApi.folders.getMyFolder();
+      const filesInMyDocuments = myFolderData.response?.files ?? [];
+      expect(filesInMyDocuments.length).toBeGreaterThan(0);
+
+      expect(status).toBe(200);
+      // Catches: method returns {} (myDocumentsUsedSpace absent) despite files existing in My Documents
+      expect(initData.response?.myDocumentsUsedSpace).toBeDefined();
+      expect(
+        initData.response?.myDocumentsUsedSpace?.usedSpace,
+      ).toBeGreaterThan(0);
+    },
+  );
 });

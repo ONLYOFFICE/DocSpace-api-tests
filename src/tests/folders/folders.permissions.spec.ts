@@ -3821,3 +3821,81 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     },
   );
 });
+
+test.describe("GET /api/2.0/files/filesusedspace - Get files used space permissions", () => {
+  // Catches: if DocSpace Admin is incorrectly blocked from viewing storage statistics
+  test("GET /api/2.0/files/filesusedspace - DocSpace Admin gets used space statistics returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await adminApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Admin UsedSpace Init" },
+    });
+
+    const { data, status } = await adminApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.myDocumentsUsedSpace).toBeDefined();
+    expect(
+      data.response!.myDocumentsUsedSpace!.usedSpace,
+    ).toBeGreaterThanOrEqual(0);
+  });
+
+  // Catches: if Room Admin is incorrectly granted access to storage statistics
+  test("GET /api/2.0/files/filesusedspace - Room Admin cannot get used space statistics returns 403", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { status } = await roomAdminApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: if regular User is incorrectly granted access to storage statistics
+  test("GET /api/2.0/files/filesusedspace - User cannot get used space statistics returns 403", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: if Guest is incorrectly granted access to storage statistics
+  test("GET /api/2.0/files/filesusedspace - Guest cannot get used space statistics returns 403", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: if unauthenticated request returns 200 or 403 instead of 401
+  test("GET /api/2.0/files/filesusedspace - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(401);
+  });
+});
