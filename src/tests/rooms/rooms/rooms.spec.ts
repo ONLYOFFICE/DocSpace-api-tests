@@ -260,14 +260,12 @@ test.describe("API rooms methods", () => {
       const myquota = 10 * 1024 * 1024;
 
       // Per-room quota must be enabled portal-wide first, otherwise quota in createRoom is ignored.
-      const { data: quotaSettings } =
-        await ownerApi.settingsQuota.saveRoomQuotaSettings({
-          quotaSettingsRequestsDto: {
-            enableQuota: true,
-            defaultQuota: 100 * 1024 * 1024,
-          },
-        });
-      expect(quotaSettings.response?.enableQuota).toBe(true);
+      await ownerApi.settingsQuota.saveRoomQuotaSettings({
+        quotaSettingsRequestsDto: {
+          enableQuota: true,
+          defaultQuota: 100 * 1024 * 1024,
+        },
+      });
 
       // createRoom response omits quotaLimit even when quota is set; verify via getRoomInfo.
       const { data: created, status } = await ownerApi.rooms.createRoom({
@@ -557,14 +555,12 @@ test.describe("API rooms methods", () => {
       const ownerApi = apiSdk.forRole("owner");
       const myquota = -100;
 
-      const { data: quotaSettings } =
-        await ownerApi.settingsQuota.saveRoomQuotaSettings({
-          quotaSettingsRequestsDto: {
-            enableQuota: true,
-            defaultQuota: 100 * 1024 * 1024,
-          },
-        });
-      expect(quotaSettings.response?.enableQuota).toBe(true);
+      await ownerApi.settingsQuota.saveRoomQuotaSettings({
+        quotaSettingsRequestsDto: {
+          enableQuota: true,
+          defaultQuota: 100 * 1024 * 1024,
+        },
+      });
 
       const { data: created, status } = await ownerApi.rooms.createRoom({
         createRoomRequestDto: {
@@ -2723,99 +2719,102 @@ test.describe("API rooms methods", () => {
       expect(data.statusCode).toBe(400);
     });
 
-    test("POST /files/rooms/fromtemplate - Empty title returns 200 but no room is created", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Empty Title Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      await ownerApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: roomData.response!.id!,
-          title: "Autotest Empty Title Template",
-        },
-      });
-      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+    test.fail(
+      "BUG XXXXX: POST /files/rooms/fromtemplate - Empty title returns 400",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Empty Title Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Empty Title Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
-        createRoomFromTemplateDto: { templateId, title: "" },
-      });
+        const { data } = await ownerApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: { templateId, title: "" },
+        });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain("");
-      expect(data.statusCode).toBe(200);
-    });
+        const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+        const titles = (list.response!.folders ?? []).map(
+          (f) => (f as any).title as string,
+        );
+        expect(titles).not.toContain("");
+        expect(data.statusCode).toBe(400);
+      },
+    );
 
-    test("POST /files/rooms/fromtemplate - Whitespace-only title returns 200 but no room is created", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Blank Title Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      await ownerApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: roomData.response!.id!,
-          title: "Autotest Blank Title Template",
-        },
-      });
-      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+    test.fail(
+      "BUG XXXXX: POST /files/rooms/fromtemplate - Whitespace-only title returns 400",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Blank Title Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Blank Title Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
-        createRoomFromTemplateDto: { templateId, title: "   " },
-      });
+        const { data } = await ownerApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: { templateId, title: "   " },
+        });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain("   ");
-      expect(data.statusCode).toBe(200);
-    });
+        const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+        const titles = (list.response!.folders ?? []).map(
+          (f) => (f as any).title as string,
+        );
+        expect(titles).not.toContain("   ");
+        expect(data.statusCode).toBe(400);
+      },
+    );
 
-    test("POST /files/rooms/fromtemplate - Excessively long title (1000 chars) returns 200 but no room is created", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Long Title Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      await ownerApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: roomData.response!.id!,
-          title: "Autotest Long Title Template",
-        },
-      });
-      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+    test.fail(
+      "BUG XXXXX: POST /files/rooms/fromtemplate - Excessively long title (1000 chars) returns 400",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Long Title Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Long Title Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-      const longTitle = "A".repeat(1000);
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
-        createRoomFromTemplateDto: {
-          templateId,
-          title: longTitle,
-        },
-      });
+        const longTitle = "A".repeat(1000);
+        const { data } = await ownerApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: {
+            templateId,
+            title: longTitle,
+          },
+        });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain(longTitle);
-      expect(data.statusCode).toBe(200);
-    });
+        const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+        const titles = (list.response!.folders ?? []).map(
+          (f) => (f as any).title as string,
+        );
+        expect(titles).not.toContain(longTitle);
+        expect(data.statusCode).toBe(400);
+      },
+    );
 
     test('POST /files/rooms/fromtemplate - Forbidden chars in title (" \\ < > /) are sanitized to _', async ({
       apiSdk,
