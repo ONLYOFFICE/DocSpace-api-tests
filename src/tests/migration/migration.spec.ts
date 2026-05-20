@@ -63,7 +63,7 @@ test.describe("GET /api/2.0/migration/status", () => {
 
 test.describe("GET /api/2.0/migration/logs", () => {
   test.fail(
-    "BUG : GET /api/2.0/migration/logs - Owner gets 404 when no migration has run",
+    "BUG 81653: GET /api/2.0/migration/logs - Owner gets 404 when no migration has run",
     async ({ apiSdk }) => {
       const { data, status } = await apiSdk
         .forRole("owner")
@@ -75,7 +75,7 @@ test.describe("GET /api/2.0/migration/logs", () => {
   );
 
   test.fail(
-    "BUG : GET /api/2.0/migration/logs - DocSpaceAdmin gets 404 when no migration has run",
+    "BUG 81653: GET /api/2.0/migration/logs - DocSpaceAdmin gets 404 when no migration has run",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
