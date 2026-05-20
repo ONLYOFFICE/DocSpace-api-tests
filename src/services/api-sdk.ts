@@ -47,6 +47,8 @@ import { MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/mcpapi";
 import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { ApiKeysApi } from "@onlyoffice/docspace-api-sdk/dist/api/api-keys/api-keys-api";
 import { AuthenticationApi } from "@onlyoffice/docspace-api-sdk/dist/api/authentication/authentication-api";
+import { CapabilitiesApi } from "@onlyoffice/docspace-api-sdk/dist/api/capabilities/capabilities-api";
+import { MigrationApi } from "@onlyoffice/docspace-api-sdk/dist/api/migration/migration-api";
 import { TFASettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/tfasettings-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-settings-api";
@@ -190,6 +192,8 @@ export class ApiSDK {
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
       authentication: new AuthenticationApi(config, undefined, axiosInstance),
       tfaSettings: new TFASettingsApi(config, undefined, axiosInstance),
+      capabilities: new CapabilitiesApi(config, undefined, axiosInstance),
+      migration: new MigrationApi(config, undefined, axiosInstance),
     };
   }
 
@@ -255,6 +259,8 @@ export class ApiSDK {
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
       payment: new SdkPaymentApi(config, undefined, axiosInstance),
       authentication: new AuthenticationApi(config, undefined, axiosInstance),
+      capabilities: new CapabilitiesApi(config, undefined, axiosInstance),
+      migration: new MigrationApi(config, undefined, axiosInstance),
     };
   }
 
