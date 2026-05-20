@@ -62,10 +62,9 @@ test.describe("GET /api/2.0/migration/status", () => {
 });
 
 test.describe("GET /api/2.0/migration/logs", () => {
-  test("GET /api/2.0/migration/logs - Owner gets 404 when no migration has run", async ({
+  test.fail("BUG : GET /api/2.0/migration/logs - Owner gets 404 when no migration has run", async ({
     apiSdk,
   }) => {
-    test.fail(true, "BUG XXXXX: returns 500 instead of 404");
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -75,10 +74,9 @@ test.describe("GET /api/2.0/migration/logs", () => {
     expect((data as any).error?.message).toBe("No migration is in progress");
   });
 
-  test("GET /api/2.0/migration/logs - DocSpaceAdmin gets 404 when no migration has run", async ({
+  test.fail("BUG : GET /api/2.0/migration/logs - DocSpaceAdmin gets 404 when no migration has run", async ({
     apiSdk,
   }) => {
-    test.fail(true, "BUG XXXXX: returns 500 instead of 404");
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
