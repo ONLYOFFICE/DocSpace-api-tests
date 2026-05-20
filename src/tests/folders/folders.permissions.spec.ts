@@ -3821,3 +3821,296 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     },
   );
 });
+
+test.describe("GET /api/2.0/files/filesusedspace - Get files used space permissions", () => {
+  // Catches: if DocSpace Admin is incorrectly blocked from viewing storage statistics
+  test("GET /api/2.0/files/filesusedspace - DocSpace Admin gets used space statistics returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await adminApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Admin UsedSpace Init" },
+    });
+
+    const { data, status } = await adminApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.myDocumentsUsedSpace).toBeDefined();
+    expect(
+      data.response!.myDocumentsUsedSpace!.usedSpace,
+    ).toBeGreaterThanOrEqual(0);
+  });
+
+  // Catches: if Room Admin is incorrectly granted access to storage statistics
+  test("GET /api/2.0/files/filesusedspace - Room Admin cannot get used space statistics returns 403", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { status } = await roomAdminApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: if regular User is incorrectly granted access to storage statistics
+  test("GET /api/2.0/files/filesusedspace - User cannot get used space statistics returns 403", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: if Guest is incorrectly granted access to storage statistics
+  test("GET /api/2.0/files/filesusedspace - Guest cannot get used space statistics returns 403", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(403);
+  });
+
+  // Catches: if unauthenticated request returns 200 or 403 instead of 401
+  test("GET /api/2.0/files/filesusedspace - Unauthenticated user gets 401", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links - access control", () => {
+  test("GET /api/2.0/files/folder/{id}/links - Owner can get folder links returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Owner Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - DocSpaceAdmin with RoomManager access can get folder links returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Admin Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: adminData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await adminApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - RoomAdmin with RoomManager access can get folder links returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links RoomAdmin Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await roomAdminApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - User with Read access gets 200 with empty links list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links User Read Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - User without room access gets 200 with empty links list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links User No Access Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data, status } = await userApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Guest without room access gets 200 with empty links list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Guest Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Anonymous request returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Anon Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const anonApi = apiSdk.forAnonymous();
+    const { status } = await anonApi.folders.getFolderLinks({ id: roomId });
+
+    expect(status).toBe(401);
+  });
+});

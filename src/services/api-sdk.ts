@@ -46,6 +46,12 @@ import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vecto
 import { MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/mcpapi";
 import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { ApiKeysApi } from "@onlyoffice/docspace-api-sdk/dist/api/api-keys/api-keys-api";
+import { AuthenticationApi } from "@onlyoffice/docspace-api-sdk/dist/api/authentication/authentication-api";
+import { CapabilitiesApi } from "@onlyoffice/docspace-api-sdk/dist/api/capabilities/capabilities-api";
+import { MigrationApi } from "@onlyoffice/docspace-api-sdk/dist/api/migration/migration-api";
+import { ScopeManagementApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth20/scope-management-api";
+import { OAuth2Api } from "@onlyoffice/docspace-api-sdk/dist/api/security/oauth2-api";
+import { TFASettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/tfasettings-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-settings-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
@@ -76,7 +82,7 @@ export type AddAuthenticatedMemberResult = MemberBase & {
 export class ApiSDK {
   readonly faker: FAKER;
   readonly tokenStore: TokenStore;
-  private readonly request: APIRequestContext;
+  readonly request: APIRequestContext;
 
   constructor(request: APIRequestContext, tokenStore: TokenStore) {
     this.request = request;
@@ -186,6 +192,12 @@ export class ApiSDK {
       apiKeys: new ApiKeysApi(config, undefined, axiosInstance),
       portalQuota: new PortalQuotaApi(config, undefined, axiosInstance),
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
+      authentication: new AuthenticationApi(config, undefined, axiosInstance),
+      tfaSettings: new TFASettingsApi(config, undefined, axiosInstance),
+      capabilities: new CapabilitiesApi(config, undefined, axiosInstance),
+      migration: new MigrationApi(config, undefined, axiosInstance),
+      scopeManagement: new ScopeManagementApi(config, undefined, axiosInstance),
+      oauth2: new OAuth2Api(config, undefined, axiosInstance),
     };
   }
 
@@ -250,6 +262,10 @@ export class ApiSDK {
       portalQuota: new PortalQuotaApi(config, undefined, axiosInstance),
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
       payment: new SdkPaymentApi(config, undefined, axiosInstance),
+      authentication: new AuthenticationApi(config, undefined, axiosInstance),
+      capabilities: new CapabilitiesApi(config, undefined, axiosInstance),
+      migration: new MigrationApi(config, undefined, axiosInstance),
+      scopeManagement: new ScopeManagementApi(config, undefined, axiosInstance),
     };
   }
 

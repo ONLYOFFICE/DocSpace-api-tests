@@ -1,9 +1,11 @@
 ﻿import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import {
+  EmployeeType,
   FileShare,
   FilterType,
   FoldersApi,
+  LinkType,
   MessageAction,
   RoomDataLifetimePeriod,
   RoomType,
@@ -5423,6 +5425,372 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
   );
 });
 
+test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links", () => {
+  test("GET /api/2.0/files/folder/{id}/links - Owner gets links for a room returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Basic",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Room with no links returns empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Empty",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Returns primary external link after it is created", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links After Create",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: linkData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = linkData.response!.sharedLink!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
+    const link = data.response!.find((l) => l.sharedLink?.id === linkId);
+    expect(link).toBeDefined();
+    expect(link!.subjectType).toBe(SubjectType.PrimaryExternalLink);
+    expect(link!.sharedLink!.shareLink).toBeTruthy();
+    expect(link!.sharedLink!.primary).toBe(true);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Returned link has correct access level", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    const link = data.response!.find(
+      (l) => l.subjectType === SubjectType.PrimaryExternalLink,
+    );
+    expect(link).toBeDefined();
+    expect(link!.access).toBe(FileShare.Read);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Returned link has correct permission flags for owner", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Flags",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    const link = data.response!.find(
+      (l) => l.subjectType === SubjectType.PrimaryExternalLink,
+    );
+    expect(link).toBeDefined();
+    expect(link!.isLocked).toBe(false);
+    expect(link!.isOwner).toBe(false);
+    expect(link!.canEditAccess).toBe(false);
+    expect(link!.canEditInternal).toBe(true);
+    expect(link!.canEditDenyDownload).toBe(true);
+    expect(link!.canEditExpirationDate).toBe(true);
+    expect(link!.canRevoke).toBe(false);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - denyDownload flag is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links DenyDownload",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read, denyDownload: true },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    const link = data.response!.find(
+      (l) => l.subjectType === SubjectType.PrimaryExternalLink,
+    );
+    expect(link).toBeDefined();
+    expect(link!.sharedLink!.denyDownload).toBe(true);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - password field is present for password-protected link", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Password",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read, password: "Secret123!" },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    const link = data.response!.find(
+      (l) => l.subjectType === SubjectType.PrimaryExternalLink,
+    );
+    expect(link).toBeDefined();
+    expect(link!.sharedLink!.password).toBeTruthy();
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - internal flag is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Internal",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read, internal: true },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    const link = data.response!.find(
+      (l) => l.subjectType === SubjectType.PrimaryExternalLink,
+    );
+    expect(link).toBeDefined();
+    expect(link!.sharedLink!.internal).toBe(true);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - expirationDate is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Expiration",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: {
+        access: FileShare.Read,
+        expirationDate: "2030-01-01T00:00:00.000Z" as any,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    const link = data.response!.find(
+      (l) => l.subjectType === SubjectType.PrimaryExternalLink,
+    );
+    expect(link).toBeDefined();
+    expect(link!.sharedLink!.isExpired).toBe(false);
+    expect((link!.sharedLink! as any).expirationDate).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Link disappears after it is revoked", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Revoke",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: linkData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = linkData.response!.sharedLink!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+    expect(beforeData.response!.some((l) => l.sharedLink?.id === linkId)).toBe(
+      true,
+    );
+
+    await ownerApi.folders.setFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { linkId, access: FileShare.None },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.some((l) => l.sharedLink?.id === linkId)).toBe(false);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Works for subfolder inside a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Links Subfolder",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Subfolder For Links" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: folderId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderLinks({
+      id: folderId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
+    expect(
+      data.response!.find(
+        (l) => l.subjectType === SubjectType.PrimaryExternalLink,
+      ),
+    ).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Non-existent folder ID returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.folders.getFolderLinks({
+      id: 999999999,
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - ID 0 returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.folders.getFolderLinks({ id: 0 });
+
+    expect(status).toBe(404);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/links - Negative ID returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.folders.getFolderLinks({ id: -1 });
+
+    expect(status).toBe(404);
+  });
+});
+
 test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", () => {
   test("GET /api/2.0/files/folder/{folderId}/log - Owner gets room history with correct structure", async ({
     apiSdk,
@@ -5892,6 +6260,59 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     const actionIds = data.response!.map((e) => e.action?.id);
     expect(actionIds).toContain(MessageAction.RoomUpdateAccessForUser);
   });
+
+  // BUG 81641: UsersUpdatedType (4019) is not written to room history via REST API when user type is changed via updateUserType
+  test.fail(
+    "BUG 81641: GET /api/2.0/files/folder/{folderId}/log - History contains UsersUpdatedType after room member is promoted to DocSpace Admin",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+      const ownerDisplayName = profileData.response!.displayName!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Folder History UsersUpdatedType",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: userData } = await apiSdk.addMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+        MessageAction.UsersUpdatedType,
+      );
+
+      await ownerApi.userType.updateUserType({
+        type: EmployeeType.DocSpaceAdmin,
+        updateMembersRequestDto: { userIds: [userId] },
+      });
+
+      const { data, status } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      expect(status).toBe(200);
+      const actionIds = data.response!.map((e) => e.action?.id);
+      expect(actionIds).toContain(MessageAction.UsersUpdatedType);
+      const entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.UsersUpdatedType,
+      );
+      expect(entry).toBeDefined();
+      expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    },
+  );
 
   test("GET /api/2.0/files/folder/{folderId}/log - History reflects correct sequence after invite, role change and removal", async ({
     apiSdk,
@@ -6566,6 +6987,75 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(logoEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomColorChanged after room icon color is changed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomColorChanged",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733" },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).toContain(MessageAction.RoomColorChanged);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomColorChanged,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomCoverChanged after room cover is changed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomCoverChanged",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "1A2B3C", cover: coverId },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).toContain(MessageAction.RoomCoverChanged);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomCoverChanged,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomGroupAdded after group is added to room", async ({
     apiSdk,
   }) => {
@@ -7048,6 +7538,51 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(entry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
+  // BUG 81640: RoomIndexExportSaved event is not written to room history after index export completes via API
+  test.fail(
+    "BUG 81640: GET /api/2.0/files/folder/{folderId}/log - History contains RoomIndexExportSaved after room index export is completed",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+      const ownerDisplayName = profileData.response!.displayName!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Folder History RoomIndexExportSaved",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+        MessageAction.RoomIndexExportSaved,
+      );
+
+      const { status: exportStatus } =
+        await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      expect(exportStatus).toBe(200);
+
+      await expect(async () => {
+        const { data: exportData } = await ownerApi.rooms.getRoomIndexExport();
+        expect(exportData.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+      const { data, status } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      expect(status).toBe(200);
+      const entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.RoomIndexExportSaved,
+      );
+      expect(entry).toBeDefined();
+      expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    },
+  );
+
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomWatermarkSet after watermark is enabled in room", async ({
     apiSdk,
     paymentsApi,
@@ -7428,6 +7963,361 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(fileEntry).toBeDefined();
     expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FileLocked after file is locked in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FileLocked",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "File To Lock" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileLocked,
+    );
+
+    await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FileLocked,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FileUnlocked after file is unlocked in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FileUnlocked",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "File To Unlock" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: true },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileUnlocked,
+    );
+
+    await ownerApi.files.lockFile({
+      fileId,
+      lockFileParameters: { lockFile: false },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FileUnlocked,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FileIndexChanged after file order is set via PUT /files/:fileId/order", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FileIndexChanged",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "File To Reorder" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileIndexChanged,
+    );
+
+    await ownerApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 5 },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FileIndexChanged,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderIndexChanged after folder order is set via PUT /files/:folderId/order", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FolderIndexChanged",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Subfolder To Reorder" },
+    });
+    const subfolderId = folderData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: subfolderId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FolderIndexChanged,
+    );
+
+    await ownerApi.folders.setFolderOrder({
+      folderId: subfolderId,
+      orderRequestDto: { order: 5 },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: subfolderId,
+    });
+    expect(status).toBe(200);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).toContain(MessageAction.FolderIndexChanged);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FolderIndexChanged,
+    );
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomExternalLinkCreated after room link is created", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomExternalLinkCreated",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomExternalLinkCreated,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomExternalLinkRenamed after room link is renamed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomExternalLinkRenamed",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: linkData } = await ownerApi.rooms.setRoomLink({
+      id: roomId,
+      roomLinkRequest: {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Original Link Title",
+        denyDownload: false,
+      },
+    });
+    const linkId = linkData.response!.sharedLink!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomExternalLinkRenamed,
+    );
+
+    await ownerApi.rooms.setRoomLink({
+      id: roomId,
+      roomLinkRequest: {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Renamed Link Title",
+        denyDownload: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomExternalLinkRenamed,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomExternalLinkRevoked after room link is revoked", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomExternalLinkRevoked",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: primaryLinkData } =
+      await ownerApi.rooms.getRoomsPrimaryExternalLink({ id: roomId });
+    const primaryLinkId = primaryLinkData.response!.sharedLink!.id!;
+
+    await ownerApi.rooms.setRoomLink({
+      id: roomId,
+      roomLinkRequest: {
+        linkId: primaryLinkId,
+        access: FileShare.None,
+        linkType: LinkType.External,
+        denyDownload: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).toContain(MessageAction.RoomExternalLinkRevoked);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomExternalLinkRevoked,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomExternalLinkDeleted after room link is deleted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomExternalLinkDeleted",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: linkData } = await ownerApi.rooms.setRoomLink({
+      id: roomId,
+      roomLinkRequest: {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Link To Delete",
+        denyDownload: false,
+      },
+    });
+    const linkId = linkData.response!.sharedLink!.id!;
+
+    await ownerApi.rooms.setRoomLink({
+      id: roomId,
+      roomLinkRequest: {
+        linkId,
+        access: FileShare.None,
+        linkType: LinkType.External,
+        title: "Link To Delete",
+        denyDownload: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const entry = data.response!.find(
+      (e) => e.action?.id === MessageAction.RoomExternalLinkDeleted,
+    );
+    expect(entry).toBeDefined();
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
 });
 
 test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report of folder history", () => {
@@ -7622,4 +8512,621 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     expect(data.response).toContain("/doceditor");
     expect(data.response).toContain("fileid=");
   });
+});
+
+test.describe("POST /api/2.0/files/{folderId}/upload - Upload file via SDK", () => {
+  // BUG 81536: FoldersApi.uploadFile() sets Content-Type: application/json and calls
+  // serializeDataIfNeeded, which JSON.stringifies File/Blob objects to {}.
+  // Server receives empty JSON body and returns 403 "No input files".
+  // Fix: SDK must not set Content-Type: application/json and must not serialize FormData.
+  test.fail(
+    "BUG 81536: POST /api/2.0/files/{folderId}/upload - Owner uploads file via SDK returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Upload Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.folders.uploadFile({
+        folderId,
+        uploadRequestDto: {
+          file: new File(
+            [Buffer.from("Autotest upload content")],
+            "autotest-upload.txt",
+            { type: "text/plain" },
+          ),
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+    },
+  );
+});
+
+test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents via SDK", () => {
+  // BUG 81538: FoldersApi.uploadFileToMy() passes inDto in query string instead of
+  // multipart/form-data request body. File is never sent to the server.
+  // Server returns 403 "No input files".
+  // Fix: SDK must send upload payload in multipart/form-data body, not query string.
+  test.fail(
+    "BUG 81538: POST /api/2.0/files/@my/upload - Owner uploads file to My Documents via SDK returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.folders.uploadFileToMy({
+        inDto: {
+          file: new File(
+            [Buffer.from("Autotest upload content")],
+            "autotest-my-upload.txt",
+            { type: "text/plain" },
+          ),
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+    },
+  );
+});
+
+test.describe("GET /api/2.0/files/filesusedspace - Get files used space statistics", () => {
+  // Catches: if the statistics endpoint fails for an authenticated owner (broken handler, wrong route)
+  test("GET /api/2.0/files/filesusedspace - Owner gets used space statistics returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  // Catches: if any mandatory section (myDocuments, trash, archive, rooms) is missing from the response
+  // or if the section model loses the title/usedSpace fields
+  test("GET /api/2.0/files/filesusedspace - Response contains all required space sections with title and usedSpace fields", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("initialize space sections", async () => {
+      await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Structure Init" },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Structure Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.archiveRoom({
+        id: roomData.response!.id!,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+    });
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    expect(data.response!.myDocumentsUsedSpace).toBeDefined();
+    // Catches: if section title is renamed or localisation key is broken
+    expect(data.response!.myDocumentsUsedSpace!.title).toBe("My documents");
+    expect(typeof data.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+      "number",
+    );
+    expect(data.response!.trashUsedSpace).toBeDefined();
+    expect(data.response!.trashUsedSpace!.title).toBe("Trash");
+    expect(typeof data.response!.trashUsedSpace!.usedSpace).toBe("number");
+    expect(data.response!.archiveUsedSpace).toBeDefined();
+    expect(data.response!.archiveUsedSpace!.title).toBeDefined();
+    expect(typeof data.response!.archiveUsedSpace!.usedSpace).toBe("number");
+    expect(data.response!.roomsUsedSpace).toBeDefined();
+    expect(data.response!.roomsUsedSpace!.title).toBe("Rooms");
+    expect(typeof data.response!.roomsUsedSpace!.usedSpace).toBe("number");
+  });
+
+  // Catches: if usedSpace counters return negative values due to integer underflow or serialization bug
+  test("GET /api/2.0/files/filesusedspace - All usedSpace values are non-negative numbers", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("initialize space sections", async () => {
+      await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest NonNeg Init" },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest NonNeg Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.archiveRoom({
+        id: roomData.response!.id!,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+    });
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+    const response = data.response!;
+
+    expect(status).toBe(200);
+    expect(response.myDocumentsUsedSpace!.usedSpace).toBeGreaterThanOrEqual(0);
+    expect(response.trashUsedSpace!.usedSpace).toBeGreaterThanOrEqual(0);
+    expect(response.archiveUsedSpace!.usedSpace).toBeGreaterThanOrEqual(0);
+    expect(response.roomsUsedSpace!.usedSpace).toBeGreaterThanOrEqual(0);
+  });
+
+  // Catches: if myDocumentsUsedSpace is not recalculated after a file is added to My Documents
+  // (counter is cached without invalidation, or the file size is not attributed to myDocuments)
+  test("GET /api/2.0/files/filesusedspace - myDocumentsUsedSpace increases after file is created in My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest UsedSpace Init" },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
+
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest UsedSpace Check" },
+    });
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+    const spaceAfter = afterData.response!.myDocumentsUsedSpace!.usedSpace!;
+
+    expect(status).toBe(200);
+    expect(spaceAfter).toBeGreaterThan(spaceBefore);
+  });
+
+  // Catches: if trashUsedSpace is not recalculated after a file is moved to the trash
+  // (counter is not updated on soft delete, or file size is removed from trash bucket immediately)
+  test("GET /api/2.0/files/filesusedspace - trashUsedSpace increases after file is moved to trash", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Trash UsedSpace" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const trashBefore = beforeData.response!.trashUsedSpace!.usedSpace!;
+
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+    const trashAfter = afterData.response!.trashUsedSpace!.usedSpace!;
+
+    expect(status).toBe(200);
+    // Catches: if trashUsedSpace is not recalculated after soft delete
+    expect(trashAfter).toBeGreaterThan(trashBefore);
+  });
+
+  // Catches: if roomsUsedSpace is not recalculated after a file is added to a room
+  // (counter is cached without invalidation, or file size is not attributed to rooms bucket)
+  test("GET /api/2.0/files/filesusedspace - roomsUsedSpace increases after file is created in a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Rooms Space",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const roomsBefore = beforeData.response?.roomsUsedSpace?.usedSpace ?? 0;
+
+    await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Room Space File" },
+    });
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    // Catches: if roomsUsedSpace is not updated after file creation in a room
+    expect(afterData.response!.roomsUsedSpace!.usedSpace).toBeGreaterThan(
+      roomsBefore,
+    );
+  });
+
+  // Catches: if archiveUsedSpace is not recalculated after a room with files is archived
+  // (counter is not attributed to archive bucket after archiveRoom operation)
+  test("GET /api/2.0/files/filesusedspace - archiveUsedSpace increases after room with file is archived", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Archive Space",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Archive Space File" },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const archiveBefore = beforeData.response?.archiveUsedSpace?.usedSpace ?? 0;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    // Catches: if archiveUsedSpace is not updated after room archival
+    expect(afterData.response!.archiveUsedSpace!.usedSpace).toBeGreaterThan(
+      archiveBefore,
+    );
+  });
+
+  // Catches: if archiveUsedSpace section title is renamed or localisation key is broken
+  test("GET /api/2.0/files/filesusedspace - archiveUsedSpace section has correct title", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Archive Title",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.archiveRoom({
+      id: roomData.response!.id!,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    expect(data.response!.archiveUsedSpace).toBeDefined();
+    // Catches: if archive section title is renamed or localisation key is broken
+    expect(data.response!.archiveUsedSpace!.title).toBe("Archive");
+  });
+
+  // Catches: if aiAgentsUsedSpace section loses title or usedSpace fields when it appears
+  // Note: section only appears when AI Agents feature is active (paid/configured).
+  // Creating an AiRoom alone does not trigger aiAgentsUsedSpace in the response.
+  // This test verifies the section structure is correct whenever it is present.
+  test("GET /api/2.0/files/filesusedspace - aiAgentsUsedSpace section has correct structure when present", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+
+    if (data.response?.aiAgentsUsedSpace !== undefined) {
+      // Catches: if aiAgentsUsedSpace title is missing or usedSpace is negative
+      expect(data.response.aiAgentsUsedSpace.title).toBeDefined();
+      expect(data.response.aiAgentsUsedSpace.usedSpace).toBeGreaterThanOrEqual(
+        0,
+      );
+    }
+  });
+
+  // BUG 81648: sample files are injected as a side effect of delete operations, causing
+  // myDocumentsUsedSpace to stay the same or increase instead of decreasing after hard delete.
+  // Catches: if hard delete does not remove file size from myDocumentsUsedSpace
+  test.fail(
+    "BUG 81648: GET /api/2.0/files/filesusedspace - myDocumentsUsedSpace decreases after hard delete",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Hard Delete Warmup" },
+      });
+
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Hard Delete Target" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+      const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
+
+      await ownerApi.files.deleteFile({
+        fileId,
+        _delete: { immediately: true },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data: afterData, status } =
+        await ownerApi.folders.getFilesUsedSpace();
+
+      expect(status).toBe(200);
+      // Catches: if myDocumentsUsedSpace is not updated after hard delete
+      expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBeLessThan(
+        spaceBefore,
+      );
+    },
+  );
+
+  // BUG 81648: getFileInfo triggers sample file injection, causing usedSpace to jump.
+  // Catches: if GET requests (metadata read) incorrectly mutate usedSpace counters
+  test.fail(
+    "BUG 81648: GET /api/2.0/files/filesusedspace - usedSpace does not change after reading file metadata",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Metadata Read" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+      const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
+
+      await ownerApi.files.getFileInfo({ fileId });
+      await ownerApi.files.getFileInfo({ fileId });
+      await ownerApi.files.getFileInfo({ fileId });
+
+      const { data: afterData, status } =
+        await ownerApi.folders.getFilesUsedSpace();
+
+      expect(status).toBe(200);
+      // Catches: if repeated metadata reads cause usedSpace to drift
+      expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+        spaceBefore,
+      );
+    },
+  );
+
+  // Catches: if usedSpace is computed incorrectly when multiple files exist
+  // (e.g. only last file counted, or space reset instead of accumulated)
+  test("GET /api/2.0/files/filesusedspace - usedSpace increases cumulatively with each file created", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Multi Warmup" },
+    });
+
+    const { data: s0Data } = await ownerApi.folders.getFilesUsedSpace();
+    const s0 = s0Data.response!.myDocumentsUsedSpace!.usedSpace!;
+
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Multi File 1" },
+    });
+    const { data: s1Data } = await ownerApi.folders.getFilesUsedSpace();
+    const s1 = s1Data.response!.myDocumentsUsedSpace!.usedSpace!;
+
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Multi File 2" },
+    });
+    const { data: s2Data } = await ownerApi.folders.getFilesUsedSpace();
+    const s2 = s2Data.response!.myDocumentsUsedSpace!.usedSpace!;
+
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Multi File 3" },
+    });
+    const { data: s3Data, status } = await ownerApi.folders.getFilesUsedSpace();
+    const s3 = s3Data.response!.myDocumentsUsedSpace!.usedSpace!;
+
+    expect(status).toBe(200);
+    // Catches: if space does not grow monotonically with each file
+    expect(s1).toBeGreaterThan(s0);
+    expect(s2).toBeGreaterThan(s1);
+    expect(s3).toBeGreaterThan(s2);
+    // Catches: if total increase does not equal sum of individual increments
+    expect(s3 - s0).toBe(s1 - s0 + (s2 - s1) + (s3 - s2));
+  });
+
+  // BUG 81648: updateFile triggers sample file injection, causing usedSpace to jump.
+  // Catches: if renaming a file (metadata-only update) incorrectly changes usedSpace
+  // (title change has no effect on file size, counter must not drift)
+  test.fail(
+    "BUG 81648: GET /api/2.0/files/filesusedspace - usedSpace does not change after renaming a file",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Rename Before" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+      const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
+
+      await ownerApi.files.updateFile({
+        fileId,
+        updateFile: { title: "Autotest Rename After" },
+      });
+
+      const { data: afterData, status } =
+        await ownerApi.folders.getFilesUsedSpace();
+
+      expect(status).toBe(200);
+      // Catches: if metadata update (rename) incorrectly affects the storage counter
+      expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+        spaceBefore,
+      );
+    },
+  );
+
+  // BUG 81648: createFileInMyDocuments triggers sample file injection between calls,
+  // causing usedSpace to jump between consecutive reads.
+  // Catches: if getFilesUsedSpace returns different values on consecutive calls
+  // without any writes between them (non-deterministic / unstable caching)
+  test.fail(
+    "BUG 81648: GET /api/2.0/files/filesusedspace - returns consistent results on repeated calls without modifications",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Stable Init" },
+      });
+
+      const { data: call1 } = await ownerApi.folders.getFilesUsedSpace();
+      const { data: call2 } = await ownerApi.folders.getFilesUsedSpace();
+      const { data: call3, status } =
+        await ownerApi.folders.getFilesUsedSpace();
+
+      expect(status).toBe(200);
+      // Catches: if space counter is non-deterministic between consecutive reads
+      expect(call1.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+        call2.response!.myDocumentsUsedSpace!.usedSpace,
+      );
+      expect(call2.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+        call3.response!.myDocumentsUsedSpace!.usedSpace,
+      );
+    },
+  );
+
+  // Catches: if usedSpace or title fields have wrong types
+  // (e.g. usedSpace returned as string "1024" instead of number 1024)
+  test("GET /api/2.0/files/filesusedspace - all fields have correct data types", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("initialize all sections", async () => {
+      await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Types Init" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Types Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.archiveRoom({
+        id: roomData.response!.id!,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+    });
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+    const r = data.response!;
+
+    expect(status).toBe(200);
+
+    for (const section of [
+      r.myDocumentsUsedSpace,
+      r.trashUsedSpace,
+      r.archiveUsedSpace,
+      r.roomsUsedSpace,
+    ]) {
+      // Catches: if usedSpace is returned as string instead of number
+      expect(typeof section!.usedSpace).toBe("number");
+      // Catches: if usedSpace is a float (fractional bytes are not valid)
+      expect(Number.isInteger(section!.usedSpace)).toBe(true);
+      // Catches: if title is returned as null or non-string
+      expect(typeof section!.title).toBe("string");
+      expect(section!.title!.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+test.describe("GET /api/2.0/files/filesusedspace - Soft delete conservation check", () => {
+  // Catches: if soft delete does not correctly move file size from My Documents to Trash.
+  // Warmup file creation before measuring ensures sample files are injected before the baseline
+  // snapshot, so the delete operation itself does not cause a false usedSpace increase.
+  test("GET /api/2.0/files/filesusedspace - Soft delete decreases myDocumentsUsedSpace and increases trashUsedSpace by the same amount", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Conservation Warmup" },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Conservation Target" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: withFileData } = await ownerApi.folders.getFilesUsedSpace();
+    const myDocsBefore =
+      withFileData.response!.myDocumentsUsedSpace!.usedSpace!;
+    const trashBefore = withFileData.response?.trashUsedSpace?.usedSpace ?? 0;
+
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+    const myDocsAfter = afterData.response!.myDocumentsUsedSpace!.usedSpace!;
+    const trashAfter = afterData.response!.trashUsedSpace!.usedSpace!;
+
+    expect(status).toBe(200);
+    // Catches: if myDocumentsUsedSpace does not decrease after soft delete
+    expect(myDocsAfter).toBeLessThan(myDocsBefore);
+    // Catches: if trashUsedSpace does not increase after soft delete
+    expect(trashAfter).toBeGreaterThan(trashBefore);
+    // Catches: if space is double-counted -- removed from myDocs must equal added to trash
+    expect(trashAfter - trashBefore).toBe(myDocsBefore - myDocsAfter);
+  });
+});
+
+test.describe("GET /api/2.0/files/filesusedspace - Reports zero space when files already exist in My Documents", () => {
+  // BUG 81648: getFilesUsedSpace returns {} (no myDocumentsUsedSpace) even when files already
+  // exist in My Documents. The method only starts counting space after a write operation
+  // (e.g. createFileInMyDocuments) triggers a recalculation. Pre-existing files are ignored.
+  test.fail(
+    "BUG 81648: GET /api/2.0/files/filesusedspace - Returns myDocumentsUsedSpace when files already exist in My Documents",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      // Call getFilesUsedSpace FIRST (before any other folder API calls) to reproduce
+      // the bug: pre-existing files are ignored until another folder API call warms up the index
+      const { data: initData, status } =
+        await ownerApi.folders.getFilesUsedSpace();
+
+      // Confirm files actually exist in My Documents at the time of the call
+      const { data: myFolderData } = await ownerApi.folders.getMyFolder();
+      const filesInMyDocuments = myFolderData.response?.files ?? [];
+      expect(filesInMyDocuments.length).toBeGreaterThan(0);
+
+      expect(status).toBe(200);
+      // Catches: method returns {} (myDocumentsUsedSpace absent) despite files existing in My Documents
+      expect(initData.response?.myDocumentsUsedSpace).toBeDefined();
+      expect(
+        initData.response?.myDocumentsUsedSpace?.usedSpace,
+      ).toBeGreaterThan(0);
+    },
+  );
 });

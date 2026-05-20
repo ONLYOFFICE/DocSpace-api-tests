@@ -3767,6 +3767,45 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
     const actionIds = data.response!.map((e) => e.action?.id);
     expect(actionIds).toContain(MessageAction.FileUnlocked);
   });
+
+  test("GET /files/file/:fileId/log - History contains FileIndexChanged after PUT /files/:fileId/order", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest File History FileIndexChanged",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "File To Reorder" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.files.getFileHistory({
+      fileId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileIndexChanged,
+    );
+
+    await ownerApi.files.setFileOrder({
+      fileId,
+      orderRequestDto: { order: 5 },
+    });
+
+    const { data, status } = await ownerApi.files.getFileHistory({ fileId });
+
+    expect(status).toBe(200);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).toContain(MessageAction.FileIndexChanged);
+  });
 });
 
 test.describe("POST /files/file/:fileId/startedit - Start file editing", () => {
