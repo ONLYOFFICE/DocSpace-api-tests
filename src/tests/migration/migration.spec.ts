@@ -62,33 +62,31 @@ test.describe("GET /api/2.0/migration/status", () => {
 });
 
 test.describe("GET /api/2.0/migration/logs", () => {
-  test("GET /api/2.0/migration/logs - Owner gets 404 when no migration has run", async ({
-    apiSdk,
-  }) => {
-    test.fail(true, "BUG XXXXX: returns 500 instead of 404");
+  test.fail(
+    "BUG 81653: GET /api/2.0/migration/logs - Owner gets 404 when no migration has run",
+    async ({ apiSdk }) => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .migration.getMigrationLogs();
 
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .migration.getMigrationLogs();
+      expect(status).toBe(404);
+      expect((data as any).error?.message).toBe("No migration is in progress");
+    },
+  );
 
-    expect(status).toBe(404);
-    expect((data as any).error?.message).toBe("No migration is in progress");
-  });
+  test.fail(
+    "BUG 81653: GET /api/2.0/migration/logs - DocSpaceAdmin gets 404 when no migration has run",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
-  test("GET /api/2.0/migration/logs - DocSpaceAdmin gets 404 when no migration has run", async ({
-    apiSdk,
-  }) => {
-    test.fail(true, "BUG XXXXX: returns 500 instead of 404");
+      const { data, status } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .migration.getMigrationLogs();
 
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .migration.getMigrationLogs();
-
-    expect(status).toBe(404);
-    expect((data as any).error?.message).toBe("No migration is in progress");
-  });
+      expect(status).toBe(404);
+      expect((data as any).error?.message).toBe("No migration is in progress");
+    },
+  );
 });
 
 // POST /api/2.0/migration/init/{migratorName} (uploadAndInitializeMigration) cannot be fully tested:
