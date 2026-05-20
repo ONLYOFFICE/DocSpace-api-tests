@@ -8148,6 +8148,67 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
   });
 });
 
+test.describe("POST /api/2.0/files/{folderId}/upload - Upload file via SDK", () => {
+  // BUG XXXXX: FoldersApi.uploadFile() sets Content-Type: application/json and calls
+  // serializeDataIfNeeded, which JSON.stringifies File/Blob objects to {}.
+  // Server receives empty JSON body and returns 403 "No input files".
+  // Fix: SDK must not set Content-Type: application/json and must not serialize FormData.
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/{folderId}/upload - Owner uploads file via SDK returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Upload Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.folders.uploadFile({
+        folderId,
+        uploadRequestDto: {
+          file: new File(
+            [Buffer.from("Autotest upload content")],
+            "autotest-upload.txt",
+            { type: "text/plain" },
+          ),
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+    },
+  );
+});
+
+test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents via SDK", () => {
+  // BUG XXXXX: FoldersApi.uploadFileToMy() passes inDto in query string instead of
+  // multipart/form-data request body. File is never sent to the server.
+  // Server returns 403 "No input files".
+  // Fix: SDK must send upload payload in multipart/form-data body, not query string.
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/@my/upload - Owner uploads file to My Documents via SDK returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.folders.uploadFileToMy({
+        inDto: {
+          file: new File(
+            [Buffer.from("Autotest upload content")],
+            "autotest-my-upload.txt",
+            { type: "text/plain" },
+          ),
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+    },
+  );
+});
+
 test.describe("GET /api/2.0/files/filesusedspace - Get files used space statistics", () => {
   // Catches: if the statistics endpoint fails for an authenticated owner (broken handler, wrong route)
   test("GET /api/2.0/files/filesusedspace - Owner gets used space statistics returns 200", async ({
@@ -8294,6 +8355,126 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     expect(status).toBe(200);
     // Catches: if trashUsedSpace is not recalculated after soft delete
     expect(trashAfter).toBeGreaterThan(trashBefore);
+  });
+
+  // Catches: if roomsUsedSpace is not recalculated after a file is added to a room
+  // (counter is cached without invalidation, or file size is not attributed to rooms bucket)
+  test("GET /api/2.0/files/filesusedspace - roomsUsedSpace increases after file is created in a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Rooms Space",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const roomsBefore = beforeData.response?.roomsUsedSpace?.usedSpace ?? 0;
+
+    await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Room Space File" },
+    });
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    // Catches: if roomsUsedSpace is not updated after file creation in a room
+    expect(afterData.response!.roomsUsedSpace!.usedSpace).toBeGreaterThan(
+      roomsBefore,
+    );
+  });
+
+  // Catches: if archiveUsedSpace is not recalculated after a room with files is archived
+  // (counter is not attributed to archive bucket after archiveRoom operation)
+  test("GET /api/2.0/files/filesusedspace - archiveUsedSpace increases after room with file is archived", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Archive Space",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Archive Space File" },
+    });
+
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const archiveBefore = beforeData.response?.archiveUsedSpace?.usedSpace ?? 0;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    // Catches: if archiveUsedSpace is not updated after room archival
+    expect(afterData.response!.archiveUsedSpace!.usedSpace).toBeGreaterThan(
+      archiveBefore,
+    );
+  });
+
+  // Catches: if archiveUsedSpace section title is renamed or localisation key is broken
+  test("GET /api/2.0/files/filesusedspace - archiveUsedSpace section has correct title", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Archive Title",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.archiveRoom({
+      id: roomData.response!.id!,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    expect(data.response!.archiveUsedSpace).toBeDefined();
+    // Catches: if archive section title is renamed or localisation key is broken
+    expect(data.response!.archiveUsedSpace!.title).toBe("Archive");
+  });
+
+  // Catches: if aiAgentsUsedSpace section loses title or usedSpace fields when it appears
+  // Note: section only appears when AI Agents feature is active (paid/configured).
+  // Creating an AiRoom alone does not trigger aiAgentsUsedSpace in the response.
+  // This test verifies the section structure is correct whenever it is present.
+  test("GET /api/2.0/files/filesusedspace - aiAgentsUsedSpace section has correct structure when present", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+
+    if (data.response?.aiAgentsUsedSpace !== undefined) {
+      // Catches: if aiAgentsUsedSpace title is missing or usedSpace is negative
+      expect(data.response.aiAgentsUsedSpace.title).toBeDefined();
+      expect(data.response.aiAgentsUsedSpace.usedSpace).toBeGreaterThanOrEqual(
+        0,
+      );
+    }
   });
 });
 
