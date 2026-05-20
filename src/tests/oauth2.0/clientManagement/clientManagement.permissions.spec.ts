@@ -479,7 +479,7 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
   });
 
   test.fail(
-    "BUG : PUT /api/2.0/clients/{clientId} - Cannot update client with name exceeding 256 characters",
+    "BUG 81670: PUT /api/2.0/clients/{clientId} - Cannot update client with name exceeding 256 characters",
     async ({ apiSdk }) => {
       const api = apiSdk.forRole("owner");
       const signature = await getSignature(api);
@@ -510,7 +510,7 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
   );
 
   test.fail(
-    "BUG : PUT /api/2.0/clients/{clientId} - Cannot update client with name shorter than 3 characters",
+    "BUG 81670: PUT /api/2.0/clients/{clientId} - Cannot update client with name shorter than 3 characters",
     async ({ apiSdk }) => {
       const api = apiSdk.forRole("owner");
       const signature = await getSignature(api);
