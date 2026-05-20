@@ -50,6 +50,7 @@ import { AuthenticationApi } from "@onlyoffice/docspace-api-sdk/dist/api/authent
 import { CapabilitiesApi } from "@onlyoffice/docspace-api-sdk/dist/api/capabilities/capabilities-api";
 import { MigrationApi } from "@onlyoffice/docspace-api-sdk/dist/api/migration/migration-api";
 import { ScopeManagementApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth20/scope-management-api";
+import { ClientManagementApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth20/client-management-api";
 import { OAuth2Api } from "@onlyoffice/docspace-api-sdk/dist/api/security/oauth2-api";
 import { TFASettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/tfasettings-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
@@ -197,6 +198,11 @@ export class ApiSDK {
       capabilities: new CapabilitiesApi(config, undefined, axiosInstance),
       migration: new MigrationApi(config, undefined, axiosInstance),
       scopeManagement: new ScopeManagementApi(config, undefined, axiosInstance),
+      clientManagement: new ClientManagementApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
       oauth2: new OAuth2Api(config, undefined, axiosInstance),
     };
   }
@@ -266,6 +272,11 @@ export class ApiSDK {
       capabilities: new CapabilitiesApi(config, undefined, axiosInstance),
       migration: new MigrationApi(config, undefined, axiosInstance),
       scopeManagement: new ScopeManagementApi(config, undefined, axiosInstance),
+      clientManagement: new ClientManagementApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
     };
   }
 
