@@ -304,7 +304,7 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
 
 test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - Missing tmpFile (empty logoRequest) returns 400",
+    "BUG 81677: POST /files/rooms/:id/logo - Missing tmpFile (empty logoRequest) returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -325,7 +325,7 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
   );
 
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - Empty string tmpFile returns 400",
+    "BUG 81677: POST /files/rooms/:id/logo - Empty string tmpFile returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -346,7 +346,7 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
   );
 
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - Null tmpFile returns 400",
+    "BUG 81677: POST /files/rooms/:id/logo - Null tmpFile returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -478,7 +478,7 @@ test.describe("POST /files/rooms/:id/logo - Room ID validation", () => {
 
 test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - Negative x coordinate returns 400",
+    "BUG 81678: POST /files/rooms/:id/logo - Negative x coordinate returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -509,7 +509,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
   );
 
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - Negative y coordinate returns 400",
+    "BUG 81678: POST /files/rooms/:id/logo - Negative y coordinate returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -540,7 +540,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
   );
 
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - Zero width returns 400",
+    "BUG 81678: POST /files/rooms/:id/logo - Zero width returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -571,7 +571,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
   );
 
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - Zero height returns 400",
+    "BUG 81678: POST /files/rooms/:id/logo - Zero height returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -662,7 +662,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
   });
 
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - String x coordinate returns 400",
+    "BUG 81678: POST /files/rooms/:id/logo - String x coordinate returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -693,7 +693,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
   );
 
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - String width returns 400",
+    "BUG 81678: POST /files/rooms/:id/logo - String width returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -724,7 +724,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
   );
 
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - Crop area outside image bounds returns 400",
+    "BUG 81678: POST /files/rooms/:id/logo - Crop area outside image bounds returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -852,7 +852,7 @@ test.describe("POST /files/rooms/:id/logo - File lifecycle and consistency", () 
   });
 
   test.fail(
-    "BUG TBD: POST /files/rooms/:id/logo - Non-image content as tmpFile returns 403",
+    "BUG 81679: POST /files/rooms/:id/logo - Non-image content as tmpFile returns 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
