@@ -1594,7 +1594,10 @@ test.describe("API rooms methods", () => {
     test("POST /files/tags - Emoji in tag name is accepted", async ({
       apiSdk,
     }) => {
-      test.fail(true, "BUG XXXXX: emoji in tag name returns 500 instead of 200");
+      test.fail(
+        true,
+        "BUG 81682: emoji in tag name returns 500 instead of 200",
+      );
       const ownerApi = apiSdk.forRole("owner");
       const name = "Tag 🚀 Emoji";
       const { data, status } = await ownerApi.rooms.createRoomTag({
@@ -1617,7 +1620,7 @@ test.describe("API rooms methods", () => {
     }) => {
       test.fail(
         true,
-        "BUG XXXXX: spaces-only tag name is accepted (200) instead of rejected (400)",
+        "BUG 81683: spaces-only tag name is accepted (200) instead of rejected (400)",
       );
       const { data } = await apiSdk.forRole("owner").rooms.createRoomTag({
         createTagRequestDto: { name: "   " },
