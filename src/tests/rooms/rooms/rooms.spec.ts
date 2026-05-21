@@ -2409,7 +2409,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: POST /files/rooms/fromtemplate - Nested folder hierarchy is preserved",
+      "BUG 81666: POST /files/rooms/fromtemplate - Nested folder hierarchy is preserved",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2622,7 +2622,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: POST /files/rooms/fromtemplate - templateId 0 returns 404",
+      "BUG 81667: POST /files/rooms/fromtemplate - templateId 0 returns 404",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data } = await ownerApi.rooms.createRoomFromTemplate({
@@ -2639,7 +2639,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: POST /files/rooms/fromtemplate - Non-existent templateId returns 404",
+      "BUG 81667: POST /files/rooms/fromtemplate - Non-existent templateId returns 404",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data } = await ownerApi.rooms.createRoomFromTemplate({
@@ -2656,7 +2656,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: POST /files/rooms/fromtemplate - Deleted template returns 404",
+      "BUG 81667: POST /files/rooms/fromtemplate - Deleted template returns 404",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2720,7 +2720,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: POST /files/rooms/fromtemplate - Empty title returns 400",
+      "BUG 81669: POST /files/rooms/fromtemplate - Empty title returns 400",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2751,7 +2751,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: POST /files/rooms/fromtemplate - Whitespace-only title returns 400",
+      "BUG 81669: POST /files/rooms/fromtemplate - Whitespace-only title returns 400",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2782,7 +2782,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: POST /files/rooms/fromtemplate - Excessively long title (1000 chars) returns 400",
+      "BUG 81669: POST /files/rooms/fromtemplate - Excessively long title (1000 chars) returns 400",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({

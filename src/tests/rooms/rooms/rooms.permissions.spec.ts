@@ -1272,7 +1272,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
   });
 
   test.fail(
-    "BUG XXXXX: User cannot create a room from template (no create-room permission)",
+    "BUG 81662: User cannot create a room from template (no create-room permission)",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1310,7 +1310,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
   );
 
   test.fail(
-    "BUG XXXXX: Guest cannot create a room from template",
+    "BUG 81663: Guest cannot create a room from template",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1348,7 +1348,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
   );
 
   test.fail(
-    "BUG XXXXX: DocSpaceAdmin cannot create a room from a non-public template they don't own",
+    "BUG 81664: DocSpaceAdmin cannot create a room from a non-public template they don't own",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1383,7 +1383,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
   );
 
   test.fail(
-    "BUG XXXXX: User with source-room access but no template access cannot create room",
+    "BUG 81662: User with source-room access but no template access cannot create room",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1427,7 +1427,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
   );
 
   test.fail(
-    "BUG XXXXX: User with template access still cannot create room without create-room permission",
+    "BUG 81662: User with template access still cannot create room without create-room permission",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
