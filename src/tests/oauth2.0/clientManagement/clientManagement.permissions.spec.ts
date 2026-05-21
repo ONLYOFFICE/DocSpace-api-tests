@@ -581,3 +581,291 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
     expect(status).toBe(400);
   });
 });
+
+test.describe("PATCH /api/2.0/clients/{clientId}/activation - permissions", () => {
+  test("PATCH /api/2.0/clients/{clientId}/activation - Anonymous cannot change client activation", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .clientManagement.changeActivation({
+        clientId: "00000000-0000-0000-0000-000000000000",
+        changeClientActivationRequest: { status: false },
+      });
+
+    expect(status).toBe(403);
+  });
+
+  test("PATCH /api/2.0/clients/{clientId}/activation - Guest cannot change client activation", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .clientManagement.changeActivation({
+        clientId: "00000000-0000-0000-0000-000000000000",
+        changeClientActivationRequest: { status: false },
+      });
+
+    expect(status).toBe(403);
+  });
+
+  test("PATCH /api/2.0/clients/{clientId}/activation - User cannot change activation of another user's client", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const ownerSignature = await getSignature(ownerApi);
+
+    const { data: created } = await ownerApi.clientManagement.createClient(
+      { createClientRequest: { ...fullClientRequest, name: "Owner Client" } },
+      { headers: { "x-signature": ownerSignature } },
+    );
+    const clientId = created.client_id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const userApi = apiSdk.forRole("user");
+    const userSignature = await getSignature(userApi);
+
+    const { status } = await userApi.clientManagement.changeActivation(
+      { clientId, changeClientActivationRequest: { status: false } },
+      { headers: { "x-signature": userSignature } },
+    );
+
+    expect(status).toBe(404);
+  });
+
+  test("PATCH /api/2.0/clients/{clientId}/activation - Non-existent client returns 404", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const signature = await getSignature(api);
+
+    const { status } = await api.clientManagement.changeActivation(
+      {
+        clientId: "00000000-0000-0000-0000-000000000000",
+        changeClientActivationRequest: { status: false },
+      },
+      { headers: { "x-signature": signature } },
+    );
+
+    expect(status).toBe(404);
+  });
+});
+
+test.describe("PATCH /api/2.0/clients/{clientId}/regenerate - permissions", () => {
+  test("PATCH /api/2.0/clients/{clientId}/regenerate - Anonymous cannot regenerate client secret", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .clientManagement.regenerateSecret({
+        clientId: "00000000-0000-0000-0000-000000000000",
+      });
+
+    expect(status).toBe(403);
+  });
+
+  test("PATCH /api/2.0/clients/{clientId}/regenerate - Guest cannot regenerate client secret", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .clientManagement.regenerateSecret({
+        clientId: "00000000-0000-0000-0000-000000000000",
+      });
+
+    expect(status).toBe(403);
+  });
+
+  test("PATCH /api/2.0/clients/{clientId}/regenerate - User cannot regenerate secret of another user's client", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const ownerSignature = await getSignature(ownerApi);
+
+    const { data: created } = await ownerApi.clientManagement.createClient(
+      { createClientRequest: { ...fullClientRequest, name: "Owner Client" } },
+      { headers: { "x-signature": ownerSignature } },
+    );
+    const clientId = created.client_id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const userApi = apiSdk.forRole("user");
+    const userSignature = await getSignature(userApi);
+
+    const { status } = await userApi.clientManagement.regenerateSecret(
+      { clientId },
+      { headers: { "x-signature": userSignature } },
+    );
+
+    expect(status).toBe(404);
+  });
+
+  test("PATCH /api/2.0/clients/{clientId}/regenerate - Non-existent client returns 404", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const signature = await getSignature(api);
+
+    const { status } = await api.clientManagement.regenerateSecret(
+      { clientId: "00000000-0000-0000-0000-000000000000" },
+      { headers: { "x-signature": signature } },
+    );
+
+    expect(status).toBe(404);
+  });
+});
+
+test.describe("DELETE /api/2.0/clients - permissions", () => {
+  test("DELETE /api/2.0/clients - Anonymous cannot delete user clients", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .clientManagement.deleteUserClients();
+
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /api/2.0/clients - Guest cannot delete user clients", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .clientManagement.deleteUserClients();
+
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /api/2.0/clients - deleteUserClients does not delete other users' clients", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const ownerSignature = await getSignature(ownerApi);
+
+    const { data: created } = await ownerApi.clientManagement.createClient(
+      { createClientRequest: { ...fullClientRequest, name: "Owner Client" } },
+      { headers: { "x-signature": ownerSignature } },
+    );
+    const clientId = created.client_id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const userApi = apiSdk.forRole("user");
+    const userSignature = await getSignature(userApi);
+
+    await userApi.clientManagement.deleteUserClients({
+      headers: { "x-signature": userSignature },
+    });
+
+    const ownerSignature2 = await getSignature(ownerApi);
+    const { status } = await ownerApi.clientQuerying.getClient(
+      { clientId },
+      { headers: { "x-signature": ownerSignature2 } },
+    );
+
+    expect(status).toBe(200);
+  });
+});
+
+test.describe("DELETE /api/2.0/clients/tenant - permissions", () => {
+  test("DELETE /api/2.0/clients/tenant - Anonymous cannot delete tenant clients", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .clientManagement.deleteTenantClients();
+
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /api/2.0/clients/tenant - Guest cannot delete tenant clients", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .clientManagement.deleteTenantClients();
+
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /api/2.0/clients/tenant - RoomAdmin cannot delete tenant clients", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const api = apiSdk.forRole("roomAdmin");
+    const signature = await getSignature(api);
+
+    const { status } = await api.clientManagement.deleteTenantClients({
+      headers: { "x-signature": signature },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /api/2.0/clients/tenant - User cannot delete tenant clients", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const api = apiSdk.forRole("user");
+    const signature = await getSignature(api);
+
+    const { status } = await api.clientManagement.deleteTenantClients({
+      headers: { "x-signature": signature },
+    });
+
+    expect(status).toBe(403);
+  });
+});
+
+// Full testing of DELETE /api/2.0/clients/{clientId}/revoke requires an active OAuth2 consent
+// obtained through the authorization code flow (browser redirect + consent screen).
+// That flow cannot be automated via API — see src/tests/oauth2.0/authorization/authorization.spec.ts.
+// Tests below cover only permission checks and edge cases that don't require a prior consent.
+test.describe("DELETE /api/2.0/clients/{clientId}/revoke - permissions", () => {
+  test("DELETE /api/2.0/clients/{clientId}/revoke - Anonymous cannot revoke client consent", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .clientManagement.revokeUserClient({
+        clientId: "00000000-0000-0000-0000-000000000000",
+      });
+
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /api/2.0/clients/{clientId}/revoke - Guest cannot revoke client consent", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .clientManagement.revokeUserClient({
+        clientId: "00000000-0000-0000-0000-000000000000",
+      });
+
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /api/2.0/clients/{clientId}/revoke - Non-existent client returns 200", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const signature = await getSignature(api);
+
+    const { status } = await api.clientManagement.revokeUserClient(
+      { clientId: "00000000-0000-0000-0000-000000000000" },
+      { headers: { "x-signature": signature } },
+    );
+
+    expect(status).toBe(200);
+  });
+});
