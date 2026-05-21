@@ -8515,64 +8515,50 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
 });
 
 test.describe("POST /api/2.0/files/{folderId}/upload - Upload file via SDK", () => {
-  // BUG 81536: FoldersApi.uploadFile() sets Content-Type: application/json and calls
-  // serializeDataIfNeeded, which JSON.stringifies File/Blob objects to {}.
-  // Server receives empty JSON body and returns 403 "No input files".
-  // Fix: SDK must not set Content-Type: application/json and must not serialize FormData.
-  test.fail(
-    "BUG 81536: POST /api/2.0/files/{folderId}/upload - Owner uploads file via SDK returns 200",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81536: POST /api/2.0/files/{folderId}/upload - Owner uploads file via SDK returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Upload Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Upload Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
 
-      const { data, status } = await ownerApi.folders.uploadFile({
-        folderId,
-        uploadRequestDto: {
-          file: new File(
-            [Buffer.from("Autotest upload content")],
-            "autotest-upload.txt",
-            { type: "text/plain" },
-          ),
-        },
-      });
+    const { data, status } = await ownerApi.folders.uploadFile({
+      folderId,
+      file: new File(
+        [Buffer.from("Autotest upload content")],
+        "autotest-upload.txt",
+        { type: "text/plain" },
+      ),
+    });
 
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
 });
 
 test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents via SDK", () => {
-  // BUG 81538: FoldersApi.uploadFileToMy() passes inDto in query string instead of
-  // multipart/form-data request body. File is never sent to the server.
-  // Server returns 403 "No input files".
-  // Fix: SDK must send upload payload in multipart/form-data body, not query string.
-  test.fail(
-    "BUG 81538: POST /api/2.0/files/@my/upload - Owner uploads file to My Documents via SDK returns 200",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81538: POST /api/2.0/files/@my/upload - Owner uploads file to My Documents via SDK returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.folders.uploadFileToMy({
-        inDto: {
-          file: new File(
-            [Buffer.from("Autotest upload content")],
-            "autotest-my-upload.txt",
-            { type: "text/plain" },
-          ),
-        },
-      });
+    const { data, status } = await ownerApi.folders.uploadFileToMy({
+      file: new File(
+        [Buffer.from("Autotest upload content")],
+        "autotest-my-upload.txt",
+        { type: "text/plain" },
+      ),
+    });
 
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
 });
 
 test.describe("GET /api/2.0/files/filesusedspace - Get files used space statistics", () => {
