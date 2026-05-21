@@ -626,6 +626,47 @@ test.describe("POST /files/tags - access control", () => {
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });
+
+  test("RoomAdmin can create a tag", async ({ apiSdk }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { data, status } = await roomAdminApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Tag" },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response as unknown as string).toBe("Autotest Tag");
+    expect(data.count).toBe(1);
+  });
+
+  test("Anonymous cannot create a tag", async ({ apiSdk }) => {
+    const { status } = await apiSdk.forAnonymous().rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Tag" },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("Disabled (terminated) user cannot create a tag", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Tag" },
+    });
+
+    expect(status).toBe(401);
+  });
 });
 
 test.describe("PUT /files/rooms/:id/share - access control", () => {
