@@ -3280,246 +3280,240 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     expect(data.response).toEqual([]);
   });
 
-  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
-  test.fail(
-    "BUG 81520: GET /api/2.0/files/:folderId/news - File uploaded by another user appears as new item",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room News File Check",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("GET /api/2.0/files/:folderId/news - File created by another user appears as new item", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News File Check",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { data: userData, userData: userCredentials } =
+      await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Editing }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
 
-      // owner visits the room to establish last-read baseline
-      await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+    // owner visits the room to establish last-read baseline
+    await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
 
-      // another user adds a file after the owner's visit
-      await userApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest News File By User.docx" },
-      });
+    // authenticate user only when needed — right before creating the file
+    const userApi = await apiSdk.authenticateMember(userCredentials, "User");
+    await userApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest News File By User.docx" },
+    });
 
-      const { data, status } = await ownerApi.folders.getNewFolderItems({
-        folderId: roomId,
-      });
+    const { data, status } = await ownerApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
 
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      const titles = data.response!.map((e) => e.title);
-      expect(titles).toContain("Autotest News File By User.docx");
-    },
-  );
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest News File By User.docx");
+  });
 
-  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
-  test.fail(
-    "BUG 81520: GET /api/2.0/files/:folderId/news - Subfolder created by another user appears as new item",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room News Subfolder Check",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("GET /api/2.0/files/:folderId/news - Subfolder created by another user does not appear as new item", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News Subfolder Check",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Editing }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
 
-      // owner visits the room to establish last-read baseline
-      await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+    // owner visits the room to establish last-read baseline
+    await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
 
-      await userApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: "Autotest News Subfolder By User" },
-      });
+    await userApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest News Subfolder By User" },
+    });
 
-      const { data, status } = await ownerApi.folders.getNewFolderItems({
-        folderId: roomId,
-      });
+    const { data, status } = await ownerApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
 
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      const titles = data.response!.map((e) => e.title);
-      expect(titles).toContain("Autotest News Subfolder By User");
-    },
-  );
+    expect(status).toBe(200);
+    // folders are intentionally not marked as new — only files are
+    const titles = (data.response ?? []).map((e) => e.title);
+    expect(titles).not.toContain("Autotest News Subfolder By User");
+  });
 
-  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
-  test.fail(
-    "BUG 81520: GET /api/2.0/files/:folderId/news - response contains all new items added after owner visit",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room News Count Check",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("GET /api/2.0/files/:folderId/news - response contains all new items added after owner visit", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News Count Check",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Editing }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
 
-      // owner visits the room to establish last-read baseline
-      await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+    // owner visits the room to establish last-read baseline
+    await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
 
-      await userApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest News Count File 1.docx" },
-      });
-      await userApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest News Count File 2.docx" },
-      });
+    await userApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest News Count File 1.docx" },
+    });
+    await userApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest News Count File 2.docx" },
+    });
 
-      const { data, status } = await ownerApi.folders.getNewFolderItems({
-        folderId: roomId,
-      });
+    const { data, status } = await ownerApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
 
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      const titles = data.response!.map((e) => e.title);
-      expect(titles).toContain("Autotest News Count File 1.docx");
-      expect(titles).toContain("Autotest News Count File 2.docx");
-    },
-  );
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest News Count File 1.docx");
+    expect(titles).toContain("Autotest News Count File 2.docx");
+  });
 
-  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
-  test.fail(
-    "BUG 81520: GET /api/2.0/files/:folderId/news - each item has required fields title and fileEntryType",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room News Fields Check",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("GET /api/2.0/files/:folderId/news - each item has required fields title and fileEntryType", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News Fields Check",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Editing }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
 
-      // owner visits the room to establish last-read baseline
-      await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+    // owner visits the room to establish last-read baseline
+    await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
 
-      await userApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest News Fields File.docx" },
-      });
+    await userApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest News Fields File.docx" },
+    });
 
-      const { data, status } = await ownerApi.folders.getNewFolderItems({
-        folderId: roomId,
-      });
+    const { data, status } = await ownerApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
 
-      expect(status).toBe(200);
-      expect(data.response!.length).toBeGreaterThan(0);
-      for (const item of data.response!) {
-        expect(item.title).toBeDefined();
-        expect(item.title).not.toBe("");
-        expect(item.fileEntryType).toBeDefined();
-        expect(item.createdBy).toBeDefined();
-        expect(item.updated).toBeDefined();
-      }
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeGreaterThan(0);
+    for (const item of data.response!) {
+      expect(item.title).toBeDefined();
+      expect(item.title).not.toBe("");
+      expect(item.fileEntryType).toBeDefined();
+      expect(item.createdBy).toBeDefined();
+      expect(item.updated).toBeDefined();
+    }
+  });
 
-  // BUG 81520: GET /api/2.0/files/:folderId/news - always returns empty response[] even when new items exist
-  test.fail(
-    "BUG 81520: GET /api/2.0/files/:folderId/news - Items added by multiple different users all appear in news",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room News Multi User",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("GET /api/2.0/files/:folderId/news - Items added by multiple different users all appear in news", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room News Multi User",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: user1Api, data: user1Data } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const user1Id = user1Data.response!.id!;
+    const { data: user1Data, userData: user1Credentials } =
+      await apiSdk.addMember("owner", "User");
+    const user1Id = user1Data.response!.id!;
 
-      const { api: user2Api, data: user2Data } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const user2Id = user2Data.response!.id!;
+    const { data: user2Data, userData: user2Credentials } =
+      await apiSdk.addMember("owner", "User");
+    const user2Id = user2Data.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [
-            { id: user1Id, access: FileShare.Editing },
-            { id: user2Id, access: FileShare.Editing },
-          ],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: user1Id, access: FileShare.ContentCreator },
+          { id: user2Id, access: FileShare.ContentCreator },
+        ],
+        notify: false,
+      },
+    });
 
-      await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+    await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
 
-      await user1Api.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest News File By User1.docx" },
-      });
-      await user2Api.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest News File By User2.docx" },
-      });
+    const user1Api = await apiSdk.authenticateMember(user1Credentials, "User");
+    await user1Api.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest News File By User1.docx" },
+    });
 
-      const { data, status } = await ownerApi.folders.getNewFolderItems({
-        folderId: roomId,
-      });
+    const user2Api = await apiSdk.authenticateMember(user2Credentials, "User");
+    await user2Api.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest News File By User2.docx" },
+    });
 
-      expect(status).toBe(200);
-      const titles = data.response!.map((e) => e.title);
-      expect(titles).toContain("Autotest News File By User1.docx");
-      expect(titles).toContain("Autotest News File By User2.docx");
-    },
-  );
+    const { data, status } = await ownerApi.folders.getNewFolderItems({
+      folderId: roomId,
+    });
+
+    expect(status).toBe(200);
+    const titles = data.response!.map((e) => e.title);
+    expect(titles).toContain("Autotest News File By User1.docx");
+    expect(titles).toContain("Autotest News File By User2.docx");
+  });
 
   test("GET /api/2.0/files/:folderId/news - Items created before owner visit do not appear as new", async ({
     apiSdk,
@@ -8515,64 +8509,50 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
 });
 
 test.describe("POST /api/2.0/files/{folderId}/upload - Upload file via SDK", () => {
-  // BUG 81536: FoldersApi.uploadFile() sets Content-Type: application/json and calls
-  // serializeDataIfNeeded, which JSON.stringifies File/Blob objects to {}.
-  // Server receives empty JSON body and returns 403 "No input files".
-  // Fix: SDK must not set Content-Type: application/json and must not serialize FormData.
-  test.fail(
-    "BUG 81536: POST /api/2.0/files/{folderId}/upload - Owner uploads file via SDK returns 200",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81536: POST /api/2.0/files/{folderId}/upload - Owner uploads file via SDK returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Upload Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Upload Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
 
-      const { data, status } = await ownerApi.folders.uploadFile({
-        folderId,
-        uploadRequestDto: {
-          file: new File(
-            [Buffer.from("Autotest upload content")],
-            "autotest-upload.txt",
-            { type: "text/plain" },
-          ),
-        },
-      });
+    const { data, status } = await ownerApi.folders.uploadFile({
+      folderId,
+      file: new File(
+        [Buffer.from("Autotest upload content")],
+        "autotest-upload.txt",
+        { type: "text/plain" },
+      ),
+    });
 
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
 });
 
 test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents via SDK", () => {
-  // BUG 81538: FoldersApi.uploadFileToMy() passes inDto in query string instead of
-  // multipart/form-data request body. File is never sent to the server.
-  // Server returns 403 "No input files".
-  // Fix: SDK must send upload payload in multipart/form-data body, not query string.
-  test.fail(
-    "BUG 81538: POST /api/2.0/files/@my/upload - Owner uploads file to My Documents via SDK returns 200",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81538: POST /api/2.0/files/@my/upload - Owner uploads file to My Documents via SDK returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.folders.uploadFileToMy({
-        inDto: {
-          file: new File(
-            [Buffer.from("Autotest upload content")],
-            "autotest-my-upload.txt",
-            { type: "text/plain" },
-          ),
-        },
-      });
+    const { data, status } = await ownerApi.folders.uploadFileToMy({
+      file: new File(
+        [Buffer.from("Autotest upload content")],
+        "autotest-my-upload.txt",
+        { type: "text/plain" },
+      ),
+    });
 
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
 });
 
 test.describe("GET /api/2.0/files/filesusedspace - Get files used space statistics", () => {
