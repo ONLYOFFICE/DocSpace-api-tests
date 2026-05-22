@@ -347,6 +347,157 @@ test.describe("DELETE /files/rooms/:id - access control", () => {
     expect(status).toBe(403);
     expect((data as any).error?.message).toBe("Access denied");
   });
+
+  test("RoomAdmin (not owner of the room) cannot delete owner's room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room For RoomAdmin Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { status } = await roomAdminApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Anonymous cannot delete a room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Anonymous Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("Disabled (terminated) user cannot delete a room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Disabled User Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+// User/Guest invited to a room with any access level (Viewer/Commenter/Reviewer/Editor/ContentCreator)
+// must not be able to delete the room. RoomManager access is rejected for User/Guest at invitation
+// time, so that combination is skipped — see [[user_guest_no_roommanager_access]].
+for (const userType of ["User", "Guest"] as const) {
+  test.describe(`DELETE /files/rooms/:id - ${userType} invited to room`, () => {
+    for (const { label, access } of roomAccesses) {
+      if (access === FileShare.RoomManager) {
+        continue;
+      }
+
+      test(`Room access: ${label} - cannot delete room`, async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: `Autotest Delete Access ${userType} ${label}`,
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        const { api: memberApi, data: memberData } =
+          await apiSdk.addAuthenticatedMember("owner", userType);
+        const userId = memberData.response!.id!;
+
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access }],
+            notify: false,
+          },
+        });
+
+        const { data, status } = await memberApi.rooms.deleteRoom({
+          id: roomId,
+          deleteRoomRequest: { deleteAfter: false },
+        });
+
+        expect(status).toBe(403);
+        expect((data as any).error?.message).toBe("Access denied");
+      });
+    }
+  });
+}
+
+// RoomAdmin invited to another owner's room must not be able to delete it,
+// regardless of access level — only the room's actual owner (or DocSpaceAdmin) can delete.
+test.describe("DELETE /files/rooms/:id - RoomAdmin invited to owner's room", () => {
+  for (const { label, access } of roomAccesses) {
+    test(`Room access: ${label} - cannot delete room`, async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Delete RoomAdmin Access ${label}`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: roomAdminApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const userId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access }],
+          notify: false,
+        },
+      });
+
+      const { status } = await roomAdminApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+
+      expect(status).toBe(403);
+    });
+  }
 });
 
 test.describe("PUT /files/rooms/:id/archive - access control", () => {
