@@ -4058,7 +4058,7 @@ test.describe("POST /api/2.0/files/{folderId}/upload - Upload file", () => {
     expect(response.title).toBe(fileName);
   });
 
-  test("POST /api/2.0/files/{folderId}/upload - storeOriginalFileFlag=true returns 200", async ({
+  test("POST /api/2.0/files/{folderId}/upload - storeOriginalFile=true returns 200", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -4076,7 +4076,7 @@ test.describe("POST /api/2.0/files/{folderId}/upload - Upload file", () => {
       roomId,
       Buffer.from("Original format content"),
       "autotest-store-original.docx",
-      { storeOriginalFileFlag: true },
+      { storeOriginalFile: true },
     );
 
     expect(status).toBe(200);
@@ -4465,35 +4465,26 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - createNewIfExist=false overwrites existing file keeping same ID", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
     const fileName = "autotest-my-overwrite.txt";
 
-    const formData1 = new FormData();
-    formData1.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("original content"))], {
-        type: "text/plain",
-      }),
+    const { data: data1 } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("original content"),
       fileName,
+      { mimeType: "text/plain" },
     );
-    const { data: data1 } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData1,
-    });
     const firstId = (data1.response as any)?.[0]?.id;
     const firstVersion = (data1.response as any)?.[0]?.version;
 
-    const formData2 = new FormData();
-    formData2.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("updated content"))], {
-        type: "text/plain",
-      }),
+    const { data: data2, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("updated content"),
       fileName,
-    );
-    formData2.append("createNewIfExist", "false");
-    const { data: data2, status } = await ownerApi.folders.uploadFileToMy(
-      undefined,
-      { data: formData2 },
+      { mimeType: "text/plain", createNewIfExist: false },
     );
     const secondId = (data2.response as any)?.[0]?.id;
     const secondVersion = (data2.response as any)?.[0]?.version;
@@ -4506,34 +4497,25 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - createNewIfExist=true creates a new file with different ID", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
     const fileName = "autotest-my-duplicate.txt";
 
-    const formData1 = new FormData();
-    formData1.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("first content"))], {
-        type: "text/plain",
-      }),
+    const { data: data1 } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("first content"),
       fileName,
+      { mimeType: "text/plain" },
     );
-    const { data: data1 } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData1,
-    });
     const firstId = (data1.response as any)?.[0]?.id;
 
-    const formData2 = new FormData();
-    formData2.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("second content"))], {
-        type: "text/plain",
-      }),
+    const { data: data2, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("second content"),
       fileName,
-    );
-    formData2.append("createNewIfExist", "true");
-    const { data: data2, status } = await ownerApi.folders.uploadFileToMy(
-      undefined,
-      { data: formData2 },
+      { mimeType: "text/plain", createNewIfExist: true },
     );
     const secondId = (data2.response as any)?.[0]?.id;
 
@@ -4545,7 +4527,7 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const fileName = "autotest-мой тест (special).txt";
+    const fileName = "autotest-my-test (special).txt";
     const formData = new FormData();
     formData.append(
       "file",
@@ -4626,42 +4608,34 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - createNewIfExist=false with no existing file returns 200", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("first upload, no conflict"))], {
-        type: "text/plain",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("first upload, no conflict"),
       "autotest-my-no-conflict.txt",
+      { mimeType: "text/plain", createNewIfExist: false },
     );
-    formData.append("createNewIfExist", "false");
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
   });
 
-  test("POST /api/2.0/files/@my/upload - storeOriginalFileFlag=true preserves original extension", async ({
+  test("POST /api/2.0/files/@my/upload - storeOriginalFile=true preserves original extension", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("fake docx content"))], {
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("fake docx content"),
       "autotest-my-store-flag.docx",
+      {
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        storeOriginalFile: true,
+      },
     );
-    formData.append("storeOriginalFileFlag", "true");
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
