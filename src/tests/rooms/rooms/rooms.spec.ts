@@ -7052,7 +7052,7 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
   });
 
   test.fail(
-    "BUG TBD: DELETE /files/rooms/:id/tags - Invalid string room id does not return 400",
+    "BUG 81703: DELETE /files/rooms/:id/tags - Invalid string room id does not return 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data } = await ownerApi.rooms.deleteRoomTags({
@@ -7064,7 +7064,7 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
   );
 
   test.fail(
-    "BUG TBD: DELETE /files/rooms/:id/tags - Room id 0 returns 500 instead of 400",
+    "BUG 81704: DELETE /files/rooms/:id/tags - Room id 0 returns 500 instead of 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data } = await ownerApi.rooms.deleteRoomTags({
@@ -7219,7 +7219,7 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
   }
 
   test.fail(
-    "BUG TBD: DELETE /files/rooms/:id/tags - names array containing null returns 200 instead of 400",
+    "BUG 81705: DELETE /files/rooms/:id/tags - names array containing null returns 200 instead of 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
