@@ -5915,7 +5915,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
   // HTTP returns 200 but the delete operation is not pushed to fileops, so waitForOperation
   // cannot find a matching record — the last poll returns undefined.
   test.fail(
-    "BUG XXXXX: DELETE /files/rooms/:id - deleteAfter:true does not produce a trackable operation",
+    "BUG 81698: DELETE /files/rooms/:id - deleteAfter:true does not produce a trackable operation",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: createData } = await ownerApi.rooms.createRoom({
@@ -6609,7 +6609,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
   // Same symptom as deleteAfter:true — HTTP returns 200 but the operation is not pushed to
   // fileops, so waitForOperation cannot find a record.
   test.fail(
-    "BUG XXXXX: DELETE /files/rooms/:id - deleteAfter:null does not produce a trackable operation",
+    "BUG 81697: DELETE /files/rooms/:id - deleteAfter:null does not produce a trackable operation",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: createData } = await ownerApi.rooms.createRoom({
