@@ -1101,7 +1101,7 @@ test.describe("DELETE /api/2.0/files/tags - Input validation", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: empty string in names array is silently accepted (200) instead of validation error (400)",
+      "BUG 81689: empty string in names array is silently accepted (200) instead of validation error (400)",
     );
     const ownerApi = apiSdk.forRole("owner");
     const { status } = await ownerApi.rooms.deleteCustomTags({
@@ -1115,7 +1115,7 @@ test.describe("DELETE /api/2.0/files/tags - Input validation", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: spaces-only string in names array is silently accepted (200) instead of validation error (400)",
+      "BUG 81689: spaces-only string in names array is silently accepted (200) instead of validation error (400)",
     );
     const ownerApi = apiSdk.forRole("owner");
     const { status } = await ownerApi.rooms.deleteCustomTags({
@@ -1129,7 +1129,7 @@ test.describe("DELETE /api/2.0/files/tags - Input validation", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: null inside names array is silently accepted (200) instead of validation error (400)",
+      "BUG 81689: null inside names array is silently accepted (200) instead of validation error (400)",
     );
     const ownerApi = apiSdk.forRole("owner");
     const { status } = await ownerApi.rooms.deleteCustomTags({
@@ -1544,7 +1544,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
   });
 
   test.fail(
-    "BUG XXXXX: DocSpaceAdmin cannot create a template from someone else's room they have no access to",
+    "BUG 81693: DocSpaceAdmin cannot create a template from someone else's room they have no access to",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1578,7 +1578,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
   );
 
   test.fail(
-    "BUG XXXXX: User cannot create a template (no source room access)",
+    "BUG 81693: User cannot create a template (no source room access)",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1611,7 +1611,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
     },
   );
 
-  test.fail("BUG XXXXX: Guest cannot create a template", async ({ apiSdk }) => {
+  test.fail("BUG 81693: Guest cannot create a template", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
@@ -1696,7 +1696,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
     if (label === "RoomManager") continue;
 
     test.fail(
-      `BUG XXXXX: User with ${label} access to source room cannot create template`,
+      `BUG 81693: User with ${label} access to source room cannot create template`,
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({

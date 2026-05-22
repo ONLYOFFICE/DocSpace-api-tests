@@ -1739,7 +1739,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: POST /files/roomtemplate - Status does not leak another user's template creation",
+      "BUG 81692: POST /files/roomtemplate - Status does not leak another user's template creation",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { api: adminApi } = await apiSdk.addAuthenticatedMember(
@@ -1789,7 +1789,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: POST /files/roomtemplate - roomId 0 returns 404",
+      "BUG 81691: POST /files/roomtemplate - roomId 0 returns 404",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const templateTitle = "Zero RoomId";
@@ -1809,7 +1809,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: POST /files/roomtemplate - Non-existent roomId returns 404",
+      "BUG 81691: POST /files/roomtemplate - Non-existent roomId returns 404",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const templateTitle = "Missing RoomId";
@@ -1851,7 +1851,7 @@ test.describe("API rooms methods", () => {
     // POST /files/rooms rejects missing title with 400 — createRoomTemplate should match.
     // Currently API returns 200 but async operation hangs (templateId never becomes > 0).
     test.fail(
-      "BUG XXXXX: POST /files/roomtemplate - Missing title returns 400",
+      "BUG 81690: POST /files/roomtemplate - Missing title returns 400",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1879,7 +1879,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: POST /files/roomtemplate - Empty title returns 400",
+      "BUG 81690: POST /files/roomtemplate - Empty title returns 400",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -1905,7 +1905,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: POST /files/roomtemplate - Very long title (1000 chars) is rejected with 400",
+      "BUG 81690: POST /files/roomtemplate - Very long title (1000 chars) is rejected with 400",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2084,7 +2084,7 @@ test.describe("API rooms methods", () => {
     // === Source room state ===
 
     test.fail(
-      "BUG XXXXX: POST /files/roomtemplate - Cannot create template from deleted source room (404)",
+      "BUG 81691: POST /files/roomtemplate - Cannot create template from deleted source room (404)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2121,7 +2121,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: POST /files/roomtemplate - Cannot create template from archived source room",
+      "BUG 81691: POST /files/roomtemplate - Cannot create template from archived source room",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -3008,7 +3008,7 @@ test.describe("API rooms methods", () => {
     }) => {
       test.fail(
         true,
-        "BUG XXXXX: very long tag name (10000 chars) is silently accepted (200) instead of validation error (400) — no length guard",
+        "BUG 81689: very long tag name (10000 chars) is silently accepted (200) instead of validation error (400) — no length guard",
       );
       const ownerApi = apiSdk.forRole("owner");
       const { status } = await ownerApi.rooms.deleteCustomTags({
