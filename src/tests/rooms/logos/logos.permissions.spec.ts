@@ -1062,4 +1062,118 @@ test.describe("DELETE /files/rooms/:id/logo - access control", () => {
       .rooms.deleteRoomLogo({ id: roomId });
     expect(status).toBe(403);
   });
+
+  test("DELETE /files/rooms/:id/logo - User with Comment access cannot delete room logo", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Del User Comment Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const uploadResult = await apiSdk.uploadRoomLogo("owner", testLogoBuffer);
+    await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+    });
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.Comment }],
+        notify: false,
+      },
+    });
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .rooms.deleteRoomLogo({ id: roomId });
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /files/rooms/:id/logo - User with Review access cannot delete room logo", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Del User Review Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const uploadResult = await apiSdk.uploadRoomLogo("owner", testLogoBuffer);
+    await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+    });
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.Review }],
+        notify: false,
+      },
+    });
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .rooms.deleteRoomLogo({ id: roomId });
+    expect(status).toBe(403);
+  });
+
+  test("DELETE /files/rooms/:id/logo - RoomAdmin with Editor access cannot delete room logo", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Del RoomAdmin Editor Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const uploadResult = await apiSdk.uploadRoomLogo("owner", testLogoBuffer);
+    await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+    });
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const memberId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { status } = await apiSdk
+      .forRole("roomAdmin")
+      .rooms.deleteRoomLogo({ id: roomId });
+    expect(status).toBe(403);
+  });
 });
