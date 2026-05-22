@@ -12,6 +12,7 @@ import { createAllRoomTypes } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
+import { createTestImageBuffer } from "@/src/utils/test-image";
 
 function filterRoomsFolder(rooms: RoomsApi, filterValue: string) {
   return rooms.getRoomsFolder({
@@ -5876,4 +5877,822 @@ test.describe("PUT /files/fileops/delete - Room deletion with open file", () => 
       });
     },
   );
+});
+
+test.describe("DELETE /files/rooms/:id - functional", () => {
+  // ── Positive ──
+
+  test("DELETE /files/rooms/:id - Owner deletes a CustomRoom and it disappears from list and getRoomInfo", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Verify Gone",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+
+    const { data: listData } = await ownerApi.rooms.getRoomsFolder({});
+    const ids = (listData.response!.folders ?? []).map((f) => (f as any).id);
+    expect(ids).not.toContain(roomId);
+
+    const { data: infoData } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(infoData.statusCode).toBe(404);
+  });
+
+  // HTTP returns 200 but the delete operation is not pushed to fileops, so waitForOperation
+  // cannot find a matching record — the last poll returns undefined.
+  test.fail(
+    "BUG XXXXX: DELETE /files/rooms/:id - deleteAfter:true does not produce a trackable operation",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: createData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Delete deleteAfter true",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = createData.response!.id!;
+
+      const { status } = await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: true },
+      });
+      expect(status).toBe(200);
+
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+      expect(operation.error).toBe("");
+    },
+  );
+
+  for (const { label, roomType } of [
+    { label: "CustomRoom", roomType: RoomType.CustomRoom },
+    { label: "EditingRoom", roomType: RoomType.EditingRoom },
+    { label: "PublicRoom", roomType: RoomType.PublicRoom },
+    { label: "FillingFormsRoom", roomType: RoomType.FillingFormsRoom },
+    { label: "VirtualDataRoom", roomType: RoomType.VirtualDataRoom },
+  ] as const) {
+    test(`DELETE /files/rooms/:id - Owner deletes a ${label}`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: createData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: { title: `Autotest Delete ${label}`, roomType },
+      });
+      const roomId = createData.response!.id!;
+
+      const { status } = await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      const operation = await waitForOperation(ownerApi.operations);
+
+      expect(status).toBe(200);
+      expect(operation.finished).toBe(true);
+      expect(operation.error).toBe("");
+
+      const { data: infoData } = await ownerApi.rooms.getRoomInfo({
+        id: roomId,
+      });
+      expect(infoData.statusCode).toBe(404);
+    });
+  }
+
+  test("DELETE /files/rooms/:id - response is a FileOperation wrapper with id and finished flag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Response Shape",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { data } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+
+    expect(data.response).toBeDefined();
+    expect(typeof data.response!.id).toBe("string");
+    expect(typeof data.response!.finished).toBe("boolean");
+    expect(typeof data.response!.progress).toBe("number");
+
+    await waitForOperation(ownerApi.operations);
+  });
+
+  // ── Async / operation behavior ──
+
+  test("DELETE /files/rooms/:id - operation transitions to finished:true with progress 100", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Async",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.progress).toBe(100);
+    expect(operation.error).toBe("");
+  });
+
+  test("DELETE /files/rooms/:id - repeated polling of finished operation is stable", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Polling",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const first = await waitForOperation(ownerApi.operations);
+    expect(first.finished).toBe(true);
+
+    const { data: opsData } = await ownerApi.operations.getOperationStatuses();
+    const ops = opsData.response ?? [];
+    if (ops.length > 0) {
+      const last = ops[ops.length - 1];
+      expect(last.finished).toBe(true);
+      expect(last.error).toBe("");
+    }
+  });
+
+  test("DELETE /files/rooms/:id - two rooms deleted sequentially both vanish", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: a } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Seq Delete A",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const { data: b } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Seq Delete B",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const idA = a.response!.id!;
+    const idB = b.response!.id!;
+
+    await ownerApi.rooms.deleteRoom({
+      id: idA,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const opA = await waitForOperation(ownerApi.operations);
+    expect(opA.finished).toBe(true);
+
+    await ownerApi.rooms.deleteRoom({
+      id: idB,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const opB = await waitForOperation(ownerApi.operations);
+    expect(opB.finished).toBe(true);
+
+    const { data: aInfo } = await ownerApi.rooms.getRoomInfo({ id: idA });
+    const { data: bInfo } = await ownerApi.rooms.getRoomInfo({ id: idB });
+    expect(aInfo.statusCode).toBe(404);
+    expect(bInfo.statusCode).toBe(404);
+  });
+
+  test("DELETE /files/rooms/:id - two concurrent deletes both succeed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: a } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Concurrent Delete A",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const { data: b } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Concurrent Delete B",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const idA = a.response!.id!;
+    const idB = b.response!.id!;
+
+    const [resA, resB] = await Promise.all([
+      ownerApi.rooms.deleteRoom({
+        id: idA,
+        deleteRoomRequest: { deleteAfter: false },
+      }),
+      ownerApi.rooms.deleteRoom({
+        id: idB,
+        deleteRoomRequest: { deleteAfter: false },
+      }),
+    ]);
+    expect(resA.status).toBe(200);
+    expect(resB.status).toBe(200);
+
+    await waitForOperation(ownerApi.operations);
+
+    const { data: aInfo } = await ownerApi.rooms.getRoomInfo({ id: idA });
+    const { data: bInfo } = await ownerApi.rooms.getRoomInfo({ id: idB });
+    expect(aInfo.statusCode).toBe(404);
+    expect(bInfo.statusCode).toBe(404);
+  });
+
+  // ── Edge cases ──
+
+  test("DELETE /files/rooms/:id - second delete of already-deleted room returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Double Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+    expect(op.finished).toBe(true);
+
+    const { data } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+
+    expect(data.statusCode).toBe(404);
+  });
+
+  test("DELETE /files/rooms/:id - deleting an archived room succeeds", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Archived",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    const archiveOp = await waitForOperation(ownerApi.operations);
+    expect(archiveOp.finished).toBe(true);
+
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const deleteOp = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(deleteOp.finished).toBe(true);
+    expect(deleteOp.error).toBe("");
+
+    const { data: infoData } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(infoData.statusCode).toBe(404);
+  });
+
+  test("DELETE /files/rooms/:id - room with files is deleted along with its files", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Room With Files",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "delete-me.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+    expect(op.finished).toBe(true);
+    expect(op.error).toBe("");
+
+    const { data: infoData } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(infoData.statusCode).toBe(404);
+
+    const { data: fileInfo } = await ownerApi.files.getFileInfo({ fileId });
+    expect(fileInfo.statusCode).toBe(404);
+  });
+
+  test("DELETE /files/rooms/:id - tag used only by the deleted room is removed from catalog", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const tagName = "Autotest Tag Single Use";
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: tagName },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Room With Single-Use Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+    expect(op.finished).toBe(true);
+
+    const { data: tagsData } = await ownerApi.rooms.getRoomTagsInfo({});
+    expect(tagsData.response as unknown as string[]).not.toContain(tagName);
+  });
+
+  test("DELETE /files/rooms/:id - tag still used by another room stays in catalog", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const tagName = "Autotest Tag Shared";
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: tagName },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Room With Shared Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: keeperData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Keeper Room With Shared Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const keeperRoomId = keeperData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: keeperRoomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+    expect(op.finished).toBe(true);
+
+    const { data: tagsData } = await ownerApi.rooms.getRoomTagsInfo({});
+    expect(tagsData.response as unknown as string[]).toContain(tagName);
+  });
+
+  test("DELETE /files/rooms/:id - room with cover is deleted successfully", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Room With Cover",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(op.finished).toBe(true);
+    expect(op.error).toBe("");
+  });
+
+  test("DELETE /files/rooms/:id - room with logo is deleted successfully", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Room With Logo",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    const tmpFile = uploadResult.data.response.data as string;
+    await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile },
+    });
+
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(op.finished).toBe(true);
+    expect(op.error).toBe("");
+  });
+
+  test("DELETE /files/rooms/:id - room shared to user is no longer visible to that user", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Shared Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    // Before deletion, the user can read the room.
+    const { data: beforeInfo } = await userApi.rooms.getRoomInfo({
+      id: roomId,
+    });
+    expect(beforeInfo.response!.id).toBe(roomId);
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+    expect(op.finished).toBe(true);
+
+    const { data: afterInfo } = await userApi.rooms.getRoomInfo({ id: roomId });
+    expect([403, 404]).toContain(afterInfo.statusCode);
+
+    const { data: list } = await userApi.rooms.getRoomsFolder({});
+    const ids = (list.response!.folders ?? []).map((f) => (f as any).id);
+    expect(ids).not.toContain(roomId);
+  });
+
+  test("DELETE /files/rooms/:id - PublicRoom with primary external link is fully removed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete PublicRoom",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: linkData } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+      { id: roomId },
+    );
+    expect(linkData.response!.sharedLink?.shareLink).toBeDefined();
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+    expect(op.finished).toBe(true);
+    expect(op.error).toBe("");
+
+    const { data: infoData } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(infoData.statusCode).toBe(404);
+
+    const { data: afterLink } =
+      await ownerApi.rooms.getRoomsPrimaryExternalLink({ id: roomId });
+    expect(afterLink.statusCode).toBe(404);
+  });
+
+  test("DELETE /files/rooms/:id - room with per-room quota is deleted successfully", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.settingsQuota.saveRoomQuotaSettings({
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: 100 * 1024 * 1024,
+      },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Quota Room",
+        roomType: RoomType.CustomRoom,
+        quota: 10 * 1024 * 1024,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(op.finished).toBe(true);
+    expect(op.error).toBe("");
+  });
+
+  // ── Regression: ops on a deleted room ──
+
+  test("DELETE /files/rooms/:id - changing cover on a deleted room returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover After Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data } = await ownerApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+
+    expect(data.statusCode).toBe(404);
+  });
+
+  test("DELETE /files/rooms/:id - setting logo on a deleted room returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo After Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    const tmpFile = uploadResult.data.response.data as string;
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile },
+    });
+
+    expect(data.statusCode).toBe(404);
+  });
+
+  // ── Validation: id ──
+
+  test("DELETE /files/rooms/:id - id:0 returns 404", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data } = await ownerApi.rooms.deleteRoom({
+      id: 0,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    expect(data.statusCode).toBe(404);
+  });
+
+  test("DELETE /files/rooms/:id - id:-1 returns 404", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data } = await ownerApi.rooms.deleteRoom({
+      id: -1,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    expect(data.statusCode).toBe(404);
+  });
+
+  test("DELETE /files/rooms/:id - id:999999999 returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data } = await ownerApi.rooms.deleteRoom({
+      id: 999999999,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    expect(data.statusCode).toBe(404);
+  });
+
+  test("DELETE /files/rooms/:id - id:'abc' returns 404", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data } = await ownerApi.rooms.deleteRoom({
+      id: "abc" as unknown as number,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    expect(data.statusCode).toBe(404);
+  });
+
+  // ── Validation: body ──
+
+  test("DELETE /files/rooms/:id - deleteAfter omitted is accepted (defaults to false)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete No deleteAfter",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: {},
+    });
+    const op = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(op.finished).toBe(true);
+    expect(op.error).toBe("");
+  });
+
+  // Same symptom as deleteAfter:true — HTTP returns 200 but the operation is not pushed to
+  // fileops, so waitForOperation cannot find a record.
+  test.fail(
+    "BUG XXXXX: DELETE /files/rooms/:id - deleteAfter:null does not produce a trackable operation",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: createData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Delete deleteAfter null",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = createData.response!.id!;
+
+      const { status } = await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: null as unknown as boolean },
+      });
+      expect(status).toBe(200);
+
+      const op = await waitForOperation(ownerApi.operations);
+      expect(op.finished).toBe(true);
+    },
+  );
+
+  test("DELETE /files/rooms/:id - deleteAfter as string is rejected (400)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete deleteAfter string",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { data } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: "false" as unknown as boolean },
+    });
+
+    expect(data.statusCode).toBe(400);
+  });
+
+  test("DELETE /files/rooms/:id - deleteAfter as number is rejected (400)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete deleteAfter number",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { data } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: 1 as unknown as boolean },
+    });
+
+    expect(data.statusCode).toBe(400);
+  });
+
+  test("DELETE /files/rooms/:id - extra undocumented field in body is ignored", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete Extra Field",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: {
+        deleteAfter: false,
+        title: "ignored",
+      } as unknown as { deleteAfter: boolean },
+    });
+    const op = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(op.finished).toBe(true);
+  });
 });
