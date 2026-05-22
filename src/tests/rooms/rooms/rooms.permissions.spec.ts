@@ -2210,3 +2210,255 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
     expect(status).toBe(401);
   });
 });
+
+test.describe("DELETE /files/rooms/:id/tags - access control", () => {
+  test("DELETE /files/rooms/:id/tags - Owner can detach tag from own room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner DetachTag Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Owner DetachTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Owner DetachTag"] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).not.toContain(
+      "Autotest Owner DetachTag",
+    );
+  });
+
+  test("DELETE /files/rooms/:id/tags - DocSpaceAdmin can detach tag from own room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Admin DetachTag Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await adminApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Admin DetachTag"] },
+    });
+
+    const { data, status } = await adminApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Admin DetachTag"] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).not.toContain(
+      "Autotest Admin DetachTag",
+    );
+  });
+
+  test("DELETE /files/rooms/:id/tags - User not in room cannot detach tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest User Outside Detach Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest User Outside Detach Tag"] },
+    });
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data } = await userApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest User Outside Detach Tag"] },
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Guest not in room cannot detach tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Guest Outside Detach Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Guest Outside Detach Tag"] },
+    });
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data } = await guestApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Guest Outside Detach Tag"] },
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Unauthenticated user cannot detach tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Anon Detach Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Anon Detach Tag"] },
+    });
+
+    const { status } = await apiSdk.forAnonymous().rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Anon Detach Tag"] },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Disabled (terminated) user cannot detach tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Disabled Detach Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Disabled Detach Tag"] },
+    });
+
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Disabled Detach Tag"] },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
+  test.describe(`DELETE /files/rooms/:id/tags - ${userType} invited to room`, () => {
+    for (const { label, access } of roomAccesses) {
+      // Only RoomAdmin can be assigned RoomManager access — API rejects this access level for User/Guest
+      if (
+        access === FileShare.RoomManager &&
+        (userType === "User" || userType === "Guest")
+      ) {
+        continue;
+      }
+
+      test(`Room access: ${label}`, async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const tagName = `Autotest Detach ${userType} ${label}`;
+
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: `Autotest Detach Room ${userType} ${label}`,
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        await ownerApi.rooms.addRoomTags({
+          id: roomId,
+          batchTagsRequestDto: { names: [tagName] },
+        });
+
+        const { api: memberApi, data: memberData } =
+          await apiSdk.addAuthenticatedMember("owner", userType);
+        const userId = memberData.response!.id!;
+
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access }],
+            notify: false,
+          },
+        });
+
+        const { data, status } = await memberApi.rooms.deleteRoomTags({
+          id: roomId,
+          batchTagsRequestDto: { names: [tagName] },
+        });
+
+        // Only RoomManager has permission to manage room metadata (tags)
+        if (access === FileShare.RoomManager) {
+          expect(status).toBe(200);
+          expect((data.response!.tags ?? []) as string[]).not.toContain(
+            tagName,
+          );
+        } else {
+          expect(status).toBe(403);
+        }
+      });
+    }
+  });
+}
