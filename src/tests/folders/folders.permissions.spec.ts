@@ -2830,19 +2830,13 @@ test.describe("POST /api/2.0/files/@my/upload - access control", () => {
   test("POST /api/2.0/files/@my/upload - Owner uploads to My Documents", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
-        type: "text/plain",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("Autotest file content"),
       "autotest-my-owner.txt",
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
@@ -2853,19 +2847,13 @@ test.describe("POST /api/2.0/files/@my/upload - access control", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
-    const adminApi = apiSdk.forRole("docSpaceAdmin");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
-        type: "text/plain",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "docSpaceAdmin",
+      "@my",
+      Buffer.from("Autotest file content"),
       "autotest-my-dsadmin.txt",
     );
-
-    const { data, status } = await adminApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
@@ -2876,19 +2864,12 @@ test.describe("POST /api/2.0/files/@my/upload - access control", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
-        type: "text/plain",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "roomAdmin",
+      "@my",
+      Buffer.from("Autotest file content"),
       "autotest-my-roomadmin.txt",
-    );
-
-    const { data, status } = await roomAdminApi.folders.uploadFileToMy(
-      undefined,
-      { data: formData },
     );
 
     expect(status).toBe(200);
@@ -2900,19 +2881,13 @@ test.describe("POST /api/2.0/files/@my/upload - access control", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const userApi = apiSdk.forRole("user");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
-        type: "text/plain",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "user",
+      "@my",
+      Buffer.from("Autotest file content"),
       "autotest-my-user.txt",
     );
-
-    const { data, status } = await userApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
@@ -2923,19 +2898,13 @@ test.describe("POST /api/2.0/files/@my/upload - access control", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const guestApi = apiSdk.forRole("guest");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
-        type: "text/plain",
-      }),
+    const { status } = await uploadFileToFolder(
+      apiSdk,
+      "guest",
+      "@my",
+      Buffer.from("Autotest file content"),
       "autotest-my-guest.txt",
     );
-
-    const { status } = await guestApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     expect(status).toBe(404);
   });
@@ -2943,28 +2912,13 @@ test.describe("POST /api/2.0/files/@my/upload - access control", () => {
   test("POST /api/2.0/files/@my/upload - Anonymous request gets 401", async ({
     apiSdk,
   }) => {
-    const anonFolders = new FoldersApi(
-      new Configuration({
-        basePath: apiSdk.tokenStore.portalBaseUrl,
-        baseOptions: {
-          headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
-        },
-      }),
-      undefined,
-      apiSdk.createAxiosInstance(),
-    );
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
-        type: "text/plain",
-      }),
+    const { status } = await uploadFileToFolder(
+      apiSdk,
+      null,
+      "@my",
+      Buffer.from("Autotest file content"),
       "autotest-my-anon.txt",
     );
-
-    const { status } = await anonFolders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     expect(status).toBe(401);
   });

@@ -190,65 +190,64 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
     });
   });
 
-  test.fail(
-    "BUG 81470: PUT /files/file/:fileId/manageformfilling - ContentCreator can stop form filling they started",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81470: PUT /files/file/:fileId/manageformfilling - ContentCreator can stop form filling they started", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest ManageFormFilling ContentCreator Stop Started Room",
-          roomType: RoomType.FillingFormsRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest ManageFormFilling ContentCreator Stop Started Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const buffer = readFileSync(
-        path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
+    const buffer = readFileSync(
+      path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
+    );
+    const { data: insertData, status: insertStatus } =
+      await apiSdk.insertBinaryFile(
+        "owner",
+        roomId,
+        buffer,
+        "oo-form-empty.pdf",
       );
-      const { data: insertData, status: insertStatus } =
-        await apiSdk.insertBinaryFile(
-          "owner",
-          roomId,
-          buffer,
-          "oo-form-empty.pdf",
-        );
-      expect(insertStatus, `Insert failed: ${JSON.stringify(insertData)}`).toBe(
-        200,
-      );
-      const formId = insertData.response.id as number;
+    expect(insertStatus, `Insert failed: ${JSON.stringify(insertData)}`).toBe(
+      200,
+    );
+    const formId = insertData.response.id as number;
 
-      const { api: contentCreatorApi, data: memberData } =
-        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-      const userId = memberData.response!.id!;
+    const { api: contentCreatorApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const userId = memberData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.ContentCreator }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
 
-      await contentCreatorApi.files.manageFormFilling({
-        fileId: String(formId),
-        manageFormFillingDtoInteger: {
-          formId,
-          action: FormFillingManageAction.Start,
-        },
-      });
+    await contentCreatorApi.files.manageFormFilling({
+      fileId: String(formId),
+      manageFormFillingDtoInteger: {
+        formId,
+        action: FormFillingManageAction.Start,
+      },
+    });
 
-      const { status } = await contentCreatorApi.files.manageFormFilling({
-        fileId: String(formId),
-        manageFormFillingDtoInteger: {
-          formId,
-          action: FormFillingManageAction.Stop,
-        },
-      });
+    const { status } = await contentCreatorApi.files.manageFormFilling({
+      fileId: String(formId),
+      manageFormFillingDtoInteger: {
+        formId,
+        action: FormFillingManageAction.Stop,
+      },
+    });
 
-      expect(status).toBe(200);
-    },
-  );
+    expect(status).toBe(200);
+  });
 
   test("PUT /files/file/:fileId/manageformfilling - ContentCreator cannot stop form filling started by owner", async ({
     apiSdk,
