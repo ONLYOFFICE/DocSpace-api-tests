@@ -6696,3 +6696,1216 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     expect(op.finished).toBe(true);
   });
 });
+
+test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
+  // ── Positive ──
+
+  test("DELETE /files/rooms/:id/tags - Owner detaches several tags in one request", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach Several",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["TagA", "TagB", "TagC"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["TagA", "TagB"] },
+    });
+
+    expect(status).toBe(200);
+    const tags = data.response!.tags as string[];
+    expect(tags).toEqual(["TagC"]);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detached tag remains in global tags catalog", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const tagName = "GlobalCatalogTag";
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: tagName },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach Keeps Catalog",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    const { data: list } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(list.response as unknown as string[]).toContain(tagName);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach from one room does not affect same tag on another room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const tagName = "SharedRoomsTag";
+
+    const { data: room1Data } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Shared Tag Room 1",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const room1Id = room1Data.response!.id!;
+
+    const { data: room2Data } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Shared Tag Room 2",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const room2Id = room2Data.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: room1Id,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: room2Id,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    await ownerApi.rooms.deleteRoomTags({
+      id: room1Id,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    const { data: info1 } = await ownerApi.rooms.getRoomInfo({ id: room1Id });
+    const { data: info2 } = await ownerApi.rooms.getRoomInfo({ id: room2Id });
+
+    expect((info1.response!.tags ?? []) as string[]).not.toContain(tagName);
+    expect((info2.response!.tags ?? []) as string[]).toContain(tagName);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach one tag from a room with many tags", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Many Tags",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const all = ["Many1", "Many2", "Many3", "Many4", "Many5"];
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: all },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Many3"] },
+    });
+
+    expect(status).toBe(200);
+    const tags = data.response!.tags as string[];
+    expect(tags).not.toContain("Many3");
+    expect(tags.length).toBe(4);
+    for (const t of ["Many1", "Many2", "Many4", "Many5"]) {
+      expect(tags).toContain(t);
+    }
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach all tags leaves room with empty tags", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach All",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const names = ["All1", "All2", "All3"];
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names },
+    });
+
+    expect(status).toBe(200);
+    const tags = (data.response!.tags ?? []) as string[];
+    expect(tags.length).toBe(0);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Repeated detach of the same tag is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach Idempotent",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["IdemTag"] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["IdemTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["IdemTag"] },
+    });
+
+    expect(status).toBe(200);
+    const tags = (data.response!.tags ?? []) as string[];
+    expect(tags).not.toContain("IdemTag");
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detaches tag with cyrillic name", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const tagName = "Тег Кириллица";
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cyrillic Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).not.toContain(tagName);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detaches tag with spaces inside name", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const tagName = "release candidate";
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Spaces Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).not.toContain(tagName);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detaches tag with special characters in name", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const tagName = "tag-1_qa.test";
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Special Chars Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).not.toContain(tagName);
+  });
+
+  // ── Validation: room id ──
+
+  // Room IDs are globally unique, so the API should return 403 instead of 404/500.
+  // Mirrors BUG 81544 in addRoomTags.
+  test.fail(
+    "BUG 81544: DELETE /files/rooms/:id/tags - Non-existent room id returns 500 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.deleteRoomTags({
+        id: 999999999,
+        batchTagsRequestDto: { names: ["GhostTag"] },
+      });
+      expect(data.statusCode).toBe(403);
+    },
+  );
+
+  // Mirrors BUG 81545 in addRoomTags — deleted room returns 500 instead of 403.
+  test.fail(
+    "BUG 81545: DELETE /files/rooms/:id/tags - Detaching tag from deleted room returns 500 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Detach From Deleted Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data } = await ownerApi.rooms.deleteRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["NoTag"] },
+      });
+
+      expect(data.statusCode).toBe(403);
+    },
+  );
+
+  test("DELETE /files/rooms/:id/tags - Detaching tag from archived room is forbidden (403)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach From Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ArchivedRoomTag"] },
+    });
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ArchivedRoomTag"] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test.fail(
+    "BUG TBD: DELETE /files/rooms/:id/tags - Invalid string room id does not return 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.deleteRoomTags({
+        id: "not-a-number" as unknown as number,
+        batchTagsRequestDto: { names: ["X"] },
+      });
+      expect(data.statusCode).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG TBD: DELETE /files/rooms/:id/tags - Room id 0 returns 500 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.deleteRoomTags({
+        id: 0,
+        batchTagsRequestDto: { names: ["X"] },
+      });
+      expect(data.statusCode).toBe(400);
+    },
+  );
+
+  // Note: missing room id (item 20) is enforced by the SDK route — the endpoint
+  // cannot be invoked without an id, so there is no API-level test for it.
+
+  // ── Validation: names body ──
+
+  test("DELETE /files/rooms/:id/tags - Missing body returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Missing Body",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: undefined as unknown as { names: string[] },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Missing names field returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Missing Names",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: {} as unknown as { names: string[] },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Null names returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Null Names",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: null as unknown as string[] },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Empty names array is a no-op and returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Empty Detach",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["StayTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).toContain("StayTag");
+  });
+
+  for (const invalid of [
+    { label: "string", value: "TagA" },
+    { label: "number", value: 12345 },
+    { label: "object", value: { foo: "bar" } },
+  ]) {
+    test(`DELETE /files/rooms/:id/tags - Non-array names (${invalid.label}) returns 400`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Non-array Names ${invalid.label}`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { status } = await ownerApi.rooms.deleteRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: invalid.value } as unknown as {
+          names: string[];
+        },
+      });
+
+      expect(status).toBe(400);
+    });
+  }
+
+  for (const invalid of [{ label: "number", value: 42 }]) {
+    test(`DELETE /files/rooms/:id/tags - names array containing ${invalid.label} returns 400`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Bad Element ${invalid.label}`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { status } = await ownerApi.rooms.deleteRoomTags({
+        id: roomId,
+        batchTagsRequestDto: {
+          names: ["Valid", invalid.value as unknown as string],
+        },
+      });
+
+      expect(status).toBe(400);
+    });
+  }
+
+  test.fail(
+    "BUG TBD: DELETE /files/rooms/:id/tags - names array containing null returns 200 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Bad Element null",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { status } = await ownerApi.rooms.deleteRoomTags({
+        id: roomId,
+        batchTagsRequestDto: {
+          names: ["Valid", null as unknown as string],
+        },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  // deleteRoomTags treats empty/whitespace strings as non-matching names — no-op 200
+  test("DELETE /files/rooms/:id/tags - names array containing empty string is a no-op (200)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Empty String Name",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Keep"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [""] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).toContain("Keep");
+  });
+
+  test("DELETE /files/rooms/:id/tags - names array containing spaces-only string is a no-op (200)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Spaces String Name",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Keep"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["   "] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).toContain("Keep");
+  });
+
+  test("DELETE /files/rooms/:id/tags - Duplicate names in array are handled (single detach effect)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Duplicate Detach",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["DupDetach", "OtherTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["DupDetach", "DupDetach"] },
+    });
+
+    expect(status).toBe(200);
+    const tags = (data.response!.tags ?? []) as string[];
+    expect(tags).not.toContain("DupDetach");
+    expect(tags).toContain("OtherTag");
+  });
+
+  // Mirrors BUG 81689 (deleteCustomTags) — likely no length guard on detach name either.
+  test.fail(
+    "BUG 81689: DELETE /files/rooms/:id/tags - Very long tag name (10000 chars) is silently accepted (200) instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Long Name Detach",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { status } = await ownerApi.rooms.deleteRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["a".repeat(10000)] },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  // ── Functional edge cases ──
+
+  test("DELETE /files/rooms/:id/tags - Detach tag that exists in catalog but is not attached to this room is a no-op", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "CatalogOnly" },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach Not Attached",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["CatalogOnly"] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).not.toContain(
+      "CatalogOnly",
+    );
+
+    const { data: list } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(list.response as unknown as string[]).toContain("CatalogOnly");
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach tag that does not exist in catalog is a no-op", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach Ghost Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["NeverExisted"] },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach mix of attached and non-attached tags removes only attached ones", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Mix Attached",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["AttachedX"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["AttachedX", "NotAttachedY"] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).not.toContain("AttachedX");
+    expect((data.response!.tags ?? []) as string[]).not.toContain(
+      "NotAttachedY",
+    );
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach mix of valid and invalid (empty string) names: valid tag is removed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Mix Valid Invalid",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ValidTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ValidTag", ""] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).not.toContain("ValidTag");
+  });
+
+  test("DELETE /files/rooms/:id/tags - Case-insensitive: different-case name detaches the tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Case Insensitive Detach",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["QA"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["qa"] },
+    });
+
+    expect(status).toBe(200);
+    const tags = (data.response!.tags ?? []) as string[];
+    expect(tags.filter((t) => t.toLowerCase() === "qa").length).toBe(0);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Global tag deletion already removes tag from room, subsequent detach is a no-op", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const tagName = "AboutToVanish";
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: tagName },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach After Global Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    await ownerApi.rooms.deleteCustomTags({
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    const { data: infoAfterGlobalDelete } = await ownerApi.rooms.getRoomInfo({
+      id: roomId,
+    });
+    expect(
+      (infoAfterGlobalDelete.response!.tags ?? []) as string[],
+    ).not.toContain(tagName);
+
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("DELETE /files/rooms/:id/tags - add -> detach -> add again restores tag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const tagName = "AddDetachAddTag";
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Add Detach Add",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).toContain(tagName);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach does not change room title", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const title = "Autotest Title Preserved On Detach";
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["TitleTag"] },
+    });
+
+    const { data } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["TitleTag"] },
+    });
+
+    expect(data.response!.title).toBe(title);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach does not change room type", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Type Preserved On Detach",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["TypeTag"] },
+    });
+
+    const { data } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["TypeTag"] },
+    });
+
+    expect(data.response!.roomType).toBe(RoomType.CustomRoom);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach does not change cover/color/logo", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover Preserved On Detach",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+    const coverId =
+      (coversData.response as unknown as { id: string }[])?.[0]?.id ?? "";
+
+    await ownerApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+
+    const { data: infoBefore } = await ownerApi.rooms.getRoomInfo({
+      id: roomId,
+    });
+    const logoBefore = JSON.stringify(infoBefore.response!.logo ?? {});
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["CoverTag"] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["CoverTag"] },
+    });
+
+    const { data: infoAfter } = await ownerApi.rooms.getRoomInfo({
+      id: roomId,
+    });
+    expect(JSON.stringify(infoAfter.response!.logo ?? {})).toBe(logoBefore);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach does not change sharing settings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Sharing Preserved On Detach",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["SharingTag"] },
+    });
+
+    const { data: shareBefore } = await ownerApi.rooms.getRoomSecurityInfo({
+      id: roomId,
+    });
+
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["SharingTag"] },
+    });
+
+    const { data: shareAfter } = await ownerApi.rooms.getRoomSecurityInfo({
+      id: roomId,
+    });
+
+    expect(JSON.stringify(shareAfter.response)).toBe(
+      JSON.stringify(shareBefore.response),
+    );
+  });
+
+  test("DELETE /files/rooms/:id/tags - Detach does not affect files/folders inside room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Contents Preserved On Detach",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Inner Folder" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ContentsTag"] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ContentsTag"] },
+    });
+
+    const { data: content, status } =
+      await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+    expect(status).toBe(200);
+    const ids = (content.response!.folders ?? []).map(
+      (f) => (f as { id: number }).id,
+    );
+    expect(ids).toContain(folderId);
+  });
+
+  test("DELETE /files/rooms/:id/tags - Rooms list reflects updated tags after detach", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const roomTitle = "Autotest List Reflects Detach";
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: { title: roomTitle, roomType: RoomType.CustomRoom },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ListTag"] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["ListTag"] },
+    });
+
+    const { data: rooms } = await filterRoomsFolder(ownerApi.rooms, roomTitle);
+    const room = rooms.response!.folders!.find(
+      (f) => (f as unknown as { id: number }).id === roomId,
+    );
+    expect(room).toBeDefined();
+    expect(
+      ((room as unknown as { tags?: string[] }).tags ?? []) as string[],
+    ).not.toContain("ListTag");
+  });
+
+  test("DELETE /files/rooms/:id/tags - getRoomInfo reflects updated tags after detach", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest GetRoomInfo Detach",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["InfoTag"] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["InfoTag"] },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(status).toBe(200);
+    expect((data.response!.tags ?? []) as string[]).not.toContain("InfoTag");
+  });
+
+  // ── Integration with related endpoints ──
+
+  test("DELETE /files/rooms/:id/tags - Full lifecycle: createTag -> addRoomTags -> deleteRoomTags", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "LifecycleTag";
+
+    await ownerApi.rooms.createRoomTag({ createTagRequestDto: { name } });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Lifecycle",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: attached } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+    expect((attached.response!.tags ?? []) as string[]).toContain(name);
+
+    const { data: detached, status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+    expect(status).toBe(200);
+    expect((detached.response!.tags ?? []) as string[]).not.toContain(name);
+  });
+
+  test("DELETE /files/rooms/:id/tags - After detach, global tag can still be deleted via DELETE /files/tags", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "GlobalDeletableTag";
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Global Deletable",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+
+    const { status } = await ownerApi.rooms.deleteCustomTags({
+      batchTagsRequestDto: { names: [name] },
+    });
+    expect(status).toBe(200);
+
+    const { data: list } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(list.response as unknown as string[]).not.toContain(name);
+  });
+
+  test("DELETE /files/rooms/:id/tags - After global delete, tag can be reattached because addRoomTags auto-creates it", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "RecreatableViaAdd";
+
+    await ownerApi.rooms.createRoomTag({ createTagRequestDto: { name } });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Reattach After Global Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+
+    await ownerApi.rooms.deleteCustomTags({
+      batchTagsRequestDto: { names: [name] },
+    });
+
+    const { data: list } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(list.response as unknown as string[]).not.toContain(name);
+
+    // addRoomTags auto-creates missing tag — see [[add_room_tags_creates_tags]]
+    const { data: reattached, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+    expect(status).toBe(200);
+    expect((reattached.response!.tags ?? []) as string[]).toContain(name);
+  });
+
+  test("DELETE /files/rooms/:id/tags - deleteRoomTags does NOT create missing tag in catalog", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "NeverCreatedByDetach";
+
+    const { data: list0 } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(list0.response as unknown as string[]).not.toContain(name);
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach Does Not Create",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+
+    const { data: list1 } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(list1.response as unknown as string[]).not.toContain(name);
+  });
+});
