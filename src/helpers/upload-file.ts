@@ -7,13 +7,13 @@ import { Role } from "../services/token-store";
 export async function uploadFileToFolder(
   apiSdk: ApiSDK,
   role: Role | null,
-  folderId: number,
+  folderId: number | "@my",
   fileBuffer: Buffer | null,
   fileName: string,
   options?: {
     mimeType?: string;
     createNewIfExist?: boolean;
-    storeOriginalFileFlag?: boolean;
+    storeOriginalFile?: boolean;
     files?: Array<{ buffer: Buffer; fileName: string; mimeType?: string }>;
   },
 ) {
@@ -36,14 +36,13 @@ export async function uploadFileToFolder(
       f.fileName,
     );
   }
+
+  const queryParams = new URLSearchParams();
   if (options?.createNewIfExist !== undefined) {
-    formData.append("createNewIfExist", String(options.createNewIfExist));
+    queryParams.set("createNewIfExist", String(options.createNewIfExist));
   }
-  if (options?.storeOriginalFileFlag !== undefined) {
-    formData.append(
-      "storeOriginalFileFlag",
-      String(options.storeOriginalFileFlag),
-    );
+  if (options?.storeOriginalFile !== undefined) {
+    queryParams.set("storeOriginalFile", String(options.storeOriginalFile));
   }
 
   const headers: Record<string, string> = {
@@ -53,11 +52,9 @@ export async function uploadFileToFolder(
     headers["Authorization"] = `Bearer ${apiSdk.tokenStore.getToken(role)}`;
   }
 
+  const qs = queryParams.toString();
+  const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/files/${folderId}/upload${qs ? `?${qs}` : ""}`;
   const axiosInstance = apiSdk.createAxiosInstance();
-  const response = await axiosInstance.post(
-    `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/files/${folderId}/upload`,
-    formData,
-    { headers },
-  );
+  const response = await axiosInstance.post(url, formData, { headers });
   return { data: response.data, status: response.status };
 }

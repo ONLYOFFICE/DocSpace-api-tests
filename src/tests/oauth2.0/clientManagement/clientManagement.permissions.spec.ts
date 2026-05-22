@@ -478,64 +478,62 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
     expect(status).toBe(404);
   });
 
-  test.fail(
-    "BUG 81670: PUT /api/2.0/clients/{clientId} - Cannot update client with name exceeding 256 characters",
-    async ({ apiSdk }) => {
-      const api = apiSdk.forRole("owner");
-      const signature = await getSignature(api);
+  test("BUG 81670: PUT /api/2.0/clients/{clientId} - Cannot update client with name exceeding 256 characters", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const signature = await getSignature(api);
 
-      const { data: created } = await api.clientManagement.createClient(
-        { createClientRequest: { ...fullClientRequest, name: "Test Client" } },
-        { headers: { "x-signature": signature } },
-      );
-      const clientId = created.client_id!;
+    const { data: created } = await api.clientManagement.createClient(
+      { createClientRequest: { ...fullClientRequest, name: "Test Client" } },
+      { headers: { "x-signature": signature } },
+    );
+    const clientId = created.client_id!;
 
-      const { data, status } = await api.clientManagement.updateClient(
-        {
-          clientId,
-          updateClientRequest: {
-            ...fullClientRequest,
-            name: "a".repeat(257),
-          } as any,
-        },
-        { headers: { "x-signature": signature } },
-      );
+    const { data, status } = await api.clientManagement.updateClient(
+      {
+        clientId,
+        updateClientRequest: {
+          ...fullClientRequest,
+          name: "a".repeat(257),
+        } as any,
+      },
+      { headers: { "x-signature": signature } },
+    );
 
-      // BUG: server accepts name > 256 chars on update (returns 200), but rejects on create (400)
-      expect(status).toBe(400);
-      expect((data as any).errors).toEqual(
-        expect.arrayContaining([expect.objectContaining({ field: "name" })]),
-      );
-    },
-  );
+    // BUG: server accepts name > 256 chars on update (returns 200), but rejects on create (400)
+    expect(status).toBe(400);
+    expect((data as any).errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: "name" })]),
+    );
+  });
 
-  test.fail(
-    "BUG 81670: PUT /api/2.0/clients/{clientId} - Cannot update client with name shorter than 3 characters",
-    async ({ apiSdk }) => {
-      const api = apiSdk.forRole("owner");
-      const signature = await getSignature(api);
+  test("BUG 81670: PUT /api/2.0/clients/{clientId} - Cannot update client with name shorter than 3 characters", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+    const signature = await getSignature(api);
 
-      const { data: created } = await api.clientManagement.createClient(
-        { createClientRequest: { ...fullClientRequest, name: "Test Client" } },
-        { headers: { "x-signature": signature } },
-      );
-      const clientId = created.client_id!;
+    const { data: created } = await api.clientManagement.createClient(
+      { createClientRequest: { ...fullClientRequest, name: "Test Client" } },
+      { headers: { "x-signature": signature } },
+    );
+    const clientId = created.client_id!;
 
-      const { data, status } = await api.clientManagement.updateClient(
-        {
-          clientId,
-          updateClientRequest: { ...fullClientRequest, name: "ab" } as any,
-        },
-        { headers: { "x-signature": signature } },
-      );
+    const { data, status } = await api.clientManagement.updateClient(
+      {
+        clientId,
+        updateClientRequest: { ...fullClientRequest, name: "ab" } as any,
+      },
+      { headers: { "x-signature": signature } },
+    );
 
-      // BUG: server accepts name < 3 chars on update (returns 200), but rejects on create (400)
-      expect(status).toBe(400);
-      expect((data as any).errors).toEqual(
-        expect.arrayContaining([expect.objectContaining({ field: "name" })]),
-      );
-    },
-  );
+    // BUG: server accepts name < 3 chars on update (returns 200), but rejects on create (400)
+    expect(status).toBe(400);
+    expect((data as any).errors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: "name" })]),
+    );
+  });
 
   test("PUT /api/2.0/clients/{clientId} - Cannot update client with invalid allowed_origins", async ({
     apiSdk,
