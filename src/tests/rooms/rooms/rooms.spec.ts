@@ -1665,7 +1665,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: GET /files/roomtemplate/:id/public - Returns 404 when id refers to a regular room, not a template",
+      "BUG 81726: GET /files/roomtemplate/:id/public - Returns 404 when id refers to a regular room, not a template",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
