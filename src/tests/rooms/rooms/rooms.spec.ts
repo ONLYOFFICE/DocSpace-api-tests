@@ -7051,29 +7051,27 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     expect(status).toBe(403);
   });
 
-  test.fail(
-    "BUG 81703: DELETE /files/rooms/:id/tags - Invalid string room id does not return 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.deleteRoomTags({
-        id: "not-a-number" as unknown as number,
-        batchTagsRequestDto: { names: ["X"] },
-      });
-      expect(data.statusCode).toBe(400);
-    },
-  );
+  test("BUG 81703: DELETE /files/rooms/:id/tags - Invalid string room id does not return 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data } = await ownerApi.rooms.deleteRoomTags({
+      id: "not-a-number" as unknown as number,
+      batchTagsRequestDto: { names: ["X"] },
+    });
+    expect(data.statusCode).toBe(404);
+  });
 
-  test.fail(
-    "BUG 81704: DELETE /files/rooms/:id/tags - Room id 0 returns 500 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.deleteRoomTags({
-        id: 0,
-        batchTagsRequestDto: { names: ["X"] },
-      });
-      expect(data.statusCode).toBe(400);
-    },
-  );
+  test("BUG 81704: DELETE /files/rooms/:id/tags - Room id 0 returns 500 instead of 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data } = await ownerApi.rooms.deleteRoomTags({
+      id: 0,
+      batchTagsRequestDto: { names: ["X"] },
+    });
+    expect(data.statusCode).toBe(404);
+  });
 
   // Note: missing room id (item 20) is enforced by the SDK route — the endpoint
   // cannot be invoked without an id, so there is no API-level test for it.
@@ -7218,28 +7216,27 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     });
   }
 
-  test.fail(
-    "BUG 81705: DELETE /files/rooms/:id/tags - names array containing null returns 200 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Bad Element null",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81705: DELETE /files/rooms/:id/tags - names array containing null returns 200 instead of 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Bad Element null",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { status } = await ownerApi.rooms.deleteRoomTags({
-        id: roomId,
-        batchTagsRequestDto: {
-          names: ["Valid", null as unknown as string],
-        },
-      });
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: {
+        names: ["Valid", null as unknown as string],
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   // deleteRoomTags treats empty/whitespace strings as non-matching names — no-op 200
   test("DELETE /files/rooms/:id/tags - names array containing empty string is a no-op (200)", async ({
