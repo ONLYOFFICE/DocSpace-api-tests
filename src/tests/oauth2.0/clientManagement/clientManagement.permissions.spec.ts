@@ -1,22 +1,11 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { readIconAsBase64 } from "@/src/utils/icon.utils";
-
-type OAuthApi = ReturnType<
-  (typeof import("@/src/services/api-sdk").ApiSDK.prototype)["forRole"]
->;
-
-const LOGO = `data:image/png;base64,${readIconAsBase64("src/assets/mcp-icon.png")}`;
-
-async function getSignature(api: OAuthApi) {
-  const { data } = await api.oauth2.generateJwtToken();
-  return (data as any).response as string;
-}
+import { OAUTH_LOGO, getSignature } from "@/src/helpers/oauth";
 
 const fullClientRequest = {
   redirect_uris: new Set(["https://example.com/callback"]),
   allowed_origins: new Set(["https://example.com"]),
-  logo: LOGO,
+  logo: OAUTH_LOGO,
   website_url: "https://example.com",
   terms_url: "https://example.com/terms",
   policy_url: "https://example.com/policy",
