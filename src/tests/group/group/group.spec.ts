@@ -1563,47 +1563,46 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
       const ownerId = ownerProfile.response!.id!;
 
-      const { data: memberData } = await apiSdk.addMember("owner", "User");
-      const memberId = memberData.response!.id!;
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
 
-      const { data: source } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-          members: [memberId],
-        },
-      });
-      const fromId = source.response!.id!;
+    const { data: source } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const fromId = source.response!.id!;
 
-      const { data: target } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-        },
-      });
-      const toId = target.response!.id!;
+    const { data: target } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const toId = target.response!.id!;
 
-      const { status } = await ownerApi.groupApi.moveMembersTo({
-        fromId,
-        toId,
-      });
-      expect(status).toBe(200);
+    const { status } = await ownerApi.groupApi.moveMembersTo({
+      fromId,
+      toId,
+    });
+    expect(status).toBe(200);
 
-      const { data: targetAfter } = await ownerApi.groupApi.getGroup({
-        id: toId,
-        includeMembers: true,
-      });
-      const targetIds = targetAfter.response?.members?.map((m) => m.id) ?? [];
-      expect(targetIds).toContain(memberId);
+    const { data: targetAfter } = await ownerApi.groupApi.getGroup({
+      id: toId,
+      includeMembers: true,
+    });
+    const targetIds = targetAfter.response?.members?.map((m) => m.id) ?? [];
+    expect(targetIds).toContain(memberId);
 
-      const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
-        id: fromId,
-        includeMembers: true,
-      });
-      const sourceIds = sourceAfter.response?.members?.map((m) => m.id) ?? [];
-      expect(sourceIds).not.toContain(memberId);
-    },
-  );
+    const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
+      id: fromId,
+      includeMembers: true,
+    });
+    const sourceIds = sourceAfter.response?.members?.map((m) => m.id) ?? [];
+    expect(sourceIds).not.toContain(memberId);
+  });
 
   test(
     "PUT /api/2.0/group/{fromId}/members/{toId} - Owner moves multiple members from source to target",
@@ -1612,55 +1611,54 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
       const ownerId = ownerProfile.response!.id!;
 
-      const { data: m1 } = await apiSdk.addMember("owner", "User");
-      const m1Id = m1.response!.id!;
-      const { data: m2 } = await apiSdk.addMember("owner", "User");
-      const m2Id = m2.response!.id!;
-      const { data: m3 } = await apiSdk.addMember("owner", "User");
-      const m3Id = m3.response!.id!;
+    const { data: m1 } = await apiSdk.addMember("owner", "User");
+    const m1Id = m1.response!.id!;
+    const { data: m2 } = await apiSdk.addMember("owner", "User");
+    const m2Id = m2.response!.id!;
+    const { data: m3 } = await apiSdk.addMember("owner", "User");
+    const m3Id = m3.response!.id!;
 
-      const { data: source } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-          members: [m1Id, m2Id, m3Id],
-        },
-      });
-      const fromId = source.response!.id!;
+    const { data: source } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [m1Id, m2Id, m3Id],
+      },
+    });
+    const fromId = source.response!.id!;
 
-      const { data: target } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-        },
-      });
-      const toId = target.response!.id!;
+    const { data: target } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const toId = target.response!.id!;
 
-      const { status } = await ownerApi.groupApi.moveMembersTo({
-        fromId,
-        toId,
-      });
-      expect(status).toBe(200);
+    const { status } = await ownerApi.groupApi.moveMembersTo({
+      fromId,
+      toId,
+    });
+    expect(status).toBe(200);
 
-      const { data: targetAfter } = await ownerApi.groupApi.getGroup({
-        id: toId,
-        includeMembers: true,
-      });
-      const targetIds = targetAfter.response?.members?.map((m) => m.id) ?? [];
-      expect(targetIds).toContain(m1Id);
-      expect(targetIds).toContain(m2Id);
-      expect(targetIds).toContain(m3Id);
+    const { data: targetAfter } = await ownerApi.groupApi.getGroup({
+      id: toId,
+      includeMembers: true,
+    });
+    const targetIds = targetAfter.response?.members?.map((m) => m.id) ?? [];
+    expect(targetIds).toContain(m1Id);
+    expect(targetIds).toContain(m2Id);
+    expect(targetIds).toContain(m3Id);
 
-      const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
-        id: fromId,
-        includeMembers: true,
-      });
-      const sourceIds = sourceAfter.response?.members?.map((m) => m.id) ?? [];
-      expect(sourceIds).not.toContain(m1Id);
-      expect(sourceIds).not.toContain(m2Id);
-      expect(sourceIds).not.toContain(m3Id);
-    },
-  );
+    const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
+      id: fromId,
+      includeMembers: true,
+    });
+    const sourceIds = sourceAfter.response?.members?.map((m) => m.id) ?? [];
+    expect(sourceIds).not.toContain(m1Id);
+    expect(sourceIds).not.toContain(m2Id);
+    expect(sourceIds).not.toContain(m3Id);
+  });
 
   test("PUT /api/2.0/group/{fromId}/members/{toId} - Moving members preserves existing target group members", async ({
     apiSdk,
@@ -1711,50 +1709,49 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
       const ownerId = ownerProfile.response!.id!;
 
-      const { data: shared } = await apiSdk.addMember("owner", "User");
-      const sharedId = shared.response!.id!;
+    const { data: shared } = await apiSdk.addMember("owner", "User");
+    const sharedId = shared.response!.id!;
 
-      const { data: source } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-          members: [sharedId],
-        },
-      });
-      const fromId = source.response!.id!;
+    const { data: source } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [sharedId],
+      },
+    });
+    const fromId = source.response!.id!;
 
-      const { data: target } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-          members: [sharedId],
-        },
-      });
-      const toId = target.response!.id!;
+    const { data: target } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [sharedId],
+      },
+    });
+    const toId = target.response!.id!;
 
-      const { status } = await ownerApi.groupApi.moveMembersTo({
-        fromId,
-        toId,
-      });
-      expect(status).toBe(200);
+    const { status } = await ownerApi.groupApi.moveMembersTo({
+      fromId,
+      toId,
+    });
+    expect(status).toBe(200);
 
-      const { data: targetAfter } = await ownerApi.groupApi.getGroup({
-        id: toId,
-        includeMembers: true,
-      });
-      const occurrences = targetAfter.response?.members?.filter(
-        (m) => m.id === sharedId,
-      ).length;
-      expect(occurrences).toBe(1);
+    const { data: targetAfter } = await ownerApi.groupApi.getGroup({
+      id: toId,
+      includeMembers: true,
+    });
+    const occurrences = targetAfter.response?.members?.filter(
+      (m) => m.id === sharedId,
+    ).length;
+    expect(occurrences).toBe(1);
 
-      const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
-        id: fromId,
-        includeMembers: true,
-      });
-      const sourceIds = sourceAfter.response?.members?.map((m) => m.id) ?? [];
-      expect(sourceIds).not.toContain(sharedId);
-    },
-  );
+    const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
+      id: fromId,
+      includeMembers: true,
+    });
+    const sourceIds = sourceAfter.response?.members?.map((m) => m.id) ?? [];
+    expect(sourceIds).not.toContain(sharedId);
+  });
 
   test(
     "PUT /api/2.0/group/{fromId}/members/{toId} - Source group has no moved members after move",
@@ -1763,39 +1760,38 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
       const ownerId = ownerProfile.response!.id!;
 
-      const { data: m1 } = await apiSdk.addMember("owner", "User");
-      const m1Id = m1.response!.id!;
-      const { data: m2 } = await apiSdk.addMember("owner", "User");
-      const m2Id = m2.response!.id!;
+    const { data: m1 } = await apiSdk.addMember("owner", "User");
+    const m1Id = m1.response!.id!;
+    const { data: m2 } = await apiSdk.addMember("owner", "User");
+    const m2Id = m2.response!.id!;
 
-      const { data: source } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-          members: [m1Id, m2Id],
-        },
-      });
-      const fromId = source.response!.id!;
+    const { data: source } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [m1Id, m2Id],
+      },
+    });
+    const fromId = source.response!.id!;
 
-      const { data: target } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-        },
-      });
-      const toId = target.response!.id!;
+    const { data: target } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const toId = target.response!.id!;
 
-      await ownerApi.groupApi.moveMembersTo({ fromId, toId });
+    await ownerApi.groupApi.moveMembersTo({ fromId, toId });
 
-      const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
-        id: fromId,
-        includeMembers: true,
-      });
-      const sourceIds = sourceAfter.response?.members?.map((m) => m.id) ?? [];
-      expect(sourceIds).not.toContain(m1Id);
-      expect(sourceIds).not.toContain(m2Id);
-    },
-  );
+    const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
+      id: fromId,
+      includeMembers: true,
+    });
+    const sourceIds = sourceAfter.response?.members?.map((m) => m.id) ?? [];
+    expect(sourceIds).not.toContain(m1Id);
+    expect(sourceIds).not.toContain(m2Id);
+  });
 
   test("PUT /api/2.0/group/{fromId}/members/{toId} - Returns updated target group with moved members in response", async ({
     apiSdk,
@@ -1841,59 +1837,56 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
       const ownerId = ownerProfile.response!.id!;
 
-      const { data: memberData } = await apiSdk.addMember("owner", "User");
-      const memberId = memberData.response!.id!;
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const memberId = memberData.response!.id!;
 
-      const { data: source } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-          members: [memberId],
-        },
-      });
-      const fromId = source.response!.id!;
+    const { data: source } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [memberId],
+      },
+    });
+    const fromId = source.response!.id!;
 
-      const { data: target } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-        },
-      });
-      const toId = target.response!.id!;
+    const { data: target } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const toId = target.response!.id!;
 
-      await ownerApi.groupApi.moveMembersTo({ fromId, toId });
+    await ownerApi.groupApi.moveMembersTo({ fromId, toId });
 
-      const { data: targetFirst } = await ownerApi.groupApi.getGroup({
-        id: toId,
-        includeMembers: true,
-      });
-      const { data: targetSecond } = await ownerApi.groupApi.getGroup({
-        id: toId,
-        includeMembers: true,
-      });
-      expect(targetFirst.response?.members?.map((m) => m.id)).toContain(
-        memberId,
-      );
-      expect(targetSecond.response?.members?.map((m) => m.id)).toContain(
-        memberId,
-      );
+    const { data: targetFirst } = await ownerApi.groupApi.getGroup({
+      id: toId,
+      includeMembers: true,
+    });
+    const { data: targetSecond } = await ownerApi.groupApi.getGroup({
+      id: toId,
+      includeMembers: true,
+    });
+    expect(targetFirst.response?.members?.map((m) => m.id)).toContain(memberId);
+    expect(targetSecond.response?.members?.map((m) => m.id)).toContain(
+      memberId,
+    );
 
-      const { data: sourceFirst } = await ownerApi.groupApi.getGroup({
-        id: fromId,
-        includeMembers: true,
-      });
-      const { data: sourceSecond } = await ownerApi.groupApi.getGroup({
-        id: fromId,
-        includeMembers: true,
-      });
-      expect(sourceFirst.response?.members?.map((m) => m.id)).not.toContain(
-        memberId,
-      );
-      expect(sourceSecond.response?.members?.map((m) => m.id)).not.toContain(
-        memberId,
-      );
-    },
-  );
+    const { data: sourceFirst } = await ownerApi.groupApi.getGroup({
+      id: fromId,
+      includeMembers: true,
+    });
+    const { data: sourceSecond } = await ownerApi.groupApi.getGroup({
+      id: fromId,
+      includeMembers: true,
+    });
+    expect(sourceFirst.response?.members?.map((m) => m.id)).not.toContain(
+      memberId,
+    );
+    expect(sourceSecond.response?.members?.map((m) => m.id)).not.toContain(
+      memberId,
+    );
+  });
 
   test("PUT /api/2.0/group/{fromId}/members/{toId} - Move from empty source group leaves target unchanged", async ({
     apiSdk,
@@ -1945,52 +1938,50 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     expect(targetAfter.response?.membersCount).toBe(countBefore);
   });
 
-  test.fail(
-    "BUG 81497: PUT /api/2.0/group/{fromId}/members/{toId} - Member counts update correctly in both groups",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
+  test("BUG 81497: PUT /api/2.0/group/{fromId}/members/{toId} - Member counts update correctly in both groups", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
-      const { data: m1 } = await apiSdk.addMember("owner", "User");
-      const m1Id = m1.response!.id!;
-      const { data: m2 } = await apiSdk.addMember("owner", "User");
-      const m2Id = m2.response!.id!;
+    const { data: m1 } = await apiSdk.addMember("owner", "User");
+    const m1Id = m1.response!.id!;
+    const { data: m2 } = await apiSdk.addMember("owner", "User");
+    const m2Id = m2.response!.id!;
 
-      const { data: source } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-          members: [m1Id, m2Id],
-        },
-      });
-      const fromId = source.response!.id!;
-      const sourceCountBefore = source.response!.membersCount!;
+    const { data: source } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [m1Id, m2Id],
+      },
+    });
+    const fromId = source.response!.id!;
 
-      const { data: target } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-        },
-      });
-      const toId = target.response!.id!;
-      const targetCountBefore = target.response!.membersCount!;
+    const { data: target } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const toId = target.response!.id!;
+    const targetCountBefore = target.response!.membersCount!;
 
-      await ownerApi.groupApi.moveMembersTo({ fromId, toId });
+    await ownerApi.groupApi.moveMembersTo({ fromId, toId });
 
-      const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
-        id: fromId,
-        includeMembers: true,
-      });
-      const { data: targetAfter } = await ownerApi.groupApi.getGroup({
-        id: toId,
-        includeMembers: true,
-      });
+    const { data: sourceAfter } = await ownerApi.groupApi.getGroup({
+      id: fromId,
+      includeMembers: true,
+    });
+    const { data: targetAfter } = await ownerApi.groupApi.getGroup({
+      id: toId,
+      includeMembers: true,
+    });
 
-      expect(sourceAfter.response?.membersCount).toBe(sourceCountBefore - 2);
-      expect(targetAfter.response?.membersCount).toBe(targetCountBefore + 2);
-    },
-  );
+    expect(sourceAfter.response?.membersCount).toBe(0);
+    expect(targetAfter.response?.membersCount).toBe(targetCountBefore + 2);
+  });
 
   test("PUT /api/2.0/group/{fromId}/members/{toId} - Repeated move with same fromId and toId is idempotent", async ({
     apiSdk,
