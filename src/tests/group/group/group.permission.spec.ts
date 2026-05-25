@@ -1482,7 +1482,7 @@ test.describe("GET /api/2.0/group/user/{userid} - permissions", () => {
 
 test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - validation and edge cases", () => {
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/group/{fromId}/members/{toId} - Calling with fromId equals toId does not corrupt group members",
+    "BUG 81710: PUT /api/2.0/group/{fromId}/members/{toId} - Calling with fromId equals toId does not corrupt group members",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
