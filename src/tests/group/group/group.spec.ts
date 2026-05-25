@@ -1556,8 +1556,8 @@ test.describe("DELETE /api/2.0/group/{id} - Delete a group", () => {
 });
 
 test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members", () => {
-  test.fail(
-    "BUG 81497: PUT /api/2.0/group/{fromId}/members/{toId} - Owner moves one member from source to target",
+  test(
+    "PUT /api/2.0/group/{fromId}/members/{toId} - Owner moves one member from source to target",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
@@ -1605,8 +1605,8 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     },
   );
 
-  test.fail(
-    "BUG 81497: PUT /api/2.0/group/{fromId}/members/{toId} - Owner moves multiple members from source to target",
+  test(
+    "PUT /api/2.0/group/{fromId}/members/{toId} - Owner moves multiple members from source to target",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
@@ -1704,8 +1704,8 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     expect(targetIds).toContain(srcMemberId);
   });
 
-  test.fail(
-    "BUG 81497: PUT /api/2.0/group/{fromId}/members/{toId} - Moving overlapping members does not duplicate them in target",
+  test(
+    "PUT /api/2.0/group/{fromId}/members/{toId} - Moving overlapping members does not duplicate them in target",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
@@ -1756,8 +1756,8 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     },
   );
 
-  test.fail(
-    "BUG 81497: PUT /api/2.0/group/{fromId}/members/{toId} - Source group has no moved members after move",
+  test(
+    "PUT /api/2.0/group/{fromId}/members/{toId} - Source group has no moved members after move",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
@@ -1834,8 +1834,8 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     expect(memberIds).toContain(memberId);
   });
 
-  test.fail(
-    "BUG 81497: PUT /api/2.0/group/{fromId}/members/{toId} - Changes persist after re-fetching both groups",
+  test(
+    "PUT /api/2.0/group/{fromId}/members/{toId} - Changes persist after re-fetching both groups",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
