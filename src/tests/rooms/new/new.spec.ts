@@ -243,7 +243,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
   });
 
   test.fail(
-    "BUG TBD: GET /files/rooms/:id/news - File created before visit does not appear in news",
+    "BUG 81712: GET /files/rooms/:id/news - File created before visit does not appear in news",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -286,7 +286,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
   );
 
   test.fail(
-    "BUG TBD: GET /files/rooms/:id/news - Re-opening room resets news to empty",
+    "BUG 81712: GET /files/rooms/:id/news - Re-opening room resets news to empty",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -329,7 +329,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
   );
 
   test.fail(
-    "BUG TBD: GET /files/rooms/:id/news - File updated by another user appears in news",
+    "BUG 81713: GET /files/rooms/:id/news - File updated by another user appears in news",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -379,7 +379,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
   );
 
   test.fail(
-    "BUG TBD: GET /files/rooms/:id/news - Renamed file appears with the new title",
+    "BUG 81713: GET /files/rooms/:id/news - Renamed file appears with the new title",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
