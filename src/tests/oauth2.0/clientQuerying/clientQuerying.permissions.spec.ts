@@ -250,7 +250,7 @@ test.describe("GET /api/2.0/clients/consents - permissions", () => {
   });
 
   test.fail(
-    "BUG : GET /api/2.0/clients/consents - Guest returns 403",
+    "BUG 81729: GET /api/2.0/clients/consents - Guest returns 403",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
@@ -301,7 +301,7 @@ test.describe("GET /api/2.0/clients/{clientId}/public/info - permissions", () =>
   });
 
   test.fail(
-    "BUG: GET /api/2.0/clients/{clientId}/public/info - Non-existent clientId returns 404",
+    "BUG 81728: GET /api/2.0/clients/{clientId}/public/info - Non-existent clientId returns 404",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forAnonymous()
