@@ -7218,28 +7218,27 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     });
   }
 
-  test.fail(
-    "BUG TBD: DELETE /files/rooms/:id/tags - names array containing null returns 200 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Bad Element null",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG TBD: DELETE /files/rooms/:id/tags - names array containing null returns 200 instead of 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Bad Element null",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { status } = await ownerApi.rooms.deleteRoomTags({
-        id: roomId,
-        batchTagsRequestDto: {
-          names: ["Valid", null as unknown as string],
-        },
-      });
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: {
+        names: ["Valid", null as unknown as string],
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   // deleteRoomTags treats empty/whitespace strings as non-matching names — no-op 200
   test("DELETE /files/rooms/:id/tags - names array containing empty string is a no-op (200)", async ({
