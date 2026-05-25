@@ -1,17 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { readIconAsBase64 } from "@/src/utils/icon.utils";
-
-const LOGO = `data:image/png;base64,${readIconAsBase64("src/assets/mcp-icon.png")}`;
-
-type OAuthApi = ReturnType<
-  (typeof import("@/src/services/api-sdk").ApiSDK.prototype)["forRole"]
->;
-
-async function getSignature(api: OAuthApi) {
-  const { data } = await api.oauth2.generateJwtToken();
-  return (data as any).response as string;
-}
+import { OAUTH_LOGO as LOGO, getSignature } from "@/src/helpers/oauth";
 
 test.describe("POST /api/2.0/clients", () => {
   test("POST /api/2.0/clients - Owner creates OAuth2 client", async ({
