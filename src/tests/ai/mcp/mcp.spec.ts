@@ -3,7 +3,12 @@ import { test } from "@/src/fixtures";
 import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
 import { readIconAsBase64 } from "@/src/utils/icon.utils";
 import config from "@/config";
-import { RoomType, ServerType } from "@onlyoffice/docspace-api-sdk";
+import {
+  RoomType,
+  ServerType,
+  ToolExecutionDecision,
+} from "@onlyoffice/docspace-api-sdk";
+import { parseSseEvents } from "@/src/helpers/parse-sse-events";
 
 const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
 
@@ -3113,6 +3118,86 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
 
       expect(status).not.toBe(200);
       expect(nameAfter).toBe(originalName);
+    },
+  );
+});
+
+test.describe("MCP Servers - Built-in DocSpace Server - Result Storage upload", () => {
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/ai/chats/tool-permissions/:callId/decision - agent calls upload_file but file does not appear in Result Storage on first attempt",
+    async ({ apiSdk }) => {
+      const api = apiSdk.forRole("owner");
+
+      const provider = aiProviders.openAi;
+      const { data: providerData, status: providerStatus } =
+        await api.providers.addProvider({
+          createProviderRequestDto: toCreateDto(provider),
+        });
+      expect(providerStatus).toBe(200);
+      const providerId = providerData.response!.id!;
+
+      const { data: agentData } = await api.agents.createAgent({
+        createAgentRequestDto: {
+          title: `mcp-upload-rs-${Date.now()}`,
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          attachDefaultTools: true,
+          chatSettings: {
+            providerId,
+            modelId: provider.modelId,
+            prompt: "You are a helpful assistant.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const agentParentId = (agentData.response as any).parentId;
+      const { data: parentContent } = await api.folders.getFolderByFolderId({
+        folderId: agentParentId,
+      });
+      const childFolders = (parentContent as any).response?.folders ?? [];
+      const resultStorageFolder = (childFolders as any[]).find(
+        (f: any) => f.type === 33 && f.parentId === agentRoomId,
+      );
+      expect(resultStorageFolder).toBeDefined();
+      const resultStorageFolderId = resultStorageFolder.id;
+
+      const startResponse = await api.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: {
+            message:
+              "Write a short greeting message and save your answer to a file.",
+          },
+        },
+        { responseType: "stream", timeout: 15000 },
+      );
+
+      const { parsed } = parseSseEvents(startResponse.data);
+      const permissionEvent = parsed.find(
+        (e) => e.event === "tool_call" && e.data?.managed === true,
+      );
+      expect(permissionEvent).toBeDefined();
+      const callId = permissionEvent!.data.callId as string;
+
+      const { status: approvalStatus } = await api.chat.providePermission({
+        callId,
+        toolDecisionRequestBody: { decision: ToolExecutionDecision.Allow },
+      });
+
+      let files: any[] = [];
+      for (let i = 0; i < 5; i++) {
+        const { data: rsContent } = await api.folders.getFolderByFolderId({
+          folderId: resultStorageFolderId,
+        });
+        files = (rsContent as any).response?.files ?? [];
+        if (files.length > 0) break;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      expect(files.length).toBeGreaterThan(0);
+      expect(approvalStatus).toBe(200);
     },
   );
 });

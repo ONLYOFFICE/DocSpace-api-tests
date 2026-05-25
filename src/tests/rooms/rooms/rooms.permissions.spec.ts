@@ -1918,6 +1918,210 @@ test.describe("POST /files/roomtemplate - access control", () => {
   });
 });
 
+test.describe("GET /files/roomtemplate/{id}/public - access control", () => {
+  async function createTemplate(
+    api: any,
+    title: string,
+    isPublic: boolean,
+  ): Promise<number> {
+    const { data: roomData } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `${title} Source`,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await api.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: roomData.response!.id!,
+        title,
+        public: isPublic,
+      },
+    });
+    return waitForRoomTemplate(api.rooms);
+  }
+
+  test("Owner can read public flag of own private template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const templateId = await createTemplate(
+      ownerApi,
+      "Autotest GetPublic Owner Private",
+      false,
+    );
+
+    const { data, status } = await ownerApi.rooms.getPublicSettings({
+      id: templateId,
+    });
+    expect(status).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("Owner can read public flag of own public template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const templateId = await createTemplate(
+      ownerApi,
+      "Autotest GetPublic Owner Public",
+      true,
+    );
+
+    const { data, status } = await ownerApi.rooms.getPublicSettings({
+      id: templateId,
+    });
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("RoomAdmin can read public flag of own private template", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const templateId = await createTemplate(
+      roomAdminApi,
+      "Autotest GetPublic RoomAdmin Own",
+      false,
+    );
+
+    const { data, status } = await roomAdminApi.rooms.getPublicSettings({
+      id: templateId,
+    });
+    expect(status).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  for (const role of ["DocSpaceAdmin", "RoomAdmin"] as const) {
+    test(`${role} can read public flag of someone else's public template`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const templateId = await createTemplate(
+        ownerApi,
+        `Autotest GetPublic ${role} OthersPublic`,
+        true,
+      );
+
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const { data, status } = await api.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+  }
+
+  test("DocSpaceAdmin cannot read public flag of someone else's private template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const templateId = await createTemplate(
+      ownerApi,
+      "Autotest GetPublic Admin OthersPrivate",
+      false,
+    );
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data } = await adminApi.rooms.getPublicSettings({
+      id: templateId,
+    });
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("RoomAdmin cannot read public flag of someone else's private template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const templateId = await createTemplate(
+      ownerApi,
+      "Autotest GetPublic RoomAdmin OthersPrivate",
+      false,
+    );
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { data } = await roomAdminApi.rooms.getPublicSettings({
+      id: templateId,
+    });
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Owner can read public flag of template owned by DocSpaceAdmin", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const templateId = await createTemplate(
+      adminApi,
+      "Autotest GetPublic OwnerReadsAdmin",
+      true,
+    );
+
+    const { data, status } = await ownerApi.rooms.getPublicSettings({
+      id: templateId,
+    });
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  for (const role of ["User", "Guest"] as const) {
+    test(`${role} cannot read public flag of public template`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const templateId = await createTemplate(
+        ownerApi,
+        `Autotest GetPublic ${role} Public`,
+        true,
+      );
+
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const { data } = await api.rooms.getPublicSettings({ id: templateId });
+      expect(data.statusCode).toBe(403);
+    });
+
+    test(`${role} cannot read public flag of private template`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const templateId = await createTemplate(
+        ownerApi,
+        `Autotest GetPublic ${role} Private`,
+        false,
+      );
+
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const { data } = await api.rooms.getPublicSettings({ id: templateId });
+      expect(data.statusCode).toBe(403);
+    });
+  }
+
+  test("Unauthenticated request returns 401", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const templateId = await createTemplate(
+      ownerApi,
+      "Autotest GetPublic Anon",
+      true,
+    );
+
+    const { status } = await apiSdk.forAnonymous().rooms.getPublicSettings({
+      id: templateId,
+    });
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("POST /files/rooms/fromtemplate - access control", () => {
   test("DocSpaceAdmin can create a room from a public template", async ({
     apiSdk,
