@@ -4566,18 +4566,16 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
     expect(data.response).toBeDefined();
   });
 
-  // BUG 81549: POST /api/2.0/files/@my/upload - No file in request body returns 403 instead of 400
-  test.fail(
-    "BUG 81549: POST /api/2.0/files/@my/upload - No file in request body returns 403 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { status } = await ownerApi.folders.uploadFileToMy(undefined, {
-        data: new FormData(),
-      });
+  test("BUG 81549: POST /api/2.0/files/@my/upload - No file in request body returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { status } = await ownerApi.folders.uploadFileToMy(undefined, {
+      data: new FormData(),
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   test("POST /api/2.0/files/@my/upload - folderId in response matches My Documents folder", async ({
     apiSdk,
@@ -5142,32 +5140,30 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(data.response!.sharedLink!.primary).toBe(true);
   });
 
-  // BUG 81573: title parameter is ignored, server always returns "Shared link"
-  test.fail(
-    "BUG 81573: POST /api/2.0/files/folder/:id/link - Title is reflected in response",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Title",
-          roomType: RoomType.CustomRoom,
+  test("BUG 81573: POST /api/2.0/files/folder/:id/link - Title is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Title",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          access: FileShare.Read,
+          title: "My Public Link",
         },
       });
-      const roomId = roomData.response!.id!;
 
-      const { data, status } =
-        await ownerApi.folders.createFolderPrimaryExternalLink({
-          id: roomId,
-          folderLinkRequest: {
-            access: FileShare.Read,
-            title: "My Public Link",
-          },
-        });
-
-      expect(status).toBe(200);
-      expect(data.response!.sharedLink!.title).toBe("My Public Link");
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.title).toBe("My Public Link");
+  });
 
   test("POST /api/2.0/files/folder/:id/link - denyDownload is reflected in response", async ({
     apiSdk,
@@ -5213,29 +5209,28 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(data.response!.sharedLink!.password).toBeTruthy();
   });
 
-  // BUG 81574: empty body {} returns count:0 with no response instead of creating link with defaults
-  test.fail(
-    "BUG 81574: POST /api/2.0/files/folder/:id/link - Empty body creates link with defaults",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Empty Body",
-          roomType: RoomType.CustomRoom,
-        },
+  test("POST /api/2.0/files/folder/:id/link - Empty body (access: None) acts as delete of non-existent link returns 200 with no response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Empty Body",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {},
       });
-      const roomId = roomData.response!.id!;
 
-      const { data, status } =
-        await ownerApi.folders.createFolderPrimaryExternalLink({
-          id: roomId,
-          folderLinkRequest: {},
-        });
-
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.count).toBe(0);
+    expect(data.response).toBeUndefined();
+  });
 
   test("POST /api/2.0/files/folder/:id/link - Non-existent folderId returns 404", async ({
     apiSdk,
@@ -7794,54 +7789,52 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
-  // BUG 81623: POST /api/2.0/files/{folderId}/upload does not write FileUploaded event to room history
-  test.fail(
-    "BUG 81623: GET /api/2.0/files/folder/{folderId}/log - History contains FileUploaded after file is uploaded via POST /files/{folderId}/upload",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: profileData } = await ownerApi.profiles.getSelfProfile();
-      const ownerDisplayName = profileData.response!.displayName!;
+  test("BUG 81623: GET /api/2.0/files/folder/{folderId}/log - History contains FileUploaded after file is uploaded via POST /files/{folderId}/upload", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder History FileUploaded Direct",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FileUploaded Direct",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: beforeData } = await ownerApi.folders.getFolderHistory({
-        folderId: roomId,
-      });
-      expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
-        MessageAction.FileUploaded,
-      );
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileUploaded,
+    );
 
-      const { status: uploadStatus } = await uploadFileToFolder(
-        apiSdk,
-        "owner",
-        roomId,
-        Buffer.from("test content"),
-        "Uploaded File.docx",
-        {
-          mimeType:
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          createNewIfExist: true,
-        },
-      );
-      expect(uploadStatus).toBe(200);
+    const { status: uploadStatus } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("test content"),
+      "Uploaded File.docx",
+      {
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        createNewIfExist: true,
+      },
+    );
+    expect(uploadStatus).toBe(200);
 
-      const { data, status } = await ownerApi.folders.getFolderHistory({
-        folderId: roomId,
-      });
-      expect(status).toBe(200);
-      const fileEntry = data.response!.find(
-        (e) => e.action?.id === MessageAction.FileUploaded,
-      );
-      expect(fileEntry).toBeDefined();
-      expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
-    },
-  );
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const fileEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FileUploaded,
+    );
+    expect(fileEntry).toBeDefined();
+    expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileRenamed after file is renamed in room", async ({
     apiSdk,
