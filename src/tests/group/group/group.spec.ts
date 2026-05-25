@@ -1556,12 +1556,12 @@ test.describe("DELETE /api/2.0/group/{id} - Delete a group", () => {
 });
 
 test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members", () => {
-  test(
-    "PUT /api/2.0/group/{fromId}/members/{toId} - Owner moves one member from source to target",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
+  test("PUT /api/2.0/group/{fromId}/members/{toId} - Owner moves one member from source to target", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
     const { data: memberData } = await apiSdk.addMember("owner", "User");
     const memberId = memberData.response!.id!;
@@ -1604,12 +1604,12 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     expect(sourceIds).not.toContain(memberId);
   });
 
-  test(
-    "PUT /api/2.0/group/{fromId}/members/{toId} - Owner moves multiple members from source to target",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
+  test("PUT /api/2.0/group/{fromId}/members/{toId} - Owner moves multiple members from source to target", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
     const { data: m1 } = await apiSdk.addMember("owner", "User");
     const m1Id = m1.response!.id!;
@@ -1702,12 +1702,12 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     expect(targetIds).toContain(srcMemberId);
   });
 
-  test(
-    "PUT /api/2.0/group/{fromId}/members/{toId} - Moving overlapping members does not duplicate them in target",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
+  test("PUT /api/2.0/group/{fromId}/members/{toId} - Moving overlapping members does not duplicate them in target", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
     const { data: shared } = await apiSdk.addMember("owner", "User");
     const sharedId = shared.response!.id!;
@@ -1753,12 +1753,12 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     expect(sourceIds).not.toContain(sharedId);
   });
 
-  test(
-    "PUT /api/2.0/group/{fromId}/members/{toId} - Source group has no moved members after move",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
+  test("PUT /api/2.0/group/{fromId}/members/{toId} - Source group has no moved members after move", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
     const { data: m1 } = await apiSdk.addMember("owner", "User");
     const m1Id = m1.response!.id!;
@@ -1830,12 +1830,12 @@ test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - Move group members",
     expect(memberIds).toContain(memberId);
   });
 
-  test(
-    "PUT /api/2.0/group/{fromId}/members/{toId} - Changes persist after re-fetching both groups",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
+  test("PUT /api/2.0/group/{fromId}/members/{toId} - Changes persist after re-fetching both groups", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
     const { data: memberData } = await apiSdk.addMember("owner", "User");
     const memberId = memberData.response!.id!;
