@@ -2513,9 +2513,9 @@ test.describe("GET /files/file/:id/link permissions", () => {
     expect(data.response!.sharedLink!.shareLink).toBeTruthy();
   });
 
-  // BUG 81571: unauthenticated user should get 401 but server returns 200 with count:0
+  // BUG 81571: unauthenticated user should get 403 (fixed via BUG 81572: removed [AllowAnonymous])
   test.fail(
-    "BUG 81571: GET /files/file/:id/link - Unauthenticated user gets 401",
+    "BUG 81571: GET /files/file/:id/link - Unauthenticated user gets 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2528,7 +2528,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
         .forAnonymous()
         .files.getFilePrimaryExternalLink({ id: fileId });
 
-      expect(status).toBe(401);
+      expect(status).toBe(403);
     },
   );
 
