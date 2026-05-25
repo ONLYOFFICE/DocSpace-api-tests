@@ -1,14 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-
-async function getSignature(
-  api: ReturnType<
-    (typeof import("@/src/services/api-sdk").ApiSDK.prototype)["forRole"]
-  >,
-) {
-  const { data } = await api.oauth2.generateJwtToken();
-  return (data as any).response as string;
-}
+import { getSignature } from "@/src/helpers/oauth";
 
 test.describe("GET /api/2.0/scopes", () => {
   test("GET /api/2.0/scopes - Owner gets list of available OAuth2 scopes", async ({
