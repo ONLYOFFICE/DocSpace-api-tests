@@ -366,7 +366,7 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
 
     const { data } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: {},
+      logoRequest: {} as any,
     });
 
     expect(data.statusCode).toBe(400);
@@ -406,7 +406,7 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
 
     const { data } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: null },
+      logoRequest: { tmpFile: null as unknown as string },
     });
 
     expect(data.statusCode).toBe(400);
