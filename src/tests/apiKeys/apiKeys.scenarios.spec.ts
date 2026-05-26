@@ -3,6 +3,36 @@ import { test } from "@/src/fixtures";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("POST /api/2.0/keys - scenarios", () => {
+  test("POST /api/2.0/keys - User API key with accounts permissions cannot access GET /api/2.0/people", async ({
+    apiSdk,
+  }) => {
+    let apiKeyValue: string;
+
+    await test.step("User creates an API key requesting accounts permissions", async () => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: {
+            name: "Autotest User Accounts Key",
+            permissions: ["accounts:write", "accounts:read"],
+          },
+        });
+
+      expect(status).toBe(200);
+      apiKeyValue = data.response!.key!;
+    });
+
+    await test.step("GET /api/2.0/people with that key returns 403", async () => {
+      const { status } = await apiSdk
+        .forApiKey(apiKeyValue!)
+        .profiles.getAllProfiles();
+
+      expect(status).toBe(403);
+    });
+  });
+
   test.fail(
     "BUG 81238: API key with files:read scope cannot create another API key",
     async ({ apiSdk }) => {

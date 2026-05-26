@@ -14,7 +14,6 @@ export async function uploadFileToFolder(
     mimeType?: string;
     createNewIfExist?: boolean;
     storeOriginalFile?: boolean;
-    files?: Array<{ buffer: Buffer; fileName: string; mimeType?: string }>;
   },
 ) {
   const formData = new FormData();
@@ -27,16 +26,6 @@ export async function uploadFileToFolder(
       fileName,
     );
   }
-  for (const f of options?.files ?? []) {
-    formData.append(
-      "files",
-      new Blob([new Uint8Array(f.buffer)], {
-        type: f.mimeType ?? "application/octet-stream",
-      }),
-      f.fileName,
-    );
-  }
-
   const queryParams = new URLSearchParams();
   if (options?.createNewIfExist !== undefined) {
     queryParams.set("createNewIfExist", String(options.createNewIfExist));
