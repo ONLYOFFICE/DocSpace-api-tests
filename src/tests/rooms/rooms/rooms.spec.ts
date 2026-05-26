@@ -4412,7 +4412,7 @@ test.describe("API rooms methods", () => {
       expect(folderTitles).toContain(folderTitle);
     });
 
-    test.fail(
+    test(
       "BUG 81666: POST /files/rooms/fromtemplate - Nested folder hierarchy is preserved",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");

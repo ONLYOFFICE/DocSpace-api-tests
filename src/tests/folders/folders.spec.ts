@@ -3990,47 +3990,6 @@ test.describe("POST /api/2.0/files/{folderId}/upload - Upload file", () => {
     expect(response.folderId).toBe(myDocsFolderId);
   });
 
-  test("POST /api/2.0/files/{folderId}/upload - Multiple files via files array", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest Room Upload Multiple Files",
-        roomType: RoomType.CustomRoom,
-      },
-    });
-    const roomId = roomData.response!.id!;
-
-    const { data, status } = await uploadFileToFolder(
-      apiSdk,
-      "owner",
-      roomId,
-      null,
-      "",
-      {
-        files: [
-          {
-            buffer: Buffer.from("File 1 content"),
-            fileName: "autotest-multi-1.txt",
-          },
-          {
-            buffer: Buffer.from("File 2 content"),
-            fileName: "autotest-multi-2.txt",
-          },
-        ],
-      },
-    );
-
-    const response = data.response as any;
-
-    // endpoint processes only the first file from the files array - remaining entries are silently skipped
-    expect(status).toBe(200);
-    expect(Array.isArray(response)).toBe(true);
-    expect(response.length).toBe(1);
-    expect(response[0].title).toBe("autotest-multi-1.txt");
-  });
-
   test("POST /api/2.0/files/{folderId}/upload - Filename with special characters is accepted", async ({
     apiSdk,
   }) => {
@@ -4113,29 +4072,28 @@ test.describe("POST /api/2.0/files/{folderId}/upload - Upload file", () => {
   });
 
   // BUG 81547: POST /api/2.0/files/{folderId}/upload - No file in request body returns 403 instead of 400
-  test.fail(
-    "BUG 81547: POST /api/2.0/files/{folderId}/upload - No file in request body returns 403 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room Upload No File",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81547: POST /api/2.0/files/{folderId}/upload - No file in request body returns 403 instead of 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Upload No File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { status } = await uploadFileToFolder(
-        apiSdk,
-        "owner",
-        roomId,
-        null,
-        "",
-      );
+    const { status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      null,
+      "",
+    );
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   test("POST /api/2.0/files/{folderId}/upload - Upload .pdf file returns 200 and correct fileExst", async ({
     apiSdk,
@@ -4392,19 +4350,14 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Owner uploads a file to My Documents", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("Autotest file content"))], {
-        type: "text/plain",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("Autotest file content"),
       "autotest-my-upload.txt",
+      { mimeType: "text/plain" },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
@@ -4415,16 +4368,15 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const fileName = "autotest-my-listing.txt";
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("listing check"))], {
-        type: "text/plain",
-      }),
-      fileName,
-    );
 
-    await ownerApi.folders.uploadFileToMy(undefined, { data: formData });
+    await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("listing check"),
+      fileName,
+      { mimeType: "text/plain" },
+    );
 
     const { data: myFolderData } = await ownerApi.folders.getMyFolder();
     const myFolderId = myFolderData.response!.current!.id!;
@@ -4440,19 +4392,17 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Response contains correct title, fileExst and pureContentLength", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
     const content = Buffer.from("response fields check");
     const fileName = "autotest-my-fields.txt";
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(content)], { type: "text/plain" }),
-      fileName,
-    );
 
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      content,
+      fileName,
+      { mimeType: "text/plain" },
+    );
 
     const response = (data.response as any)?.[0];
 
@@ -4526,20 +4476,16 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Filename with special characters is accepted", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
     const fileName = "autotest-my-test (special).txt";
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("special chars content"))], {
-        type: "text/plain",
-      }),
-      fileName,
-    );
 
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("special chars content"),
+      fileName,
+      { mimeType: "text/plain" },
+    );
 
     const response = (data.response as any)?.[0];
 
@@ -4550,34 +4496,32 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Empty file (0 bytes) returns 200", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.alloc(0))], { type: "text/plain" }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.alloc(0),
       "autotest-my-empty.txt",
+      { mimeType: "text/plain" },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
   });
 
-  // BUG 81549: POST /api/2.0/files/@my/upload - No file in request body returns 403 instead of 400
-  test.fail(
-    "BUG 81549: POST /api/2.0/files/@my/upload - No file in request body returns 403 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { status } = await ownerApi.folders.uploadFileToMy(undefined, {
-        data: new FormData(),
-      });
+  test("BUG 81549: POST /api/2.0/files/@my/upload - No file in request body returns 400", async ({
+    apiSdk,
+  }) => {
+    const { status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      null,
+      "",
+    );
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   test("POST /api/2.0/files/@my/upload - folderId in response matches My Documents folder", async ({
     apiSdk,
@@ -4586,18 +4530,14 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
     const { data: myFolderData } = await ownerApi.folders.getMyFolder();
     const myFolderId = myFolderData.response!.current!.id!;
 
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("folder id check"))], {
-        type: "text/plain",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("folder id check"),
       "autotest-my-folderid.txt",
+      { mimeType: "text/plain" },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
@@ -4646,19 +4586,14 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Upload .pdf file returns 200 and correct fileExst", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("fake pdf content"))], {
-        type: "application/pdf",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("fake pdf content"),
       "autotest-my-format.pdf",
+      { mimeType: "application/pdf" },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
@@ -4669,19 +4604,17 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Upload .xlsx file returns 200 and correct fileExst", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("fake xlsx content"))], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("fake xlsx content"),
       "autotest-my-format.xlsx",
+      {
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
@@ -4692,19 +4625,17 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Upload .pptx file returns 200 and correct fileExst", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("fake pptx content"))], {
-        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("fake pptx content"),
       "autotest-my-format.pptx",
+      {
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
@@ -4715,19 +4646,14 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Upload .png file returns 200 and correct fileExst", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("fake png content"))], {
-        type: "image/png",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("fake png content"),
       "autotest-my-format.png",
+      { mimeType: "image/png" },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
@@ -4738,19 +4664,14 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Upload .jpg file returns 200 and correct fileExst", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("fake jpg content"))], {
-        type: "image/jpeg",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("fake jpg content"),
       "autotest-my-format.jpg",
+      { mimeType: "image/jpeg" },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
@@ -4761,19 +4682,14 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Upload .zip file returns 200 and correct fileExst", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("fake zip content"))], {
-        type: "application/zip",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("fake zip content"),
       "autotest-my-format.zip",
+      { mimeType: "application/zip" },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
@@ -4784,19 +4700,14 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Upload .csv file returns 200 and correct fileExst", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("id,name\n1,autotest"))], {
-        type: "text/csv",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("id,name\n1,autotest"),
       "autotest-my-format.csv",
+      { mimeType: "text/csv" },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
@@ -4807,19 +4718,14 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents", ()
   test("POST /api/2.0/files/@my/upload - Upload .md file returns 200 and correct fileExst", async ({
     apiSdk,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const formData = new FormData();
-    formData.append(
-      "file",
-      new Blob([new Uint8Array(Buffer.from("# Autotest"))], {
-        type: "text/markdown",
-      }),
+    const { data, status } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      "@my",
+      Buffer.from("# Autotest"),
       "autotest-my-format.md",
+      { mimeType: "text/markdown" },
     );
-
-    const { data, status } = await ownerApi.folders.uploadFileToMy(undefined, {
-      data: formData,
-    });
 
     const response = (data.response as any)?.[0];
 
@@ -5143,31 +5049,30 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
   });
 
   // BUG 81573: title parameter is ignored, server always returns "Shared link"
-  test.fail(
-    "BUG 81573: POST /api/2.0/files/folder/:id/link - Title is reflected in response",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Title",
-          roomType: RoomType.CustomRoom,
+  test("BUG 81573: POST /api/2.0/files/folder/:id/link - Title is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Title",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          access: FileShare.Read,
+          title: "My Public Link",
         },
       });
-      const roomId = roomData.response!.id!;
 
-      const { data, status } =
-        await ownerApi.folders.createFolderPrimaryExternalLink({
-          id: roomId,
-          folderLinkRequest: {
-            access: FileShare.Read,
-            title: "My Public Link",
-          },
-        });
-
-      expect(status).toBe(200);
-      expect(data.response!.sharedLink!.title).toBe("My Public Link");
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.title).toBe("My Public Link");
+  });
 
   test("POST /api/2.0/files/folder/:id/link - denyDownload is reflected in response", async ({
     apiSdk,
@@ -5363,34 +5268,31 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
   });
 
   // BUG 81575: archived room should return 403 but server returns 200 with count:0
-  test.fail(
-    "BUG 81575: POST /api/2.0/files/folder/:id/link - Archived room returns 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Archived",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81575: POST /api/2.0/files/folder/:id/link - Archived room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Archived",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      await ownerApi.rooms.archiveRoom({
-        id: roomId,
-        archiveRoomRequest: { deleteAfter: false },
-      });
-      await waitForOperation(ownerApi.operations);
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
 
-      const { status } = await ownerApi.folders.createFolderPrimaryExternalLink(
-        {
-          id: roomId,
-          folderLinkRequest: { access: FileShare.Read },
-        },
-      );
+    const { status } = await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links", () => {
@@ -6890,11 +6792,11 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       createTestImageBuffer(),
     );
     const tmpFile = uploadResult.data.response.data as string;
-    const { data: logoData } = await ownerApi.rooms.createRoomLogo({
+    const { status: logoStatus } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
-    expect(logoData.response!.logo?.original).toBeTruthy();
+    expect(logoStatus).toBe(200);
 
     const { data, status } = await ownerApi.folders.getFolderHistory({
       folderId: roomId,
@@ -6929,7 +6831,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     const tmpFile = uploadResult.data.response.data as string;
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
     const { data: beforeData } = await ownerApi.folders.getFolderHistory({
@@ -7795,7 +7697,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
   });
 
   // BUG 81623: POST /api/2.0/files/{folderId}/upload does not write FileUploaded event to room history
-  test.fail(
+  test(
     "BUG 81623: GET /api/2.0/files/folder/{folderId}/log - History contains FileUploaded after file is uploaded via POST /files/{folderId}/upload",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");

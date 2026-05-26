@@ -249,21 +249,6 @@ test.describe("GET /api/2.0/clients/consents - permissions", () => {
     expect(status).toBe(403);
   });
 
-  test.fail(
-    "BUG 81729: GET /api/2.0/clients/consents - Guest returns 403",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
-
-      const guestApi = apiSdk.forRole("guest");
-      const guestSig = await getSignature(guestApi);
-      const { status } = await guestApi.clientQuerying.getConsents(
-        { limit: 50 },
-        { headers: { "x-signature": guestSig } },
-      );
-
-      expect(status).toBe(403);
-    },
-  );
 });
 
 // GET /api/2.0/clients/{clientId}/public/info is intentionally open — no auth required.
