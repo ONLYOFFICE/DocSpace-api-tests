@@ -1635,7 +1635,9 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued
   });
 });
 
-test.describe("POST /ai/agents - Create agent with restricted model via ONLYOFFICE AI", () => {
+// Skipped due to OO AI service being hidden
+test.describe
+  .skip("POST /ai/agents - Create agent with restricted model via ONLYOFFICE AI", () => {
   test("POST /ai/agents - Owner creates agent with deepseek model when only GPT is allowed", async ({
     apiSdk,
     paymentsApi,
