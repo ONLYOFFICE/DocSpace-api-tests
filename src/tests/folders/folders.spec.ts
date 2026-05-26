@@ -7697,53 +7697,52 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
   });
 
   // BUG 81623: POST /api/2.0/files/{folderId}/upload does not write FileUploaded event to room history
-  test(
-    "BUG 81623: GET /api/2.0/files/folder/{folderId}/log - History contains FileUploaded after file is uploaded via POST /files/{folderId}/upload",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: profileData } = await ownerApi.profiles.getSelfProfile();
-      const ownerDisplayName = profileData.response!.displayName!;
+  test("BUG 81623: GET /api/2.0/files/folder/{folderId}/log - History contains FileUploaded after file is uploaded via POST /files/{folderId}/upload", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder History FileUploaded Direct",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History FileUploaded Direct",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: beforeData } = await ownerApi.folders.getFolderHistory({
-        folderId: roomId,
-      });
-      expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
-        MessageAction.FileUploaded,
-      );
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.FileUploaded,
+    );
 
-      const { status: uploadStatus } = await uploadFileToFolder(
-        apiSdk,
-        "owner",
-        roomId,
-        Buffer.from("test content"),
-        "Uploaded File.docx",
-        {
-          mimeType:
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          createNewIfExist: true,
-        },
-      );
-      expect(uploadStatus).toBe(200);
+    const { status: uploadStatus } = await uploadFileToFolder(
+      apiSdk,
+      "owner",
+      roomId,
+      Buffer.from("test content"),
+      "Uploaded File.docx",
+      {
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        createNewIfExist: true,
+      },
+    );
+    expect(uploadStatus).toBe(200);
 
-      const { data, status } = await ownerApi.folders.getFolderHistory({
-        folderId: roomId,
-      });
-      expect(status).toBe(200);
-      const fileEntry = data.response!.find(
-        (e) => e.action?.id === MessageAction.FileUploaded,
-      );
-      expect(fileEntry).toBeDefined();
-      expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
-    },
-  );
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const fileEntry = data.response!.find(
+      (e) => e.action?.id === MessageAction.FileUploaded,
+    );
+    expect(fileEntry).toBeDefined();
+    expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
+  });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FileRenamed after file is renamed in room", async ({
     apiSdk,

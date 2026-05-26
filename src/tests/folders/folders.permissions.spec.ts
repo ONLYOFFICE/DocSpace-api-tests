@@ -3266,33 +3266,30 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
   });
 
   // BUG 81575: Guest without room access should get 403 but server returns 200 with count:0
-  test(
-    "BUG 81575: POST /api/2.0/files/folder/:id/link - Guest without room access gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Guest Perm",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81575: POST /api/2.0/files/folder/:id/link - Guest without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Guest Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "Guest",
-      );
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
 
-      const { status } = await guestApi.folders.createFolderPrimaryExternalLink(
-        {
-          id: roomId,
-          folderLinkRequest: { access: FileShare.Read },
-        },
-      );
+    const { status } = await guestApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   test("POST /api/2.0/files/folder/:id/link - Anonymous request returns 401", async ({
     apiSdk,
@@ -3740,38 +3737,36 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
 
   // BUG 81592: Guest with room Read access should get 403 but gets 404 (DirectoryNotFoundException)
   // because the server attempts to upload the CSV report before checking permissions
-  test(
-    "BUG 81592:POST /api/2.0/files/folder/{folderId}/log/report - Guest with room Read access cannot generate report",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Report Guest Read Perm",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81592:POST /api/2.0/files/folder/{folderId}/log/report - Guest with room Read access cannot generate report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Guest Read Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: guestApi, data: guestData } =
-        await apiSdk.addAuthenticatedMember("owner", "Guest");
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [
-            { id: guestData.response!.id!, access: FileShare.Read },
-          ],
-          notify: false,
-        },
-      });
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { status } = await guestApi.folders.createReportFolderHistory({
-        folderId: roomId,
-      });
+    const { status } = await guestApi.folders.createReportFolderHistory({
+      folderId: roomId,
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("GET /api/2.0/files/filesusedspace - Get files used space permissions", () => {

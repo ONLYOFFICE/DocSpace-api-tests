@@ -2533,29 +2533,28 @@ test.describe("GET /files/file/:id/link permissions", () => {
   );
 
   // BUG 81572: user without access should get 403 but server returns 200 with count:0
-  test(
-    "BUG 81572: GET /files/file/:id/link - User gets 403 for another user's private file",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+  test("BUG 81572: GET /files/file/:id/link - User gets 403 for another user's private file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: {
-          title: "Autotest External Link Other User Private",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest External Link Other User Private",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await userApi.files.getFilePrimaryExternalLink({
-        id: fileId,
-      });
+    const { status } = await userApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("GET /files/file/:id/links permissions", () => {

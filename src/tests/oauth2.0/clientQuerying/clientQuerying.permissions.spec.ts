@@ -248,7 +248,6 @@ test.describe("GET /api/2.0/clients/consents - permissions", () => {
 
     expect(status).toBe(403);
   });
-
 });
 
 // GET /api/2.0/clients/{clientId}/public/info is intentionally open — no auth required.
