@@ -573,8 +573,9 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
   });
 });
 
+// Skipped due to OO AI service being hidden
 test.describe("GET /api/2.0/portal/payment/ai-prices", () => {
-  test("GET /api/2.0/portal/payment/ai-prices - Owner gets AI prices", async ({
+  test.skip("GET /api/2.0/portal/payment/ai-prices - Owner gets AI prices", async ({
     apiSdk,
   }) => {
     const { data, status } = await apiSdk
@@ -616,7 +617,8 @@ test.describe("GET /api/2.0/portal/payment/ai-prices", () => {
     expect(data.response?.currency?.symbol).toBe("$");
   });
 
-  test("GET /api/2.0/portal/payment/ai-prices - DocSpaceAdmin gets AI prices", async ({
+  // Skipped due to OO AI service being hidden
+  test.skip("GET /api/2.0/portal/payment/ai-prices - DocSpaceAdmin gets AI prices", async ({
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
@@ -1041,7 +1043,7 @@ test.describe("GET /api/2.0/portal/payment/walletservices", () => {
     expect(data.response?.length).toBe(2);
 
     const serviceNames = data.response?.map((s) => s.serviceName);
-    expect(serviceNames).toContain("ai-tools");
+    // expect(serviceNames).toContain("ai-tools");
     expect(serviceNames).toContain("backup");
     expect(serviceNames).toContain("disk-storage-1-hour");
 
@@ -1065,7 +1067,7 @@ test.describe("GET /api/2.0/portal/payment/walletservices", () => {
     expect(data.response?.length).toBe(2);
 
     const serviceNames = data.response?.map((s) => s.serviceName);
-    expect(serviceNames).toContain("ai-tools");
+    // expect(serviceNames).toContain("ai-tools");
     expect(serviceNames).toContain("backup");
     expect(serviceNames).toContain("disk-storage-1-hour");
 
@@ -1284,8 +1286,9 @@ test.describe("GET /api/2.0/portal/payment/servicessettings", () => {
   });
 });
 
+// Skipped due to OO AI service being hidden
 test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
-  test("GET /api/2.0/portal/payment/ai-model/restrictions - Owner gets restricted AI models", async ({
+  test.skip("GET /api/2.0/portal/payment/ai-model/restrictions - Owner gets restricted AI models", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1306,7 +1309,8 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
     }
   });
 
-  test("GET /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin gets restricted AI models", async ({
+  // Skipped due to OO AI service being hidden
+  test.skip("GET /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin gets restricted AI models", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1488,8 +1492,9 @@ test.describe("GET /api/2.0/portal/payment/quotas", () => {
   });
 });
 
+// Skipped due to OO AI service being hidden
 test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
-  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner sets restricted AI models", async ({
+  test.skip("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner sets restricted AI models", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1509,7 +1514,8 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
     }
   });
 
-  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner clears all restricted AI models", async ({
+  // Skipped due to OO AI service being hidden
+  test.skip("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner clears all restricted AI models", async ({
     apiSdk,
     paymentsApi,
   }) => {
