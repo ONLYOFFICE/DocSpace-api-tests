@@ -33,6 +33,11 @@ export function createPlaywrightAdapter(request: APIRequestContext) {
     if (config.responseType === "stream") {
       const controller = new AbortController();
       const streamTimeout = (config.timeout as number) || 10000;
+      const onEvent = (
+        config as unknown as {
+          onEvent?: (event: { event?: string; data?: unknown }) => void;
+        }
+      ).onEvent;
 
       const nativeResponse = await fetch(url, {
         method,
@@ -47,11 +52,34 @@ export function createPlaywrightAdapter(request: APIRequestContext) {
         const decoder = new TextDecoder();
         const timer = setTimeout(() => controller.abort(), streamTimeout);
 
+        let unparsed = "";
+
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            streamData += decoder.decode(value, { stream: true });
+            const chunk = decoder.decode(value, { stream: true });
+            streamData += chunk;
+
+            if (onEvent) {
+              unparsed += chunk;
+              let sep: number;
+              while ((sep = unparsed.indexOf("\n\n")) >= 0) {
+                const block = unparsed.slice(0, sep);
+                unparsed = unparsed.slice(sep + 2);
+                const eventMatch = block.match(/^event:\s*(.+)$/m);
+                if (!eventMatch) continue; // skip SSE comments / heartbeats
+                const dataMatch = block.match(/^data:\s*(.+)$/m);
+                try {
+                  onEvent({
+                    event: eventMatch[1],
+                    data: dataMatch ? JSON.parse(dataMatch[1]) : null,
+                  });
+                } catch {
+                  // swallow callback errors so they don't kill the reader
+                }
+              }
+            }
           }
         } catch {
           // stream aborted by timeout - expected for SSE
