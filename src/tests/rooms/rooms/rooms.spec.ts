@@ -6680,7 +6680,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     const tmpFile = uploadResult.data.response.data as string;
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
     const { status } = await ownerApi.rooms.deleteRoom({
@@ -6864,7 +6864,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
 
     const { data } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
     expect(data.statusCode).toBe(404);
