@@ -3124,7 +3124,7 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
 
 test.describe("MCP Servers - Built-in DocSpace Server - Result Storage upload", () => {
   test.fail(
-    "BUG XXXXX: POST /api/2.0/ai/chats/tool-permissions/:callId/decision - agent calls upload_file but file does not appear in Result Storage on first attempt",
+    "BUG 81131: POST /api/2.0/ai/chats/tool-permissions/:callId/decision - agent calls upload_file but file does not appear in Result Storage on first attempt",
     async ({ apiSdk }) => {
       const api = apiSdk.forRole("owner");
 
