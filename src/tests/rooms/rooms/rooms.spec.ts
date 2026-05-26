@@ -1665,7 +1665,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: GET /files/roomtemplate/:id/public - Returns 404 when id refers to a regular room, not a template",
+      "BUG 81726: GET /files/roomtemplate/:id/public - Returns 404 when id refers to a regular room, not a template",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -6680,7 +6680,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     const tmpFile = uploadResult.data.response.data as string;
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
     const { status } = await ownerApi.rooms.deleteRoom({
@@ -6864,7 +6864,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
 
     const { data } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
     expect(data.statusCode).toBe(404);

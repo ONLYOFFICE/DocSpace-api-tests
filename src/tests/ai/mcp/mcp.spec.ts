@@ -3,7 +3,12 @@ import { test } from "@/src/fixtures";
 import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
 import { readIconAsBase64 } from "@/src/utils/icon.utils";
 import config from "@/config";
-import { RoomType, ServerType } from "@onlyoffice/docspace-api-sdk";
+import {
+  RoomType,
+  ServerType,
+  ToolExecutionDecision,
+} from "@onlyoffice/docspace-api-sdk";
+import { parseSseEvents } from "@/src/helpers/parse-sse-events";
 
 const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
 
@@ -3115,4 +3120,111 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
       expect(nameAfter).toBe(originalName);
     },
   );
+});
+
+test.describe("MCP Servers - Built-in DocSpace Server - Result Storage upload", () => {
+  test("BUG 81131: POST /api/2.0/ai/chats/tool-permissions/:callId/decision - agent calls upload_file but file does not appear in Result Storage on first attempt", async ({
+    apiSdk,
+  }) => {
+    const api = apiSdk.forRole("owner");
+
+    const provider = aiProviders.openAi;
+    const { data: providerData, status: providerStatus } =
+      await api.providers.addProvider({
+        createProviderRequestDto: toCreateDto(provider),
+      });
+    expect(providerStatus).toBe(200);
+    const providerId = providerData.response!.id!;
+
+    const { data: agentData } = await api.agents.createAgent({
+      createAgentRequestDto: {
+        title: `mcp-upload-rs-${Date.now()}`,
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        attachDefaultTools: true,
+        chatSettings: {
+          providerId,
+          modelId: provider.modelId,
+          prompt: "You are a helpful assistant.",
+        },
+      },
+    });
+    const agentRoomId = agentData.response!.id!;
+
+    const agentParentId = (agentData.response as any).parentId;
+    const { data: parentContent } = await api.folders.getFolderByFolderId({
+      folderId: agentParentId,
+    });
+    const childFolders = (parentContent as any).response?.folders ?? [];
+    const resultStorageFolder = (childFolders as any[]).find(
+      (f: any) => f.type === 33 && f.parentId === agentRoomId,
+    );
+    expect(resultStorageFolder).toBeDefined();
+    const resultStorageFolderId = resultStorageFolder.id;
+
+    await new Promise((r) => setTimeout(r, 3000));
+
+    const targetFileName = "greeting.txt";
+
+    // Approve managed tool calls in-flight via the adapter's onEvent
+    // callback. We can't await startNewChat and providePermission in
+    // sequence — the server holds the SSE stream open waiting for our
+    // decision, so the permission has to be granted while the stream is
+    // still being read. Without this the stream gets aborted by the
+    // adapter timeout, the server has nowhere to push tool_result, and
+    // the chat never continues.
+    const approvalCalls: Promise<unknown>[] = [];
+    const seenCallIds = new Set<string>();
+
+    const startResponse = await api.chat.startNewChat(
+      {
+        roomId: agentRoomId,
+        startNewChatBody: {
+          message: `Write a short greeting message and save your answer to a file named "${targetFileName}".`,
+        },
+      },
+      {
+        responseType: "stream",
+        timeout: 60000,
+        onEvent: (event: { event?: string; data?: any }) => {
+          if (
+            event.event === "tool_call" &&
+            event.data?.managed === true &&
+            event.data?.callId &&
+            !seenCallIds.has(event.data.callId)
+          ) {
+            seenCallIds.add(event.data.callId);
+            approvalCalls.push(
+              api.chat
+                .providePermission({
+                  callId: event.data.callId as string,
+                  toolDecisionRequestBody: {
+                    decision: ToolExecutionDecision.Allow,
+                  },
+                })
+                .catch(() => undefined),
+            );
+          }
+        },
+      } as any,
+    );
+
+    await Promise.all(approvalCalls);
+
+    const { parsed, messageStop } = parseSseEvents(startResponse.data);
+    const toolCall = parsed.find(
+      (e) => e.event === "tool_call" && e.data?.managed === true,
+    );
+    expect(toolCall).toBeDefined();
+    expect(seenCallIds.size).toBeGreaterThan(0);
+    expect(messageStop).toBeDefined();
+
+    const { data: rsContent } = await api.folders.getFolderByFolderId({
+      folderId: resultStorageFolderId,
+    });
+    const files = (rsContent as any).response?.files ?? [];
+
+    expect(files.length).toBeGreaterThan(0);
+  });
 });
