@@ -4412,61 +4412,59 @@ test.describe("API rooms methods", () => {
       expect(folderTitles).toContain(folderTitle);
     });
 
-    test.fail(
-      "BUG 81666: POST /files/rooms/fromtemplate - Nested folder hierarchy is preserved",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Nested Source",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const sourceRoomId = roomData.response!.id!;
+    test("BUG 81666: POST /files/rooms/fromtemplate - Nested folder hierarchy is preserved", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Nested Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const sourceRoomId = roomData.response!.id!;
 
-        const { data: parent } = await ownerApi.folders.createFolder({
-          folderId: sourceRoomId,
-          createFolder: { title: "Parent" },
-        });
-        const parentId = parent.response!.id!;
-        await ownerApi.folders.createFolder({
-          folderId: parentId,
-          createFolder: { title: "Child" },
-        });
+      const { data: parent } = await ownerApi.folders.createFolder({
+        folderId: sourceRoomId,
+        createFolder: { title: "Parent" },
+      });
+      const parentId = parent.response!.id!;
+      await ownerApi.folders.createFolder({
+        folderId: parentId,
+        createFolder: { title: "Child" },
+      });
 
-        await ownerApi.rooms.createRoomTemplate({
-          roomTemplateDto: {
-            roomId: sourceRoomId,
-            title: "Autotest Nested Template",
-          },
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: sourceRoomId,
+          title: "Autotest Nested Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Nested Room" },
+      });
+      const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+      const { data: rootContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const parentInCopy = (rootContent.response!.folders ?? []).find(
+        (f) => (f as any).title === "Parent",
+      );
+      expect(parentInCopy).toBeDefined();
+      const copiedParentId = (parentInCopy as any).id as number;
+
+      const { data: parentContent } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: copiedParentId,
         });
-        const templateId = await waitForRoomTemplate(ownerApi.rooms);
-
-        await ownerApi.rooms.createRoomFromTemplate({
-          createRoomFromTemplateDto: { templateId, title: "Nested Room" },
-        });
-        const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
-
-        const { data: rootContent } =
-          await ownerApi.folders.getFolderByFolderId({
-            folderId: roomId,
-          });
-        const parentInCopy = (rootContent.response!.folders ?? []).find(
-          (f) => (f as any).title === "Parent",
-        );
-        expect(parentInCopy).toBeDefined();
-        const copiedParentId = (parentInCopy as any).id as number;
-
-        const { data: parentContent } =
-          await ownerApi.folders.getFolderByFolderId({
-            folderId: copiedParentId,
-          });
-        const childTitles = (parentContent.response!.folders ?? []).map(
-          (f) => (f as any).title as string,
-        );
-        expect(childTitles).toContain("Child");
-      },
-    );
+      const childTitles = (parentContent.response!.folders ?? []).map(
+        (f) => (f as any).title as string,
+      );
+      expect(childTitles).toContain("Child");
+    });
 
     test("POST /files/rooms/fromtemplate - File from source room is copied", async ({
       apiSdk,
