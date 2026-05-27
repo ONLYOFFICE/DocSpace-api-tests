@@ -65,6 +65,39 @@ test.describe("POST /api/2.0/keys - scenarios", () => {
     });
   });
 
+  test("BUG 74914: GET /api/2.0/keys/@self - API key with scoped permissions can get own key info", async ({
+    apiSdk,
+  }) => {
+    let apiKeyValue: string;
+    let apiKeyId: string;
+
+    await test.step("Owner creates an API key with scoped permissions", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: {
+            name: "Autotest Scoped Key",
+            permissions: ["files:read", "accounts:read"],
+          },
+        });
+
+      expect(status).toBe(200);
+      apiKeyId = data.response!.id!;
+      apiKeyValue = data.response!.key!;
+    });
+
+    await test.step("GET /api/2.0/keys/@self with that key returns 200 and own key data", async () => {
+      const { data, status } = await apiSdk
+        .forApiKey(apiKeyValue!)
+        .apiKeys.getApiKey();
+
+      expect(status).toBe(200);
+      expect(data.response?.id).toBe(apiKeyId);
+      expect(data.response?.permissions).toContain("files:read");
+      expect(data.response?.permissions).toContain("accounts:read");
+    });
+  });
+
   test.fail(
     "BUG 81239: API key with contacts:read scope cannot access rooms",
     async ({ apiSdk }) => {
