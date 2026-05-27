@@ -40,19 +40,19 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     type: ProviderType.OpenAi,
     title: "OpenAI",
     key: config.OPENAI_API_KEY,
-    modelId: "gpt-5.4-2026-03-05",
+    modelId: "gpt-5.5",
   },
   anthropic: {
     type: ProviderType.Anthropic,
     title: "Anthropic",
     key: config.ANTHROPIC_API_KEY,
-    modelId: "claude-opus-4-6",
+    modelId: "claude-opus-4-7",
   },
   deepSeek: {
     type: ProviderType.DeepSeek,
     title: "DeepSeek",
     key: config.DEEPSEEK_API_KEY,
-    modelId: "deepseek-v4-pro",
+    modelId: "deepseek-v4-flash",
   },
   xAi: {
     type: ProviderType.XAi,
@@ -64,7 +64,7 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     type: ProviderType.GoogleAi,
     title: "Google AI",
     key: config.GOOGLE_AI_API_KEY,
-    modelId: "models/gemini-3-pro-preview",
+    modelId: "models/gemini-3.1-pro-preview",
   },
   openRouter: {
     type: ProviderType.OpenRouter,

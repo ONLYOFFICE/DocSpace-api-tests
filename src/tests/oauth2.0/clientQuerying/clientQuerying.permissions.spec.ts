@@ -284,16 +284,15 @@ test.describe("GET /api/2.0/clients/{clientId}/public/info - permissions", () =>
     expect(status).toBe(200);
   });
 
-  test.fail(
-    "BUG 81728: GET /api/2.0/clients/{clientId}/public/info - Non-existent clientId returns 404",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forAnonymous()
-        .clientQuerying.getPublicClientInfo({
-          clientId: "00000000-0000-0000-0000-000000000000",
-        });
+  test("BUG 81728: GET /api/2.0/clients/{clientId}/public/info - Non-existent clientId returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .clientQuerying.getPublicClientInfo({
+        clientId: "00000000-0000-0000-0000-000000000000",
+      });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 });
