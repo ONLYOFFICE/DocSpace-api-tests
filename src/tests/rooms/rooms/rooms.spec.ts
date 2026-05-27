@@ -5390,7 +5390,7 @@ test.describe("API rooms methods", () => {
     // === Status endpoint: user isolation ===
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/fromtemplate/status - Admin does not see Owner's roomId",
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Admin does not see Owner's roomId",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -5423,7 +5423,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/fromtemplate/status - Owner does not see Admin's roomId",
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Owner does not see Admin's roomId",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -5499,7 +5499,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/fromtemplate/status - Two users creating in parallel see only their own roomId",
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Two users creating in parallel see only their own roomId",
       async ({ apiSdk }) => {
         // Owner + one DocSpaceAdmin instead of two admins: creating two
         // DocSpaceAdmins back-to-back on a fresh portal triggers a 401 on the
@@ -5557,7 +5557,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/fromtemplate/status - Status does not leak after another user completed an operation",
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Status does not leak after another user completed an operation",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -5590,7 +5590,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/fromtemplate/status - Regular User without an operation does not see Owner's roomId",
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Regular User without an operation does not see Owner's roomId",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -5637,7 +5637,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/fromtemplate/status - Guest does not see Owner's roomId",
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Guest does not see Owner's roomId",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -5869,7 +5869,7 @@ test.describe("API rooms methods", () => {
     // === Status endpoint: regression candidates ===
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/fromtemplate/status - Regression: Owner-completed operation does not leak to Admin",
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Regression: Owner-completed operation does not leak to Admin",
       async ({ apiSdk }) => {
         // Mirror of the known bug in getRoomTemplateCreatingStatus where the
         // status leaked across users.
@@ -5906,7 +5906,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/fromtemplate/status - Regression: each role receives only its own latest roomId",
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Regression: each role receives only its own latest roomId",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
