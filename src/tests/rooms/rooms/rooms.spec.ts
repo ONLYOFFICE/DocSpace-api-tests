@@ -3333,7 +3333,7 @@ test.describe("API rooms methods", () => {
       expect(all).not.toContain(missing);
     });
 
-    test("DELETE /files/tags - Very long tag name (10000 chars) returns 400", async ({
+    test.fail("DELETE /files/tags - Very long tag name (10000 chars) returns 400", async ({
       apiSdk,
     }) => {
       test.fail(
@@ -9052,5 +9052,503 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
 
     const { data: list1 } = await ownerApi.rooms.getRoomTagsInfo();
     expect(list1.response as unknown as string[]).not.toContain(name);
+  });
+});
+
+test.describe("GET /files/rooms/:id - getRoomInfo", () => {
+  test.describe("positive / contract", () => {
+    for (const { label, roomType } of [
+      { label: "CustomRoom", roomType: RoomType.CustomRoom },
+      { label: "EditingRoom", roomType: RoomType.EditingRoom },
+      { label: "PublicRoom", roomType: RoomType.PublicRoom },
+      { label: "FillingFormsRoom", roomType: RoomType.FillingFormsRoom },
+      { label: "VirtualDataRoom", roomType: RoomType.VirtualDataRoom },
+    ] as const) {
+      test(`GET /files/rooms/:id - Owner reads ${label} info`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const title = `Autotest GetInfo ${label}`;
+        const { data: created } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: { title, roomType },
+        });
+        const roomId = created.response!.id!;
+
+        const { data, status } = await ownerApi.rooms.getRoomInfo({
+          id: roomId,
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.id).toBe(roomId);
+        expect(data.response!.title).toBe(title);
+        expect(data.response!.roomType).toBe(roomType);
+      });
+    }
+
+    test("GET /files/rooms/:id - Room without custom quota has isCustomQuota=false", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Default Quota",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.isCustomQuota).not.toBe(true);
+    });
+  });
+
+  test.describe("verify-after-create fields", () => {
+    test("GET /files/rooms/:id - VDR created without lifetime has unset lifetime", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest VDR No Lifetime",
+          roomType: RoomType.VirtualDataRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.lifetime?.value ?? 0).toBe(0);
+    });
+
+    test("GET /files/rooms/:id - Cover set at create time is reflected in getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: covers } = await ownerApi.rooms.getRoomCovers();
+      const coverId = covers.response![0].id!;
+
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Cover On Create",
+          roomType: RoomType.CustomRoom,
+          cover: coverId,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.logo?.cover?.id).toBe(coverId);
+    });
+
+    test("GET /files/rooms/:id - Color set at create time is reflected in getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Color On Create",
+          roomType: RoomType.CustomRoom,
+          color: "FF5733",
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.logo?.color).toBe("FF5733");
+    });
+
+    test("GET /files/rooms/:id - Tags added after create appear in getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const tagA = "AutotestGetInfoTagA";
+      const tagB = "AutotestGetInfoTagB";
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: tagA },
+      });
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: tagB },
+      });
+
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Tags On GetInfo",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: [tagA, tagB] },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      const tags = (data.response!.tags ?? []) as string[];
+      expect(tags).toContain(tagA);
+      expect(tags).toContain(tagB);
+    });
+  });
+
+  test.describe("state consistency after actions", () => {
+    test("GET /files/rooms/:id - Sharing a room with a user does not break Owner's getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Reflection",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.id).toBe(roomId);
+      expect(data.response!.access).toBeDefined();
+    });
+
+    test("GET /files/rooms/:id - Archived room is marked archive (rootFolderType=Archive)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive Reflection",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      // FolderType.Archive === 20
+      expect(data.response!.rootFolderType).toBe(20);
+    });
+
+    test("GET /files/rooms/:id - Unarchived room returns to active state (rootFolderType=VirtualRooms)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Unarchive Reflection",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      await ownerApi.rooms.unarchiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      // FolderType.VirtualRooms === 14
+      expect(data.response!.rootFolderType).toBe(14);
+    });
+
+    test("GET /files/rooms/:id - Repeated calls return the same state (idempotent)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Idempotent Read",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data: a } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      const { data: b } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      const { data: c } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(b.response!.id).toBe(a.response!.id);
+      expect(c.response!.id).toBe(a.response!.id);
+      expect(b.response!.title).toBe(a.response!.title);
+      expect(c.response!.title).toBe(a.response!.title);
+      expect(b.response!.roomType).toBe(a.response!.roomType);
+      expect(c.response!.roomType).toBe(a.response!.roomType);
+    });
+  });
+
+  test.describe("room-type specific fields", () => {
+    test("GET /files/rooms/:id - CustomRoom does not expose VDR-only flags", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo Custom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.CustomRoom);
+      expect(data.response!.indexing).not.toBe(true);
+      expect(data.response!.denyDownload).not.toBe(true);
+      expect(data.response!.lifetime?.value ?? 0).toBe(0);
+      expect(data.response!.watermark?.text ?? "").toBe("");
+    });
+
+    test("GET /files/rooms/:id - VDR exposes VDR-specific flags after create", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo VDR",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+          denyDownload: true,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.VirtualDataRoom);
+      expect(data.response!.indexing).toBe(true);
+      expect(data.response!.denyDownload).toBe(true);
+    });
+
+    test("GET /files/rooms/:id - PublicRoom has roomType=PublicRoom and no VDR flags", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo Public",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.PublicRoom);
+      expect(data.response!.indexing).not.toBe(true);
+      expect(data.response!.denyDownload).not.toBe(true);
+    });
+
+    test("GET /files/rooms/:id - FillingFormsRoom has roomType=FillingFormsRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo FormFilling",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.FillingFormsRoom);
+      expect(data.response!.indexing).not.toBe(true);
+      expect(data.response!.denyDownload).not.toBe(true);
+    });
+
+    test("GET /files/rooms/:id - EditingRoom has roomType=EditingRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo Editing",
+          roomType: RoomType.EditingRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.EditingRoom);
+      expect(data.response!.indexing).not.toBe(true);
+      expect(data.response!.denyDownload).not.toBe(true);
+    });
+  });
+
+  test.describe("id validation", () => {
+    test("GET /files/rooms/:id - Non-existing valid-format id is rejected (no 200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: 999999999 });
+      expect([403, 404]).toContain(data.statusCode);
+    });
+
+    test("GET /files/rooms/:id - Non-numeric id ('abc') is rejected (no 200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getRoomInfo({
+        id: "abc" as unknown as number,
+      });
+      expect(data.statusCode).not.toBe(200);
+    });
+
+    test("GET /files/rooms/:id - Zero id is rejected (no 200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: 0 });
+      expect(data.statusCode).not.toBe(200);
+    });
+
+    test("GET /files/rooms/:id - Negative id is rejected (no 200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: -1 });
+      expect(data.statusCode).not.toBe(200);
+    });
+
+    test("GET /files/rooms/:id - Null id is rejected by the SDK before the request", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.getRoomInfo({ id: null as unknown as number }),
+      ).rejects.toThrow(/Required parameter id was null or undefined/);
+    });
+
+    test("GET /files/rooms/:id - Missing id is rejected by the SDK before the request", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.getRoomInfo({} as { id: number }),
+      ).rejects.toThrow(/Required parameter id was null or undefined/);
+    });
+  });
+
+  test.describe("regression / no-op", () => {
+    test("GET /files/rooms/:id - Failed tag deletion (non-existing tag) does not change tags", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const tagName = "AutotestStableTag";
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: tagName },
+      });
+
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Tag Stability",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: [tagName] },
+      });
+
+      await ownerApi.rooms.deleteRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["AutotestNoSuchTag"] },
+      });
+
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      const tags = (data.response!.tags ?? []) as string[];
+      expect(tags).toContain(tagName);
+    });
+
+    test("GET /files/rooms/:id - Failed update (empty title) leaves original title", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const original = "Autotest Title Stability";
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: original,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "" },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(original);
+    });
+
+    test("GET /files/rooms/:id - After async archive completes, response reflects archived state", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Final State",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.rootFolderType).toBe(20);
+    });
   });
 });
