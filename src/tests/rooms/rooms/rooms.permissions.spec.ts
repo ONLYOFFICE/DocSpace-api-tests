@@ -2718,7 +2718,7 @@ test.describe("GET /files/rooms/:id - access control", () => {
     );
     const { data } = await userApi.rooms.getRoomInfo({ id: roomId });
 
-    expect([403, 404]).toContain(data.statusCode);
+    expect(data.statusCode).toBe(403);
   });
 
   test("Guest without room access cannot get room info", async ({ apiSdk }) => {
@@ -2737,7 +2737,7 @@ test.describe("GET /files/rooms/:id - access control", () => {
     );
     const { data } = await guestApi.rooms.getRoomInfo({ id: roomId });
 
-    expect([403, 404]).toContain(data.statusCode);
+    expect(data.statusCode).toBe(403);
   });
 
   test("Unauthenticated request returns 401", async ({ apiSdk }) => {

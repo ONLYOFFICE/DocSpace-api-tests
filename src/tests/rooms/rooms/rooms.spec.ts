@@ -3333,19 +3333,20 @@ test.describe("API rooms methods", () => {
       expect(all).not.toContain(missing);
     });
 
-    test.fail("DELETE /files/tags - Very long tag name (10000 chars) returns 400", async ({
-      apiSdk,
-    }) => {
-      test.fail(
-        true,
-        "BUG 81689: very long tag name (10000 chars) is silently accepted (200) instead of validation error (400) — no length guard",
-      );
-      const ownerApi = apiSdk.forRole("owner");
-      const { status } = await ownerApi.rooms.deleteCustomTags({
-        batchTagsRequestDto: { names: ["a".repeat(10000)] },
-      });
-      expect(status).toBe(400);
-    });
+    test.fail(
+      "DELETE /files/tags - Very long tag name (10000 chars) returns 400",
+      async ({ apiSdk }) => {
+        test.fail(
+          true,
+          "BUG 81689: very long tag name (10000 chars) is silently accepted (200) instead of validation error (400) — no length guard",
+        );
+        const ownerApi = apiSdk.forRole("owner");
+        const { status } = await ownerApi.rooms.deleteCustomTags({
+          batchTagsRequestDto: { names: ["a".repeat(10000)] },
+        });
+        expect(status).toBe(400);
+      },
+    );
 
     test("DELETE /files/tags - Cyrillic tag name can be deleted", async ({
       apiSdk,
@@ -7820,7 +7821,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     expect(op.finished).toBe(true);
 
     const { data: afterInfo } = await userApi.rooms.getRoomInfo({ id: roomId });
-    expect([403, 404]).toContain(afterInfo.statusCode);
+    expect(afterInfo.statusCode).toBe(404);
 
     const { data: list } = await userApi.rooms.getRoomsFolder({});
     const ids = (list.response!.folders ?? []).map((f) => (f as any).id);
@@ -9686,38 +9687,36 @@ test.describe("GET /files/rooms/:id - getRoomInfo", () => {
   });
 
   test.describe("id validation", () => {
-    test("GET /files/rooms/:id - Non-existing valid-format id is rejected (no 200)", async ({
+    test("GET /files/rooms/:id - Non-existing valid-format id returns 404", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data } = await ownerApi.rooms.getRoomInfo({ id: 999999999 });
-      expect([403, 404]).toContain(data.statusCode);
+      expect(data.statusCode).toBe(404);
     });
 
-    test("GET /files/rooms/:id - Non-numeric id ('abc') is rejected (no 200)", async ({
+    test("GET /files/rooms/:id - Non-numeric id ('abc') returns 404", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data } = await ownerApi.rooms.getRoomInfo({
         id: "abc" as unknown as number,
       });
-      expect(data.statusCode).not.toBe(200);
+      expect(data.statusCode).toBe(404);
     });
 
-    test("GET /files/rooms/:id - Zero id is rejected (no 200)", async ({
-      apiSdk,
-    }) => {
+    test("GET /files/rooms/:id - Zero id returns 404", async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data } = await ownerApi.rooms.getRoomInfo({ id: 0 });
-      expect(data.statusCode).not.toBe(200);
+      expect(data.statusCode).toBe(404);
     });
 
-    test("GET /files/rooms/:id - Negative id is rejected (no 200)", async ({
+    test("GET /files/rooms/:id - Negative id returns 404", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data } = await ownerApi.rooms.getRoomInfo({ id: -1 });
-      expect(data.statusCode).not.toBe(200);
+      expect(data.statusCode).toBe(404);
     });
 
     test("GET /files/rooms/:id - Null id is rejected by the SDK before the request", async ({
