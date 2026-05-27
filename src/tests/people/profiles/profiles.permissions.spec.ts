@@ -1646,7 +1646,6 @@ test.describe("POST /api/2.0/people - files parameter SSRF", () => {
             "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
         },
       } as any);
-
       // Server should reject external URLs in the files parameter
       expect(status).toBe(400);
     },
