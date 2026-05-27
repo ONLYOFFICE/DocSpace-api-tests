@@ -1986,7 +1986,9 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
       });
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 
   test("PUT /api/2.0/portal/payment/ai-model/restrictions - User cannot set restricted AI models", async ({
@@ -2001,7 +2003,9 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
       });
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 
   test("PUT /api/2.0/portal/payment/ai-model/restrictions - Guest cannot set restricted AI models", async ({
@@ -2016,7 +2020,9 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
       });
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 
   test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin cannot deactivate Owner's ONLYOFFICE AI restrictions", async ({
@@ -2040,7 +2046,9 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
       });
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 });
 
@@ -2065,7 +2073,9 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions - permissions",
       .payment.getRestrictedAiModels();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 
   test("GET /api/2.0/portal/payment/ai-model/restrictions - User cannot get restricted AI models", async ({
@@ -2078,7 +2088,9 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions - permissions",
       .payment.getRestrictedAiModels();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 
   test("GET /api/2.0/portal/payment/ai-model/restrictions - Guest cannot get restricted AI models", async ({
@@ -2091,7 +2103,9 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions - permissions",
       .payment.getRestrictedAiModels();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 });
 
@@ -2265,7 +2279,9 @@ test.describe("GET /api/2.0/portal/payment/ai-prices - permissions", () => {
       .payment.getAiPrices();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 
   test("GET /api/2.0/portal/payment/ai-prices - User cannot get AI prices", async ({
@@ -2276,7 +2292,9 @@ test.describe("GET /api/2.0/portal/payment/ai-prices - permissions", () => {
     const { data, status } = await apiSdk.forRole("user").payment.getAiPrices();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 
   test("GET /api/2.0/portal/payment/ai-prices - Guest cannot get AI prices", async ({
@@ -2289,6 +2307,8 @@ test.describe("GET /api/2.0/portal/payment/ai-prices - permissions", () => {
       .payment.getAiPrices();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
+    expect((data as any)?.error?.message).toBe(
+      "Tariff service or AI gateway is not configured",
+    );
   });
 });

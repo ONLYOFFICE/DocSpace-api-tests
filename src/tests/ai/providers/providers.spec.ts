@@ -404,9 +404,10 @@ test.describe("AI Providers - Get Default", () => {
   );
 });
 
-test.describe("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)", () => {
+// Skipped due to OO AI service being hidden
+test.describe
+  .skip("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)", () => {
   const onlyofficeAi = onlyofficeAiProvider;
-
   test("GET /api/2.0/ai/providers/default - Owner gets ONLYOFFICE AI as default provider", async ({
     apiSdk,
     paymentsApi,
