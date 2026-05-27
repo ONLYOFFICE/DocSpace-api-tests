@@ -6103,6 +6103,275 @@ test.describe("API rooms methods", () => {
         expect(exportData!.data.response!.resultFileId).toBeTruthy();
       });
     });
+
+    test("GET /files/rooms/indexexport - Response has the expected shape during an active export", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Shape",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(typeof data.response!.id).toBe("string");
+      expect(typeof data.response!.isCompleted).toBe("boolean");
+      expect(typeof data.response!.percentage).toBe("number");
+      const err = data.response!.error;
+      expect(err === null || typeof err === "string").toBe(true);
+    });
+
+    test("GET /files/rooms/indexexport - Percentage is in the 0..100 range during export", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Percentage Range",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(status).toBe(200);
+      expect(data.response!.percentage).toBeGreaterThanOrEqual(0);
+      expect(data.response!.percentage).toBeLessThanOrEqual(100);
+    });
+
+    test("GET /files/rooms/indexexport - Completed export reports percentage 100 and result file appears in My documents", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomTitle = "Autotest Index Export Result File";
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: roomTitle,
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.folders.getMyFolder({});
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      await expect(async () => {
+        const { data } = await ownerApi.rooms.getRoomIndexExport();
+        expect(data.response!.isCompleted).toBe(true);
+        expect(data.response!.error).toBeFalsy();
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+      const { data } = await ownerApi.rooms.getRoomIndexExport();
+      expect(data.response!.percentage).toBe(100);
+
+      const { data: myDocs } = await ownerApi.folders.getMyFolder({});
+      const titles = (myDocs.response!.files ?? []).map((f) => f.title ?? "");
+      expect(titles.some((t) => t.includes(roomTitle))).toBe(true);
+    });
+
+    test("GET /files/rooms/indexexport - Operation id is stable across consecutive polls", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Stable Id",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const first = await ownerApi.rooms.getRoomIndexExport();
+      const second = await ownerApi.rooms.getRoomIndexExport();
+      const third = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(first.data.response!.id).toBeDefined();
+      expect(second.data.response!.id).toBe(first.data.response!.id);
+      expect(third.data.response!.id).toBe(first.data.response!.id);
+    });
+
+    test("GET /files/rooms/indexexport - Repeated GET after completion still returns completed status", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Repeated Get",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      await expect(async () => {
+        const { data } = await ownerApi.rooms.getRoomIndexExport();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+      const first = await ownerApi.rooms.getRoomIndexExport();
+      const second = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(first.data.response!.isCompleted).toBe(true);
+      expect(second.data.response!.isCompleted).toBe(true);
+    });
+
+    test("GET /files/rooms/indexexport - Clean user without started export returns 200 and no active operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(status).toBe(200);
+      const resp = data.response;
+      const hasActiveRunning = Boolean(resp?.id) && resp?.isCompleted === false;
+      expect(hasActiveRunning).toBe(false);
+    });
+
+    test("GET /files/rooms/indexexport - GET after terminateRoomIndexExport returns no active running operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Terminate Then Get",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+      await ownerApi.rooms.terminateRoomIndexExport();
+
+      const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(status).toBe(200);
+      const resp = data.response;
+      const hasActiveRunning =
+        Boolean(resp?.id) && resp?.isCompleted === false && !resp?.error;
+      expect(hasActiveRunning).toBe(false);
+    });
+
+    test("GET /files/rooms/indexexport - DocSpaceAdmin does not see Owner's index export operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Owner Only",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const ownerView = await ownerApi.rooms.getRoomIndexExport();
+      const adminView = await adminApi.rooms.getRoomIndexExport();
+
+      expect(ownerView.status).toBe(200);
+      expect(adminView.status).toBe(200);
+      expect(ownerView.data.response!.id).toBeDefined();
+      expect(adminView.data.response?.id ?? null).not.toBe(
+        ownerView.data.response!.id,
+      );
+    });
+
+    test("GET /files/rooms/indexexport - Owner and DocSpaceAdmin running exports in parallel see only their own operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+      const { data: ownerRoom, status: ownerCreateStatus } =
+        await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Index Export Owner Parallel",
+            roomType: RoomType.VirtualDataRoom,
+            indexing: true,
+          },
+        });
+      expect(ownerCreateStatus).toBe(200);
+      expect(ownerRoom.response?.id).toBeDefined();
+
+      const { data: adminRoom, status: adminCreateStatus } =
+        await adminApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Index Export Admin Parallel",
+            roomType: RoomType.VirtualDataRoom,
+            indexing: true,
+          },
+        });
+      expect(adminCreateStatus).toBe(200);
+      expect(adminRoom.response?.id).toBeDefined();
+
+      await ownerApi.rooms.startRoomIndexExport({
+        id: ownerRoom.response!.id!,
+      });
+      await adminApi.rooms.startRoomIndexExport({
+        id: adminRoom.response!.id!,
+      });
+
+      const ownerView = await ownerApi.rooms.getRoomIndexExport();
+      const adminView = await adminApi.rooms.getRoomIndexExport();
+
+      expect(ownerView.status).toBe(200);
+      expect(adminView.status).toBe(200);
+      expect(ownerView.data.response!.id).toBeDefined();
+      expect(adminView.data.response!.id).toBeDefined();
+      expect(ownerView.data.response!.id).not.toBe(adminView.data.response!.id);
+    });
+
+    test("GET /files/rooms/indexexport - GET returns 200 after the source room was archived during export", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Archived Source",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { status } = await ownerApi.rooms.getRoomIndexExport();
+      expect(status).toBe(200);
+    });
   });
 
   // Could not trigger MarkAsNew via API - new items list is always empty. Contract test only.
