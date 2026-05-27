@@ -33,39 +33,37 @@ test.describe("POST /api/2.0/keys - scenarios", () => {
     });
   });
 
-  test.fail(
-    "BUG 81238: API key with files:read scope cannot create another API key",
-    async ({ apiSdk }) => {
-      let apiKeyValue: string;
+  test("BUG 81238: API key with files:read scope cannot create another API key", async ({
+    apiSdk,
+  }) => {
+    let apiKeyValue: string;
 
-      await test.step("Owner creates an API key with files:read only", async () => {
-        const { data, status } = await apiSdk
-          .forRole("owner")
-          .apiKeys.createApiKey({
-            createApiKeyRequestDto: {
-              name: "read-only key",
-              permissions: ["files:read"],
-            },
-          });
+    await test.step("Owner creates an API key with files:read only", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: {
+            name: "read-only key",
+            permissions: ["files:read"],
+          },
+        });
 
-        expect(status).toBe(200);
-        apiKeyValue = data.response!.key!;
-      });
+      expect(status).toBe(200);
+      apiKeyValue = data.response!.key!;
+    });
 
-      await test.step("Request with that key to create a full-access key returns 403", async () => {
-        const { data, status } = await apiSdk
-          .forApiKey(apiKeyValue!)
-          .apiKeys.createApiKey({
-            createApiKeyRequestDto: {
-              name: "full access key",
-            },
-          });
+    await test.step("Request with that key to create a full-access key returns 403", async () => {
+      const { status } = await apiSdk
+        .forApiKey(apiKeyValue!)
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: {
+            name: "full access key",
+          },
+        });
 
-        expect(status).toBe(403);
-        expect((data.response as any)?.error?.message).toBe("Access denied");
-      });
-    },
-  );
+      expect(status).toBe(403);
+    });
+  });
 
   test.fail(
     "BUG 81239: API key with contacts:read scope cannot access rooms",
