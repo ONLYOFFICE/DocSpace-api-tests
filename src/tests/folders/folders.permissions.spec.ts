@@ -4062,6 +4062,327 @@ test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links - access 
   });
 });
 
+test.describe("POST /api/2.0/files/folder/{id}/link - Set folder primary external link - access control", () => {
+  test("POST /api/2.0/files/folder/{id}/link - Owner can set primary external link returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Owner Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.Read },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.sharedLink!.id).toBe(linkId);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - DocSpaceAdmin with RoomManager access can set primary external link returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Admin Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: adminData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } =
+      await adminApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.Read },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - RoomAdmin with RoomManager access can set primary external link returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link RoomAdmin Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } =
+      await roomAdminApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.Read },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - User with ContentCreator access cannot set primary external link returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link ContentCreator Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: userData.response!.id!, access: FileShare.ContentCreator },
+        ],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.folders.setFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { linkId, access: FileShare.Read },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - User with Read access cannot set primary external link returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link User Read Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.folders.setFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { linkId, access: FileShare.Read },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Guest cannot set primary external link returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Guest Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await apiSdk.addMember("owner", "Guest");
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.Read },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Unauthenticated user cannot set primary external link returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Anon Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.Read },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - RoomAdmin without room access cannot set primary external link returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link RoomAdmin NoAccess",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { status } = await roomAdminApi.folders.setFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { linkId, access: FileShare.Read },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - User with RoomManager access cannot set primary external link returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link User RoomManager",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: userData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.folders.setFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { linkId, access: FileShare.Read },
+    });
+
+    expect(status).toBe(403);
+  });
+});
+
 test.describe("GET /api/2.0/files/folder/{id}/link - Get folder primary external link - access control", () => {
   test("BUG 81571: GET /api/2.0/files/folder/{id}/link - Unauthenticated user gets 403", async ({
     apiSdk,
