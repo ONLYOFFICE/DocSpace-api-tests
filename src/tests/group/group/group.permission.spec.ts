@@ -1481,38 +1481,39 @@ test.describe("GET /api/2.0/group/user/{userid} - permissions", () => {
 });
 
 test.describe("PUT /api/2.0/group/{fromId}/members/{toId} - validation and edge cases", () => {
-  test("PUT /api/2.0/group/{fromId}/members/{toId} - Calling with fromId equals toId does not corrupt group members", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-    const ownerId = ownerProfile.response!.id!;
+  test.fail(
+    "BUG 81710: PUT /api/2.0/group/{fromId}/members/{toId} - Calling with fromId equals toId does not corrupt group members",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+      const ownerId = ownerProfile.response!.id!;
 
-    const { data: memberData } = await apiSdk.addMember("owner", "User");
-    const memberId = memberData.response!.id!;
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const memberId = memberData.response!.id!;
 
-    const { data: created } = await ownerApi.groupApi.addGroup({
-      groupRequestDto: {
-        groupName: apiSdk.faker.generateString(10),
-        groupManager: ownerId,
-        members: [memberId],
-      },
-    });
-    const groupId = created.response!.id!;
+      const { data: created } = await ownerApi.groupApi.addGroup({
+        groupRequestDto: {
+          groupName: apiSdk.faker.generateString(10),
+          groupManager: ownerId,
+          members: [memberId],
+        },
+      });
+      const groupId = created.response!.id!;
 
-    const { status } = await ownerApi.groupApi.moveMembersTo({
-      fromId: groupId,
-      toId: groupId,
-    });
-    expect(status).toBeLessThan(500);
+      const { status } = await ownerApi.groupApi.moveMembersTo({
+        fromId: groupId,
+        toId: groupId,
+      });
+      expect(status).toBeLessThan(500);
 
-    const { data: after } = await ownerApi.groupApi.getGroup({
-      id: groupId,
-      includeMembers: true,
-    });
-    const memberIds = after.response?.members?.map((m) => m.id) ?? [];
-    expect(memberIds).toContain(memberId);
-  });
+      const { data: after } = await ownerApi.groupApi.getGroup({
+        id: groupId,
+        includeMembers: true,
+      });
+      const memberIds = after.response?.members?.map((m) => m.id) ?? [];
+      expect(memberIds).toContain(memberId);
+    },
+  );
 
   test("PUT /api/2.0/group/{fromId}/members/{toId} - Returns 404 for non-existing fromId and target stays unchanged", async ({
     apiSdk,

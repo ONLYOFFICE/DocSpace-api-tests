@@ -2530,6 +2530,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
     expect(status).toBe(403);
   });
 
+  // BUG 81572: user without access should get 403 but server returns 200 with count:0
   test("BUG 81572: GET /files/file/:id/link - User gets 403 for another user's private file", async ({
     apiSdk,
   }) => {

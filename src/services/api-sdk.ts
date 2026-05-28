@@ -279,6 +279,7 @@ export class ApiSDK {
         undefined,
         axiosInstance,
       ),
+      clientQuerying: new ClientQueryingApi(config, undefined, axiosInstance),
     };
   }
 

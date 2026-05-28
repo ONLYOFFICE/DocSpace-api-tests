@@ -3175,6 +3175,7 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(data.response!.canRevoke).toBe(false);
   });
 
+  // BUG 81575: User with Read access should get 403 but server returns 200 with count:0
   test("BUG 81575: POST /api/2.0/files/folder/:id/link - User with Read access gets 403", async ({
     apiSdk,
   }) => {
@@ -3205,6 +3206,7 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(status).toBe(403);
   });
 
+  // BUG 81575: DocSpaceAdmin without room access should get 403 but server returns 200 with count:0
   test("BUG 81575: POST /api/2.0/files/folder/:id/link - DocSpaceAdmin without room access gets 403", async ({
     apiSdk,
   }) => {
@@ -3230,6 +3232,7 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(status).toBe(403);
   });
 
+  // BUG 81575: User with ContentCreator access should get 403 but server returns 200 with count:0
   test("BUG 81575: POST /api/2.0/files/folder/:id/link - User with ContentCreator access gets 403", async ({
     apiSdk,
   }) => {
@@ -3262,6 +3265,7 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(status).toBe(403);
   });
 
+  // BUG 81575: Guest without room access should get 403 but server returns 200 with count:0
   test("BUG 81575: POST /api/2.0/files/folder/:id/link - Guest without room access gets 403", async ({
     apiSdk,
   }) => {
@@ -3731,7 +3735,9 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     expect(data.response!.length).toBeGreaterThan(0);
   });
 
-  test("BUG 81592: POST /api/2.0/files/folder/{folderId}/log/report - Guest with room Read access cannot generate report", async ({
+  // BUG 81592: Guest with room Read access should get 403 but gets 404 (DirectoryNotFoundException)
+  // because the server attempts to upload the CSV report before checking permissions
+  test("BUG 81592:POST /api/2.0/files/folder/{folderId}/log/report - Guest with room Read access cannot generate report", async ({
     apiSdk,
     paymentsApi,
   }) => {

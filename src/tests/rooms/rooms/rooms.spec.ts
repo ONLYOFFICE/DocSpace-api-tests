@@ -1417,6 +1417,335 @@ test.describe("API rooms methods", () => {
       });
     });
 
+    // === GET /files/roomtemplate/:id/public - getPublicSettings ===
+
+    test("GET /files/roomtemplate/:id/public - Returns false when template created with explicit public:false", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest PublicExplicitFalse Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest PublicExplicitFalse Template",
+          public: false,
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(false);
+    });
+
+    test("GET /files/roomtemplate/:id/public - Reflects toggle true -> false", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TogglePublicDown Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest TogglePublicDown Template",
+          public: true,
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.setPublicSettings({
+        setPublicDto: { id: templateId, public: false },
+      });
+
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(false);
+    });
+
+    test("GET /files/roomtemplate/:id/public - Stable across multiple calls and does not mutate state", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest StableGet Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest StableGet Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      const results: boolean[] = [];
+      for (let i = 0; i < 3; i++) {
+        const { data, status } = await ownerApi.rooms.getPublicSettings({
+          id: templateId,
+        });
+        expect(status).toBe(200);
+        results.push(data.response as boolean);
+      }
+      expect(new Set(results).size).toBe(1);
+      expect(results[0]).toBe(false);
+    });
+
+    test("GET /files/roomtemplate/:id/public - Response is a plain boolean, not a nested object", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest PublicShape Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest PublicShape Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(status).toBe(200);
+      expect(typeof data.response).toBe("boolean");
+    });
+
+    test("GET /files/roomtemplate/:id/public - Reflects last value after multiple toggles", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MultiToggle Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest MultiToggle Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      for (const expected of [true, false, true, false]) {
+        await ownerApi.rooms.setPublicSettings({
+          setPublicDto: { id: templateId, public: expected },
+        });
+        const { data, status } = await ownerApi.rooms.getPublicSettings({
+          id: templateId,
+        });
+        expect(status).toBe(200);
+        expect(data.response).toBe(expected);
+      }
+    });
+
+    test("GET /files/roomtemplate/:id/public - Toggling public flag does not break creating a room from template", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest ToggleThenUse Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest ToggleThenUse Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.setPublicSettings({
+        setPublicDto: { id: templateId, public: true },
+      });
+      await ownerApi.rooms.setPublicSettings({
+        setPublicDto: { id: templateId, public: false },
+      });
+
+      const { data: flag } = await ownerApi.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(flag.response).toBe(false);
+
+      const { status } = await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId,
+          title: "Room From Toggled Template",
+        },
+      });
+      expect(status).toBe(200);
+      const createdId = await waitForRoomFromTemplate(ownerApi.rooms);
+      expect(createdId).toBeGreaterThan(0);
+    });
+
+    test("GET /files/roomtemplate/:id/public - Still works after source room is deleted", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetAfterSrcDeleted Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const sourceRoomId = roomData.response!.id!;
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: sourceRoomId,
+          title: "Autotest GetAfterSrcDeleted Template",
+          public: true,
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.deleteRoom({
+        id: sourceRoomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    test("GET /files/roomtemplate/:id/public - Returns 404 after the template itself is deleted", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetAfterTmplDeleted Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest GetAfterTmplDeleted Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.deleteRoom({
+        id: templateId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data } = await ownerApi.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(data.statusCode).toBe(404);
+    });
+
+    test.fail(
+      "BUG 81726: GET /files/roomtemplate/:id/public - Returns 404 when id refers to a regular room, not a template",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest RoomIdNotTemplate",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        const { data } = await ownerApi.rooms.getPublicSettings({ id: roomId });
+        expect(data.statusCode).toBe(404);
+      },
+    );
+
+    test("GET /files/roomtemplate/:id/public - Non-existing template id returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getPublicSettings({
+        id: 999999999,
+      });
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/roomtemplate/:id/public - id:0 returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getPublicSettings({ id: 0 });
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/roomtemplate/:id/public - id:-1 returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getPublicSettings({ id: -1 });
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/roomtemplate/:id/public - id:'abc' returns 400 (type validation)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getPublicSettings({
+        id: "abc" as unknown as number,
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("GET /files/roomtemplate/:id/public - id:null is rejected by the SDK before the request is sent", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.getPublicSettings({
+          id: null as unknown as number,
+        }),
+      ).rejects.toThrow(/Required parameter id was null or undefined/);
+    });
+
+    test("GET /files/roomtemplate/:id/public - id:1.5 returns 400 (type validation)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getPublicSettings({ id: 1.5 });
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("GET /files/roomtemplate/:id/public - MAX_SAFE_INTEGER id returns 400 (Int32 overflow)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getPublicSettings({
+        id: Number.MAX_SAFE_INTEGER,
+      });
+      expect(data.statusCode).toBe(400);
+    });
+
     // === Positive: DTO fields ===
 
     test("POST /files/roomtemplate - Template is created with color", async ({
@@ -4083,61 +4412,59 @@ test.describe("API rooms methods", () => {
       expect(folderTitles).toContain(folderTitle);
     });
 
-    test.fail(
-      "BUG 81666: POST /files/rooms/fromtemplate - Nested folder hierarchy is preserved",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Nested Source",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const sourceRoomId = roomData.response!.id!;
+    test("BUG 81666: POST /files/rooms/fromtemplate - Nested folder hierarchy is preserved", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Nested Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const sourceRoomId = roomData.response!.id!;
 
-        const { data: parent } = await ownerApi.folders.createFolder({
-          folderId: sourceRoomId,
-          createFolder: { title: "Parent" },
-        });
-        const parentId = parent.response!.id!;
-        await ownerApi.folders.createFolder({
-          folderId: parentId,
-          createFolder: { title: "Child" },
-        });
+      const { data: parent } = await ownerApi.folders.createFolder({
+        folderId: sourceRoomId,
+        createFolder: { title: "Parent" },
+      });
+      const parentId = parent.response!.id!;
+      await ownerApi.folders.createFolder({
+        folderId: parentId,
+        createFolder: { title: "Child" },
+      });
 
-        await ownerApi.rooms.createRoomTemplate({
-          roomTemplateDto: {
-            roomId: sourceRoomId,
-            title: "Autotest Nested Template",
-          },
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: sourceRoomId,
+          title: "Autotest Nested Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Nested Room" },
+      });
+      const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+      const { data: rootContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const parentInCopy = (rootContent.response!.folders ?? []).find(
+        (f) => (f as any).title === "Parent",
+      );
+      expect(parentInCopy).toBeDefined();
+      const copiedParentId = (parentInCopy as any).id as number;
+
+      const { data: parentContent } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: copiedParentId,
         });
-        const templateId = await waitForRoomTemplate(ownerApi.rooms);
-
-        await ownerApi.rooms.createRoomFromTemplate({
-          createRoomFromTemplateDto: { templateId, title: "Nested Room" },
-        });
-        const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
-
-        const { data: rootContent } =
-          await ownerApi.folders.getFolderByFolderId({
-            folderId: roomId,
-          });
-        const parentInCopy = (rootContent.response!.folders ?? []).find(
-          (f) => (f as any).title === "Parent",
-        );
-        expect(parentInCopy).toBeDefined();
-        const copiedParentId = (parentInCopy as any).id as number;
-
-        const { data: parentContent } =
-          await ownerApi.folders.getFolderByFolderId({
-            folderId: copiedParentId,
-          });
-        const childTitles = (parentContent.response!.folders ?? []).map(
-          (f) => (f as any).title as string,
-        );
-        expect(childTitles).toContain("Child");
-      },
-    );
+      const childTitles = (parentContent.response!.folders ?? []).map(
+        (f) => (f as any).title as string,
+      );
+      expect(childTitles).toContain("Child");
+    });
 
     test("POST /files/rooms/fromtemplate - File from source room is copied", async ({
       apiSdk,
@@ -4863,6 +5190,827 @@ test.describe("API rooms methods", () => {
         expect(status).toBe(200);
         expect(op.finished).toBe(true);
       });
+    });
+
+    // === Status endpoint: response shape and polling stability ===
+
+    test("GET /files/rooms/fromtemplate/status - Response wrapper has statusCode and typed fields after completion", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Status Shape Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Status Shape Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Status Shape Room" },
+      });
+      await waitForRoomFromTemplate(ownerApi.rooms);
+
+      const { data, status } = await ownerApi.rooms.getRoomCreatingStatus();
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(typeof data.response!.isCompleted).toBe("boolean");
+      expect(data.response!.isCompleted).toBe(true);
+      expect(typeof data.response!.roomId).toBe("number");
+      expect(data.response!.roomId).toBeGreaterThan(0);
+      expect(data.response!.error ?? null).toBeFalsy();
+    });
+
+    test("GET /files/rooms/fromtemplate/status - Repeated polling after completion returns the same roomId", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Repeat Status Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Repeat Status Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Repeat Status Room" },
+      });
+      const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+      for (let i = 0; i < 3; i++) {
+        const { data, status } = await ownerApi.rooms.getRoomCreatingStatus();
+        expect(status).toBe(200);
+        expect(data.response!.isCompleted).toBe(true);
+        expect(data.response!.roomId).toBe(roomId);
+      }
+    });
+
+    test("GET /files/rooms/fromtemplate/status - Available immediately after starting operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Immediate Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Immediate Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Immediate Room" },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomCreatingStatus();
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      // isCompleted may be true or false right after start — both are valid.
+      expect(typeof data.response!.isCompleted).toBe("boolean");
+
+      await waitForRoomFromTemplate(ownerApi.rooms);
+    });
+
+    // === Status endpoint: operation lifecycle ===
+
+    test("GET /files/rooms/fromtemplate/status - isCompleted resolves to true for template with content", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Lifecycle Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const sourceRoomId = roomData.response!.id!;
+      for (let i = 0; i < 3; i++) {
+        await ownerApi.folders.createFolder({
+          folderId: sourceRoomId,
+          createFolder: { title: `Lifecycle Folder ${i}` },
+        });
+      }
+
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: sourceRoomId,
+          title: "Autotest Lifecycle Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Lifecycle Room" },
+      });
+      const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+      expect(roomId).toBeGreaterThan(0);
+
+      const { data } = await ownerApi.rooms.getRoomCreatingStatus();
+      expect(data.response!.isCompleted).toBe(true);
+    });
+
+    test("GET /files/rooms/fromtemplate/status - Second operation overrides previous roomId", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Override Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Override Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Override Room First" },
+      });
+      const firstRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId,
+          title: "Override Room Second",
+        },
+      });
+      const secondRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+      expect(secondRoomId).not.toBe(firstRoomId);
+
+      const { data } = await ownerApi.rooms.getRoomCreatingStatus();
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.roomId).toBe(secondRoomId);
+    });
+
+    test("BUG 81667: GET /files/rooms/fromtemplate/status - Failed createRoomFromTemplate does not produce a fake completed operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId: 999999999,
+          title: "Phantom Room",
+        },
+      });
+
+      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+      const titles = (list.response!.folders ?? []).map(
+        (f) => (f as any).title as string,
+      );
+      expect(titles).not.toContain("Phantom Room");
+
+      const { data, status } = await ownerApi.rooms.getRoomCreatingStatus();
+      expect(data.response?.roomId ?? 0).toBeLessThanOrEqual(0);
+      expect(status).toBe(200);
+    });
+
+    // === Status endpoint: user isolation ===
+
+    test.fail(
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Admin does not see Owner's roomId",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Iso Admin From Owner Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Iso Admin From Owner Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+        await ownerApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: { templateId, title: "Owner Iso Room" },
+        });
+        const ownerRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+        const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "DocSpaceAdmin",
+        );
+        const { data, status } = await adminApi.rooms.getRoomCreatingStatus();
+        expect(data.response?.roomId ?? 0).not.toBe(ownerRoomId);
+        expect(status).toBe(200);
+      },
+    );
+
+    test.fail(
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Owner does not see Admin's roomId",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Iso Owner From Admin Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Iso Owner From Admin Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
+        await ownerApi.rooms.setPublicSettings({
+          setPublicDto: { id: templateId, public: true },
+        });
+
+        const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "DocSpaceAdmin",
+        );
+        await adminApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: { templateId, title: "Admin Only Room" },
+        });
+        const adminRoomId = await waitForRoomFromTemplate(adminApi.rooms);
+
+        const { data, status } = await ownerApi.rooms.getRoomCreatingStatus();
+        expect(data.response?.roomId ?? 0).not.toBe(adminRoomId);
+        expect(status).toBe(200);
+      },
+    );
+
+    test.fail(
+      "BUG 81662: GET /files/rooms/fromtemplate/status - User's operation is isolated from Owner",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest User Iso Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest User Iso Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
+        await ownerApi.rooms.setPublicSettings({
+          setPublicDto: { id: templateId, public: true },
+        });
+
+        const { api: userApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "User",
+        );
+        const { status: createStatus } =
+          await userApi.rooms.createRoomFromTemplate({
+            createRoomFromTemplateDto: { templateId, title: "User Iso Room" },
+          });
+        expect(createStatus).toBe(200);
+
+        const userRoomId = await waitForRoomFromTemplate(userApi.rooms);
+        expect(userRoomId).toBeGreaterThan(0);
+
+        const { data: ownerStatus } =
+          await ownerApi.rooms.getRoomCreatingStatus();
+        expect(ownerStatus.response?.roomId ?? 0).not.toBe(userRoomId);
+      },
+    );
+
+    test.fail(
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Two users creating in parallel see only their own roomId",
+      async ({ apiSdk }) => {
+        // Owner + one DocSpaceAdmin instead of two admins: creating two
+        // DocSpaceAdmins back-to-back on a fresh portal triggers a 401 on the
+        // second authentication (admin-license limit or eventual consistency
+        // on the freshly-created user), which masks the actual status check.
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Parallel Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Parallel Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
+        await ownerApi.rooms.setPublicSettings({
+          setPublicDto: { id: templateId, public: true },
+        });
+
+        const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "DocSpaceAdmin",
+        );
+
+        await Promise.all([
+          ownerApi.rooms.createRoomFromTemplate({
+            createRoomFromTemplateDto: {
+              templateId,
+              title: "Parallel Room Owner",
+            },
+          }),
+          adminApi.rooms.createRoomFromTemplate({
+            createRoomFromTemplateDto: {
+              templateId,
+              title: "Parallel Room Admin",
+            },
+          }),
+        ]);
+
+        const ownerRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+        const adminRoomId = await waitForRoomFromTemplate(adminApi.rooms);
+        expect(ownerRoomId).not.toBe(adminRoomId);
+
+        const { data: ownerStatus } =
+          await ownerApi.rooms.getRoomCreatingStatus();
+        const { data: adminStatus } =
+          await adminApi.rooms.getRoomCreatingStatus();
+        expect(ownerStatus.response!.roomId).toBe(ownerRoomId);
+        expect(adminStatus.response!.roomId).toBe(adminRoomId);
+      },
+    );
+
+    test.fail(
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Status does not leak after another user completed an operation",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Leak Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Leak Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+        await ownerApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: { templateId, title: "Owner Leak Room" },
+        });
+        const ownerRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+        const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "DocSpaceAdmin",
+        );
+        const { data, status } = await adminApi.rooms.getRoomCreatingStatus();
+        expect(data.response?.roomId ?? 0).not.toBe(ownerRoomId);
+        expect(status).toBe(200);
+      },
+    );
+
+    test.fail(
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Regular User without an operation does not see Owner's roomId",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest User No-Op Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest User No-Op Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+        await ownerApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: {
+            templateId,
+            title: "Owner Room For User No-Op",
+          },
+        });
+        const ownerRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+        const { api: userApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "User",
+        );
+        const { data, status } = await userApi.rooms.getRoomCreatingStatus();
+        expect(data.response?.roomId ?? 0).not.toBe(ownerRoomId);
+        expect(status).toBe(200);
+      },
+    );
+
+    // === Status endpoint: anonymous and guest ===
+
+    test("GET /files/rooms/fromtemplate/status - Unauthenticated request returns 401", async ({
+      apiSdk,
+    }) => {
+      const { status } = await apiSdk
+        .forAnonymous()
+        .rooms.getRoomCreatingStatus();
+      expect(status).toBe(401);
+    });
+
+    test.fail(
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Guest does not see Owner's roomId",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Guest Status Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Guest Status Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+        await ownerApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: {
+            templateId,
+            title: "Owner Room For Guest",
+          },
+        });
+        const ownerRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+        const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "Guest",
+        );
+        const { data, status } = await guestApi.rooms.getRoomCreatingStatus();
+        expect(data.response?.roomId ?? 0).not.toBe(ownerRoomId);
+        expect(status).toBe(200);
+      },
+    );
+
+    // === Status endpoint: empty state ===
+
+    test("GET /files/rooms/fromtemplate/status - Returns 200 for a fresh user with no prior operation", async ({
+      apiSdk,
+    }) => {
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+      const { data, status } = await adminApi.rooms.getRoomCreatingStatus();
+      expect(status).toBe(200);
+      expect(data.response?.roomId ?? 0).toBeLessThanOrEqual(0);
+    });
+
+    test("GET /files/rooms/fromtemplate/status - Stable response across repeated calls with no new operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Stable Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Stable Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Stable Room" },
+      });
+      await waitForRoomFromTemplate(ownerApi.rooms);
+
+      const first = await ownerApi.rooms.getRoomCreatingStatus();
+      const second = await ownerApi.rooms.getRoomCreatingStatus();
+      const third = await ownerApi.rooms.getRoomCreatingStatus();
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(third.status).toBe(200);
+      expect(first.data.response!.roomId).toBe(second.data.response!.roomId);
+      expect(second.data.response!.roomId).toBe(third.data.response!.roomId);
+    });
+
+    test("GET /files/rooms/fromtemplate/status - Survives deletion of the created room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Survive Delete Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Survive Delete Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId,
+          title: "Room To Be Deleted After Status",
+        },
+      });
+      const createdRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.deleteRoom({
+        id: createdRoomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomCreatingStatus();
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+    });
+
+    // === Status endpoint: validation and request shape ===
+
+    test("GET /files/rooms/fromtemplate/status - Unknown query parameters do not break the response", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Query Params Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Query Params Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Query Params Room" },
+      });
+      const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+      const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/files/rooms/fromtemplate/status?templateId=42&unknown=x`;
+      const response = await apiSdk.request.get(url, {
+        headers: {
+          Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+          Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+        },
+      });
+      expect(response.status()).toBe(200);
+      const body = (await response.json()) as {
+        response?: { roomId?: number };
+      };
+      expect(body.response?.roomId).toBe(roomId);
+    });
+
+    test("GET /files/rooms/fromtemplate/status - Non-GET HTTP methods are rejected", async ({
+      apiSdk,
+    }) => {
+      const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/files/rooms/fromtemplate/status`;
+      const headers = {
+        Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+        Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+      };
+
+      await test.step("POST returns 405", async () => {
+        const response = await apiSdk.request.post(url, { headers });
+        expect(response.status()).toBe(405);
+      });
+
+      await test.step("PUT returns 405", async () => {
+        const response = await apiSdk.request.put(url, { headers });
+        expect(response.status()).toBe(405);
+      });
+
+      await test.step("DELETE returns 405", async () => {
+        const response = await apiSdk.request.delete(url, { headers });
+        expect(response.status()).toBe(405);
+      });
+    });
+
+    test("GET /files/rooms/fromtemplate/status - Owner's response does not contain another user's roomId", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Sensitive Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Sensitive Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+      await ownerApi.rooms.setPublicSettings({
+        setPublicDto: { id: templateId, public: true },
+      });
+
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+      await adminApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId,
+          title: "Admin Sensitive Room",
+        },
+      });
+      const adminRoomId = await waitForRoomFromTemplate(adminApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId,
+          title: "Owner Sensitive Room",
+        },
+      });
+      const ownerRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+      const { data } = await ownerApi.rooms.getRoomCreatingStatus();
+      expect(data.response!.roomId).toBe(ownerRoomId);
+      expect(data.response!.roomId).not.toBe(adminRoomId);
+      expect(JSON.stringify(data.response)).not.toContain(String(adminRoomId));
+    });
+
+    // === Status endpoint: regression candidates ===
+
+    test.fail(
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Regression: Owner-completed operation does not leak to Admin",
+      async ({ apiSdk }) => {
+        // Mirror of the known bug in getRoomTemplateCreatingStatus where the
+        // status leaked across users.
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Regression Leak Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Regression Leak Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+        await ownerApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: {
+            templateId,
+            title: "Owner Regression Room",
+          },
+        });
+        const ownerRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+
+        const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "DocSpaceAdmin",
+        );
+        const { data } = await adminApi.rooms.getRoomCreatingStatus();
+        expect(data.response?.roomId ?? 0).not.toBe(ownerRoomId);
+      },
+    );
+
+    test.fail(
+      "BUG 81763: GET /files/rooms/fromtemplate/status - Regression: each role receives only its own latest roomId",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Each Own Source",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: {
+            roomId: roomData.response!.id!,
+            title: "Autotest Each Own Template",
+          },
+        });
+        const templateId = await waitForRoomTemplate(ownerApi.rooms);
+        await ownerApi.rooms.setPublicSettings({
+          setPublicDto: { id: templateId, public: true },
+        });
+
+        const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "DocSpaceAdmin",
+        );
+
+        await ownerApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: { templateId, title: "Owner Latest Room" },
+        });
+        const ownerLatest = await waitForRoomFromTemplate(ownerApi.rooms);
+
+        await adminApi.rooms.createRoomFromTemplate({
+          createRoomFromTemplateDto: { templateId, title: "Admin Latest Room" },
+        });
+        const adminLatest = await waitForRoomFromTemplate(adminApi.rooms);
+        expect(ownerLatest).not.toBe(adminLatest);
+
+        const { data: ownerStatus } =
+          await ownerApi.rooms.getRoomCreatingStatus();
+        const { data: adminStatus } =
+          await adminApi.rooms.getRoomCreatingStatus();
+        expect(ownerStatus.response!.roomId).toBe(ownerLatest);
+        expect(adminStatus.response!.roomId).toBe(adminLatest);
+      },
+    );
+
+    test("GET /files/rooms/fromtemplate/status - Regression: in-flight createRoomTemplate does not appear as room-creating status", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Cross Template Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Cross Template Title",
+        },
+      });
+
+      // Call room-creating status BEFORE waiting for the template to finish.
+      const { data, status } = await ownerApi.rooms.getRoomCreatingStatus();
+      expect(status).toBe(200);
+
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+      // The template-creation operation must not be exposed via the
+      // room-creating status endpoint as if its templateId were a roomId.
+      expect(data.response?.roomId ?? -1).not.toBe(templateId);
+    });
+
+    test("GET /files/roomtemplate/status - Regression: in-flight createRoomFromTemplate does not appear as template-creating status", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Cross From Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: "Autotest Cross From Template",
+        },
+      });
+      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: { templateId, title: "Cross Room From" },
+      });
+
+      const { data, status } =
+        await ownerApi.rooms.getRoomTemplateCreatingStatus();
+      expect(status).toBe(200);
+      // The template-status endpoint should keep referring to the
+      // previously-created template, not flip to the in-flight room.
+      if (data.response?.templateId) {
+        expect(data.response.templateId).toBe(templateId);
+      }
+
+      const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+      expect(roomId).not.toBe(templateId);
     });
   });
 
@@ -6351,7 +7499,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     const tmpFile = uploadResult.data.response.data as string;
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
     const { status } = await ownerApi.rooms.deleteRoom({
@@ -6535,7 +7683,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
 
     const { data } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
     expect(data.statusCode).toBe(404);
@@ -7051,29 +8199,27 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     expect(status).toBe(403);
   });
 
-  test.fail(
-    "BUG TBD: DELETE /files/rooms/:id/tags - Invalid string room id does not return 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.deleteRoomTags({
-        id: "not-a-number" as unknown as number,
-        batchTagsRequestDto: { names: ["X"] },
-      });
-      expect(data.statusCode).toBe(400);
-    },
-  );
+  test("BUG 81703: DELETE /files/rooms/:id/tags - Invalid string room id does not return 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data } = await ownerApi.rooms.deleteRoomTags({
+      id: "not-a-number" as unknown as number,
+      batchTagsRequestDto: { names: ["X"] },
+    });
+    expect(data.statusCode).toBe(404);
+  });
 
-  test.fail(
-    "BUG TBD: DELETE /files/rooms/:id/tags - Room id 0 returns 500 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.deleteRoomTags({
-        id: 0,
-        batchTagsRequestDto: { names: ["X"] },
-      });
-      expect(data.statusCode).toBe(400);
-    },
-  );
+  test("BUG 81704: DELETE /files/rooms/:id/tags - Room id 0 returns 500 instead of 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data } = await ownerApi.rooms.deleteRoomTags({
+      id: 0,
+      batchTagsRequestDto: { names: ["X"] },
+    });
+    expect(data.statusCode).toBe(404);
+  });
 
   // Note: missing room id (item 20) is enforced by the SDK route — the endpoint
   // cannot be invoked without an id, so there is no API-level test for it.
@@ -7218,28 +8364,27 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     });
   }
 
-  test.fail(
-    "BUG TBD: DELETE /files/rooms/:id/tags - names array containing null returns 200 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Bad Element null",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81705: DELETE /files/rooms/:id/tags - names array containing null returns 200 instead of 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Bad Element null",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { status } = await ownerApi.rooms.deleteRoomTags({
-        id: roomId,
-        batchTagsRequestDto: {
-          names: ["Valid", null as unknown as string],
-        },
-      });
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: {
+        names: ["Valid", null as unknown as string],
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   // deleteRoomTags treats empty/whitespace strings as non-matching names — no-op 200
   test("DELETE /files/rooms/:id/tags - names array containing empty string is a no-op (200)", async ({

@@ -391,22 +391,23 @@ test.describe("AI Providers - Get Default", () => {
     expect(data.response?.providerTitle).toBe(defaultProvider.title);
   });
 
-  test.fail(
-    "BUG 81203: GET /api/2.0/ai/providers/default - Owner gets default provider on fresh portal without billing customer",
-    async ({ apiSdk }) => {
-      // Fresh portal from fixture. Do not touch paymentsApi or any payment endpoint
-      const { status } = await apiSdk
-        .forRole("owner")
-        .providers.getDefaultProvider();
+  test("BUG 81203: GET /api/2.0/ai/providers/default - Owner gets default provider on fresh portal without billing customer", async ({
+    apiSdk,
+  }) => {
+    // Fresh portal from fixture. Do not touch paymentsApi or any payment endpoint
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .providers.getDefaultProvider();
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.count).toBe(0);
+  });
 });
 
-test.describe("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)", () => {
+// Skipped due to OO AI service being hidden
+test.describe
+  .skip("AI Providers - Get Default (ONLYOFFICE AI with AI Tools enabled)", () => {
   const onlyofficeAi = onlyofficeAiProvider;
-
   test("GET /api/2.0/ai/providers/default - Owner gets ONLYOFFICE AI as default provider", async ({
     apiSdk,
     paymentsApi,
