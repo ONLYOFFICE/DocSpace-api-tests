@@ -9426,30 +9426,28 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
   // causing usedSpace to jump between consecutive reads.
   // Catches: if getFilesUsedSpace returns different values on consecutive calls
   // without any writes between them (non-deterministic / unstable caching)
-  test.fail(
-    "BUG 81648: GET /api/2.0/files/filesusedspace - returns consistent results on repeated calls without modifications",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81648: GET /api/2.0/files/filesusedspace - returns consistent results on repeated calls without modifications", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Stable Init" },
-      });
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Stable Init" },
+    });
 
-      const { data: call1 } = await ownerApi.folders.getFilesUsedSpace();
-      const { data: call2 } = await ownerApi.folders.getFilesUsedSpace();
-      const { data: call3, status } =
-        await ownerApi.folders.getFilesUsedSpace();
+    const { data: call1 } = await ownerApi.folders.getFilesUsedSpace();
+    const { data: call2 } = await ownerApi.folders.getFilesUsedSpace();
+    const { data: call3, status } = await ownerApi.folders.getFilesUsedSpace();
 
-      expect(status).toBe(200);
-      // Catches: if space counter is non-deterministic between consecutive reads
-      expect(call1.response!.myDocumentsUsedSpace!.usedSpace).toBe(
-        call2.response!.myDocumentsUsedSpace!.usedSpace,
-      );
-      expect(call2.response!.myDocumentsUsedSpace!.usedSpace).toBe(
-        call3.response!.myDocumentsUsedSpace!.usedSpace,
-      );
-    },
-  );
+    expect(status).toBe(200);
+    // Catches: if space counter is non-deterministic between consecutive reads
+    expect(call1.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+      call2.response!.myDocumentsUsedSpace!.usedSpace,
+    );
+    expect(call2.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+      call3.response!.myDocumentsUsedSpace!.usedSpace,
+    );
+  });
 
   // Catches: if usedSpace or title fields have wrong types
   // (e.g. usedSpace returned as string "1024" instead of number 1024)
