@@ -9499,16 +9499,29 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
 test.describe("GET /api/2.0/files/filesusedspace - Soft delete conservation check", () => {
   // Catches: if soft delete does not correctly move file size from My Documents to Trash.
-  // Warmup file creation before measuring ensures sample files are injected before the baseline
-  // snapshot, so the delete operation itself does not cause a false usedSpace increase.
+  // Both create and delete operations trigger sample file injection on first call.
+  // Warmup create + warmup delete before baseline ensures both injections fire before measuring,
+  // so the actual target delete does not cause a false usedSpace increase.
   test("GET /api/2.0/files/filesusedspace - Soft delete decreases myDocumentsUsedSpace and increases trashUsedSpace by the same amount", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Conservation Warmup" },
+      createFileJsonElement: { title: "Autotest Conservation Warmup Create" },
     });
+
+    const { data: warmupDeleteData } =
+      await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: {
+          title: "Autotest Conservation Warmup Delete",
+        },
+      });
+    await ownerApi.files.deleteFile({
+      fileId: warmupDeleteData.response!.id!,
+      _delete: { immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
       createFileJsonElement: { title: "Autotest Conservation Target" },
