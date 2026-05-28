@@ -24,6 +24,7 @@ export default defineConfig({
         outputFile: `./playwright-report/${process.env.JOB_NAME ?? "local"}/test-results.xml`,
       },
     ],
+    ["./src/reporters/api-coverage-reporter.ts"],
   ],
   use: {
     trace: "retain-on-failure",
