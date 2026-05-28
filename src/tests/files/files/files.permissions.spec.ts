@@ -2513,49 +2513,45 @@ test.describe("GET /files/file/:id/link permissions", () => {
     expect(data.response!.sharedLink!.shareLink).toBeTruthy();
   });
 
-  // BUG 81571: unauthenticated user should get 403 (fixed via BUG 81572: removed [AllowAnonymous])
-  test.fail(
-    "BUG 81571: GET /files/file/:id/link - Unauthenticated user gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81571: GET /files/file/:id/link - Unauthenticated user gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest External Link Anon" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest External Link Anon" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await apiSdk
-        .forAnonymous()
-        .files.getFilePrimaryExternalLink({ id: fileId });
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.getFilePrimaryExternalLink({ id: fileId });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
-  // BUG 81572: user without access should get 403 but server returns 200 with count:0
-  test.fail(
-    "BUG 81572: GET /files/file/:id/link - User gets 403 for another user's private file",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+  test("BUG 81572: GET /files/file/:id/link - User gets 403 for another user's private file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: {
-          title: "Autotest External Link Other User Private",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest External Link Other User Private",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await userApi.files.getFilePrimaryExternalLink({
-        id: fileId,
-      });
+    const { status } = await userApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("GET /files/file/:id/links permissions", () => {

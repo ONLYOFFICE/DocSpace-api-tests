@@ -2342,42 +2342,42 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type
   });
 
   // BUG 81481: HTML file is counted in response.total (total: 1) but not returned in response.files
-  // (files: [], count: 0). toggleFileFavorite returns 200/true -- the file is stored as favorite,
-  // but GET /api/2.0/files/@favorites excludes it from the result set. .txt and .docx files
-  // are returned correctly. In the UI, HTML files do appear in favorites.
-  test.fail(
-    "BUG 81481: GET /api/2.0/files/@favorites - HTML file added to favorites appears in response",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  // while in conversion queue. Fixed: total calculation corrected; add delay to let conversion finish.
+  test("BUG 81481: GET /api/2.0/files/@favorites - HTML file added to favorites appears in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData, status: createStatus } =
-        await ownerApi.files.createHtmlFile({
-          folderId: myDocsFolderId,
-          createTextOrHtmlFile: {
-            title: "Autotest Favorites HTML File.html",
-            content: "<p>test</p>",
-            createNewIfExist: true,
-          },
-        });
-      expect(createStatus).toBe(200);
-      const fileId = fileData.response!.id!;
-      const storedTitle = fileData.response!.title!;
+    const { data: fileData, status: createStatus } =
+      await ownerApi.files.createHtmlFile({
+        folderId: myDocsFolderId,
+        createTextOrHtmlFile: {
+          title: "Autotest Favorites HTML File.html",
+          content: "<p>test</p>",
+          createNewIfExist: true,
+        },
+      });
+    expect(createStatus).toBe(200);
+    const fileId = fileData.response!.id!;
+    const storedTitle = fileData.response!.title!;
 
-      const { data: toggleData, status: toggleStatus } =
-        await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
-      expect(toggleStatus).toBe(200);
-      expect(toggleData.response).toBe(true);
+    const { data: toggleData, status: toggleStatus } =
+      await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+    expect(toggleStatus).toBe(200);
+    expect(toggleData.response).toBe(true);
 
-      const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+    // Wait for conversion queue to finish before querying favorites
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response!.files)).toBe(true);
-      const titles = data.response!.files!.map((f) => f.title);
-      expect(titles).toContain(storedTitle);
-    },
-  );
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response!.files)).toBe(true);
+    const titles = data.response!.files!.map((f) => f.title);
+    expect(titles).toContain(storedTitle);
+  });
 
   test("GET /api/2.0/files/@favorites - filterType FilesOnly returns all favorited files regardless of type", async ({
     apiSdk,
@@ -5357,35 +5357,31 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     );
   });
 
-  // BUG 81575: archived room should return 403 but server returns 200 with count:0
-  test.fail(
-    "BUG 81575: POST /api/2.0/files/folder/:id/link - Archived room returns 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Archived",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81575: POST /api/2.0/files/folder/:id/link - Archived room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Archived",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      await ownerApi.rooms.archiveRoom({
-        id: roomId,
-        archiveRoomRequest: { deleteAfter: false },
-      });
-      await waitForOperation(ownerApi.operations);
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
 
-      const { status } = await ownerApi.folders.createFolderPrimaryExternalLink(
-        {
-          id: roomId,
-          folderLinkRequest: { access: FileShare.Read },
-        },
-      );
+    const { status } = await ownerApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links", () => {
