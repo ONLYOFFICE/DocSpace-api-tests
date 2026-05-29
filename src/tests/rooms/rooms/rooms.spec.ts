@@ -8889,7 +8889,7 @@ test.describe("GET /files/tags - getRoomTagsInfo", () => {
   });
 
   test.fail(
-    "GET /files/tags - count and startIndex return the expected slice",
+    "BUG 81793: GET /files/tags - count and startIndex return the expected slice",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       for (const n of ["CSA", "CSB", "CSC", "CSD", "CSE"]) {
@@ -9040,7 +9040,7 @@ test.describe("GET /files/tags - getRoomTagsInfo", () => {
   });
 
   test.fail(
-    "GET /files/tags - negative startIndex returns 400",
+    "BUG 81792: GET /files/tags - negative startIndex returns 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       await ownerApi.rooms.createRoomTag({
