@@ -1440,6 +1440,20 @@ test.describe("API profile methods", () => {
   });
 });
 
+test("POST /api/2.0/people - Owner creates user with avatar from external URL", async ({
+  apiSdk,
+}) => {
+  const { status } = await apiSdk.forRole("owner").profiles.addMember({
+    memberRequestDto: {
+      ...apiSdk.faker.generateUser(),
+      files:
+        "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
+    },
+  } as any);
+
+  expect(status).toBe(200);
+});
+
 /* TODO: - Need email integration to this methods to be able to test them properly
 DELETE /people/@self
 GET /people/tokendiagnostics
