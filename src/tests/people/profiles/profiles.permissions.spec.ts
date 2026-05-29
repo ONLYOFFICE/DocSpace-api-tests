@@ -1633,21 +1633,21 @@ test.describe("PUT /people/delete - input validation", () => {
 });
 
 // Security tests: CWE-918 SSRF via files parameter in POST /api/2.0/people.
-// The files field accepts an avatar photo URL — passing an external URL causes the server
-// to fetch it, allowing an authenticated user to probe internal network resources.
+// The files field accepts an avatar photo URL. The server validates URLs against
+// a blacklist and pins the resolved IP to prevent DNS rebinding attacks.
 test.describe("POST /api/2.0/people - files parameter SSRF", () => {
-  test.fail(
-    "BUG 81491: POST /api/2.0/people - Server fetches external URL in files parameter (SSRF)",
+  test(
+    "BUG 81491: POST /api/2.0/people - Server rejects link-local URL in files parameter (SSRF protection)",
     async ({ apiSdk }) => {
-      const { status } = await apiSdk.forRole("owner").profiles.addMember({
+      const { data, status } = await apiSdk.forRole("owner").profiles.addMember({
         memberRequestDto: {
           ...apiSdk.faker.generateUser(),
-          files:
-            "https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png",
+          files: "http://169.254.169.254/",
         },
       } as any);
-      // Server should reject external URLs in the files parameter
-      expect(status).toBe(400);
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toContain("Access denied");
     },
   );
 });
