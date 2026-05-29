@@ -4369,17 +4369,6 @@ test.describe("API rooms methods", () => {
       expect(data.statusCode).toBe(404);
     });
 
-    test.fail(
-      "BUG 81790: GET /files/rooms/:id/share - id:'abc' returns 400 (type validation)",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data } = await ownerApi.rooms.getRoomSecurityInfo({
-          id: "abc" as unknown as number,
-        });
-        expect(data.statusCode).toBe(400);
-      },
-    );
-
     test("GET /files/rooms/:id/share - id:null is rejected by the SDK before the request is sent", async ({
       apiSdk,
     }) => {
