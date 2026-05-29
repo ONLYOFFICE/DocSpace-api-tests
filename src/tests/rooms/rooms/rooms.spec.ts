@@ -8888,29 +8888,30 @@ test.describe("GET /files/tags - getRoomTagsInfo", () => {
     expect(skipped).toEqual(fullList.slice(1));
   });
 
-  test.fail("GET /files/tags - count and startIndex return the expected slice", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    for (const n of ["CSA", "CSB", "CSC", "CSD", "CSE"]) {
-      await ownerApi.rooms.createRoomTag({
-        createTagRequestDto: { name: n },
+  test.fail(
+    "GET /files/tags - count and startIndex return the expected slice",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      for (const n of ["CSA", "CSB", "CSC", "CSD", "CSE"]) {
+        await ownerApi.rooms.createRoomTag({
+          createTagRequestDto: { name: n },
+        });
+      }
+
+      const { data: full } = await ownerApi.rooms.getRoomTagsInfo();
+      const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+        count: 2,
+        startIndex: 2,
       });
-    }
 
-    const { data: full } = await ownerApi.rooms.getRoomTagsInfo();
-    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
-      count: 2,
-      startIndex: 2,
-    });
+      const fullList = full.response as unknown as string[];
+      const page = data.response as unknown as string[];
 
-    const fullList = full.response as unknown as string[];
-    const page = data.response as unknown as string[];
-
-    expect(status).toBe(200);
-    expect(page.length).toBe(2);
-    expect(page).toEqual(fullList.slice(2, 4));
-  });
+      expect(status).toBe(200);
+      expect(page.length).toBe(2);
+      expect(page).toEqual(fullList.slice(2, 4));
+    },
+  );
 
   test("GET /files/tags - startIndex beyond total returns an empty array", async ({
     apiSdk,
@@ -9019,7 +9020,8 @@ test.describe("GET /files/tags - getRoomTagsInfo", () => {
       batchTagsRequestDto: { names: [name] },
     });
 
-    const { data: afterDetach, status } = await ownerApi.rooms.getRoomTagsInfo();
+    const { data: afterDetach, status } =
+      await ownerApi.rooms.getRoomTagsInfo();
     expect(status).toBe(200);
     expect(afterDetach.response as unknown as string[]).toContain(name);
   });
@@ -9037,20 +9039,21 @@ test.describe("GET /files/tags - getRoomTagsInfo", () => {
     expect(status).toBe(400);
   });
 
-  test.fail("GET /files/tags - negative startIndex returns 400", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.rooms.createRoomTag({
-      createTagRequestDto: { name: "NegStartTag" },
-    });
+  test.fail(
+    "GET /files/tags - negative startIndex returns 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "NegStartTag" },
+      });
 
-    const { status } = await ownerApi.rooms.getRoomTagsInfo({
-      startIndex: -1,
-    });
+      const { status } = await ownerApi.rooms.getRoomTagsInfo({
+        startIndex: -1,
+      });
 
-    expect(status).toBe(400);
-  });
+      expect(status).toBe(400);
+    },
+  );
 
   test("GET /files/tags - non-numeric count returns 400", async ({
     apiSdk,
