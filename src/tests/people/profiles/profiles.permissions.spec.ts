@@ -1636,18 +1636,17 @@ test.describe("PUT /people/delete - input validation", () => {
 // The files field accepts an avatar photo URL. The server validates URLs against
 // a blacklist and pins the resolved IP to prevent DNS rebinding attacks.
 test.describe("POST /api/2.0/people - files parameter SSRF", () => {
-  test(
-    "BUG 81491: POST /api/2.0/people - Server rejects link-local URL in files parameter (SSRF protection)",
-    async ({ apiSdk }) => {
-      const { data, status } = await apiSdk.forRole("owner").profiles.addMember({
-        memberRequestDto: {
-          ...apiSdk.faker.generateUser(),
-          files: "http://169.254.169.254/",
-        },
-      } as any);
+  test("BUG 81491: POST /api/2.0/people - Server rejects link-local URL in files parameter (SSRF protection)", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk.forRole("owner").profiles.addMember({
+      memberRequestDto: {
+        ...apiSdk.faker.generateUser(),
+        files: "http://169.254.169.254/",
+      },
+    } as any);
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toContain("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error.message).toContain("Access denied");
+  });
 });
