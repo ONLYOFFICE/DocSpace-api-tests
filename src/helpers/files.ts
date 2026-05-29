@@ -30,6 +30,9 @@ export async function createOoForm(
   api: ReturnType<ApiSDK["forRole"]>,
   folderId: number,
 ): Promise<number> {
+  const { data: myDocsData } = await api.folders.getMyFolder();
+  const myDocsFolderId = myDocsData.response!.current!.id!;
+
   const { data: docxData } = await api.files.createFileInMyDocuments({
     createFileJsonElement: { title: "Autotest OO Form Source.docx" },
   });
@@ -39,7 +42,7 @@ export async function createOoForm(
     fileId: docxId,
     copyAsJsonElement: {
       destTitle: "Autotest OO Form Template.docxf",
-      destFolderId: folderId,
+      destFolderId: myDocsFolderId,
       toForm: true,
     },
   });
