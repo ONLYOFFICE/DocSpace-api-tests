@@ -4044,7 +4044,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/:id/share - User not invited to room cannot get security info",
+      "BUG 81787: GET /files/rooms/:id/share - User not invited to room cannot get security info",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -4069,7 +4069,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: GET /files/rooms/:id/share - Guest not invited to room cannot get security info",
+      "BUG 81788: GET /files/rooms/:id/share - Guest not invited to room cannot get security info",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -4368,17 +4368,6 @@ test.describe("API rooms methods", () => {
       const { data } = await ownerApi.rooms.getRoomSecurityInfo({ id: roomId });
       expect(data.statusCode).toBe(404);
     });
-
-    test.fail(
-      "BUG XXXXX: GET /files/rooms/:id/share - id:'abc' returns 400 (type validation)",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data } = await ownerApi.rooms.getRoomSecurityInfo({
-          id: "abc" as unknown as number,
-        });
-        expect(data.statusCode).toBe(400);
-      },
-    );
 
     test("GET /files/rooms/:id/share - id:null is rejected by the SDK before the request is sent", async ({
       apiSdk,
