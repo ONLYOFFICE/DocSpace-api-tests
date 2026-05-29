@@ -8579,6 +8579,575 @@ test.describe("PUT /files/tags - Update tag", () => {
   });
 });
 
+test.describe("GET /files/tags - getRoomTagsInfo", () => {
+  // ── Contract / response shape ──
+
+  test("GET /files/tags - returns 200 and response is an array of strings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "ShapeTag" },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = data.response as unknown as string[];
+
+    expect(status).toBe(200);
+    expect(Array.isArray(tags)).toBe(true);
+    expect(tags.length).toBeGreaterThan(0);
+    for (const t of tags) {
+      expect(typeof t).toBe("string");
+    }
+  });
+
+  test("GET /files/tags - clean portal returns an empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo();
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string[]).toEqual([]);
+  });
+
+  test("GET /files/tags - tag created via createRoomTag appears in the list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "ContractCreatedTag";
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo();
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string[]).toContain(name);
+  });
+
+  // ── Auto-create via addRoomTags ──
+
+  test("GET /files/tags - addRoomTags with several new tags adds all of them to the catalog", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const names = ["MultiTagA", "MultiTagB", "MultiTagC"];
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Multi Tag Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomData.response!.id!,
+      batchTagsRequestDto: { names },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo();
+    const all = data.response as unknown as string[];
+
+    expect(status).toBe(200);
+    for (const n of names) {
+      expect(all).toContain(n);
+    }
+  });
+
+  test("GET /files/tags - same tag attached to several rooms appears only once in the list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "SharedAcrossRooms";
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name },
+    });
+
+    const { data: room1 } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Shared Tag Room A",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const { data: room2 } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Shared Tag Room B",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    await ownerApi.rooms.addRoomTags({
+      id: room1.response!.id!,
+      batchTagsRequestDto: { names: [name] },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: room2.response!.id!,
+      batchTagsRequestDto: { names: [name] },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo();
+    const all = data.response as unknown as string[];
+
+    expect(status).toBe(200);
+    const occurrences = all.filter((t) => t === name).length;
+    expect(occurrences).toBe(1);
+  });
+
+  // ── Case-insensitive filtering ──
+
+  test("GET /files/tags - filterValue is case-insensitive", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "CaseSearchTag";
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      filterValue: "casesearchtag",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string[]).toContain(name);
+  });
+
+  // ── Filtering ──
+
+  test("GET /files/tags - filterValue returns only matching tags", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    for (const n of ["AlphaTag", "BetaTag", "GammaTag"]) {
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: n },
+      });
+    }
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      filterValue: "Alpha",
+    });
+    const tags = data.response as unknown as string[];
+
+    expect(status).toBe(200);
+    expect(tags).toContain("AlphaTag");
+    expect(tags).not.toContain("BetaTag");
+    expect(tags).not.toContain("GammaTag");
+  });
+
+  test("GET /files/tags - filterValue matches a substring inside the tag name", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "ReleaseSmokeTag" },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      filterValue: "Smoke",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string[]).toContain("ReleaseSmokeTag");
+  });
+
+  test("GET /files/tags - filterValue with no matches returns an empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "RealTag" },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      filterValue: `nomatch-${apiSdk.faker.generateString(20)}`,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string[]).toEqual([]);
+  });
+
+  test("GET /files/tags - filterValue with unicode characters returns matching tags", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "ТестовыйТег";
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      filterValue: "Тест",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string[]).toContain(name);
+  });
+
+  test("GET /files/tags - filterValue with special characters does not error", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "RegularTag" },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      filterValue: "test %_$ #@!",
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /files/tags - empty filterValue returns the same result as no filter", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    for (const n of ["EmptyFilterA", "EmptyFilterB"]) {
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: n },
+      });
+    }
+
+    const { data: unfiltered } = await ownerApi.rooms.getRoomTagsInfo();
+    const { data: filtered, status } = await ownerApi.rooms.getRoomTagsInfo({
+      filterValue: "",
+    });
+
+    expect(status).toBe(200);
+    expect(filtered.response as unknown as string[]).toEqual(
+      unfiltered.response as unknown as string[],
+    );
+  });
+
+  test("GET /files/tags - whitespace-only filterValue returns the same result as no filter", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    for (const n of ["SpaceFilterA", "SpaceFilterB"]) {
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: n },
+      });
+    }
+
+    const { data: unfiltered } = await ownerApi.rooms.getRoomTagsInfo();
+    const { data: filtered, status } = await ownerApi.rooms.getRoomTagsInfo({
+      filterValue: "   ",
+    });
+
+    expect(status).toBe(200);
+    expect(filtered.response as unknown as string[]).toEqual(
+      unfiltered.response as unknown as string[],
+    );
+  });
+
+  // ── Pagination ──
+
+  test("GET /files/tags - count limits the number of returned tags", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    for (const n of ["PageA", "PageB", "PageC", "PageD"]) {
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: n },
+      });
+    }
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({ count: 2 });
+    const tags = data.response as unknown as string[];
+
+    expect(status).toBe(200);
+    expect(tags.length).toBe(2);
+  });
+
+  test("GET /files/tags - startIndex skips the first items in the list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    for (const n of ["SkipA", "SkipB", "SkipC"]) {
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: n },
+      });
+    }
+
+    const { data: full } = await ownerApi.rooms.getRoomTagsInfo();
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      startIndex: 1,
+    });
+
+    const fullList = full.response as unknown as string[];
+    const skipped = data.response as unknown as string[];
+
+    expect(status).toBe(200);
+    expect(skipped.length).toBe(fullList.length - 1);
+    expect(skipped).toEqual(fullList.slice(1));
+  });
+
+  test.fail("GET /files/tags - count and startIndex return the expected slice", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    for (const n of ["CSA", "CSB", "CSC", "CSD", "CSE"]) {
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: n },
+      });
+    }
+
+    const { data: full } = await ownerApi.rooms.getRoomTagsInfo();
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      count: 2,
+      startIndex: 2,
+    });
+
+    const fullList = full.response as unknown as string[];
+    const page = data.response as unknown as string[];
+
+    expect(status).toBe(200);
+    expect(page.length).toBe(2);
+    expect(page).toEqual(fullList.slice(2, 4));
+  });
+
+  test("GET /files/tags - startIndex beyond total returns an empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "OnlyTag" },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      startIndex: 999999,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string[]).toEqual([]);
+  });
+
+  test("GET /files/tags - count = 0 returns 400", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "ZeroCountTag" },
+    });
+
+    const { status } = await ownerApi.rooms.getRoomTagsInfo({ count: 0 });
+
+    expect(status).toBe(400);
+  });
+
+  // ── Garbage collection extras ──
+
+  test("GET /files/tags - tag remains while another room still uses it, disappears after the last room is deleted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "TwoStepGC";
+
+    const { data: room1Data } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Two-Step GC Room 1",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const { data: room2Data } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Two-Step GC Room 2",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const room1Id = room1Data.response!.id!;
+    const room2Id = room2Data.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: room1Id,
+      batchTagsRequestDto: { names: [name] },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: room2Id,
+      batchTagsRequestDto: { names: [name] },
+    });
+
+    await ownerApi.rooms.deleteRoom({
+      id: room1Id,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op1 = await waitForOperation(ownerApi.operations);
+    expect(op1.finished).toBe(true);
+
+    const { data: afterFirst } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(afterFirst.response as unknown as string[]).toContain(name);
+
+    await ownerApi.rooms.deleteRoom({
+      id: room2Id,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const op2 = await waitForOperation(ownerApi.operations);
+    expect(op2.finished).toBe(true);
+
+    const { data: afterSecond } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(afterSecond.response as unknown as string[]).not.toContain(name);
+  });
+
+  test("GET /files/tags - tag remains in catalog after being detached from the only room via deleteRoomTags", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "DetachKeepCatalog";
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach Keep Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+
+    const { data: beforeDetach } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(beforeDetach.response as unknown as string[]).toContain(name);
+
+    await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: [name] },
+    });
+
+    const { data: afterDetach, status } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(status).toBe(200);
+    expect(afterDetach.response as unknown as string[]).toContain(name);
+  });
+
+  // ── Input validation ──
+
+  test("GET /files/tags - negative count returns 400", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "NegCountTag" },
+    });
+
+    const { status } = await ownerApi.rooms.getRoomTagsInfo({ count: -1 });
+
+    expect(status).toBe(400);
+  });
+
+  test.fail("GET /files/tags - negative startIndex returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "NegStartTag" },
+    });
+
+    const { status } = await ownerApi.rooms.getRoomTagsInfo({
+      startIndex: -1,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("GET /files/tags - non-numeric count returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.rooms.getRoomTagsInfo({
+      count: "abc" as unknown as number,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("GET /files/tags - non-numeric startIndex returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.rooms.getRoomTagsInfo({
+      startIndex: "abc" as unknown as number,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("GET /files/tags - very large count returns 400", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "BigCountTag" },
+    });
+
+    const { status } = await ownerApi.rooms.getRoomTagsInfo({
+      count: 100000,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  // ── Isolation / scope ──
+
+  test("GET /files/tags - tag added to a room is visible at portal scope without specifying the room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const name = "PortalWideTag";
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Portal Scope Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    await ownerApi.rooms.addRoomTags({
+      id: roomData.response!.id!,
+      batchTagsRequestDto: { names: [name] },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo();
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string[]).toContain(name);
+  });
+
+  test("GET /files/tags - response contains only custom tag names, not room titles or cover ids", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const roomTitle = "Autotest Unique Room Title For Tag Scope";
+    const tagName = "ScopeOnlyCustomTag";
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: tagName },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: roomTitle,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: covers } = await ownerApi.rooms.getRoomCovers();
+    const coverId = covers.response![0].id!;
+
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = data.response as unknown as string[];
+
+    expect(status).toBe(200);
+    expect(tags).toContain(tagName);
+    expect(tags).not.toContain(roomTitle);
+    expect(tags).not.toContain(String(roomId));
+    expect(tags).not.toContain(coverId);
+  });
+});
+
 test.describe("PUT /files/rooms/:id/tags - addRoomTags", () => {
   test("PUT /files/rooms/:id/tags - Owner adds one existing tag to room", async ({
     apiSdk,
