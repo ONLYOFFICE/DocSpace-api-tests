@@ -8,6 +8,8 @@ import {
   SearchArea,
   RoomDataLifetimePeriod,
   EmployeeStatus,
+  SortOrder,
+  SubjectFilter,
 } from "@onlyoffice/docspace-api-sdk";
 import { createAllRoomTypes } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
@@ -12525,6 +12527,1267 @@ test.describe("GET /files/rooms/:id - getRoomInfo", () => {
 
       expect(status).toBe(200);
       expect(data.response!.rootFolderType).toBe(20);
+    });
+  });
+});
+
+test.describe("GET /files/rooms - getRoomsFolder", () => {
+  test.describe("basic response / shape", () => {
+    test("GET /files/rooms - Response includes 'current' folder metadata", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({});
+
+      expect(status).toBe(200);
+      expect(data.response!.current).toBeDefined();
+      expect((data.response!.current as any).id).toBeDefined();
+      expect((data.response!.current as any).title).toBeDefined();
+      expect(data.response!.pathParts).toBeDefined();
+    });
+
+    test("GET /files/rooms - Returned room has expected fields: id, title, roomType, created, updated", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Shape Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        filterValue: "Autotest Shape Room",
+      });
+
+      expect(status).toBe(200);
+      const folder = (data.response!.folders ?? []).find(
+        (f) => (f as any).id === roomId,
+      ) as any;
+      expect(folder).toBeDefined();
+      expect(folder.id).toBe(roomId);
+      expect(folder.title).toBe("Autotest Shape Room");
+      expect(folder.roomType).toBe(RoomType.CustomRoom);
+      expect(folder.created).toBeDefined();
+      expect(folder.updated).toBeDefined();
+    });
+  });
+
+  test.describe("type filter", () => {
+    test("GET /files/rooms - type=PublicRoom returns only Public rooms", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await createAllRoomTypes(apiSdk, "owner");
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        type: [RoomType.PublicRoom],
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.folders!.length).toBe(1);
+      for (const f of data.response!.folders as any[]) {
+        expect(f.roomType).toBe(RoomType.PublicRoom);
+      }
+    });
+
+    test("GET /files/rooms - type with multiple values returns rooms of any matching type", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await createAllRoomTypes(apiSdk, "owner");
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        type: [RoomType.CustomRoom, RoomType.PublicRoom],
+      });
+
+      expect(status).toBe(200);
+      const returnedTypes = (data.response!.folders as any[]).map(
+        (f) => f.roomType,
+      );
+      expect(returnedTypes.length).toBe(2);
+      expect(returnedTypes).toContain(RoomType.CustomRoom);
+      expect(returnedTypes).toContain(RoomType.PublicRoom);
+      for (const t of returnedTypes) {
+        expect([RoomType.CustomRoom, RoomType.PublicRoom]).toContain(t);
+      }
+    });
+
+    test("GET /files/rooms - type filter excludes rooms of other types", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await createAllRoomTypes(apiSdk, "owner");
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        type: [RoomType.VirtualDataRoom],
+      });
+
+      expect(status).toBe(200);
+      const types = (data.response!.folders as any[]).map((f) => f.roomType);
+      expect(types).not.toContain(RoomType.CustomRoom);
+      expect(types).not.toContain(RoomType.PublicRoom);
+      expect(types).not.toContain(RoomType.EditingRoom);
+      expect(types).not.toContain(RoomType.FillingFormsRoom);
+    });
+  });
+
+  test.describe("searchArea Active / Archive", () => {
+    test("GET /files/rooms - Active is the default searchArea when not provided", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: createdActive } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Default Active",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const activeId = createdActive.response!.id!;
+
+      const { data: createdToArchive } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest To Archive",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const archivedId = createdToArchive.response!.id!;
+      await ownerApi.rooms.archiveRoom({
+        id: archivedId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({});
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(activeId);
+      expect(ids).not.toContain(archivedId);
+    });
+
+    test("GET /files/rooms - Archive list does not return active rooms", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Stays Active",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const activeId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Archive,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).not.toContain(activeId);
+    });
+  });
+
+  test.describe("filterValue / search", () => {
+    test("GET /files/rooms - filterValue finds room by exact title", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const exactTitle = "Autotest Exact Match Title";
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: exactTitle,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        filterValue: exactTitle,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(roomId);
+      expect((data.response!.folders as any[])[0].title).toBe(exactTitle);
+    });
+
+    test("GET /files/rooms - filterValue is case-insensitive", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CaseSensitive Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        filterValue: "autotest casesensitive",
+      });
+
+      expect(status).toBe(200);
+      const titles = (data.response!.folders as any[]).map((f) => f.title);
+      expect(titles).toContain("Autotest CaseSensitive Room");
+    });
+
+    test("GET /files/rooms - filterValue with no matches returns empty folders", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Any Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        filterValue: "NonExistentNeedle_zzz_xyz_123",
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.folders!.length).toBe(0);
+      expect(data.response!.total).toBe(0);
+    });
+
+    test("GET /files/rooms - filterValue combined with type filter returns intersection", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const shared = "Autotest Intersect";
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `${shared} Custom`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `${shared} Public`,
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Unrelated",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        filterValue: shared,
+        type: [RoomType.CustomRoom],
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.folders!.length).toBe(1);
+      const folder = (data.response!.folders as any[])[0];
+      expect(folder.title).toBe(`${shared} Custom`);
+      expect(folder.roomType).toBe(RoomType.CustomRoom);
+    });
+  });
+
+  test.describe("tags / withoutTags", () => {
+    test.fail(
+      "BUG TBD: GET /files/rooms - tags filter returns only rooms with selected tag (API returns 500)",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const tag = "AutotestFilterTag";
+        await ownerApi.rooms.createRoomTag({
+          createTagRequestDto: { name: tag },
+        });
+
+        const { data: tagged } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Room With Tag",
+            roomType: RoomType.CustomRoom,
+            tags: [tag],
+          },
+        });
+        const taggedId = tagged.response!.id!;
+
+        const { data: untagged } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Room No Tag",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const untaggedId = untagged.response!.id!;
+
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          tags: [tag] as any,
+        });
+
+        expect(status).toBe(200);
+        const ids = (data.response!.folders as any[]).map((f) => f.id);
+        expect(ids).toContain(taggedId);
+        expect(ids).not.toContain(untaggedId);
+      },
+    );
+
+    test.fail(
+      "BUG TBD: GET /files/rooms - tags filter with multiple tags returns rooms matching any of them (API returns 500)",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const tagA = "AutotestTagA";
+        const tagB = "AutotestTagB";
+        await ownerApi.rooms.createRoomTag({
+          createTagRequestDto: { name: tagA },
+        });
+        await ownerApi.rooms.createRoomTag({
+          createTagRequestDto: { name: tagB },
+        });
+
+        const { data: withA } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest A",
+            roomType: RoomType.CustomRoom,
+            tags: [tagA],
+          },
+        });
+        const { data: withB } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest B",
+            roomType: RoomType.CustomRoom,
+            tags: [tagB],
+          },
+        });
+        const { data: withNeither } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest None",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          tags: [tagA, tagB] as any,
+        });
+
+        expect(status).toBe(200);
+        const ids = (data.response!.folders as any[]).map((f) => f.id);
+        expect(ids).toContain(withA.response!.id);
+        expect(ids).toContain(withB.response!.id);
+        expect(ids).not.toContain(withNeither.response!.id);
+      },
+    );
+
+    test("GET /files/rooms - withoutTags excludes rooms with any tag", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const tag = "AutotestExcludedTag";
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: tag },
+      });
+
+      const { data: tagged } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Tagged",
+          roomType: RoomType.CustomRoom,
+          tags: [tag],
+        },
+      });
+      const { data: untagged } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Untagged",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        withoutTags: true,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(untagged.response!.id);
+      expect(ids).not.toContain(tagged.response!.id);
+    });
+
+    test("GET /files/rooms - Room without tags is returned when withoutTags=true", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Untagged Only",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        withoutTags: true,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(created.response!.id);
+    });
+  });
+
+  test.describe("subject filters", () => {
+    test("GET /files/rooms - subjectId + subjectFilter=Owner returns rooms owned by subject", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: adminApi, data: adminMember } =
+        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminId = adminMember.response!.id!;
+
+      const { data: ownerRoom } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const { data: adminRoom } = await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Admin Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        subjectId: adminId,
+        subjectFilter: SubjectFilter.Owner,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(adminRoom.response!.id);
+      expect(ids).not.toContain(ownerRoom.response!.id);
+    });
+
+    test("GET /files/rooms - subjectId + subjectFilter=Member returns rooms where subject is participant", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      const { data: sharedRoom } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Shared Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const sharedRoomId = sharedRoom.response!.id!;
+      await ownerApi.rooms.setRoomSecurity({
+        id: sharedRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data: nonSharedRoom } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Non Shared Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        subjectId: userId,
+        subjectFilter: SubjectFilter.Member,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(sharedRoomId);
+      expect(ids).not.toContain(nonSharedRoom.response!.id);
+    });
+
+    test("GET /files/rooms - excludeSubject excludes rooms related to subject", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: adminApi, data: adminMember } =
+        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminId = adminMember.response!.id!;
+
+      const { data: ownerRoom } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Owner Excl",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const { data: adminRoom } = await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Admin Excl",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        subjectId: adminId,
+        subjectFilter: SubjectFilter.Owner,
+        excludeSubject: true,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(ownerRoom.response!.id);
+      expect(ids).not.toContain(adminRoom.response!.id);
+    });
+
+    test("GET /files/rooms - Non-existing subjectId returns empty folders", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Existing Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        subjectId: "11111111-1111-1111-1111-111111111111",
+        subjectFilter: SubjectFilter.Owner,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.folders!.length).toBe(0);
+      expect(data.response!.total).toBe(0);
+    });
+  });
+
+  test.describe("pagination", () => {
+    test("GET /files/rooms - count limits the number of returned folders", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await createAllRoomTypes(apiSdk, "owner");
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        count: 2,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.folders!.length).toBe(2);
+      expect(data.response!.total).toBe(5);
+    });
+
+    test("GET /files/rooms - startIndex skips first N folders", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await createAllRoomTypes(apiSdk, "owner");
+
+      const { data: first } = await ownerApi.rooms.getRoomsFolder({});
+      const allIds = (first.response!.folders as any[]).map((f) => f.id);
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        startIndex: 2,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids.length).toBe(3);
+      expect(ids).toEqual(allIds.slice(2));
+    });
+
+    test("GET /files/rooms - count + startIndex returns the expected slice", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await createAllRoomTypes(apiSdk, "owner");
+
+      const { data: first } = await ownerApi.rooms.getRoomsFolder({});
+      const allIds = (first.response!.folders as any[]).map((f) => f.id);
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        startIndex: 1,
+        count: 2,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toEqual(allIds.slice(1, 3));
+    });
+
+    test("GET /files/rooms - startIndex beyond total returns empty folders", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await createAllRoomTypes(apiSdk, "owner");
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        startIndex: 999,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.folders!.length).toBe(0);
+      expect(data.response!.total).toBe(5);
+    });
+
+    test("GET /files/rooms - Pagination metadata matches request", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await createAllRoomTypes(apiSdk, "owner");
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        startIndex: 1,
+        count: 2,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.startIndex).toBe(1);
+      expect(data.response!.count).toBe(2);
+      expect(data.response!.total).toBe(5);
+    });
+  });
+
+  test.describe("sorting", () => {
+    test.fail(
+      "BUG TBD: GET /files/rooms - sortBy=title sortOrder=Ascending returns rooms sorted by title ASC",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        for (const title of ["Autotest C", "Autotest A", "Autotest B"]) {
+          await ownerApi.rooms.createRoom({
+            createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1100));
+        }
+
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          sortBy: "title",
+          sortOrder: SortOrder.Ascending,
+        });
+
+        expect(status).toBe(200);
+        const titles = (data.response!.folders as any[]).map(
+          (f) => f.title as string,
+        );
+        expect(titles).toEqual(["Autotest A", "Autotest B", "Autotest C"]);
+      },
+    );
+
+    test.fail(
+      "BUG TBD: GET /files/rooms - sortBy=title sortOrder=Descending returns rooms sorted by title DESC (got B,A,C instead of C,B,A)",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        for (const title of ["Autotest C", "Autotest A", "Autotest B"]) {
+          await ownerApi.rooms.createRoom({
+            createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1100));
+        }
+
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          sortBy: "title",
+          sortOrder: SortOrder.Descending,
+        });
+
+        expect(status).toBe(200);
+        const titles = (data.response!.folders as any[]).map(
+          (f) => f.title as string,
+        );
+        expect(titles).toEqual(["Autotest C", "Autotest B", "Autotest A"]);
+      },
+    );
+
+    test("GET /files/rooms - sortBy=created sortOrder=Ascending returns oldest rooms first", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const titles = ["Autotest First", "Autotest Second", "Autotest Third"];
+      const createdIds: number[] = [];
+      for (const title of titles) {
+        const { data } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+        });
+        createdIds.push(data.response!.id!);
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+      }
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        sortBy: "DateAndTimeCreation",
+        sortOrder: SortOrder.Ascending,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toEqual(createdIds);
+    });
+
+    test("GET /files/rooms - sortBy=created sortOrder=Descending returns newest rooms first", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const titles = ["Autotest First", "Autotest Second", "Autotest Third"];
+      const createdIds: number[] = [];
+      for (const title of titles) {
+        const { data } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+        });
+        createdIds.push(data.response!.id!);
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+      }
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        sortBy: "DateAndTimeCreation",
+        sortOrder: SortOrder.Descending,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toEqual([...createdIds].reverse());
+    });
+  });
+
+  test.describe("permissions / visibility", () => {
+    test("GET /files/rooms - DocSpaceAdmin can get Rooms folder", async ({
+      apiSdk,
+    }) => {
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+      await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Admin Own Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await adminApi.rooms.getRoomsFolder({});
+
+      expect(status).toBe(200);
+      const titles = (data.response!.folders as any[]).map((f) => f.title);
+      expect(titles).toContain("Autotest Admin Own Room");
+    });
+
+    test("GET /files/rooms - RoomAdmin sees rooms where they are invited", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: ownerRoom } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Owner Visible",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const visibleId = ownerRoom.response!.id!;
+
+      const { data: hiddenRoom } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Owner Hidden",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const hiddenId = hiddenRoom.response!.id!;
+
+      const { api: roomAdminApi, data: roomAdminMember } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminId = roomAdminMember.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: visibleId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await roomAdminApi.rooms.getRoomsFolder({});
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(visibleId);
+      expect(ids).not.toContain(hiddenId);
+    });
+
+    test("GET /files/rooms - User sees only rooms they are invited to", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: visible } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest User Visible",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const { data: hidden } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest User Hidden",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { api: userApi, data: userMember } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userMember.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: visible.response!.id!,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await userApi.rooms.getRoomsFolder({});
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(visible.response!.id);
+      expect(ids).not.toContain(hidden.response!.id);
+    });
+
+    test("GET /files/rooms - Guest sees only rooms they are invited to", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: visible } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Guest Visible",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const { data: hidden } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Guest Hidden",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { api: guestApi, data: guestMember } =
+        await apiSdk.addAuthenticatedMember("owner", "Guest");
+      const guestId = guestMember.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: visible.response!.id!,
+        roomInvitationRequest: {
+          invitations: [{ id: guestId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await guestApi.rooms.getRoomsFolder({});
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(visible.response!.id);
+      expect(ids).not.toContain(hidden.response!.id);
+    });
+
+    test("GET /files/rooms - Anonymous request returns 401", async ({
+      apiSdk,
+    }) => {
+      const { status } = await apiSdk.forAnonymous().rooms.getRoomsFolder({});
+      expect(status).toBe(401);
+    });
+
+    test("GET /files/rooms - Disabled (terminated) user cannot get Rooms folder", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: userApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      await ownerApi.userStatus.updateUserStatus({
+        status: EmployeeStatus.Terminated,
+        updateMembersRequestDto: { userIds: [userId], resendAll: false },
+      });
+
+      const { status } = await userApi.rooms.getRoomsFolder({});
+      expect(status).toBe(401);
+    });
+  });
+
+  test.describe("combined filters", () => {
+    test("GET /files/rooms - type + filterValue returns only matching type and title", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Combo Custom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Combo Public",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Other",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        type: [RoomType.PublicRoom],
+        filterValue: "Combo",
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.folders!.length).toBe(1);
+      const folder = (data.response!.folders as any[])[0];
+      expect(folder.title).toBe("Autotest Combo Public");
+      expect(folder.roomType).toBe(RoomType.PublicRoom);
+    });
+
+    test("GET /files/rooms - searchArea=Archive + filterValue finds archived room by title", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: room } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archived Searchable",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = room.response!.id!;
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Archive,
+        filterValue: "Archived Searchable",
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(roomId);
+    });
+
+    test("GET /files/rooms - searchArea=Archive + type returns only archived rooms of selected type", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: vdr } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive VDR",
+          roomType: RoomType.VirtualDataRoom,
+        },
+      });
+      const { data: custom } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive Custom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      for (const id of [vdr.response!.id!, custom.response!.id!]) {
+        await ownerApi.rooms.archiveRoom({
+          id,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+      }
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Archive,
+        type: [RoomType.VirtualDataRoom],
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(vdr.response!.id);
+      expect(ids).not.toContain(custom.response!.id);
+    });
+
+    test.fail(
+      "BUG TBD: GET /files/rooms - tags + filterValue returns only tagged rooms matching title (API returns 500 on tags filter)",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const tag = "AutotestComboTag";
+        await ownerApi.rooms.createRoomTag({
+          createTagRequestDto: { name: tag },
+        });
+
+        const { data: match } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest TagCombo Match",
+            roomType: RoomType.CustomRoom,
+            tags: [tag],
+          },
+        });
+        const { data: titleOnly } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest TagCombo Other",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const { data: tagOnly } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Unrelated",
+            roomType: RoomType.CustomRoom,
+            tags: [tag],
+          },
+        });
+
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          tags: [tag] as any,
+          filterValue: "TagCombo",
+        });
+
+        expect(status).toBe(200);
+        const ids = (data.response!.folders as any[]).map((f) => f.id);
+        expect(ids).toContain(match.response!.id);
+        expect(ids).not.toContain(titleOnly.response!.id);
+        expect(ids).not.toContain(tagOnly.response!.id);
+      },
+    );
+
+    test.fail(
+      "BUG TBD: GET /files/rooms - count + startIndex + sortBy returns stable paginated sorted slice",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const titles = [
+          "Autotest E",
+          "Autotest A",
+          "Autotest C",
+          "Autotest B",
+          "Autotest D",
+        ];
+        for (const title of titles) {
+          await ownerApi.rooms.createRoom({
+            createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+          });
+        }
+
+        const { data, status } = await ownerApi.rooms.getRoomsFolder({
+          sortBy: "title",
+          sortOrder: SortOrder.Ascending,
+          startIndex: 1,
+          count: 2,
+        });
+
+        expect(status).toBe(200);
+        const returnedTitles = (data.response!.folders as any[]).map(
+          (f) => f.title as string,
+        );
+        expect(returnedTitles).toEqual(["Autotest B", "Autotest C"]);
+      },
+    );
+  });
+
+  test.describe("negative / validation", () => {
+    test("GET /files/rooms - Invalid room type is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.getRoomsFolder({
+        type: [999] as any,
+      });
+      expect(status).toBe(400);
+    });
+
+    test("GET /files/rooms - Invalid searchArea is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: 999 as any,
+      });
+      expect(status).toBe(400);
+    });
+
+    test("GET /files/rooms - Negative count is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.getRoomsFolder({
+        count: -1,
+      });
+      expect(status).toBe(400);
+    });
+
+    test("GET /files/rooms - Negative startIndex is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.getRoomsFolder({
+        startIndex: -1,
+      });
+      expect(status).toBe(400);
+    });
+
+    test("GET /files/rooms - Non-numeric count is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.getRoomsFolder({
+        count: "abc" as any,
+      });
+      expect(status).toBe(400);
+    });
+
+    test("GET /files/rooms - Non-numeric startIndex is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.getRoomsFolder({
+        startIndex: "abc" as any,
+      });
+      expect(status).toBe(400);
+    });
+
+    test("GET /files/rooms - Invalid sortOrder is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.getRoomsFolder({
+        sortOrder: "sideways" as any,
+      });
+      expect(status).toBe(400);
+    });
+
+    test("GET /files/rooms - Invalid sortBy is ignored and returns 200 with default order", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest SortBy Default",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        sortBy: "thisFieldDoesNotExist",
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.folders!.length).toBeGreaterThan(0);
+    });
+  });
+
+  test.describe("consistency / state changes", () => {
+    test("GET /files/rooms - Deleted room is not returned in Active list", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest To Delete",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({});
+
+      expect(status).toBe(200);
+      const ids = (data.response!.folders as any[]).map((f) => f.id);
+      expect(ids).not.toContain(roomId);
+    });
+
+    test("GET /files/rooms - Room title update is reflected in filterValue search", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Original Title",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "Autotest Renamed Title" },
+      });
+
+      const { data: oldSearch } = await ownerApi.rooms.getRoomsFolder({
+        filterValue: "Original Title",
+      });
+      expect(
+        (oldSearch.response!.folders as any[]).map((f) => f.id),
+      ).not.toContain(roomId);
+
+      const { data: newSearch, status } = await ownerApi.rooms.getRoomsFolder({
+        filterValue: "Renamed Title",
+      });
+      expect(status).toBe(200);
+      const ids = (newSearch.response!.folders as any[]).map((f) => f.id);
+      expect(ids).toContain(roomId);
+    });
+
+    test.fail(
+      "BUG TBD: GET /files/rooms - Room tag update is reflected in tags filter (API returns 500 on tags filter)",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const tag = "AutotestLateTag";
+        await ownerApi.rooms.createRoomTag({
+          createTagRequestDto: { name: tag },
+        });
+
+        const { data: created } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Untagged Then Tagged",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = created.response!.id!;
+
+        const { data: before } = await ownerApi.rooms.getRoomsFolder({
+          tags: [tag] as any,
+        });
+        expect(
+          (before.response!.folders as any[]).map((f) => f.id),
+        ).not.toContain(roomId);
+
+        await ownerApi.rooms.addRoomTags({
+          id: roomId,
+          batchTagsRequestDto: { names: [tag] },
+        });
+
+        const { data: after, status } = await ownerApi.rooms.getRoomsFolder({
+          tags: [tag] as any,
+        });
+        expect(status).toBe(200);
+        expect((after.response!.folders as any[]).map((f) => f.id)).toContain(
+          roomId,
+        );
+      },
+    );
+
+    test("GET /files/rooms - Repeated calls with same params return stable results", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await createAllRoomTypes(apiSdk, "owner");
+
+      const params = {
+        sortBy: "title",
+        sortOrder: SortOrder.Ascending,
+      };
+      const { data: first } = await ownerApi.rooms.getRoomsFolder(params);
+      const { data: second } = await ownerApi.rooms.getRoomsFolder(params);
+
+      const firstIds = (first.response!.folders as any[]).map((f) => f.id);
+      const secondIds = (second.response!.folders as any[]).map((f) => f.id);
+      expect(secondIds).toEqual(firstIds);
+      expect(second.response!.total).toBe(first.response!.total);
     });
   });
 });
