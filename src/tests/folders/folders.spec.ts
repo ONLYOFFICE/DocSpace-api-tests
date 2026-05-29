@@ -2342,42 +2342,42 @@ test.describe("GET /api/2.0/files/@favorites - Get favorites folder by file type
   });
 
   // BUG 81481: HTML file is counted in response.total (total: 1) but not returned in response.files
-  // (files: [], count: 0). toggleFileFavorite returns 200/true -- the file is stored as favorite,
-  // but GET /api/2.0/files/@favorites excludes it from the result set. .txt and .docx files
-  // are returned correctly. In the UI, HTML files do appear in favorites.
-  test.fail(
-    "BUG 81481: GET /api/2.0/files/@favorites - HTML file added to favorites appears in response",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  // while in conversion queue. Fixed: total calculation corrected; add delay to let conversion finish.
+  test("BUG 81481: GET /api/2.0/files/@favorites - HTML file added to favorites appears in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData, status: createStatus } =
-        await ownerApi.files.createHtmlFile({
-          folderId: myDocsFolderId,
-          createTextOrHtmlFile: {
-            title: "Autotest Favorites HTML File.html",
-            content: "<p>test</p>",
-            createNewIfExist: true,
-          },
-        });
-      expect(createStatus).toBe(200);
-      const fileId = fileData.response!.id!;
-      const storedTitle = fileData.response!.title!;
+    const { data: fileData, status: createStatus } =
+      await ownerApi.files.createHtmlFile({
+        folderId: myDocsFolderId,
+        createTextOrHtmlFile: {
+          title: "Autotest Favorites HTML File.html",
+          content: "<p>test</p>",
+          createNewIfExist: true,
+        },
+      });
+    expect(createStatus).toBe(200);
+    const fileId = fileData.response!.id!;
+    const storedTitle = fileData.response!.title!;
 
-      const { data: toggleData, status: toggleStatus } =
-        await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
-      expect(toggleStatus).toBe(200);
-      expect(toggleData.response).toBe(true);
+    const { data: toggleData, status: toggleStatus } =
+      await ownerApi.files.toggleFileFavorite({ fileId, favorite: true });
+    expect(toggleStatus).toBe(200);
+    expect(toggleData.response).toBe(true);
 
-      const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+    // Wait for conversion queue to finish before querying favorites
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response!.files)).toBe(true);
-      const titles = data.response!.files!.map((f) => f.title);
-      expect(titles).toContain(storedTitle);
-    },
-  );
+    const { data, status } = await ownerApi.folders.getFavoritesFolder({});
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response!.files)).toBe(true);
+    const titles = data.response!.files!.map((f) => f.title);
+    expect(titles).toContain(storedTitle);
+  });
 
   test("GET /api/2.0/files/@favorites - filterType FilesOnly returns all favorited files regardless of type", async ({
     apiSdk,
@@ -5118,29 +5118,28 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(data.response!.sharedLink!.password).toBeTruthy();
   });
 
-  // BUG 81574: empty body {} returns count:0 with no response instead of creating link with defaults
-  test.fail(
-    "BUG 81574: POST /api/2.0/files/folder/:id/link - Empty body creates link with defaults",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Empty Body",
-          roomType: RoomType.CustomRoom,
-        },
+  test("POST /api/2.0/files/folder/:id/link - Empty body (access: None) acts as delete of non-existent link returns 200 with no response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Empty Body",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {},
       });
-      const roomId = roomData.response!.id!;
 
-      const { data, status } =
-        await ownerApi.folders.createFolderPrimaryExternalLink({
-          id: roomId,
-          folderLinkRequest: {},
-        });
-
-      expect(status).toBe(200);
-      expect(data.response).toBeDefined();
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.count).toBe(0);
+    expect(data.response).toBeUndefined();
+  });
 
   test("POST /api/2.0/files/folder/:id/link - Non-existent folderId returns 404", async ({
     apiSdk,
@@ -5656,6 +5655,590 @@ test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { status } = await ownerApi.folders.getFolderLinks({ id: -1 });
+
+    expect(status).toBe(404);
+  });
+});
+
+test.describe("POST /api/2.0/files/folder/{id}/link - Set folder primary external link", () => {
+  test("POST /api/2.0/files/folder/{id}/link - Owner updates access of existing link", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.Read },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.sharedLink!.id).toBe(linkId);
+    expect(data.response!.access).toBe(FileShare.Read);
+    expect(data.response!.sharedLink!.primary).toBe(true);
+    expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Updated link has the same id as the original", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Same Id",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.Read },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.id).toBe(linkId);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Title update is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Title",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          linkId,
+          access: FileShare.Read,
+          title: "Updated Title",
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.title).toBe("Updated Title");
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Password update is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Password",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          linkId,
+          access: FileShare.Read,
+          password: "Secret123!",
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.password).toBeTruthy();
+
+    const { data: getData, status: getStatus } =
+      await ownerApi.folders.getFolderPrimaryExternalLink({ id: roomId });
+
+    expect(getStatus).toBe(200);
+    expect(getData.response!.sharedLink!.id).toBe(linkId);
+    expect(getData.response!.sharedLink!.password).toBeTruthy();
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - denyDownload update is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link DenyDownload",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          linkId,
+          access: FileShare.Read,
+          denyDownload: true,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.denyDownload).toBe(true);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - internal update is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Internal",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.Read, internal: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.internal).toBe(true);
+
+    const { data: getData, status: getStatus } =
+      await ownerApi.folders.getFolderPrimaryExternalLink({ id: roomId });
+
+    expect(getStatus).toBe(200);
+    expect(getData.response!.sharedLink!.id).toBe(linkId);
+    expect(getData.response!.sharedLink!.internal).toBe(true);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - expirationDate update is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Expiration",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          linkId,
+          access: FileShare.Read,
+          expirationDate: "2030-01-01T00:00:00.000Z" as any,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.isExpired).toBe(false);
+    expect((data.response!.sharedLink! as any).expirationDate).toBeDefined();
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - access: None with linkId deletes the link", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.None },
+      });
+
+    expect(status).toBe(200);
+    expect(data.count).toBe(0);
+    expect(data.response).toBeUndefined();
+
+    const { data: linksData } = await ownerApi.folders.getFolderLinks({
+      id: roomId,
+    });
+    const ids = (linksData.response ?? []).map((l) => l.sharedLink?.id);
+    expect(ids).not.toContain(linkId);
+
+    const { data: primaryData } =
+      await ownerApi.folders.getFolderPrimaryExternalLink({ id: roomId });
+
+    expect(primaryData.count).toBe(0);
+    expect(primaryData.response).toBeUndefined();
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.folders.setFolderPrimaryExternalLink({
+      id: 999999999,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - folderId 0 returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.folders.setFolderPrimaryExternalLink({
+      id: 0,
+      folderLinkRequest: { access: FileShare.Read },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - access: ReadWrite is rejected returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link ReadWrite",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { status } = await ownerApi.folders.setFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { linkId, access: FileShare.ReadWrite },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Multiple fields updated at once", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Multi",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          linkId,
+          access: FileShare.Read,
+          title: "Multi Update Title",
+          password: "Pass123!",
+          denyDownload: true,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.title).toBe("Multi Update Title");
+    expect(data.response!.sharedLink!.password).toBeTruthy();
+    expect(data.response!.sharedLink!.denyDownload).toBe(true);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - denyDownload toggled from true to false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link DenyDownload Toggle",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read, denyDownload: true },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          linkId,
+          access: FileShare.Read,
+          denyDownload: false,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.denyDownload).toBe(false);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - internal toggled from true to false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Internal Toggle",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read, internal: true },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { linkId, access: FileShare.Read, internal: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.internal).toBe(false);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Past expirationDate is silently ignored", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Past Expiry",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          linkId,
+          access: FileShare.Read,
+          expirationDate: "2020-01-01T00:00:00.000Z" as any,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect((data.response!.sharedLink! as any).expirationDate).toBeUndefined();
+    expect(data.response!.sharedLink!.isExpired).toBe(false);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Non-existent linkId creates link with that id", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Bad LinkId",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fakeLinkId = "00000000-0000-0000-0000-000000000001";
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: {
+          linkId: fakeLinkId,
+          access: FileShare.Read,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.id).toBe(fakeLinkId);
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Update persists after set", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Persist",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: roomId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    await ownerApi.folders.setFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: {
+        linkId,
+        access: FileShare.Read,
+        title: "Persisted Title",
+      },
+    });
+
+    const { data, status } =
+      await ownerApi.folders.getFolderPrimaryExternalLink({ id: roomId });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.id).toBe(linkId);
+    expect(data.response!.sharedLink!.title).toBe("Persisted Title");
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Update link on subfolder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Set Folder Link Subfolder",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Subfolder Set Link" },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
+        id: folderId,
+        folderLinkRequest: { access: FileShare.Read },
+      });
+    const linkId = createData.response!.sharedLink!.id!;
+
+    const { data, status } =
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: folderId,
+        folderLinkRequest: {
+          linkId,
+          access: FileShare.Read,
+          title: "Subfolder Link Title",
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.id).toBe(linkId);
+    expect(data.response!.sharedLink!.title).toBe("Subfolder Link Title");
+  });
+
+  test("POST /api/2.0/files/folder/{id}/link - Negative folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.folders.setFolderPrimaryExternalLink({
+      id: -1,
+      folderLinkRequest: { access: FileShare.Read },
+    });
 
     expect(status).toBe(404);
   });
@@ -7441,14 +8024,17 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
         expect(exportData.response!.isCompleted).toBe(true);
       }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
 
-      const { data, status } = await ownerApi.folders.getFolderHistory({
-        folderId: roomId,
-      });
-      expect(status).toBe(200);
-      const entry = data.response!.find(
-        (e) => e.action?.id === MessageAction.RoomIndexExportSaved,
-      );
-      expect(entry).toBeDefined();
+      let entry: any;
+      await expect(async () => {
+        const { data, status } = await ownerApi.folders.getFolderHistory({
+          folderId: roomId,
+        });
+        expect(status).toBe(200);
+        entry = data.response!.find(
+          (e) => e.action?.id === MessageAction.RoomIndexExportSaved,
+        );
+        expect(entry).toBeDefined();
+      }).toPass({ intervals: [2_000, 5_000, 10_000, 15_000], timeout: 60_000 });
       expect(entry!.initiator.displayName).toBe(ownerDisplayName);
     },
   );
@@ -8915,16 +9501,29 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
 test.describe("GET /api/2.0/files/filesusedspace - Soft delete conservation check", () => {
   // Catches: if soft delete does not correctly move file size from My Documents to Trash.
-  // Warmup file creation before measuring ensures sample files are injected before the baseline
-  // snapshot, so the delete operation itself does not cause a false usedSpace increase.
+  // Both create and delete operations trigger sample file injection on first call.
+  // Warmup create + warmup delete before baseline ensures both injections fire before measuring,
+  // so the actual target delete does not cause a false usedSpace increase.
   test("GET /api/2.0/files/filesusedspace - Soft delete decreases myDocumentsUsedSpace and increases trashUsedSpace by the same amount", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Conservation Warmup" },
+      createFileJsonElement: { title: "Autotest Conservation Warmup Create" },
     });
+
+    const { data: warmupDeleteData } =
+      await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: {
+          title: "Autotest Conservation Warmup Delete",
+        },
+      });
+    await ownerApi.files.deleteFile({
+      fileId: warmupDeleteData.response!.id!,
+      _delete: { immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
       createFileJsonElement: { title: "Autotest Conservation Target" },
