@@ -3333,19 +3333,20 @@ test.describe("API rooms methods", () => {
       expect(all).not.toContain(missing);
     });
 
-    test("DELETE /files/tags - Very long tag name (10000 chars) returns 400", async ({
-      apiSdk,
-    }) => {
-      test.fail(
-        true,
-        "BUG 81689: very long tag name (10000 chars) is silently accepted (200) instead of validation error (400) — no length guard",
-      );
-      const ownerApi = apiSdk.forRole("owner");
-      const { status } = await ownerApi.rooms.deleteCustomTags({
-        batchTagsRequestDto: { names: ["a".repeat(10000)] },
-      });
-      expect(status).toBe(400);
-    });
+    test.fail(
+      "DELETE /files/tags - Very long tag name (10000 chars) returns 400",
+      async ({ apiSdk }) => {
+        test.fail(
+          true,
+          "BUG 81689: very long tag name (10000 chars) is silently accepted (200) instead of validation error (400) — no length guard",
+        );
+        const ownerApi = apiSdk.forRole("owner");
+        const { status } = await ownerApi.rooms.deleteCustomTags({
+          batchTagsRequestDto: { names: ["a".repeat(10000)] },
+        });
+        expect(status).toBe(400);
+      },
+    );
 
     test("DELETE /files/tags - Cyrillic tag name can be deleted", async ({
       apiSdk,
@@ -3807,6 +3808,709 @@ test.describe("API rooms methods", () => {
       expect(data.response!.sharedLink?.shareLink).toBeDefined();
       expect(data.response!.sharedLink?.linkType).toBe(LinkType.Invitation);
       expect(data.response!.sharedLink?.title).toBe("Autotest Invitation Link");
+    });
+
+    test("GET /files/rooms/:id/links - Auto-created External link of PublicRoom has primary=true", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Primary Flag Room",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.External,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(1);
+      expect(data.response![0].sharedLink?.primary).toBe(true);
+      expect(data.response![0].sharedLink?.linkType).toBe(LinkType.External);
+    });
+
+    test("GET /files/rooms/:id/links - CustomRoom returns empty list by default", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Empty Custom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomData.response!.id!,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    });
+
+    test("GET /files/rooms/:id/links - External link denyDownload=true is reflected in response", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links denyDownload",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: createdLink } = await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.External,
+          title: "Autotest denyDownload Link",
+          denyDownload: true,
+        },
+      });
+      const linkId = createdLink.response!.sharedLink!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.External,
+      });
+
+      const link = data.response!.find((l) => l.sharedLink?.id === linkId);
+      expect(status).toBe(200);
+      expect(link).toBeDefined();
+      expect(link!.sharedLink?.denyDownload).toBe(true);
+    });
+
+    test("GET /files/rooms/:id/links - Invitation link title is preserved", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Title Preserved",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: createdLink } = await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "My Invitation Title",
+          denyDownload: false,
+        },
+      });
+      const linkId = createdLink.response!.sharedLink!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.Invitation,
+      });
+
+      const link = data.response!.find((l) => l.sharedLink?.id === linkId);
+      expect(status).toBe(200);
+      expect(link).toBeDefined();
+      expect(link!.sharedLink?.title).toBe("My Invitation Title");
+    });
+
+    test("GET /files/rooms/:id/links - Invitation link maxUseCount is preserved", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links maxUseCount",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: createdLink } = await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest maxUseCount Link",
+          denyDownload: false,
+          maxUseCount: 5,
+        },
+      });
+      const linkId = createdLink.response!.sharedLink!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.Invitation,
+      });
+
+      const link = data.response!.find((l) => l.sharedLink?.id === linkId);
+      expect(status).toBe(200);
+      expect(link).toBeDefined();
+      expect(link!.sharedLink?.maxUseCount).toBe(5);
+    });
+
+    test("GET /files/rooms/:id/links - External link has non-empty requestToken", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links requestToken",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.External,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(1);
+      expect(typeof data.response![0].sharedLink?.requestToken).toBe("string");
+      expect(
+        data.response![0].sharedLink!.requestToken!.length,
+      ).toBeGreaterThan(0);
+    });
+
+    test("GET /files/rooms/:id/links - type=External returns only External links", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Filter External",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest Filter Invitation",
+          denyDownload: false,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.External,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(1);
+      expect(data.response![0].sharedLink?.linkType).toBe(LinkType.External);
+    });
+
+    test("GET /files/rooms/:id/links - type=Invitation returns only Invitation links", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Filter Invitation",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest Filter Invitation Link",
+          denyDownload: false,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.Invitation,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(1);
+      expect(data.response![0].sharedLink?.linkType).toBe(LinkType.Invitation);
+    });
+
+    test("GET /files/rooms/:id/links - Without type returns both External and Invitation links", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links No Filter",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest No Filter Invitation",
+          denyDownload: false,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+      });
+
+      const types = data.response!.map((l) => l.sharedLink?.linkType);
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(2);
+      expect(types).toContain(LinkType.External);
+      expect(types).toContain(LinkType.Invitation);
+    });
+
+    test("GET /files/rooms/:id/links - PublicRoom with no invitations: type=Invitation returns empty", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Public NoInvitations",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomData.response!.id!,
+        type: LinkType.Invitation,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    });
+
+    test("GET /files/rooms/:id/links - CustomRoom: type=External returns empty", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Custom NoExternal",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomData.response!.id!,
+        type: LinkType.External,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    });
+
+    test("GET /files/rooms/:id/links - setRoomLink with access=None removes the Invitation link", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Remove Invitation",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: createdLink } = await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest Remove Invitation",
+          denyDownload: false,
+        },
+      });
+      const linkId = createdLink.response!.sharedLink!.id!;
+
+      const { data: beforeData } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.Invitation,
+      });
+      expect(beforeData.response!.map((l) => l.sharedLink?.id)).toContain(
+        linkId,
+      );
+
+      await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          linkId,
+          access: FileShare.None,
+          linkType: LinkType.Invitation,
+          title: "Autotest Remove Invitation",
+          denyDownload: false,
+        },
+      });
+
+      const { data: afterData, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.Invitation,
+      });
+
+      expect(afterData.response!.map((l) => l.sharedLink?.id)).not.toContain(
+        linkId,
+      );
+      expect(status).toBe(200);
+      expect(afterData.response!.length).toBe(0);
+    });
+
+    test("GET /files/rooms/:id/links - Multiple External links are all returned with unique ids", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Multiple Externals",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      const expectedTitles: string[] = [];
+
+      for (let i = 0; i < 4; i++) {
+        const title = `Autotest Bulk External ${i}`;
+        const { status: createStatus } = await ownerApi.rooms.setRoomLink({
+          id: roomId,
+          roomLinkRequest: {
+            access: FileShare.Read,
+            linkType: LinkType.External,
+            title,
+            denyDownload: false,
+          },
+        });
+        expect(createStatus).toBe(200);
+        expectedTitles.push(title);
+      }
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.External,
+      });
+
+      const returnedIds = data.response!.map((l) => l.sharedLink!.id!);
+      const returnedTitles = data.response!.map((l) => l.sharedLink!.title!);
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(5);
+      expect(new Set(returnedIds).size).toBe(5);
+      for (const title of expectedTitles) {
+        expect(returnedTitles).toContain(title);
+      }
+    });
+
+    test("GET /files/rooms/:id/links - Repeated GET returns the same set of link ids", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Repeated GET",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest Repeated Invitation",
+          denyDownload: false,
+        },
+      });
+
+      const { data: first } = await ownerApi.rooms.getRoomLinks({ id: roomId });
+      const { data: second } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+      });
+
+      const firstIds = first.response!.map((l) => l.sharedLink!.id!).sort();
+      const secondIds = second.response!.map((l) => l.sharedLink!.id!).sort();
+      expect(firstIds).toEqual(secondIds);
+      expect(first.response!.length).toBe(2);
+      expect(second.response!.length).toBe(2);
+    });
+
+    test("GET /files/rooms/:id/links - EditingRoom has no External links by default", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Editing NoExternal",
+          roomType: RoomType.EditingRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomData.response!.id!,
+        type: LinkType.External,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    });
+
+    test("GET /files/rooms/:id/links - VirtualDataRoom has no External links by default", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links VDR NoExternal",
+          roomType: RoomType.VirtualDataRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomData.response!.id!,
+        type: LinkType.External,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    });
+
+    test("GET /files/rooms/:id/links - FillingFormsRoom has one auto-created External link by default", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Form AutoExternal",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomData.response!.id!,
+        type: LinkType.External,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(1);
+      expect(data.response![0].sharedLink?.linkType).toBe(LinkType.External);
+      expect(data.response![0].sharedLink?.primary).toBe(true);
+    });
+
+    test("GET /files/rooms/:id/links - Two rooms return only their own links", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomA } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Isolation A",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const { data: roomB } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Isolation B",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomIdA = roomA.response!.id!;
+      const roomIdB = roomB.response!.id!;
+
+      const { data: invA } = await ownerApi.rooms.setRoomLink({
+        id: roomIdA,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest Isolation Invite A",
+          denyDownload: false,
+        },
+      });
+      const { data: invB } = await ownerApi.rooms.setRoomLink({
+        id: roomIdB,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest Isolation Invite B",
+          denyDownload: false,
+        },
+      });
+      const linkIdA = invA.response!.sharedLink!.id!;
+      const linkIdB = invB.response!.sharedLink!.id!;
+
+      const { data: linksA, status: statusA } =
+        await ownerApi.rooms.getRoomLinks({
+          id: roomIdA,
+        });
+      const { data: linksB, status: statusB } =
+        await ownerApi.rooms.getRoomLinks({
+          id: roomIdB,
+        });
+
+      const idsA = linksA.response!.map((l) => l.sharedLink!.id!);
+      const idsB = linksB.response!.map((l) => l.sharedLink!.id!);
+
+      expect(statusA).toBe(200);
+      expect(statusB).toBe(200);
+      expect(idsA).toContain(linkIdA);
+      expect(idsA).not.toContain(linkIdB);
+      expect(idsB).toContain(linkIdB);
+      expect(idsB).not.toContain(linkIdA);
+    });
+
+    test("GET /files/rooms/:id/links - DocSpaceAdmin invited as RoomManager sees the External link of a PublicRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Admin Reads",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: adminApi, data: adminData } =
+        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            {
+              id: adminData.response!.id!,
+              access: FileShare.RoomManager,
+            },
+          ],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await adminApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.External,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(1);
+      expect(data.response![0].sharedLink?.linkType).toBe(LinkType.External);
+    });
+
+    test("GET /files/rooms/:id/links - RoomAdmin without access gets 200 and empty list", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links RoomAdmin Empty",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+
+      const { data, status } = await roomAdminApi.rooms.getRoomLinks({
+        id: roomId,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    });
+
+    test("GET /files/rooms/:id/links - User without access gets 200 and empty list", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links User Empty",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+
+      const { data, status } = await userApi.rooms.getRoomLinks({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    });
+
+    test("GET /files/rooms/:id/links - Guest without access gets 200 and empty list", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Guest Empty",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
+
+      const { data, status } = await guestApi.rooms.getRoomLinks({
+        id: roomId,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    });
+
+    test("GET /files/rooms/:id/links - Non-existing room id returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data } = await ownerApi.rooms.getRoomLinks({ id: 99999999 });
+
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/rooms/:id/links - Deleted room returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Links Deleted Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data } = await ownerApi.rooms.getRoomLinks({ id: roomId });
+
+      expect(data.statusCode).toBe(404);
     });
   });
 
@@ -6103,6 +6807,275 @@ test.describe("API rooms methods", () => {
         expect(exportData!.data.response!.resultFileId).toBeTruthy();
       });
     });
+
+    test("GET /files/rooms/indexexport - Response has the expected shape during an active export", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Shape",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(typeof data.response!.id).toBe("string");
+      expect(typeof data.response!.isCompleted).toBe("boolean");
+      expect(typeof data.response!.percentage).toBe("number");
+      const err = data.response!.error;
+      expect(err === null || typeof err === "string").toBe(true);
+    });
+
+    test("GET /files/rooms/indexexport - Percentage is in the 0..100 range during export", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Percentage Range",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(status).toBe(200);
+      expect(data.response!.percentage).toBeGreaterThanOrEqual(0);
+      expect(data.response!.percentage).toBeLessThanOrEqual(100);
+    });
+
+    test("GET /files/rooms/indexexport - Completed export reports percentage 100 and result file appears in My documents", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomTitle = "Autotest Index Export Result File";
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: roomTitle,
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.folders.getMyFolder({});
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      await expect(async () => {
+        const { data } = await ownerApi.rooms.getRoomIndexExport();
+        expect(data.response!.isCompleted).toBe(true);
+        expect(data.response!.error).toBeFalsy();
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+      const { data } = await ownerApi.rooms.getRoomIndexExport();
+      expect(data.response!.percentage).toBe(100);
+
+      const { data: myDocs } = await ownerApi.folders.getMyFolder({});
+      const titles = (myDocs.response!.files ?? []).map((f) => f.title ?? "");
+      expect(titles.some((t) => t.includes(roomTitle))).toBe(true);
+    });
+
+    test("GET /files/rooms/indexexport - Operation id is stable across consecutive polls", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Stable Id",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const first = await ownerApi.rooms.getRoomIndexExport();
+      const second = await ownerApi.rooms.getRoomIndexExport();
+      const third = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(first.data.response!.id).toBeDefined();
+      expect(second.data.response!.id).toBe(first.data.response!.id);
+      expect(third.data.response!.id).toBe(first.data.response!.id);
+    });
+
+    test("GET /files/rooms/indexexport - Repeated GET after completion still returns completed status", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Repeated Get",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      await expect(async () => {
+        const { data } = await ownerApi.rooms.getRoomIndexExport();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+      const first = await ownerApi.rooms.getRoomIndexExport();
+      const second = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(first.data.response!.isCompleted).toBe(true);
+      expect(second.data.response!.isCompleted).toBe(true);
+    });
+
+    test("GET /files/rooms/indexexport - Clean user without started export returns 200 and no active operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(status).toBe(200);
+      const resp = data.response;
+      const hasActiveRunning = Boolean(resp?.id) && resp?.isCompleted === false;
+      expect(hasActiveRunning).toBe(false);
+    });
+
+    test("GET /files/rooms/indexexport - GET after terminateRoomIndexExport returns no active running operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Terminate Then Get",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+      await ownerApi.rooms.terminateRoomIndexExport();
+
+      const { data, status } = await ownerApi.rooms.getRoomIndexExport();
+
+      expect(status).toBe(200);
+      const resp = data.response;
+      const hasActiveRunning =
+        Boolean(resp?.id) && resp?.isCompleted === false && !resp?.error;
+      expect(hasActiveRunning).toBe(false);
+    });
+
+    test("GET /files/rooms/indexexport - DocSpaceAdmin does not see Owner's index export operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Owner Only",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const ownerView = await ownerApi.rooms.getRoomIndexExport();
+      const adminView = await adminApi.rooms.getRoomIndexExport();
+
+      expect(ownerView.status).toBe(200);
+      expect(adminView.status).toBe(200);
+      expect(ownerView.data.response!.id).toBeDefined();
+      expect(adminView.data.response?.id ?? null).not.toBe(
+        ownerView.data.response!.id,
+      );
+    });
+
+    test("GET /files/rooms/indexexport - Owner and DocSpaceAdmin running exports in parallel see only their own operation", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+      const { data: ownerRoom, status: ownerCreateStatus } =
+        await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Index Export Owner Parallel",
+            roomType: RoomType.VirtualDataRoom,
+            indexing: true,
+          },
+        });
+      expect(ownerCreateStatus).toBe(200);
+      expect(ownerRoom.response?.id).toBeDefined();
+
+      const { data: adminRoom, status: adminCreateStatus } =
+        await adminApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Index Export Admin Parallel",
+            roomType: RoomType.VirtualDataRoom,
+            indexing: true,
+          },
+        });
+      expect(adminCreateStatus).toBe(200);
+      expect(adminRoom.response?.id).toBeDefined();
+
+      await ownerApi.rooms.startRoomIndexExport({
+        id: ownerRoom.response!.id!,
+      });
+      await adminApi.rooms.startRoomIndexExport({
+        id: adminRoom.response!.id!,
+      });
+
+      const ownerView = await ownerApi.rooms.getRoomIndexExport();
+      const adminView = await adminApi.rooms.getRoomIndexExport();
+
+      expect(ownerView.status).toBe(200);
+      expect(adminView.status).toBe(200);
+      expect(ownerView.data.response!.id).toBeDefined();
+      expect(adminView.data.response!.id).toBeDefined();
+      expect(ownerView.data.response!.id).not.toBe(adminView.data.response!.id);
+    });
+
+    test("GET /files/rooms/indexexport - GET returns 200 after the source room was archived during export", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Archived Source",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { status } = await ownerApi.rooms.getRoomIndexExport();
+      expect(status).toBe(200);
+    });
   });
 
   // Could not trigger MarkAsNew via API - new items list is always empty. Contract test only.
@@ -7551,7 +8524,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     expect(op.finished).toBe(true);
 
     const { data: afterInfo } = await userApi.rooms.getRoomInfo({ id: roomId });
-    expect([403, 404]).toContain(afterInfo.statusCode);
+    expect(afterInfo.statusCode).toBe(404);
 
     const { data: list } = await userApi.rooms.getRoomsFolder({});
     const ids = (list.response!.folders ?? []).map((f) => (f as any).id);
@@ -9052,5 +10025,501 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
 
     const { data: list1 } = await ownerApi.rooms.getRoomTagsInfo();
     expect(list1.response as unknown as string[]).not.toContain(name);
+  });
+});
+
+test.describe("GET /files/rooms/:id - getRoomInfo", () => {
+  test.describe("positive / contract", () => {
+    for (const { label, roomType } of [
+      { label: "CustomRoom", roomType: RoomType.CustomRoom },
+      { label: "EditingRoom", roomType: RoomType.EditingRoom },
+      { label: "PublicRoom", roomType: RoomType.PublicRoom },
+      { label: "FillingFormsRoom", roomType: RoomType.FillingFormsRoom },
+      { label: "VirtualDataRoom", roomType: RoomType.VirtualDataRoom },
+    ] as const) {
+      test(`GET /files/rooms/:id - Owner reads ${label} info`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const title = `Autotest GetInfo ${label}`;
+        const { data: created } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: { title, roomType },
+        });
+        const roomId = created.response!.id!;
+
+        const { data, status } = await ownerApi.rooms.getRoomInfo({
+          id: roomId,
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.id).toBe(roomId);
+        expect(data.response!.title).toBe(title);
+        expect(data.response!.roomType).toBe(roomType);
+      });
+    }
+
+    test("GET /files/rooms/:id - Room without custom quota has isCustomQuota=false", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Default Quota",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.isCustomQuota).not.toBe(true);
+    });
+  });
+
+  test.describe("verify-after-create fields", () => {
+    test("GET /files/rooms/:id - VDR created without lifetime has unset lifetime", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest VDR No Lifetime",
+          roomType: RoomType.VirtualDataRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.lifetime?.value ?? 0).toBe(0);
+    });
+
+    test("GET /files/rooms/:id - Cover set at create time is reflected in getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: covers } = await ownerApi.rooms.getRoomCovers();
+      const coverId = covers.response![0].id!;
+
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Cover On Create",
+          roomType: RoomType.CustomRoom,
+          cover: coverId,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.logo?.cover?.id).toBe(coverId);
+    });
+
+    test("GET /files/rooms/:id - Color set at create time is reflected in getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Color On Create",
+          roomType: RoomType.CustomRoom,
+          color: "FF5733",
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.logo?.color).toBe("FF5733");
+    });
+
+    test("GET /files/rooms/:id - Tags added after create appear in getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const tagA = "AutotestGetInfoTagA";
+      const tagB = "AutotestGetInfoTagB";
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: tagA },
+      });
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: tagB },
+      });
+
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Tags On GetInfo",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: [tagA, tagB] },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      const tags = (data.response!.tags ?? []) as string[];
+      expect(tags).toContain(tagA);
+      expect(tags).toContain(tagB);
+    });
+  });
+
+  test.describe("state consistency after actions", () => {
+    test("GET /files/rooms/:id - Sharing a room with a user does not break Owner's getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Reflection",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.id).toBe(roomId);
+      expect(data.response!.access).toBeDefined();
+    });
+
+    test("GET /files/rooms/:id - Archived room is marked archive (rootFolderType=Archive)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archive Reflection",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      // FolderType.Archive === 20
+      expect(data.response!.rootFolderType).toBe(20);
+    });
+
+    test("GET /files/rooms/:id - Unarchived room returns to active state (rootFolderType=VirtualRooms)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Unarchive Reflection",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      await ownerApi.rooms.unarchiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      // FolderType.VirtualRooms === 14
+      expect(data.response!.rootFolderType).toBe(14);
+    });
+
+    test("GET /files/rooms/:id - Repeated calls return the same state (idempotent)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Idempotent Read",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data: a } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      const { data: b } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      const { data: c } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(b.response!.id).toBe(a.response!.id);
+      expect(c.response!.id).toBe(a.response!.id);
+      expect(b.response!.title).toBe(a.response!.title);
+      expect(c.response!.title).toBe(a.response!.title);
+      expect(b.response!.roomType).toBe(a.response!.roomType);
+      expect(c.response!.roomType).toBe(a.response!.roomType);
+    });
+  });
+
+  test.describe("room-type specific fields", () => {
+    test("GET /files/rooms/:id - CustomRoom does not expose VDR-only flags", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo Custom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.CustomRoom);
+      expect(data.response!.indexing).not.toBe(true);
+      expect(data.response!.denyDownload).not.toBe(true);
+      expect(data.response!.lifetime?.value ?? 0).toBe(0);
+      expect(data.response!.watermark?.text ?? "").toBe("");
+    });
+
+    test("GET /files/rooms/:id - VDR exposes VDR-specific flags after create", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo VDR",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+          denyDownload: true,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.VirtualDataRoom);
+      expect(data.response!.indexing).toBe(true);
+      expect(data.response!.denyDownload).toBe(true);
+    });
+
+    test("GET /files/rooms/:id - PublicRoom has roomType=PublicRoom and no VDR flags", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo Public",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.PublicRoom);
+      expect(data.response!.indexing).not.toBe(true);
+      expect(data.response!.denyDownload).not.toBe(true);
+    });
+
+    test("GET /files/rooms/:id - FillingFormsRoom has roomType=FillingFormsRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo FormFilling",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.FillingFormsRoom);
+      expect(data.response!.indexing).not.toBe(true);
+      expect(data.response!.denyDownload).not.toBe(true);
+    });
+
+    test("GET /files/rooms/:id - EditingRoom has roomType=EditingRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GetInfo Editing",
+          roomType: RoomType.EditingRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.roomType).toBe(RoomType.EditingRoom);
+      expect(data.response!.indexing).not.toBe(true);
+      expect(data.response!.denyDownload).not.toBe(true);
+    });
+  });
+
+  test.describe("id validation", () => {
+    test("GET /files/rooms/:id - Non-existing valid-format id returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: 999999999 });
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/rooms/:id - Non-numeric id ('abc') returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getRoomInfo({
+        id: "abc" as unknown as number,
+      });
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/rooms/:id - Zero id returns 404", async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: 0 });
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/rooms/:id - Negative id returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: -1 });
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/rooms/:id - Null id is rejected by the SDK before the request", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.getRoomInfo({ id: null as unknown as number }),
+      ).rejects.toThrow(/Required parameter id was null or undefined/);
+    });
+
+    test("GET /files/rooms/:id - Missing id is rejected by the SDK before the request", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.getRoomInfo({} as { id: number }),
+      ).rejects.toThrow(/Required parameter id was null or undefined/);
+    });
+  });
+
+  test.describe("regression / no-op", () => {
+    test("GET /files/rooms/:id - Failed tag deletion (non-existing tag) does not change tags", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const tagName = "AutotestStableTag";
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: tagName },
+      });
+
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Tag Stability",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: [tagName] },
+      });
+
+      await ownerApi.rooms.deleteRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["AutotestNoSuchTag"] },
+      });
+
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      const tags = (data.response!.tags ?? []) as string[];
+      expect(tags).toContain(tagName);
+    });
+
+    test("GET /files/rooms/:id - Failed update (empty title) leaves original title", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const original = "Autotest Title Stability";
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: original,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "" },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(original);
+    });
+
+    test("GET /files/rooms/:id - After async archive completes, response reflects archived state", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Final State",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+
+      expect(status).toBe(200);
+      expect(data.response!.rootFolderType).toBe(20);
+    });
   });
 });
