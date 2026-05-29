@@ -6610,7 +6610,11 @@ test.describe("GET /api/2.0/files/folder/{id}/link - Get folder primary external
 
     await ownerApi.folders.setFolderPrimaryExternalLink({
       id: roomId,
-      folderLinkRequest: { linkId, access: FileShare.Read, expirationDate },
+      folderLinkRequest: {
+        linkId,
+        access: FileShare.Read,
+        expirationDate: expirationDate as any,
+      },
     });
 
     const { data, status } =
