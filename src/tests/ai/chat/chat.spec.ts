@@ -1673,33 +1673,43 @@ test.describe("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - provid
     });
     const agentRoomId = agentData.response!.id!;
 
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
+    const approvalResults: Promise<{ status: number }>[] = [];
+    const seenCallIds = new Set<string>();
 
-    const startResponse = await ownerApi.chat.startNewChat(
+    await ownerApi.chat.startNewChat(
       {
         roomId: agentRoomId,
         startNewChatBody: {
-          message: `Create a .docx file named "autotest" in folder with id ${myFolderId}`,
+          message: `Write "Hello World" and save it to a file named "autotest.txt"`,
         },
       },
-      { responseType: "stream", timeout: 10000 },
+      {
+        responseType: "stream",
+        timeout: 30000,
+        onEvent: (event: { event?: string; data?: any }) => {
+          if (
+            event.event === "tool_call" &&
+            event.data?.managed === true &&
+            event.data?.callId &&
+            !seenCallIds.has(event.data.callId)
+          ) {
+            seenCallIds.add(event.data.callId);
+            approvalResults.push(
+              ownerApi.chat.providePermission({
+                callId: event.data.callId as string,
+                toolDecisionRequestBody: {
+                  decision: ToolExecutionDecision.Allow,
+                },
+              }),
+            );
+          }
+        },
+      } as any,
     );
 
-    const { parsed } = parseSseEvents(startResponse.data);
-    const permissionEvent = parsed.find(
-      (e) => e.event === "tool_call" && e.data?.managed === true,
-    );
-    const callId = permissionEvent!.data.callId as string;
-
-    const { status } = await ownerApi.chat.providePermission({
-      callId,
-      toolDecisionRequestBody: {
-        decision: ToolExecutionDecision.Allow,
-      },
-    });
-
-    expect(status).toBe(200);
+    expect(approvalResults.length).toBeGreaterThan(0);
+    const results = await Promise.all(approvalResults);
+    expect(results[0].status).toBe(200);
   });
 
   test("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - DocSpaceAdmin provides permission for tool execution", async ({
@@ -1735,33 +1745,43 @@ test.describe("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - provid
     });
     const agentRoomId = agentData.response!.id!;
 
-    const { data: myFolderData } = await adminApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
+    const approvalResults: Promise<{ status: number }>[] = [];
+    const seenCallIds = new Set<string>();
 
-    const startResponse = await adminApi.chat.startNewChat(
+    await adminApi.chat.startNewChat(
       {
         roomId: agentRoomId,
         startNewChatBody: {
-          message: `Create a .docx file named "autotest" in folder with id ${myFolderId}`,
+          message: `Write "Hello World" and save it to a file named "autotest.txt"`,
         },
       },
-      { responseType: "stream", timeout: 10000 },
+      {
+        responseType: "stream",
+        timeout: 30000,
+        onEvent: (event: { event?: string; data?: any }) => {
+          if (
+            event.event === "tool_call" &&
+            event.data?.managed === true &&
+            event.data?.callId &&
+            !seenCallIds.has(event.data.callId)
+          ) {
+            seenCallIds.add(event.data.callId);
+            approvalResults.push(
+              adminApi.chat.providePermission({
+                callId: event.data.callId as string,
+                toolDecisionRequestBody: {
+                  decision: ToolExecutionDecision.Allow,
+                },
+              }),
+            );
+          }
+        },
+      } as any,
     );
 
-    const { parsed } = parseSseEvents(startResponse.data);
-    const permissionEvent = parsed.find(
-      (e) => e.event === "tool_call" && e.data?.managed === true,
-    );
-    const callId = permissionEvent!.data.callId as string;
-
-    const { status } = await adminApi.chat.providePermission({
-      callId,
-      toolDecisionRequestBody: {
-        decision: ToolExecutionDecision.Allow,
-      },
-    });
-
-    expect(status).toBe(200);
+    expect(approvalResults.length).toBeGreaterThan(0);
+    const results = await Promise.all(approvalResults);
+    expect(results[0].status).toBe(200);
   });
 
   test("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - RoomAdmin provides permission for tool execution", async ({
@@ -1797,33 +1817,43 @@ test.describe("POST /api/2.0/ai/chats/tool-permissions/:callId/decision - provid
     });
     const agentRoomId = agentData.response!.id!;
 
-    const { data: myFolderData } = await roomAdminApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
+    const approvalResults: Promise<{ status: number }>[] = [];
+    const seenCallIds = new Set<string>();
 
-    const startResponse = await roomAdminApi.chat.startNewChat(
+    await roomAdminApi.chat.startNewChat(
       {
         roomId: agentRoomId,
         startNewChatBody: {
-          message: `Create a .docx file named "autotest" in folder with id ${myFolderId}`,
+          message: `Write "Hello World" and save it to a file named "autotest.txt"`,
         },
       },
-      { responseType: "stream", timeout: 10000 },
+      {
+        responseType: "stream",
+        timeout: 30000,
+        onEvent: (event: { event?: string; data?: any }) => {
+          if (
+            event.event === "tool_call" &&
+            event.data?.managed === true &&
+            event.data?.callId &&
+            !seenCallIds.has(event.data.callId)
+          ) {
+            seenCallIds.add(event.data.callId);
+            approvalResults.push(
+              roomAdminApi.chat.providePermission({
+                callId: event.data.callId as string,
+                toolDecisionRequestBody: {
+                  decision: ToolExecutionDecision.Allow,
+                },
+              }),
+            );
+          }
+        },
+      } as any,
     );
 
-    const { parsed } = parseSseEvents(startResponse.data);
-    const permissionEvent = parsed.find(
-      (e) => e.event === "tool_call" && e.data?.managed === true,
-    );
-    const callId = permissionEvent!.data.callId as string;
-
-    const { status } = await roomAdminApi.chat.providePermission({
-      callId,
-      toolDecisionRequestBody: {
-        decision: ToolExecutionDecision.Allow,
-      },
-    });
-
-    expect(status).toBe(200);
+    expect(approvalResults.length).toBeGreaterThan(0);
+    const results = await Promise.all(approvalResults);
+    expect(results[0].status).toBe(200);
   });
 });
 
