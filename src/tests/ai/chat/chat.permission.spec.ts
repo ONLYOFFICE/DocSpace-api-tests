@@ -2434,36 +2434,62 @@ for (const userType of [
       });
       const agentRoomId = agentData.response!.id!;
 
-      const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-      const myFolderId = myFolderData.response!.current!.id!;
-
-      const startResponse = await ownerApi.chat.startNewChat(
-        {
-          roomId: agentRoomId,
-          startNewChatBody: {
-            message: `Create a .docx file named "autotest" in folder with id ${myFolderId}`,
-          },
-        },
-        { responseType: "stream", timeout: 10000 },
-      );
-
-      const { parsed } = parseSseEvents(startResponse.data);
-      const permissionEvent = parsed.find(
-        (e) => e.event === "tool_call" && e.data?.managed === true,
-      );
-      const callId = permissionEvent!.data.callId as string;
-
+      // Create member before chat starts so memberApi is available inside onEvent
       const { api: memberApi } = await apiSdk.addAuthenticatedMember(
         "owner",
         userType,
       );
 
-      const { data, status } = await memberApi.chat.providePermission({
-        callId,
-        toolDecisionRequestBody: {
-          decision: ToolExecutionDecision.Allow,
+      const memberResults: Promise<{ data: unknown; status: number }>[] = [];
+      const seenCallIds = new Set<string>();
+
+      await ownerApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: {
+            // Triggers MCP upload_file tool (managed: true), not editor generation tool
+            message: `Write "Hello World" and save it to a file named "autotest.txt"`,
+          },
         },
-      });
+        {
+          responseType: "stream",
+          timeout: 30000,
+          onEvent: (event: { event?: string; data?: any }) => {
+            if (
+              event.event === "tool_call" &&
+              event.data?.managed === true &&
+              event.data?.callId &&
+              !seenCallIds.has(event.data.callId)
+            ) {
+              const callId = event.data.callId as string;
+              seenCallIds.add(callId);
+
+              // Member tries to approve owner's managed tool call — should be 403
+              memberResults.push(
+                memberApi.chat.providePermission({
+                  callId,
+                  toolDecisionRequestBody: {
+                    decision: ToolExecutionDecision.Allow,
+                  },
+                }),
+              );
+
+              // Owner approves so the stream can continue and finish normally
+              ownerApi.chat
+                .providePermission({
+                  callId,
+                  toolDecisionRequestBody: {
+                    decision: ToolExecutionDecision.Allow,
+                  },
+                })
+                .catch(() => undefined);
+            }
+          },
+        } as any,
+      );
+
+      expect(memberResults.length).toBeGreaterThan(0);
+      const [{ data, status }] = await Promise.all(memberResults);
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
