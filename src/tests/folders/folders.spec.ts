@@ -5935,35 +5935,41 @@ test.describe("POST /api/2.0/files/folder/{id}/link - Set folder primary externa
     expect(ids).not.toContain(linkId);
   });
 
-  // BUG XXXXX: GET /api/2.0/files/folder/{id}/link is designed to create the first primary link
-  // for a room on initial call. After the link is explicitly deleted via PUT (access: None),
-  // a subsequent GET should return 404. Instead it recreates the link automatically.
+  // BUG 81807: GET /api/2.0/files/folder/{id}/link behaves as "get or create" for folders.
+  // After a folder's primary link is explicitly deleted via PUT (access: None),
+  // GET should return 404 but instead recreates a new link.
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/folder/{id}/link - returns 404 after primary link is deleted",
+    "BUG 81807: GET /api/2.0/files/folder/{id}/link - returns 404 after primary link of a folder is deleted",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
         createRoomRequestDto: {
-          title: "Autotest Get Folder Link After Delete",
+          title: "Autotest Folder Link Delete Bug",
           roomType: RoomType.CustomRoom,
         },
       });
       const roomId = roomData.response!.id!;
 
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Autotest Subfolder Link Delete" },
+      });
+      const folderId = folderData.response!.id!;
+
       const { data: createData } =
         await ownerApi.folders.createFolderPrimaryExternalLink({
-          id: roomId,
+          id: folderId,
           folderLinkRequest: { access: FileShare.Read },
         });
       const linkId = createData.response!.sharedLink!.id!;
 
       await ownerApi.folders.setFolderPrimaryExternalLink({
-        id: roomId,
+        id: folderId,
         folderLinkRequest: { linkId, access: FileShare.None },
       });
 
       const { status } = await ownerApi.folders.getFolderPrimaryExternalLink({
-        id: roomId,
+        id: folderId,
       });
 
       expect(status).toBe(404);
