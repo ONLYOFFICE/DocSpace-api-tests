@@ -729,6 +729,7 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
       fileId,
       _delete: { immediately: true },
     });
+    await waitForOperation(ownerApi.operations);
 
     const { data, status } = await userApi.rooms.getNewRoomItems({
       id: roomId,

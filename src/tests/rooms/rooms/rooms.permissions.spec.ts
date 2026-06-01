@@ -725,6 +725,209 @@ test.describe("PUT /files/rooms/:id/archive - access control", () => {
   });
 });
 
+// GET /files/rooms/:id/link — getRoomsPrimaryExternalLink.
+// The endpoint is link-management scoped: only the room owner, portal admins
+// (DocSpaceAdmin), or a member invited with link-management access (RoomManager /
+// ContentCreator) get 200. Lower access levels (Editing / Read) and non-members get
+// 403 even on a PublicRoom; anonymous requests get 401. This differs from getRoomLinks,
+// which returns 200 + an empty list for non-members.
+test.describe("GET /files/rooms/:id/link - access control", () => {
+  test("Owner can get the primary external link of their own room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Primary Link Owner",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
+      id: roomData.response!.id!,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink?.id).toBeDefined();
+  });
+
+  test("DocSpaceAdmin can get the primary external link of another owner's room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Primary Link Admin",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.rooms.getRoomsPrimaryExternalLink({
+      id: roomData.response!.id!,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink?.id).toBeDefined();
+  });
+
+  test("RoomAdmin not invited to the room gets 403", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Primary Link RoomAdmin NotInvited",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data } = await roomAdminApi.rooms.getRoomsPrimaryExternalLink({
+      id: roomData.response!.id!,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  // RoomManager / ContentCreator grant link-management; Editing does not.
+  for (const { label, access, expectedStatus } of [
+    {
+      label: "RoomManager",
+      access: FileShare.RoomManager,
+      expectedStatus: 200,
+    },
+    {
+      label: "ContentCreator",
+      access: FileShare.ContentCreator,
+      expectedStatus: 200,
+    },
+    { label: "Editing", access: FileShare.Editing, expectedStatus: 403 },
+  ]) {
+    test(`RoomAdmin invited with ${label} access gets ${expectedStatus}`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Primary Link RoomAdmin ${label}`,
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: roomAdminApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
+
+      const { data } = await roomAdminApi.rooms.getRoomsPrimaryExternalLink({
+        id: roomId,
+      });
+
+      expect(data.statusCode).toBe(expectedStatus);
+    });
+  }
+
+  test("User invited with Read access gets 403", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Primary Link User Invited",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data } = await userApi.rooms.getRoomsPrimaryExternalLink({
+      id: roomId,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("User not invited to the room gets 403", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Primary Link User NotInvited",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data } = await userApi.rooms.getRoomsPrimaryExternalLink({
+      id: roomData.response!.id!,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Guest not invited to the room gets 403", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Primary Link Guest NotInvited",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data } = await guestApi.rooms.getRoomsPrimaryExternalLink({
+      id: roomData.response!.id!,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Anonymous request returns 401", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Primary Link Anonymous",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .rooms.getRoomsPrimaryExternalLink({ id: roomData.response!.id! });
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("POST /files/tags - access control", () => {
   test("Owner can create a tag", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");

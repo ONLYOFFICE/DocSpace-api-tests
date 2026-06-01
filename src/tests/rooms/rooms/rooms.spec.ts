@@ -5947,6 +5947,285 @@ test.describe("API rooms methods", () => {
 
       expect(data.statusCode).toBe(404);
     });
+
+    // getRoomsPrimaryExternalLink — GET /files/rooms/:id/link.
+    // Returns a single FileShareWrapper (the primary External link), not an array.
+    test("GET /files/rooms/:id/link - Owner gets primary external link of a FillingFormsRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link FillingForms",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: roomData.response!.id!,
+        },
+      );
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink?.id).toBeDefined();
+      expect(data.response!.sharedLink?.shareLink).toBeDefined();
+      expect(data.response!.sharedLink?.linkType).toBe(LinkType.External);
+      expect(data.response!.sharedLink?.primary).toBe(true);
+    });
+
+    test("GET /files/rooms/:id/link - Response is a single FileShareWrapper with expected shape", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link Shape",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: roomData.response!.id!,
+        },
+      );
+
+      const link = data.response!.sharedLink!;
+      expect(status).toBe(200);
+      // Single object, not an array (differs from getRoomLinks).
+      expect(Array.isArray(data.response)).toBe(false);
+      expect(typeof link.id).toBe("string");
+      expect(link.id!.length).toBeGreaterThan(0);
+      expect(link.shareLink!.startsWith("http")).toBe(true);
+      expect(typeof link.requestToken).toBe("string");
+      expect(link.requestToken!.length).toBeGreaterThan(0);
+      expect(link.linkType).toBe(LinkType.External);
+      expect(link.primary).toBe(true);
+      expect(typeof link.denyDownload).toBe("boolean");
+      expect(typeof data.response!.access).toBe("number");
+    });
+
+    test("GET /files/rooms/:id/link - Primary link matches the External link from getRoomLinks", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link Matches List",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: primary } =
+        await ownerApi.rooms.getRoomsPrimaryExternalLink({
+          id: roomId,
+        });
+      const { data: links } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+        type: LinkType.External,
+      });
+
+      expect(links.response!.length).toBe(1);
+      expect(primary.response!.sharedLink?.id).toBe(
+        links.response![0].sharedLink?.id,
+      );
+      expect(primary.response!.sharedLink?.requestToken).toBe(
+        links.response![0].sharedLink?.requestToken,
+      );
+    });
+
+    test("GET /files/rooms/:id/link - Returns the External primary link, not an Invitation link", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link Not Invitation",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: invitation } = await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: "Autotest Primary Not Invitation",
+          denyDownload: false,
+        },
+      });
+      const invitationId = invitation.response!.sharedLink!.id!;
+
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: roomId,
+        },
+      );
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink?.linkType).toBe(LinkType.External);
+      expect(data.response!.sharedLink?.id).not.toBe(invitationId);
+    });
+
+    test("GET /files/rooms/:id/link - Repeated calls return the same link", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link Stable",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: first } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
+        id: roomId,
+      });
+      const { data: second } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: roomId,
+        },
+      );
+
+      expect(second.response!.sharedLink?.id).toBe(
+        first.response!.sharedLink?.id,
+      );
+      expect(second.response!.sharedLink?.requestToken).toBe(
+        first.response!.sharedLink?.requestToken,
+      );
+    });
+
+    // A CustomRoom has no external link in getRoomLinks (returns empty list), but the
+    // primary-link endpoint still returns a primary External link for it.
+    test("GET /files/rooms/:id/link - CustomRoom returns a primary External link", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link Custom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: roomData.response!.id!,
+        },
+      );
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink?.linkType).toBe(LinkType.External);
+      expect(data.response!.sharedLink?.primary).toBe(true);
+    });
+
+    test("GET /files/rooms/:id/link - EditingRoom returns 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link Editing",
+          roomType: RoomType.EditingRoom,
+        },
+      });
+
+      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
+        id: roomData.response!.id!,
+      });
+
+      expect(data.statusCode).toBe(403);
+    });
+
+    test("GET /files/rooms/:id/link - Archived PublicRoom still returns its primary link", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link Archived",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: roomId,
+        },
+      );
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink?.linkType).toBe(LinkType.External);
+    });
+
+    test("GET /files/rooms/:id/link - Non-existing room id returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
+        id: 99999999,
+      });
+
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/rooms/:id/link - id 0 returns 404", async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
+        id: 0,
+      });
+
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/rooms/:id/link - negative id returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
+        id: -1,
+      });
+
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/rooms/:id/link - non-numeric id returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
+        id: "abc" as unknown as number,
+      });
+
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("GET /files/rooms/:id/link - missing id throws at the SDK level", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await expect(
+        ownerApi.rooms.getRoomsPrimaryExternalLink({
+          id: undefined as unknown as number,
+        }),
+      ).rejects.toThrow();
+    });
   });
 
   test.describe("Room from template", () => {
