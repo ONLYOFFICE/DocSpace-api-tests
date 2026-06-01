@@ -12793,7 +12793,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
 
   test.describe("tags / withoutTags", () => {
     test.fail(
-      "BUG TBD: GET /files/rooms - tags filter returns only rooms with selected tag (API returns 500)",
+      "BUG 81808: GET /files/rooms - tags filter returns only rooms with selected tag (API returns 500)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const tag = "AutotestFilterTag";
@@ -12830,7 +12830,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
     );
 
     test.fail(
-      "BUG TBD: GET /files/rooms - tags filter with multiple tags returns rooms matching any of them (API returns 500)",
+      "BUG 81808: GET /files/rooms - tags filter with multiple tags returns rooms matching any of them (API returns 500)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const tagA = "AutotestTagA";
@@ -13146,7 +13146,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
 
   test.describe("sorting", () => {
     test.fail(
-      "BUG TBD: GET /files/rooms - sortBy=title sortOrder=Ascending returns rooms sorted by title ASC",
+      "BUG 81809: GET /files/rooms - sortBy=title sortOrder=Ascending returns rooms sorted by title ASC",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         for (const title of ["Autotest C", "Autotest A", "Autotest B"]) {
@@ -13170,7 +13170,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
     );
 
     test.fail(
-      "BUG TBD: GET /files/rooms - sortBy=title sortOrder=Descending returns rooms sorted by title DESC (got B,A,C instead of C,B,A)",
+      "BUG 81809: GET /files/rooms - sortBy=title sortOrder=Descending returns rooms sorted by title DESC (got B,A,C instead of C,B,A)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         for (const title of ["Autotest C", "Autotest A", "Autotest B"]) {
@@ -13503,7 +13503,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
     });
 
     test.fail(
-      "BUG TBD: GET /files/rooms - tags + filterValue returns only tagged rooms matching title (API returns 500 on tags filter)",
+      "BUG 81808: GET /files/rooms - tags + filterValue returns only tagged rooms matching title (API returns 500 on tags filter)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const tag = "AutotestComboTag";
@@ -13546,7 +13546,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
     );
 
     test.fail(
-      "BUG TBD: GET /files/rooms - count + startIndex + sortBy returns stable paginated sorted slice",
+      "BUG 81809: GET /files/rooms - count + startIndex + sortBy returns stable paginated sorted slice",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const titles = [
@@ -13733,7 +13733,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
     });
 
     test.fail(
-      "BUG TBD: GET /files/rooms - Room tag update is reflected in tags filter (API returns 500 on tags filter)",
+      "BUG 81808: GET /files/rooms - Room tag update is reflected in tags filter (API returns 500 on tags filter)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const tag = "AutotestLateTag";
