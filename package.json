@@ -7,7 +7,8 @@
     "test:api": "npx playwright test --project=api-tests",
     "lint": "eslint \"./src/**/*.{ts,js}\"",
     "lint:fix": "eslint \"./src/**/*.{ts,js}\" --fix",
-    "tsc": "tsc --noEmit"
+    "tsc": "tsc --noEmit",
+    "coverage": "npx tsx scripts/generate-coverage.ts && start playwright-report/coverage/index.html"
   },
   "keywords": [],
   "author": "",

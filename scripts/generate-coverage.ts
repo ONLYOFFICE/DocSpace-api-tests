@@ -1,9 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { Reporter, Suite } from "@playwright/test/reporter";
+import { extractSdkEndpoints, type SdkEndpoint } from "../src/reporters/sdk-endpoints";
 
-import { extractSdkEndpoints, type SdkEndpoint } from "./sdk-endpoints";
+const TESTS_ROOT = path.join(process.cwd(), "src/tests");
+const OUT_DIR = path.join(process.cwd(), "playwright-report/coverage");
+
+const HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
+const TITLE_RX = new RegExp(`\\b(${HTTP_METHODS.join("|")})\\s+(/\\S+)`);
+
+const ROLE_TOKENS: Record<string, string> = {
+  owner: "Owner",
+  docspaceadmin: "DocSpaceAdmin",
+  roomadmin: "RoomAdmin",
+  user: "User",
+  guest: "Guest",
+};
 
 type MethodStats = {
   key: string;
@@ -31,125 +43,48 @@ type Summary = {
   unparseableTitles: string[];
 };
 
-const HTTP_METHODS = [
-  "GET",
-  "POST",
-  "PUT",
-  "DELETE",
-  "PATCH",
-  "HEAD",
-  "OPTIONS",
-];
-const TITLE_RX = new RegExp(`\\b(${HTTP_METHODS.join("|")})\\s+(/\\S+)`);
-
-const ROLE_TOKENS: Record<string, string> = {
-  owner: "Owner",
-  docspaceadmin: "DocSpaceAdmin",
-  roomadmin: "RoomAdmin",
-  user: "User",
-  guest: "Guest",
-};
-
-const reportDir = `./playwright-report/${process.env.JOB_NAME ?? "local"}`;
-
-export default class ApiCoverageReporter implements Reporter {
-  private sdkEndpoints: SdkEndpoint[] = [];
-  private testToEndpoints = new Map<string, string[]>();
-  private testToRoles = new Map<string, string[]>();
-  private unparseable: string[] = [];
-
-  onBegin(_config: unknown, suite: Suite): void {
-    this.sdkEndpoints = extractSdkEndpoints();
-    const patterns = buildPatterns(this.sdkEndpoints);
-
-    for (const t of suite.allTests()) {
-      const fullTitle = t
-        .titlePath()
-        .filter((s) => s.length > 0)
-        .join(" › ");
-      const title = t.titlePath().slice(1).join(" › ") || t.title;
-      const endpoints = parseDeclaredEndpoints(fullTitle, patterns);
-      const roles = parseRoles(fullTitle);
-
-      if (endpoints.length === 0) {
-        this.unparseable.push(title);
-      } else {
-        this.testToEndpoints.set(title, endpoints);
-        this.testToRoles.set(title, roles);
-      }
+function collectSpecTitles(dir: string): string[] {
+  const titles: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      titles.push(...collectSpecTitles(full));
+    } else if (entry.isFile() && entry.name.endsWith(".spec.ts")) {
+      titles.push(...extractTitlesFromFile(full));
     }
   }
+  return titles;
+}
 
-  async onEnd(): Promise<void> {
-    const endpointTestMap = new Map<
-      string,
-      { tests: string[]; roles: Set<string> }
-    >();
-    for (const [testTitle, endpoints] of this.testToEndpoints) {
-      const roles = this.testToRoles.get(testTitle) ?? [];
-      for (const ep of endpoints) {
-        let entry = endpointTestMap.get(ep);
-        if (!entry) {
-          entry = { tests: [], roles: new Set() };
-          endpointTestMap.set(ep, entry);
-        }
-        entry.tests.push(testTitle);
-        for (const r of roles) entry.roles.add(r);
-      }
-    }
+function extractTitlesFromFile(filePath: string): string[] {
+  const src = fs.readFileSync(filePath, "utf8");
+  const titles: string[] = [];
 
-    const sectionMap = new Map<string, SectionStats>();
-    for (const ep of this.sdkEndpoints) {
-      let section = sectionMap.get(ep.section);
-      if (!section) {
-        section = { section: ep.section, classes: new Map() };
-        sectionMap.set(ep.section, section);
-      }
-      let cls = section.classes.get(ep.className);
-      if (!cls) {
-        cls = { className: ep.className, methods: new Map() };
-        section.classes.set(ep.className, cls);
-      }
-      const coverage = endpointTestMap.get(ep.key);
-      cls.methods.set(ep.key, {
-        key: ep.key,
-        testCount: coverage?.tests.length ?? 0,
-        roles: coverage?.roles ?? new Set(),
-      });
-    }
-
-    const sections = [...sectionMap.values()].sort((a, b) =>
-      a.section.localeCompare(b.section),
-    );
-
-    const totalMethods = this.sdkEndpoints.length;
-    const coveredMethods = [...endpointTestMap.keys()].filter((k) =>
-      this.sdkEndpoints.some((e) => e.key === k),
-    ).length;
-    const totalTests = [...new Set([...this.testToEndpoints.keys()])].length;
-
-    const summary: Summary = {
-      generatedAt: new Date().toISOString(),
-      totalMethods,
-      coveredMethods,
-      totalTests,
-      percent: pct(coveredMethods, totalMethods),
-      sections,
-      unparseableTitles: this.unparseable.sort(),
-    };
-
-    fs.mkdirSync(reportDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(reportDir, "api-coverage.html"),
-      renderHtml(summary),
-    );
-
-    if (summary.unparseableTitles.length > 0) {
-      console.warn(
-        `[api-coverage] ${summary.unparseableTitles.length} test title(s) have no parseable METHOD /path — see api-coverage.html`,
-      );
-    }
+  // collect describe blocks in order (name + start position)
+  const describeRx = /test\.describe(?:\.\w+)?\s*\(\s*["'`]([^"'`\n]+)["'`]/g;
+  const describes: { name: string; idx: number }[] = [];
+  for (const m of src.matchAll(describeRx)) {
+    if (m.index !== undefined) describes.push({ name: m[1], idx: m.index });
   }
+
+  // find all test() calls
+  const testRx = /\btest(?:\.fail|\.skip|\.only)?\s*\(\s*["'`]([^"'`\n]+)["'`]/g;
+  for (const m of src.matchAll(testRx)) {
+    if (m.index === undefined) continue;
+    const testTitle = m[1];
+
+    // find the closest preceding describe
+    let describe = "";
+    for (const d of describes) {
+      if (d.idx < m.index) describe = d.name;
+      else break;
+    }
+
+    const fullTitle = describe ? `${describe} › ${testTitle}` : testTitle;
+    titles.push(fullTitle);
+  }
+
+  return titles;
 }
 
 function buildPatterns(endpoints: SdkEndpoint[]) {
@@ -162,7 +97,7 @@ function buildPatterns(endpoints: SdkEndpoint[]) {
 
 function parseDeclaredEndpoints(
   title: string,
-  patterns: { key: string; method: string; path: string }[],
+  patterns: ReturnType<typeof buildPatterns>,
 ): string[] {
   const m = title.match(TITLE_RX);
   if (!m) return [];
@@ -175,7 +110,7 @@ function parseDeclaredEndpoints(
 function matchTitlePath(
   method: string,
   titlePath: string,
-  patterns: { key: string; method: string; path: string }[],
+  patterns: ReturnType<typeof buildPatterns>,
 ): string[] {
   const sameMethod = patterns.filter((p) => p.method === method);
 
@@ -200,13 +135,6 @@ function matchTitlePath(
   return [];
 }
 
-function parseRoles(title: string): string[] {
-  const lower = title.toLowerCase();
-  return Object.entries(ROLE_TOKENS)
-    .filter(([token]) => lower.includes(token))
-    .map(([, label]) => label);
-}
-
 function segs(p: string): string[] {
   return p.split("/").filter((s) => s.length > 0);
 }
@@ -217,14 +145,17 @@ function segsEndWith(haystack: string[], needle: string[]): boolean {
     const h = haystack[haystack.length - needle.length + i];
     const n = needle[i];
     if (h === n) continue;
-    if (isPlaceholder(h) && isPlaceholder(n)) continue;
+    if (/^\{.+\}$/.test(h) && /^\{.+\}$/.test(n)) continue;
     return false;
   }
   return true;
 }
 
-function isPlaceholder(s: string): boolean {
-  return /^\{.+\}$/.test(s);
+function parseRoles(title: string): string[] {
+  const lower = title.toLowerCase();
+  return Object.entries(ROLE_TOKENS)
+    .filter(([token]) => lower.includes(token))
+    .map(([, label]) => label);
 }
 
 function pct(n: number, d: number): number {
@@ -235,6 +166,87 @@ function pct(n: number, d: number): number {
 function escHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+
+// ── main ──────────────────────────────────────────────────────────────────────
+
+console.log("Extracting SDK endpoints...");
+const sdkEndpoints = extractSdkEndpoints();
+console.log(`  ${sdkEndpoints.length} endpoints found`);
+
+console.log("Collecting test titles from spec files...");
+const allTitles = collectSpecTitles(TESTS_ROOT);
+console.log(`  ${allTitles.length} test titles found`);
+
+const patterns = buildPatterns(sdkEndpoints);
+const endpointTestMap = new Map<string, { tests: string[]; roles: Set<string> }>();
+const unparseable: string[] = [];
+
+for (const title of allTitles) {
+  const endpoints = parseDeclaredEndpoints(title, patterns);
+  const roles = parseRoles(title);
+
+  if (endpoints.length === 0) {
+    unparseable.push(title);
+  } else {
+    for (const ep of endpoints) {
+      let entry = endpointTestMap.get(ep);
+      if (!entry) {
+        entry = { tests: [], roles: new Set() };
+        endpointTestMap.set(ep, entry);
+      }
+      entry.tests.push(title);
+      for (const r of roles) entry.roles.add(r);
+    }
+  }
+}
+
+const sectionMap = new Map<string, SectionStats>();
+for (const ep of sdkEndpoints) {
+  let section = sectionMap.get(ep.section);
+  if (!section) {
+    section = { section: ep.section, classes: new Map() };
+    sectionMap.set(ep.section, section);
+  }
+  let cls = section.classes.get(ep.className);
+  if (!cls) {
+    cls = { className: ep.className, methods: new Map() };
+    section.classes.set(ep.className, cls);
+  }
+  const coverage = endpointTestMap.get(ep.key);
+  cls.methods.set(ep.key, {
+    key: ep.key,
+    testCount: coverage?.tests.length ?? 0,
+    roles: coverage?.roles ?? new Set(),
+  });
+}
+
+const sections = [...sectionMap.values()].sort((a, b) =>
+  a.section.localeCompare(b.section),
+);
+const totalMethods = sdkEndpoints.length;
+const coveredMethods = endpointTestMap.size;
+const totalTests = new Set(allTitles).size;
+
+const summary: Summary = {
+  generatedAt: new Date().toISOString(),
+  totalMethods,
+  coveredMethods,
+  totalTests,
+  percent: pct(coveredMethods, totalMethods),
+  sections,
+  unparseableTitles: unparseable.sort(),
+};
+
+fs.mkdirSync(OUT_DIR, { recursive: true });
+fs.writeFileSync(path.join(OUT_DIR, "index.html"), renderHtml(summary));
+
+console.log(`\nCoverage: ${summary.percent}% (${coveredMethods}/${totalMethods} methods)`);
+console.log(`Report: ${path.join(OUT_DIR, "index.html")}`);
+if (unparseable.length > 0) {
+  console.warn(`\nWarning: ${unparseable.length} titles have no METHOD /path token`);
+}
+
+// ── render ─────────────────────────────────────────────────────────────────────
 
 function renderHtml(s: Summary): string {
   const sectionRows = s.sections
@@ -290,7 +302,7 @@ function renderHtml(s: Summary): string {
             <td class="cls-name">${escHtml(cls.className)}</td>
             <td class="num">${methods.length}</td>
             <td class="num">${clsTests}</td>
-            <td class="num">${clsCovered} / ${methods.length}</td>
+            <td class="num"><span style="color:${clsBarColor}">${clsCovered} / ${methods.length}</span></td>
             <td class="num"><span class="pct" style="color:${clsBarColor}">${clsPct}%</span></td>
           </tr>
           <tr class="detail-row hidden" data-for="${escHtml(cls.className)}">
@@ -316,7 +328,7 @@ function renderHtml(s: Summary): string {
 
   const unparsedList = s.unparseableTitles.length
     ? s.unparseableTitles.map((t) => `<li>${escHtml(t)}</li>`).join("")
-    : "<li><em>none — every title contains a METHOD /path token</em></li>";
+    : "<li><em>none</em></li>";
 
   return `<!doctype html>
 <html lang="en">
@@ -357,7 +369,6 @@ function renderHtml(s: Summary): string {
   .muted { color: #aaa; }
   .depth-none td { color: #cf222e; }
   .depth-low td { color: #d29922; }
-  .depth-ok td { color: #1f2328; }
   details { margin-top: 24px; }
   summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
   ul { padding-left: 20px; }
@@ -370,11 +381,12 @@ function renderHtml(s: Summary): string {
   <div class="stat-row">
     <div class="stat"><strong>${s.coveredMethods} / ${s.totalMethods}</strong>methods covered</div>
     <div class="stat"><strong>${s.totalTests}</strong>test titles parsed</div>
+    <div class="stat"><strong>${s.unparseableTitles.length}</strong>titles without METHOD /path</div>
   </div>
 
   <h2>Coverage by section &amp; class</h2>
   <p style="font-size:12px;color:#656d76;margin:4px 0 12px">Click a row to expand per-method detail. Red = 0 tests, yellow = 1–2, green = 3+.</p>
-  <table id="main-table">
+  <table>
     <thead>
       <tr>
         <th>Class</th>

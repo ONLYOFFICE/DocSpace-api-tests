@@ -1,17 +1,25 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, basename, dirname } from "node:path";
 
 const SDK_API_ROOT = "node_modules/@onlyoffice/docspace-api-sdk/dist/api";
 const PATH_RX = /localVarPath\s*=\s*`([^`]+)`/g;
 const METHOD_RX = /method:\s*'([A-Z]+)'/g;
 
+export type SdkEndpoint = {
+  key: string;
+  section: string;
+  className: string;
+};
+
 export function extractSdkEndpoints(
   repoRoot: string = process.cwd(),
-): string[] {
+): SdkEndpoint[] {
   const root = join(repoRoot, SDK_API_ROOT);
-  const endpoints = new Set<string>();
+  const endpointMap = new Map<string, SdkEndpoint>();
 
   for (const file of walkJs(root)) {
+    const section = basename(dirname(file));
+    const className = fileToClassName(basename(file, ".js"));
     const src = readFileSync(file, "utf8");
 
     const paths: { idx: number; path: string }[] = [];
@@ -25,11 +33,28 @@ export function extractSdkEndpoints(
       for (const p of paths) {
         if (p.idx < m.index && (!chosen || p.idx > chosen.idx)) chosen = p;
       }
-      if (chosen) endpoints.add(`${m[1]} ${chosen.path}`);
+      if (chosen) {
+        const key = `${m[1]} ${chosen.path}`;
+        if (!endpointMap.has(key)) {
+          endpointMap.set(key, { key, section, className });
+        }
+      }
     }
   }
 
-  return [...endpoints].sort();
+  return [...endpointMap.values()].sort(
+    (a, b) =>
+      a.section.localeCompare(b.section) ||
+      a.className.localeCompare(b.className) ||
+      a.key.localeCompare(b.key),
+  );
+}
+
+function fileToClassName(filename: string): string {
+  return filename
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
 }
 
 function walkJs(dir: string): string[] {
