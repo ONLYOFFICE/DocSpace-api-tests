@@ -828,3 +828,66 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
     expect(operation.url).toContain("filehandler.ashx?action=bulk");
   });
 });
+
+test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversion status", () => {
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - Owner starts file conversion returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest StartConversion docx.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await ownerApi.operations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
+      },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/file/{fileId}/checkconversion - No active conversion returns 200 with empty response array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckConversion No Active.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.checkConversionStatus({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /api/2.0/files/file/{fileId}/checkconversion - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.operations.checkConversionStatus({
+      fileId: 999999999,
+    });
+
+    expect(status).toBe(404);
+  });
+});
