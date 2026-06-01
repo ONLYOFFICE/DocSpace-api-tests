@@ -326,54 +326,52 @@ test.describe("Portal — Invitation Links", () => {
     // paid roles. The API should behave the same way and return a quota error,
     // but currently it silently returns 200 with a link that downgrades the role to User.
 
-    test.fail(
-      "BUG 81564: GET /api/2.0/users/invitationlink/:employeeType - API should reject DocSpaceAdmin invitation when paid user quota is reached on Startup plan",
-      async ({ apiSdk }) => {
-        // Fill the paid-user quota: Owner (1) + 2 DocSpaceAdmins = 3 (Startup limit)
-        await apiSdk.addMember("owner", "DocSpaceAdmin");
-        await apiSdk.addMember("owner", "DocSpaceAdmin");
+    test("BUG 81564: GET /api/2.0/users/invitationlink/:employeeType - API should reject DocSpaceAdmin invitation when paid user quota is reached on Startup plan", async ({
+      apiSdk,
+    }) => {
+      // Fill the paid-user quota: Owner (1) + 2 DocSpaceAdmins = 3 (Startup limit)
+      await apiSdk.addMember("owner", "DocSpaceAdmin");
+      await apiSdk.addMember("owner", "DocSpaceAdmin");
 
-        const ownerApi = apiSdk.forRole("owner");
-        await ownerApi.users.createInvitationLink({
-          invitationLinkCreateRequestDto: {
-            employeeType: EmployeeType.DocSpaceAdmin,
-          },
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.DocSpaceAdmin,
+        },
+      });
+
+      const { data, status } =
+        await ownerApi.users.getInvitationLinkByEmployeeType({
+          employeeType: EmployeeType.DocSpaceAdmin,
         });
 
-        const { data, status } =
-          await ownerApi.users.getInvitationLinkByEmployeeType({
-            employeeType: EmployeeType.DocSpaceAdmin,
-          });
+      // Should return a quota/payment error, not silently downgrade to User
+      expect(status).toBe(402);
+      expect(data.response).toBeUndefined();
+    });
 
-        // Should return a quota/payment error, not silently downgrade to User
-        expect(status).toBe(402);
-        expect(data.response).toBeUndefined();
-      },
-    );
+    test("BUG 81564: GET /api/2.0/users/invitationlink/:employeeType - API should reject RoomAdmin invitation when paid user quota is reached on Startup plan", async ({
+      apiSdk,
+    }) => {
+      // Fill the paid-user quota: Owner (1) + 1 DocSpaceAdmin + 1 RoomAdmin = 3 (Startup limit)
+      await apiSdk.addMember("owner", "DocSpaceAdmin");
+      await apiSdk.addMember("owner", "RoomAdmin");
 
-    test.fail(
-      "BUG 81564: GET /api/2.0/users/invitationlink/:employeeType - API should reject RoomAdmin invitation when paid user quota is reached on Startup plan",
-      async ({ apiSdk }) => {
-        // Fill the paid-user quota: Owner (1) + 1 DocSpaceAdmin + 1 RoomAdmin = 3 (Startup limit)
-        await apiSdk.addMember("owner", "DocSpaceAdmin");
-        await apiSdk.addMember("owner", "RoomAdmin");
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.users.createInvitationLink({
+        invitationLinkCreateRequestDto: {
+          employeeType: EmployeeType.RoomAdmin,
+        },
+      });
 
-        const ownerApi = apiSdk.forRole("owner");
-        await ownerApi.users.createInvitationLink({
-          invitationLinkCreateRequestDto: {
-            employeeType: EmployeeType.RoomAdmin,
-          },
+      const { data, status } =
+        await ownerApi.users.getInvitationLinkByEmployeeType({
+          employeeType: EmployeeType.RoomAdmin,
         });
 
-        const { data, status } =
-          await ownerApi.users.getInvitationLinkByEmployeeType({
-            employeeType: EmployeeType.RoomAdmin,
-          });
-
-        expect(status).toBe(402);
-        expect(data.response).toBeUndefined();
-      },
-    );
+      expect(status).toBe(402);
+      expect(data.response).toBeUndefined();
+    });
   });
 
   // @deprecated — use getInvitationLinkByEmployeeType instead; returns StringWrapper (plain URL string) instead of InvitationLinkWrapper
