@@ -50,7 +50,7 @@ test.describe("PUT /api/2.0/security/activeconnections/logout/{loginEventId} - p
   });
 
   test.fail(
-    "BUG : PUT /api/2.0/security/activeconnections/logout/{loginEventId} - DocSpaceAdmin cannot log out Owner's connection",
+    "BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - DocSpaceAdmin cannot log out Owner's connection",
     async ({ apiSdk }) => {
       const { data: ownerConnectionsData } = await apiSdk
         .forRole("owner")
@@ -71,7 +71,7 @@ test.describe("PUT /api/2.0/security/activeconnections/logout/{loginEventId} - p
   );
 
   test.fail(
-    "BUG : PUT /api/2.0/security/activeconnections/logout/{loginEventId} - RoomAdmin cannot log out Owner's connection",
+    "BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - RoomAdmin cannot log out Owner's connection",
     async ({ apiSdk }) => {
       const { data: ownerConnectionsData } = await apiSdk
         .forRole("owner")
@@ -92,7 +92,7 @@ test.describe("PUT /api/2.0/security/activeconnections/logout/{loginEventId} - p
   );
 
   test.fail(
-    "BUG : PUT /api/2.0/security/activeconnections/logout/{loginEventId} - User cannot log out Owner's connection",
+    "BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - User cannot log out Owner's connection",
     async ({ apiSdk }) => {
       const { data: ownerConnectionsData } = await apiSdk
         .forRole("owner")
@@ -113,7 +113,7 @@ test.describe("PUT /api/2.0/security/activeconnections/logout/{loginEventId} - p
   );
 
   test.fail(
-    "BUG : PUT /api/2.0/security/activeconnections/logout/{loginEventId} - Guest cannot log out Owner's connection",
+    "BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - Guest cannot log out Owner's connection",
     async ({ apiSdk }) => {
       const { data: ownerConnectionsData } = await apiSdk
         .forRole("owner")
