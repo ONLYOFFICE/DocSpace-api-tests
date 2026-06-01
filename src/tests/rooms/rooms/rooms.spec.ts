@@ -3300,6 +3300,400 @@ test.describe("API rooms methods", () => {
     expect(data.response).toBe(true);
   });
 
+  test.describe("GET /files/tags/:tagName/haslinks - hasTagLinks", () => {
+    // tagName2 = path param ({tagName} in route), tagName = query param ([FromQuery] in DTO).
+    // Both are normally passed with the same value (see the path/query mismatch test below).
+
+    test("GET /files/tags/haslinks - Tag linked to multiple rooms returns true", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "MultiRoomLinkedTag" },
+      });
+
+      for (const title of [
+        "Autotest HasLinks Room A",
+        "Autotest HasLinks Room B",
+      ]) {
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+        });
+        await ownerApi.rooms.addRoomTags({
+          id: roomData.response!.id!,
+          batchTagsRequestDto: { names: ["MultiRoomLinkedTag"] },
+        });
+      }
+
+      const { data, status } = await ownerApi.rooms.hasTagLinks({
+        tagName2: "MultiRoomLinkedTag",
+        tagName: "MultiRoomLinkedTag",
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    test("GET /files/tags/haslinks - Detaching the tag from its only room returns false (tag stays in catalog)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "DetachTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Detach Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["DetachTag"] },
+      });
+
+      const before = await ownerApi.rooms.hasTagLinks({
+        tagName2: "DetachTag",
+        tagName: "DetachTag",
+      });
+      expect(before.data.response).toBe(true);
+
+      const { status: detachStatus } = await ownerApi.rooms.deleteRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["DetachTag"] },
+      });
+      expect(detachStatus).toBe(200);
+
+      const after = await ownerApi.rooms.hasTagLinks({
+        tagName2: "DetachTag",
+        tagName: "DetachTag",
+      });
+      expect(after.status).toBe(200);
+      expect(after.data.response).toBe(false);
+
+      // Detaching from a room does NOT remove the tag from the catalog
+      // (unlike deleting the room, which garbage-collects single-use tags).
+      const { data: list } = await ownerApi.rooms.getRoomTagsInfo();
+      expect(list.response as unknown as string[]).toContain("DetachTag");
+    });
+
+    test("GET /files/tags/haslinks - Tag removed from one of two rooms still returns true", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "PartialDetachTag" },
+      });
+
+      const { data: room1 } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Partial Detach A",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const { data: room2 } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Partial Detach B",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const room1Id = room1.response!.id!;
+      const room2Id = room2.response!.id!;
+      await ownerApi.rooms.addRoomTags({
+        id: room1Id,
+        batchTagsRequestDto: { names: ["PartialDetachTag"] },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: room2Id,
+        batchTagsRequestDto: { names: ["PartialDetachTag"] },
+      });
+
+      await ownerApi.rooms.deleteRoomTags({
+        id: room1Id,
+        batchTagsRequestDto: { names: ["PartialDetachTag"] },
+      });
+
+      const { data, status } = await ownerApi.rooms.hasTagLinks({
+        tagName2: "PartialDetachTag",
+        tagName: "PartialDetachTag",
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    test("GET /files/tags/haslinks - Deleting the only room garbage-collects the tag and returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "GcTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GC Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["GcTag"] },
+      });
+
+      const before = await ownerApi.rooms.hasTagLinks({
+        tagName2: "GcTag",
+        tagName: "GcTag",
+      });
+      expect(before.data.response).toBe(true);
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      // The tag was attached only to the deleted room, so it is garbage-collected
+      // from the catalog; the endpoint then reports the tag as non-existent (404).
+      const after = await ownerApi.rooms.hasTagLinks({
+        tagName2: "GcTag",
+        tagName: "GcTag",
+      });
+      expect(after.status).toBe(404);
+
+      const { data: list } = await ownerApi.rooms.getRoomTagsInfo();
+      expect(list.response as unknown as string[]).not.toContain("GcTag");
+    });
+
+    test("GET /files/tags/haslinks - Non-existent / empty / spaces-only tag names return 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await test.step("non-existent tag name", async () => {
+        const { status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "NoSuchTagEver",
+          tagName: "NoSuchTagEver",
+        });
+        expect(status).toBe(404);
+      });
+
+      await test.step("empty tag name", async () => {
+        const { status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "",
+          tagName: "",
+        });
+        expect(status).toBe(404);
+      });
+
+      await test.step("spaces-only tag name", async () => {
+        const { status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "   ",
+          tagName: "   ",
+        });
+        expect(status).toBe(404);
+      });
+    });
+
+    test("GET /files/tags/haslinks - Lookup is case-insensitive", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "CaseSensitiveTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Case Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["CaseSensitiveTag"] },
+      });
+
+      const { data, status } = await ownerApi.rooms.hasTagLinks({
+        tagName2: "casesensitivetag",
+        tagName: "casesensitivetag",
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    test("GET /files/tags/haslinks - Tag names with special characters are matched (URL-encoded)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const names = ["Tag/Slash", "ТестТег", "C++"];
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Special Chars Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names },
+      });
+
+      for (const name of names) {
+        await test.step(`tag "${name}"`, async () => {
+          const { data, status } = await ownerApi.rooms.hasTagLinks({
+            tagName2: name,
+            tagName: name,
+          });
+          expect(status).toBe(200);
+          expect(data.response).toBe(true);
+        });
+      }
+    });
+
+    test("GET /files/tags/haslinks - On path/query mismatch the query param (tagName) determines the result", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "MismatchLinkedTag" },
+      });
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "MismatchUnlinkedTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Mismatch Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["MismatchLinkedTag"] },
+      });
+
+      await test.step("path=linked, query=unlinked -> false (follows query)", async () => {
+        const { data, status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "MismatchLinkedTag",
+          tagName: "MismatchUnlinkedTag",
+        });
+        expect(status).toBe(200);
+        expect(data.response).toBe(false);
+      });
+
+      await test.step("path=unlinked, query=linked -> true (follows query)", async () => {
+        const { data, status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "MismatchUnlinkedTag",
+          tagName: "MismatchLinkedTag",
+        });
+        expect(status).toBe(200);
+        expect(data.response).toBe(true);
+      });
+    });
+
+    test("GET /files/tags/haslinks - Multiple tags on one room are detected independently", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "RoomTagOne" },
+      });
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "RoomTagTwo" },
+      });
+      // RoomTagThree exists in the catalog but is not attached to any room
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "RoomTagThree" },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Multi-Tag Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["RoomTagOne", "RoomTagTwo"] },
+      });
+
+      const one = await ownerApi.rooms.hasTagLinks({
+        tagName2: "RoomTagOne",
+        tagName: "RoomTagOne",
+      });
+      const two = await ownerApi.rooms.hasTagLinks({
+        tagName2: "RoomTagTwo",
+        tagName: "RoomTagTwo",
+      });
+      const three = await ownerApi.rooms.hasTagLinks({
+        tagName2: "RoomTagThree",
+        tagName: "RoomTagThree",
+      });
+
+      expect(one.data.response).toBe(true);
+      expect(two.data.response).toBe(true);
+      expect(three.data.response).toBe(false);
+    });
+
+    test("GET /files/tags/haslinks - Detects a tag linked to a PublicRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "PublicRoomTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Public HasLinks Room",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["PublicRoomTag"] },
+      });
+
+      const { data, status } = await ownerApi.rooms.hasTagLinks({
+        tagName2: "PublicRoomTag",
+        tagName: "PublicRoomTag",
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    test("GET /files/tags/haslinks - Repeated calls return a stable result", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "StableTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Stable Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["StableTag"] },
+      });
+
+      const first = await ownerApi.rooms.hasTagLinks({
+        tagName2: "StableTag",
+        tagName: "StableTag",
+      });
+      const second = await ownerApi.rooms.hasTagLinks({
+        tagName2: "StableTag",
+        tagName: "StableTag",
+      });
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(first.data.response).toBe(true);
+      expect(second.data.response).toBe(true);
+    });
+  });
+
   test.describe("POST /files/tags - createRoomTag", () => {
     test("POST /files/tags - Same tag can be attached to multiple rooms (global tag behavior)", async ({
       apiSdk,

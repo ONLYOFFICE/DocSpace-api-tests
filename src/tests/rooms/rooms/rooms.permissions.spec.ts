@@ -1351,6 +1351,112 @@ test.describe("DELETE /files/tags - access control", () => {
   });
 });
 
+test.describe("GET /files/tags/:tagName/haslinks - access control", () => {
+  // Only Owner and DocSpaceAdmin may read tag-linkage info. RoomAdmin/User/Guest get 403,
+  // anonymous gets 401. Note: RoomAdmin is forbidden here, unlike POST /files/tags
+  // (createRoomTag), where RoomAdmin is allowed.
+  const seedLinkedTag = async (apiSdk: any, tagName: string) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: tagName },
+    });
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest HasLinks Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: roomData.response!.id!,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+  };
+
+  test("Owner can check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "OwnerHasLinksTag");
+
+    const { data, status } = await apiSdk.forRole("owner").rooms.hasTagLinks({
+      tagName2: "OwnerHasLinksTag",
+      tagName: "OwnerHasLinksTag",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DocSpaceAdmin can check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "AdminHasLinksTag");
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data, status } = await adminApi.rooms.hasTagLinks({
+      tagName2: "AdminHasLinksTag",
+      tagName: "AdminHasLinksTag",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("RoomAdmin cannot check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "RoomAdminHasLinksTag");
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { status } = await roomAdminApi.rooms.hasTagLinks({
+      tagName2: "RoomAdminHasLinksTag",
+      tagName: "RoomAdminHasLinksTag",
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("User cannot check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "UserHasLinksTag");
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { status } = await userApi.rooms.hasTagLinks({
+      tagName2: "UserHasLinksTag",
+      tagName: "UserHasLinksTag",
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Guest cannot check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "GuestHasLinksTag");
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { status } = await guestApi.rooms.hasTagLinks({
+      tagName2: "GuestHasLinksTag",
+      tagName: "GuestHasLinksTag",
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Anonymous request returns 401", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "AnonHasLinksTag");
+
+    const { status } = await apiSdk.forAnonymous().rooms.hasTagLinks({
+      tagName2: "AnonHasLinksTag",
+      tagName: "AnonHasLinksTag",
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("PUT /files/rooms/:id/share - access control", () => {
   test("Owner can set room access rights", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
