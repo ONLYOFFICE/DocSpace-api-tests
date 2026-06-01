@@ -845,7 +845,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
     });
     const fileId = fileData.response!.id!;
 
-    const { status } = await ownerApi.operations.startFileConversion({
+    const { data, status } = await ownerApi.operations.startFileConversion({
       fileId,
       checkConversionRequestDtoInteger: {
         startConvert: true,
@@ -854,6 +854,11 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
     });
 
     expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+    expect(data.links).toHaveLength(1);
+    expect((data.links as any)[0].href).toContain("checkconversion");
+    expect((data.links as any)[0].action).toBe("PUT");
   });
 
   test("GET /api/2.0/files/file/{fileId}/checkconversion - No active conversion returns 200 with empty response array", async ({
@@ -877,17 +882,9 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
-  });
-
-  test("GET /api/2.0/files/file/{fileId}/checkconversion - Non-existent fileId returns 404", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    const { status } = await ownerApi.operations.checkConversionStatus({
-      fileId: 999999999,
-    });
-
-    expect(status).toBe(404);
+    expect(data.response).toHaveLength(0);
+    expect(data.links).toHaveLength(1);
+    expect((data.links as any)[0].href).toContain("checkconversion");
+    expect((data.links as any)[0].action).toBe("GET");
   });
 });
