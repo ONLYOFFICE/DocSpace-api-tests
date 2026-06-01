@@ -19,6 +19,7 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
     const { status } = await apiSdk.forAnonymous().payment.getPaymentUrl({
       paymentUrlRequestDto: {
         backUrl: "https://example.com",
+        successUrl: "https://example.com",
         quantity: { admin: 1 },
       },
     });
@@ -36,6 +37,7 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
       .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: apiSdk.tokenStore.portalBaseUrl,
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
           quantity: { admin: 1 },
         },
       });
@@ -54,6 +56,7 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
       .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: apiSdk.tokenStore.portalBaseUrl,
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
           quantity: { admin: 1 },
         },
       });
@@ -72,6 +75,7 @@ test.describe("PUT /api/2.0/portal/payment/url - permissions", () => {
       .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: apiSdk.tokenStore.portalBaseUrl,
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
           quantity: { admin: 1 },
         },
       });
@@ -90,6 +94,7 @@ test.describe("PUT /api/2.0/portal/payment/url - quantity validation", () => {
       .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: apiSdk.tokenStore.portalBaseUrl,
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
           quantity: { admin: 0 },
         },
       });
@@ -106,6 +111,7 @@ test.describe("PUT /api/2.0/portal/payment/url - quantity validation", () => {
       .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: apiSdk.tokenStore.portalBaseUrl,
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
           quantity: { admin: -1 },
         },
       });
@@ -122,7 +128,11 @@ test.describe("PUT /api/2.0/portal/payment/url - backUrl validation", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.getPaymentUrl({
-        paymentUrlRequestDto: { backUrl: "notaurl", quantity: { admin: 1 } },
+        paymentUrlRequestDto: {
+          backUrl: "notaurl",
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
+          quantity: { admin: 1 },
+        },
       });
     expect(status).toBe(400);
     expect((data as any)?.response?.errors?.BackUrl[0]).toBe(
@@ -138,6 +148,7 @@ test.describe("PUT /api/2.0/portal/payment/url - backUrl validation", () => {
       .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: LONG_BACK_URL_18000,
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
           quantity: { admin: 1 },
         },
       });
@@ -156,6 +167,7 @@ test.describe("PUT /api/2.0/portal/payment/url - backUrl validation", () => {
       .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: EXTERNAL_BACK_URL,
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
           quantity: { admin: 1 },
         },
       });
@@ -1422,9 +1434,10 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl - permissions", () =
   test("GET /api/2.0/portal/payment/checkoutsetupurl - Anonymous cannot get checkout setup URL", async ({
     apiSdk,
   }) => {
-    const { status } = await apiSdk
-      .forAnonymous()
-      .payment.getCheckoutSetupUrl();
+    const { status } = await apiSdk.forAnonymous().payment.getCheckoutSetupUrl({
+      backUrl: "https://example.com",
+      successUrl: "https://example.com",
+    });
 
     expect(status).toBe(401);
   });
@@ -1440,6 +1453,7 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl - permissions", () =
       .forRole("docSpaceAdmin")
       .payment.getCheckoutSetupUrl({
         backUrl: apiSdk.tokenStore.portalBaseUrl,
+        successUrl: apiSdk.tokenStore.portalBaseUrl,
       });
 
     expect(status).toBe(403);
@@ -1455,6 +1469,7 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl - permissions", () =
       .forRole("roomAdmin")
       .payment.getCheckoutSetupUrl({
         backUrl: apiSdk.tokenStore.portalBaseUrl,
+        successUrl: apiSdk.tokenStore.portalBaseUrl,
       });
 
     expect(status).toBe(403);
@@ -1470,6 +1485,7 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl - permissions", () =
       .forRole("user")
       .payment.getCheckoutSetupUrl({
         backUrl: apiSdk.tokenStore.portalBaseUrl,
+        successUrl: apiSdk.tokenStore.portalBaseUrl,
       });
 
     expect(status).toBe(403);
@@ -1485,6 +1501,7 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl - permissions", () =
       .forRole("guest")
       .payment.getCheckoutSetupUrl({
         backUrl: apiSdk.tokenStore.portalBaseUrl,
+        successUrl: apiSdk.tokenStore.portalBaseUrl,
       });
 
     expect(status).toBe(403);
