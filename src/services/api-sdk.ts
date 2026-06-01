@@ -54,6 +54,7 @@ import { ClientManagementApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth
 import { ClientQueryingApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth20/client-querying-api";
 import { OAuth2Api } from "@onlyoffice/docspace-api-sdk/dist/api/security/oauth2-api";
 import { SecurityAccessToDevToolsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/security-access-to-dev-tools-api";
+import { ActiveConnectionsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/active-connections-api";
 import { TFASettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/tfasettings-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-settings-api";
@@ -212,6 +213,11 @@ export class ApiSDK {
         undefined,
         axiosInstance,
       ),
+      activeConnections: new ActiveConnectionsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
     };
   }
 
@@ -287,6 +293,11 @@ export class ApiSDK {
       ),
       clientQuerying: new ClientQueryingApi(config, undefined, axiosInstance),
       securityAccessToDevTools: new SecurityAccessToDevToolsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      activeConnections: new ActiveConnectionsApi(
         config,
         undefined,
         axiosInstance,
