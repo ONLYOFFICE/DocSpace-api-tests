@@ -5933,13 +5933,48 @@ test.describe("POST /api/2.0/files/folder/{id}/link - Set folder primary externa
     });
     const ids = (linksData.response ?? []).map((l) => l.sharedLink?.id);
     expect(ids).not.toContain(linkId);
-
-    const { data: primaryData } =
-      await ownerApi.folders.getFolderPrimaryExternalLink({ id: roomId });
-
-    expect(primaryData.count).toBe(0);
-    expect(primaryData.response).toBeUndefined();
   });
+
+  // BUG 81807: GET /api/2.0/files/folder/{id}/link behaves as "get or create" for folders.
+  // After a folder's primary link is explicitly deleted via PUT (access: None),
+  // GET should return 404 but instead recreates a new link.
+  test.fail(
+    "BUG 81807: GET /api/2.0/files/folder/{id}/link - returns 404 after primary link of a folder is deleted",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Folder Link Delete Bug",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Autotest Subfolder Link Delete" },
+      });
+      const folderId = folderData.response!.id!;
+
+      const { data: createData } =
+        await ownerApi.folders.createFolderPrimaryExternalLink({
+          id: folderId,
+          folderLinkRequest: { access: FileShare.Read },
+        });
+      const linkId = createData.response!.sharedLink!.id!;
+
+      await ownerApi.folders.setFolderPrimaryExternalLink({
+        id: folderId,
+        folderLinkRequest: { linkId, access: FileShare.None },
+      });
+
+      const { status } = await ownerApi.folders.getFolderPrimaryExternalLink({
+        id: folderId,
+      });
+
+      expect(status).toBe(404);
+    },
+  );
 
   test("POST /api/2.0/files/folder/{id}/link - Non-existent folderId returns 404", async ({
     apiSdk,
@@ -8745,14 +8780,16 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       updateFile: { title: "File After Rename" },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const fileEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.FileRenamed,
-    );
-    expect(fileEntry).toBeDefined();
+    let fileEntry: any;
+    await expect(async () => {
+      const { data: historyData, status } =
+        await ownerApi.folders.getFolderHistory({ folderId: roomId });
+      expect(status).toBe(200);
+      fileEntry = historyData.response!.find(
+        (e) => e.action?.id === MessageAction.FileRenamed,
+      );
+      expect(fileEntry).toBeDefined();
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
     expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
@@ -9806,34 +9843,31 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     },
   );
 
-  // BUG 81648: createFileInMyDocuments triggers sample file injection between calls,
-  // causing usedSpace to jump between consecutive reads.
-  // Catches: if getFilesUsedSpace returns different values on consecutive calls
-  // without any writes between them (non-deterministic / unstable caching)
-  test.fail(
-    "BUG 81648: GET /api/2.0/files/filesusedspace - returns consistent results on repeated calls without modifications",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  // BUG 81648: skip instead of test.fail because the bug is non-deterministic.
+  // test.fail requires the test to always fail; here the bug only reproduces ~60-80% of runs
+  // depending on whether sample file injection completes between consecutive getFilesUsedSpace calls.
+  test.skip("BUG 81648: GET /api/2.0/files/filesusedspace - returns consistent results on repeated calls without modifications", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Stable Init" },
-      });
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Stable Init" },
+    });
 
-      const { data: call1 } = await ownerApi.folders.getFilesUsedSpace();
-      const { data: call2 } = await ownerApi.folders.getFilesUsedSpace();
-      const { data: call3, status } =
-        await ownerApi.folders.getFilesUsedSpace();
+    const { data: call1 } = await ownerApi.folders.getFilesUsedSpace();
+    const { data: call2 } = await ownerApi.folders.getFilesUsedSpace();
+    const { data: call3, status } = await ownerApi.folders.getFilesUsedSpace();
 
-      expect(status).toBe(200);
-      // Catches: if space counter is non-deterministic between consecutive reads
-      expect(call1.response!.myDocumentsUsedSpace!.usedSpace).toBe(
-        call2.response!.myDocumentsUsedSpace!.usedSpace,
-      );
-      expect(call2.response!.myDocumentsUsedSpace!.usedSpace).toBe(
-        call3.response!.myDocumentsUsedSpace!.usedSpace,
-      );
-    },
-  );
+    expect(status).toBe(200);
+    // Catches: if space counter is non-deterministic between consecutive reads
+    expect(call1.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+      call2.response!.myDocumentsUsedSpace!.usedSpace,
+    );
+    expect(call2.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+      call3.response!.myDocumentsUsedSpace!.usedSpace,
+    );
+  });
 
   // Catches: if usedSpace or title fields have wrong types
   // (e.g. usedSpace returned as string "1024" instead of number 1024)

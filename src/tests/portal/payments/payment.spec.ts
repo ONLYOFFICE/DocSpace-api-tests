@@ -18,6 +18,7 @@ test.describe("PUT /api/2.0/portal/payment/url", () => {
       .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: apiSdk.tokenStore.portalBaseUrl,
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
           quantity: { admin: 1 },
         },
       });
@@ -42,6 +43,7 @@ test.describe("PUT /api/2.0/portal/payment/url", () => {
       .payment.getPaymentUrl({
         paymentUrlRequestDto: {
           backUrl: apiSdk.tokenStore.portalBaseUrl,
+          successUrl: apiSdk.tokenStore.portalBaseUrl,
           quantity: { admin: 2 },
         },
       });
@@ -863,6 +865,7 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl", () => {
       .forRole("docSpaceAdmin")
       .payment.getCheckoutSetupUrl({
         backUrl: apiSdk.tokenStore.portalBaseUrl,
+        successUrl: apiSdk.tokenStore.portalBaseUrl,
       });
 
     expect(status).toBe(200);
@@ -883,6 +886,7 @@ test.describe("GET /api/2.0/portal/payment/checkoutsetupurl", () => {
       .forRole("owner")
       .payment.getCheckoutSetupUrl({
         backUrl: apiSdk.tokenStore.portalBaseUrl,
+        successUrl: apiSdk.tokenStore.portalBaseUrl,
       });
 
     expect(status).toBe(200);
