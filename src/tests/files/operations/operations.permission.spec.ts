@@ -609,9 +609,9 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Permissions", 
     expect(status).toBe(200);
   });
 
-  // BUG XXXXX: GET /api/2.0/files/file/{fileId}/checkconversion returns 403 instead of 200 for room member with Editor access
+  // BUG 81825: GET /api/2.0/files/file/{fileId}/checkconversion returns 403 instead of 200 for room member with Editor access
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/file/{fileId}/checkconversion - User with Editor access can check conversion status returns 200",
+    "BUG 81825: GET /api/2.0/files/file/{fileId}/checkconversion - User with Editor access can check conversion status returns 200",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
