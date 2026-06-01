@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { FileOperationType, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { createOoForm } from "@/src/helpers/files";
 
@@ -510,5 +510,321 @@ test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", 
     const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
     const titles = (favData.response!.files ?? []).map((f) => f.title);
     expect(titles).toContain("Autotest AddFav Archived File.docx");
+  });
+});
+
+test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
+  test("PUT /api/2.0/files/fileops/bulkdownload - Owner downloads a single file returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest BulkDownload Single.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.processed).toBe("1");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - Owner downloads multiple files returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest BulkDownload Multi1.docx" },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest BulkDownload Multi2.docx" },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    const { data, status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId1, fileId2] },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.processed).toBe("2");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - Owner downloads a single folder returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest BulkDownload Folder" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload In Folder.docx",
+      },
+    });
+
+    const { data, status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: { folderIds: [folderId] },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - Owner downloads multiple folders returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folder1Data } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest BulkDownload MultiFolder1" },
+    });
+    const { data: folder2Data } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest BulkDownload MultiFolder2" },
+    });
+    const folderId1 = folder1Data.response!.id!;
+    const folderId2 = folder2Data.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId: folderId1,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Folder1 File.docx",
+      },
+    });
+    await ownerApi.files.createFile({
+      folderId: folderId2,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Folder2 File.docx",
+      },
+    });
+
+    const { data, status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: { folderIds: [folderId1, folderId2] },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - Owner downloads files and folders simultaneously returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Mixed File.docx",
+      },
+    });
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest BulkDownload Mixed Folder" },
+    });
+    const fileId = fileData.response!.id!;
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload In Mixed Folder.docx",
+      },
+    });
+
+    const { data, status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId], folderIds: [folderId] },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - Owner downloads file from Custom Room returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkDownload Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Room File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.processed).toBe("1");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - returnSingleOperation true returns single entry with Operation type Download", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload ReturnSingle.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: {
+        fileIds: [fileId],
+        returnSingleOperation: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(1);
+    expect(data.response![0].Operation).toBe(FileOperationType.Download);
+
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.processed).toBe("1");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - Empty body returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: {},
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [999999999] },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - fileConvertIds downloads file with conversion to pdf", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Convert.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: {
+        fileConvertIds: [{ key: fileId, value: "pdf" }],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.processed).toBe("1");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
   });
 });
