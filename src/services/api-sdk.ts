@@ -122,6 +122,26 @@ export class ApiSDK {
     };
   }
 
+  forToken(token: string) {
+    const config = new Configuration({
+      basePath: `${this.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
+        },
+      },
+    });
+    const axiosInstance = this.createAxiosInstance();
+    return {
+      activeConnections: new ActiveConnectionsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+    };
+  }
+
   forRole(role: Role) {
     const config = new Configuration({
       basePath: `${this.tokenStore.portalBaseUrl}`,

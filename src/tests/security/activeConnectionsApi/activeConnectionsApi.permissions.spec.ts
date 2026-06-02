@@ -133,3 +133,106 @@ test.describe("PUT /api/2.0/security/activeconnections/logout/{loginEventId} - p
     },
   );
 });
+
+test.describe("PUT /api/2.0/security/activeconnections/logoutallchangepassword - permissions", () => {
+  test("PUT /api/2.0/security/activeconnections/logoutallchangepassword - Anonymous cannot log out all connections", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .activeConnections.logOutAllActiveConnectionsChangePassword();
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/security/activeconnections/logoutallexceptthis - permissions", () => {
+  test("PUT /api/2.0/security/activeconnections/logoutallexceptthis - Anonymous cannot log out all other connections", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .activeConnections.logOutAllExceptThisConnection();
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/security/activeconnections/logoutall/{userId} - permissions", () => {
+  test("PUT /api/2.0/security/activeconnections/logoutall/{userId} - Anonymous cannot log out user's connections", async ({
+    apiSdk,
+  }) => {
+    const { data: ownerConnData } = await apiSdk
+      .forRole("owner")
+      .activeConnections.getAllActiveConnections();
+    const ownerUserId = ownerConnData.response!.items![0].userId;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .activeConnections.logOutAllActiveConnectionsForUser({
+        userId: ownerUserId,
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/security/activeconnections/logoutall/{userId} - RoomAdmin cannot log out another user's connections", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data: ownerConnData } = await apiSdk
+      .forRole("owner")
+      .activeConnections.getAllActiveConnections();
+    const ownerUserId = ownerConnData.response!.items![0].userId;
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .activeConnections.logOutAllActiveConnectionsForUser({
+        userId: ownerUserId,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/security/activeconnections/logoutall/{userId} - User cannot log out another user's connections", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data: ownerConnData } = await apiSdk
+      .forRole("owner")
+      .activeConnections.getAllActiveConnections();
+    const ownerUserId = ownerConnData.response!.items![0].userId;
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .activeConnections.logOutAllActiveConnectionsForUser({
+        userId: ownerUserId,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/security/activeconnections/logoutall/{userId} - Guest cannot log out another user's connections", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data: ownerConnData } = await apiSdk
+      .forRole("owner")
+      .activeConnections.getAllActiveConnections();
+    const ownerUserId = ownerConnData.response!.items![0].userId;
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .activeConnections.logOutAllActiveConnectionsForUser({
+        userId: ownerUserId,
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
