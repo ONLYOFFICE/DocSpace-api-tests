@@ -725,20 +725,40 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
     });
     const fileId = fileData.response!.id!;
 
+    // Wait until the "new" badge is actually written for the invited user
+    // before deleting — otherwise the delete cleanup may race ahead of the
+    // async badge creation, leaving an orphan badge that never clears.
+    await expect
+      .poll(
+        async () => {
+          const { data, status } = await userApi.rooms.getNewRoomItems({
+            id: roomId,
+          });
+          expect(status).toBe(200);
+          return titlesOf(data.response);
+        },
+        { timeout: 10_000, intervals: [500, 1000, 2000] },
+      )
+      .toContain("Autotest News Will Be Deleted.docx");
+
     await ownerApi.files.deleteFile({
       fileId,
       _delete: { immediately: true },
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await userApi.rooms.getNewRoomItems({
-      id: roomId,
-    });
-
-    expect(status).toBe(200);
-    expect(titlesOf(data.response)).not.toContain(
-      "Autotest News Will Be Deleted.docx",
-    );
+    await expect
+      .poll(
+        async () => {
+          const { data, status } = await userApi.rooms.getNewRoomItems({
+            id: roomId,
+          });
+          expect(status).toBe(200);
+          return titlesOf(data.response);
+        },
+        { timeout: 10_000, intervals: [500, 1000, 2000] },
+      )
+      .not.toContain("Autotest News Will Be Deleted.docx");
   });
 });
 
@@ -1176,17 +1196,36 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
     });
     const fileId = fileData.response!.id!;
 
+    // Wait until the "new" badge is actually written for the invited user
+    // before deleting — otherwise the delete cleanup may race ahead of the
+    // async badge creation, leaving an orphan badge that never clears.
+    await expect
+      .poll(
+        async () => {
+          const { data, status } = await userApi.rooms.getRoomsNewItems();
+          expect(status).toBe(200);
+          return roomsNewTitlesOf(data.response);
+        },
+        { timeout: 10_000, intervals: [500, 1000, 2000] },
+      )
+      .toContain("Autotest Rooms News Will Be Deleted.docx");
+
     await ownerApi.files.deleteFile({
       fileId,
       _delete: { immediately: true },
     });
+    await waitForOperation(ownerApi.operations);
 
-    const { data, status } = await userApi.rooms.getRoomsNewItems();
-
-    expect(status).toBe(200);
-    expect(roomsNewTitlesOf(data.response)).not.toContain(
-      "Autotest Rooms News Will Be Deleted.docx",
-    );
+    await expect
+      .poll(
+        async () => {
+          const { data, status } = await userApi.rooms.getRoomsNewItems();
+          expect(status).toBe(200);
+          return roomsNewTitlesOf(data.response);
+        },
+        { timeout: 10_000, intervals: [500, 1000, 2000] },
+      )
+      .not.toContain("Autotest Rooms News Will Be Deleted.docx");
   });
 });
 

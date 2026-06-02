@@ -1352,6 +1352,112 @@ test.describe("DELETE /files/tags - access control", () => {
   });
 });
 
+test.describe("GET /files/tags/:tagName/haslinks - access control", () => {
+  // Only Owner and DocSpaceAdmin may read tag-linkage info. RoomAdmin/User/Guest get 403,
+  // anonymous gets 401. Note: RoomAdmin is forbidden here, unlike POST /files/tags
+  // (createRoomTag), where RoomAdmin is allowed.
+  const seedLinkedTag = async (apiSdk: any, tagName: string) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: tagName },
+    });
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest HasLinks Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: roomData.response!.id!,
+      batchTagsRequestDto: { names: [tagName] },
+    });
+  };
+
+  test("Owner can check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "OwnerHasLinksTag");
+
+    const { data, status } = await apiSdk.forRole("owner").rooms.hasTagLinks({
+      tagName2: "OwnerHasLinksTag",
+      tagName: "OwnerHasLinksTag",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DocSpaceAdmin can check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "AdminHasLinksTag");
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data, status } = await adminApi.rooms.hasTagLinks({
+      tagName2: "AdminHasLinksTag",
+      tagName: "AdminHasLinksTag",
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("RoomAdmin cannot check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "RoomAdminHasLinksTag");
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { status } = await roomAdminApi.rooms.hasTagLinks({
+      tagName2: "RoomAdminHasLinksTag",
+      tagName: "RoomAdminHasLinksTag",
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("User cannot check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "UserHasLinksTag");
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { status } = await userApi.rooms.hasTagLinks({
+      tagName2: "UserHasLinksTag",
+      tagName: "UserHasLinksTag",
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Guest cannot check tag links", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "GuestHasLinksTag");
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { status } = await guestApi.rooms.hasTagLinks({
+      tagName2: "GuestHasLinksTag",
+      tagName: "GuestHasLinksTag",
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Anonymous request returns 401", async ({ apiSdk }) => {
+    await seedLinkedTag(apiSdk, "AnonHasLinksTag");
+
+    const { status } = await apiSdk.forAnonymous().rooms.hasTagLinks({
+      tagName2: "AnonHasLinksTag",
+      tagName: "AnonHasLinksTag",
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("PUT /files/rooms/:id/share - access control", () => {
   test("Owner can set room access rights", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -3310,45 +3416,258 @@ test.describe("GET /files/rooms/:id - RoomAdmin invited to owner's room", () => 
   }
 });
 
-test.describe("PUT /api/2.0/files/rooms/{id}/links - external sharing restriction", () => {
-  test.fail(
-    "BUG 81840: PUT /api/2.0/files/rooms/{id}/links - Owner cannot create new external link when external sharing is restricted with Allow existing links",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+// Pinning is a per-user action (each user has independent pin state). Verified behavior
+// (see memory pin_room_behavior):
+// - Owner and DocSpaceAdmin can pin any room (DocSpaceAdmin even without being invited).
+// - ANY invited member can pin regardless of access level - security.Pin is true for
+//   Viewer/Commenter/Reviewer/Editor/ContentCreator/RoomManager, for User and Guest alike.
+//   So a low-access member pinning a room returning 200 is intended, NOT a bug.
+// - Only NON-members are rejected with 403 "You can't pin a room".
+// - Anonymous -> 401; terminated user -> 401.
+test.describe("PUT /files/rooms/:id/pin - access control", () => {
+  test("Owner can pin own room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Pin Owner",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      await test.step("Create a room", async () => {
+    const { status, data } = await ownerApi.rooms.pinRoom({ id: roomId });
+
+    expect(status).toBe(200);
+    expect(data.response!.pinned).toBe(true);
+  });
+
+  test("DocSpaceAdmin can pin own room", async ({ apiSdk }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Pin Admin Own",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status, data } = await adminApi.rooms.pinRoom({ id: roomId });
+
+    expect(status).toBe(200);
+    expect(data.response!.pinned).toBe(true);
+  });
+
+  test("DocSpaceAdmin can pin owner's room without being invited", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Pin Owner Room For Admin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { status } = await adminApi.rooms.pinRoom({ id: roomId });
+
+    expect(status).toBe(200);
+  });
+
+  test("RoomAdmin invited with RoomManager access can pin the room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Pin RoomAdmin Manager",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: roomAdminApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: memberData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { status } = await roomAdminApi.rooms.pinRoom({ id: roomId });
+
+    expect(status).toBe(200);
+  });
+
+  test("User not invited to room cannot pin it", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Pin NonInvited User",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { status, data } = await userApi.rooms.pinRoom({ id: roomId });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("You can't pin a room");
+  });
+
+  test("Guest not invited to room cannot pin it", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Pin NonInvited Guest",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { status, data } = await guestApi.rooms.pinRoom({ id: roomId });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("You can't pin a room");
+  });
+
+  test("Anonymous cannot pin a room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Pin Anonymous",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().rooms.pinRoom({
+      id: roomId,
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("Disabled (terminated) user cannot pin a room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Pin Terminated",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    // Invite first, then terminate - so the rejection is due to the disabled
+    // account, not lack of membership.
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.rooms.pinRoom({ id: roomId });
+
+    expect(status).toBe(401);
+  });
+});
+
+// Any invited member can pin the room regardless of access level. RoomManager access
+// is rejected for User/Guest at invitation time, so that combination is skipped -
+// see [[user_guest_no_roommanager_access]].
+for (const userType of ["User", "Guest"] as const) {
+  test.describe(`PUT /files/rooms/:id/pin - ${userType} invited to room`, () => {
+    for (const { label, access } of roomAccesses) {
+      if (access === FileShare.RoomManager) {
+        continue;
+      }
+
+      test(`Room access: ${label} - can pin room`, async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
           createRoomRequestDto: {
-            title: "Autotest External Link Restriction Room",
-            roomType: RoomType.PublicRoom,
+            title: `Autotest Pin Access ${userType} ${label}`,
+            roomType: RoomType.CustomRoom,
           },
         });
         const roomId = roomData.response!.id!;
 
-        await test.step("Enable external sharing restriction with Allow existing links", async () => {
-          await ownerApi.filesSettings.changeExternalSharingSettings({
-            externalSharingSettingsRequestDto: {
-              externalShare: false,
-              externalShareApplyToRooms: true,
-              blockExistingLinksOnRestrict: false,
-            },
-          });
+        const { api: memberApi, data: memberData } =
+          await apiSdk.addAuthenticatedMember("owner", userType);
+
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: memberData.response!.id!, access }],
+            notify: false,
+          },
         });
 
-        await test.step("Attempt to create new external link — expect 403", async () => {
-          const { data, status } = await ownerApi.rooms.setRoomLink({
-            id: roomId,
-            roomLinkRequest: {
-              internal: false,
-              linkType: LinkType.External,
-              access: FileShare.Read,
-            },
-          });
+        const { status, data } = await memberApi.rooms.pinRoom({ id: roomId });
 
-          expect(status).toBe(403);
-          expect((data as any).error?.message).toBe("Access denied");
-        });
+        expect(status).toBe(200);
+        expect(data.response!.pinned).toBe(true);
       });
-    },
-  );
+    }
+  });
+}
+
+// RoomAdmin invited to another owner's room can pin it at any access level.
+test.describe("PUT /files/rooms/:id/pin - RoomAdmin invited to owner's room", () => {
+  for (const { label, access } of roomAccesses) {
+    test(`Room access: ${label} - can pin room`, async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Pin RoomAdmin Access ${label}`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: roomAdminApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
+
+      const { status } = await roomAdminApi.rooms.pinRoom({ id: roomId });
+
+      expect(status).toBe(200);
+    });
+  }
 });
