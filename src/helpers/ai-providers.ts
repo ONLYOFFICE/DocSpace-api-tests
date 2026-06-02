@@ -46,7 +46,7 @@ export const aiProviders: Record<string, AiProviderConfig> = {
     type: ProviderType.Anthropic,
     title: "Anthropic",
     key: config.ANTHROPIC_API_KEY,
-    modelId: "claude-opus-4-7",
+    modelId: "claude-opus-4-8",
   },
   deepSeek: {
     type: ProviderType.DeepSeek,
