@@ -5,6 +5,7 @@ import {
   FileShare,
   EmployeeStatus,
   SearchArea,
+  LinkType,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
@@ -3307,4 +3308,47 @@ test.describe("GET /files/rooms/:id - RoomAdmin invited to owner's room", () => 
       expect(data.response!.id).toBe(roomId);
     });
   }
+});
+
+test.describe("PUT /api/2.0/files/rooms/{id}/links - external sharing restriction", () => {
+  test.fail(
+    "BUG 81840: PUT /api/2.0/files/rooms/{id}/links - Owner cannot create new external link when external sharing is restricted with Allow existing links",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await test.step("Create a room", async () => {
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest External Link Restriction Room",
+            roomType: RoomType.PublicRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        await test.step("Enable external sharing restriction with Allow existing links", async () => {
+          await ownerApi.filesSettings.changeExternalSharingSettings({
+            externalSharingSettingsRequestDto: {
+              externalShare: false,
+              externalShareApplyToRooms: true,
+              blockExistingLinksOnRestrict: false,
+            },
+          });
+        });
+
+        await test.step("Attempt to create new external link — expect 403", async () => {
+          const { data, status } = await ownerApi.rooms.setRoomLink({
+            id: roomId,
+            roomLinkRequest: {
+              internal: false,
+              linkType: LinkType.External,
+              access: FileShare.Read,
+            },
+          });
+
+          expect(status).toBe(403);
+          expect((data as any).error?.message).toBe("Access denied");
+        });
+      });
+    },
+  );
 });
