@@ -53,6 +53,8 @@ import { ScopeManagementApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth2
 import { ClientManagementApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth20/client-management-api";
 import { ClientQueryingApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth20/client-querying-api";
 import { OAuth2Api } from "@onlyoffice/docspace-api-sdk/dist/api/security/oauth2-api";
+import { SecurityAccessToDevToolsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/security-access-to-dev-tools-api";
+import { ActiveConnectionsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/active-connections-api";
 import { TFASettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/tfasettings-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-settings-api";
@@ -117,6 +119,26 @@ export class ApiSDK {
       folders: new FoldersApi(config, undefined, axiosInstance),
       rooms: new RoomsApi(config, undefined, axiosInstance),
       profiles: new ProfilesApi(config, undefined, axiosInstance),
+    };
+  }
+
+  forToken(token: string) {
+    const config = new Configuration({
+      basePath: `${this.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Origin: `http://${this.tokenStore.newTenantDomain}`,
+        },
+      },
+    });
+    const axiosInstance = this.createAxiosInstance();
+    return {
+      activeConnections: new ActiveConnectionsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
     };
   }
 
@@ -206,6 +228,16 @@ export class ApiSDK {
       ),
       clientQuerying: new ClientQueryingApi(config, undefined, axiosInstance),
       oauth2: new OAuth2Api(config, undefined, axiosInstance),
+      securityAccessToDevTools: new SecurityAccessToDevToolsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      activeConnections: new ActiveConnectionsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
     };
   }
 
@@ -280,6 +312,16 @@ export class ApiSDK {
         axiosInstance,
       ),
       clientQuerying: new ClientQueryingApi(config, undefined, axiosInstance),
+      securityAccessToDevTools: new SecurityAccessToDevToolsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      activeConnections: new ActiveConnectionsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
     };
   }
 

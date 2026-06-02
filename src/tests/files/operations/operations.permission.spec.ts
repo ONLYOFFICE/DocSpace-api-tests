@@ -2,10 +2,12 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import {
   Configuration,
+  FileOperationType,
   FileShare,
   OperationsApi,
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 test.describe("PUT /files/fileops/copy - Permissions", () => {
   test("BUG 65580: PUT /files/fileops/copy - User cannot copy a room", async ({
@@ -237,6 +239,480 @@ test.describe("POST /api/2.0/files/favorites - access control", () => {
 
     const { status } = await anonOperations.addFavorites({
       baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/fileops/bulkdownload - Permissions", () => {
+  test("PUT /api/2.0/files/fileops/bulkdownload - Owner downloads file from room returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkDownload Owner Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Owner File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await ownerApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.processed).toBe("1");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - Room Admin downloads file from own room returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkDownload RoomAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload RoomAdmin File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { status } = await roomAdminApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(roomAdminApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.processed).toBe("1");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - User with Editor access downloads file from room returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkDownload Editor Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Editor File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(userApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.processed).toBe("1");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - User with Read access downloads file from room returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkDownload Read Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Read File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(userApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.processed).toBe("1");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  test("PUT /api/2.0/files/fileops/bulkdownload - Guest with Read access downloads file from room returns 200 and operation finishes with url", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkDownload Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Guest File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await guestApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(guestApi.operations);
+
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+    expect(operation.Operation).toBe(FileOperationType.Download);
+    expect(operation.processed).toBe("1");
+    expect(operation.url).toContain("filehandler.ashx?action=bulk");
+  });
+
+  // BUG 81822: PUT /api/2.0/files/fileops/bulkdownload returns 404 instead of 403 when user has no room access
+  test.fail(
+    "BUG 81822: PUT /api/2.0/files/fileops/bulkdownload - User without room membership cannot download file from room returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest BulkDownload No Access Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest BulkDownload No Access File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+
+      const { status } = await userApi.operations.bulkDownload({
+        downloadRequestDto: { fileIds: [fileId] },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  // BUG 81823: PUT /api/2.0/files/fileops/bulkdownload returns 404 instead of 401 for unauthenticated user
+  test.fail(
+    "BUG 81823: PUT /api/2.0/files/fileops/bulkdownload - Unauthenticated user cannot bulk download returns 401",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest BulkDownload Anon File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const anonConfig = new Configuration({
+        basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+        baseOptions: {
+          headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+        },
+      });
+      const anonOperations = new OperationsApi(
+        anonConfig,
+        undefined,
+        apiSdk.createAxiosInstance() as any,
+      );
+
+      const { status } = await anonOperations.bulkDownload({
+        downloadRequestDto: { fileIds: [fileId] },
+      });
+
+      expect(status).toBe(401);
+    },
+  );
+});
+
+test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Permissions", () => {
+  test("GET /api/2.0/files/file/{fileId}/checkconversion - Owner can check conversion status of own file returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckConversion Owner File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await ownerApi.operations.checkConversionStatus({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/file/{fileId}/checkconversion - Room Admin with Room Manager access can check conversion status returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckConversion RoomAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest CheckConversion RoomAdmin File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { status } = await roomAdminApi.operations.checkConversionStatus({
+      fileId,
+    });
+
+    expect(status).toBe(200);
+  });
+
+  // BUG 81825: GET /api/2.0/files/file/{fileId}/checkconversion returns 403 instead of 200 for room member with Editor access
+  test.fail(
+    "BUG 81825: GET /api/2.0/files/file/{fileId}/checkconversion - User with Editor access can check conversion status returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckConversion Editor Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest CheckConversion Editor File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Editing }],
+          notify: false,
+        },
+      });
+
+      const { status } = await userApi.operations.checkConversionStatus({
+        fileId,
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+
+  test("GET /api/2.0/files/file/{fileId}/checkconversion - User without room access cannot check conversion status returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckConversion No Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest CheckConversion No Access File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.operations.checkConversionStatus({
+      fileId,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("GET /api/2.0/files/file/{fileId}/checkconversion - Unauthenticated user cannot check conversion status returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckConversion Anon File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const anonConfig = new Configuration({
+      basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { status } = await anonOperations.checkConversionStatus({
+      fileId,
     });
 
     expect(status).toBe(401);
