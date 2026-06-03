@@ -1328,6 +1328,769 @@ test.describe("API rooms methods", () => {
     });
   });
 
+  // Behavior of pinRoom/unpinRoom verified empirically (see memory pin_room_behavior):
+  // - pinned rooms float to the top of getRoomsFolder as a group, regardless of sort;
+  // - pinning is PER-USER, not global (each user has independent pin state);
+  // - pin is idempotent; missing numeric id -> 403 "The required folder was not found"
+  //   (not 404), "abc" -> 404, null/undefined -> SDK throws;
+  // - archived/deleted rooms cannot be pinned; pin does not survive archive.
+  test.describe("PUT /files/rooms/:id/pin", () => {
+    async function createRoom(
+      api: { rooms: RoomsApi },
+      title: string,
+      roomType: RoomType = RoomType.CustomRoom,
+    ) {
+      const { data } = await api.rooms.createRoom({
+        createRoomRequestDto: { title, roomType },
+      });
+      return data.response!.id!;
+    }
+
+    // Locate a room in the caller's getRoomsFolder view.
+    async function findRoomRow(api: { rooms: RoomsApi }, roomId: number) {
+      const { data } = await api.rooms.getRoomsFolder({});
+      const folders = data.response!.folders!;
+      const matches = folders.filter((f) => (f as any).id === roomId);
+      const row = matches[0] as any;
+      return {
+        folders,
+        row,
+        count: matches.length,
+        index: row ? folders.indexOf(row) : -1,
+      };
+    }
+
+    // Assert the real effect of pinning: the room is present, flagged pinned in the
+    // list, appears exactly once, and sits above the first unpinned room.
+    async function expectPinnedOnTop(api: { rooms: RoomsApi }, roomId: number) {
+      const { folders, row, count, index } = await findRoomRow(api, roomId);
+      expect(count, `room ${roomId} should appear exactly once`).toBe(1);
+      expect(row.pinned).toBe(true);
+      const firstUnpinned = folders.findIndex((f) => !(f as any).pinned);
+      if (firstUnpinned !== -1) {
+        expect(index).toBeLessThan(firstUnpinned);
+      }
+    }
+
+    test.describe("Contract / basic response", () => {
+      test("PUT /files/rooms/:id/pin - Owner can pin own room", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin Contract");
+
+        const { data, status } = await ownerApi.rooms.pinRoom({ id: roomId });
+
+        expect(status).toBe(200);
+        expect(data.statusCode).toBe(200);
+        expect(data.response).toBeDefined();
+        expect(data.response!.id).toBe(roomId);
+        expect(data.response!.pinned).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/pin - Response has FolderIntegerWrapper shape", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin Shape");
+
+        const { data } = await ownerApi.rooms.pinRoom({ id: roomId });
+
+        expect(data.status).toBeDefined();
+        expect(data.statusCode).toBe(200);
+        expect(data.response).toBeDefined();
+        expect(data.response!.id).toBe(roomId);
+        expect(data.response!.title).toBe("Autotest Pin Shape");
+        expect(data.response!.roomType).toBe(RoomType.CustomRoom);
+        expect(typeof data.response!.pinned).toBe("boolean");
+      });
+
+      test("PUT /files/rooms/:id/pin - No request body is required", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin No Body");
+
+        // Only the path id is passed - no body.
+        const { status, data } = await ownerApi.rooms.pinRoom({ id: roomId });
+
+        expect(status).toBe(200);
+        expect(data.response!.pinned).toBe(true);
+      });
+    });
+
+    test.describe("Functional behavior", () => {
+      test("PUT /files/rooms/:id/pin - Pinned room appears above unpinned rooms", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        await createRoom(ownerApi, "Autotest Pin Order A");
+        const b = await createRoom(ownerApi, "Autotest Pin Order B");
+        await createRoom(ownerApi, "Autotest Pin Order C");
+
+        await ownerApi.rooms.pinRoom({ id: b });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const folders = data.response!.folders!;
+        const pinnedIndex = folders.findIndex((f) => (f as any).id === b);
+        const firstUnpinnedIndex = folders.findIndex((f) => !(f as any).pinned);
+
+        expect((folders[pinnedIndex] as any).pinned).toBe(true);
+        expect(pinnedIndex).toBeLessThan(firstUnpinnedIndex);
+      });
+
+      test("PUT /files/rooms/:id/pin - Several pinned rooms appear before unpinned rooms", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        await createRoom(ownerApi, "Autotest MultiPin A");
+        const b = await createRoom(ownerApi, "Autotest MultiPin B");
+        await createRoom(ownerApi, "Autotest MultiPin C");
+        const d = await createRoom(ownerApi, "Autotest MultiPin D");
+
+        await ownerApi.rooms.pinRoom({ id: b });
+        await ownerApi.rooms.pinRoom({ id: d });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const folders = data.response!.folders!;
+        const pinnedFlags = folders.map((f) => (f as any).pinned);
+        // Pinned section is a contiguous prefix: no unpinned room precedes a pinned one.
+        const lastPinned = pinnedFlags.lastIndexOf(true);
+        const firstUnpinned = pinnedFlags.indexOf(false);
+
+        expect(folders.filter((f) => (f as any).pinned).length).toBe(2);
+        expect(lastPinned).toBeLessThan(firstUnpinned);
+      });
+
+      test("PUT /files/rooms/:id/pin - Pinning a room does not remove it from the list", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin Stays");
+
+        await ownerApi.rooms.pinRoom({ id: roomId });
+
+        const { row, count } = await findRoomRow(ownerApi, roomId);
+        // Still present (exactly once) and now flagged pinned - not removed.
+        expect(count).toBe(1);
+        expect(row.pinned).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/unpin - Unpinning returns room to the unpinned group", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const a = await createRoom(ownerApi, "Autotest Unpin Group A");
+        const b = await createRoom(ownerApi, "Autotest Unpin Group B");
+
+        await ownerApi.rooms.pinRoom({ id: a });
+        await ownerApi.rooms.pinRoom({ id: b });
+        await ownerApi.rooms.unpinRoom({ id: b });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const folders = data.response!.folders!;
+        const aRow = folders.find((f) => (f as any).id === a) as any;
+        const bRow = folders.find((f) => (f as any).id === b) as any;
+        const aIndex = folders.indexOf(aRow);
+        const bIndex = folders.indexOf(bRow);
+
+        expect(aRow.pinned).toBe(true);
+        expect(bRow.pinned).toBe(false);
+        // Still-pinned A is above the now-unpinned B.
+        expect(aIndex).toBeLessThan(bIndex);
+      });
+
+      test("PUT /files/rooms/:id/pin - Pinning is idempotent", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin Idempotent");
+
+        const first = await ownerApi.rooms.pinRoom({ id: roomId });
+        const second = await ownerApi.rooms.pinRoom({ id: roomId });
+
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const occurrences = data.response!.folders!.filter(
+          (f) => (f as any).id === roomId,
+        );
+        expect(occurrences.length).toBe(1);
+        expect((occurrences[0] as any).pinned).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/pin - Pin works again after unpin", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin Again");
+
+        await ownerApi.rooms.pinRoom({ id: roomId });
+        await ownerApi.rooms.unpinRoom({ id: roomId });
+        const repin = await ownerApi.rooms.pinRoom({ id: roomId });
+
+        expect(repin.status).toBe(200);
+        expect(repin.data.response!.pinned).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/pin - Pinning is per-user, not global", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin PerUser");
+
+        const { api: userApi, data: userData } =
+          await apiSdk.addAuthenticatedMember("owner", "User");
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [
+              { id: userData.response!.id!, access: FileShare.Read },
+            ],
+            notify: false,
+          },
+        });
+
+        // Returns the pinned flag for the SAME room as seen by this caller. Asserts the
+        // room is actually visible first - otherwise a missing room would read as
+        // `undefined` and masquerade as a per-user difference.
+        const pinStateFor = async (api: { rooms: RoomsApi }, who: string) => {
+          const list = await api.rooms.getRoomsFolder({});
+          const matches = list.data.response!.folders!.filter(
+            (f) => (f as any).id === roomId,
+          );
+          expect(
+            matches.length,
+            `room ${roomId} should be visible exactly once to ${who}`,
+          ).toBe(1);
+          return (matches[0] as any).pinned as boolean;
+        };
+
+        await test.step("owner pins - the SAME room is pinned for owner but not for the member", async () => {
+          await ownerApi.rooms.pinRoom({ id: roomId });
+          // Same room id, same moment, opposite pinned flags => state is per-user.
+          expect(await pinStateFor(ownerApi, "owner")).toBe(true);
+          expect(await pinStateFor(userApi, "member")).toBe(false);
+        });
+
+        await test.step("each user's pin state is fully independent and can be inverted", async () => {
+          await userApi.rooms.pinRoom({ id: roomId });
+          await ownerApi.rooms.unpinRoom({ id: roomId });
+          // Owner unpinning does not touch the member's own pin; the two views are now
+          // the mirror image of step 1 - impossible unless pin state is stored per-user.
+          expect(await pinStateFor(ownerApi, "owner")).toBe(false);
+          expect(await pinStateFor(userApi, "member")).toBe(true);
+        });
+      });
+
+      test("PUT /files/rooms/:id/pin - Pinning one room does not pin another", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const pinned = await createRoom(ownerApi, "Autotest Pin Isolated A");
+        const other = await createRoom(ownerApi, "Autotest Pin Isolated B");
+
+        await ownerApi.rooms.pinRoom({ id: pinned });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const otherRow = data.response!.folders!.find(
+          (f) => (f as any).id === other,
+        ) as any;
+        expect(otherRow.pinned).toBe(false);
+      });
+    });
+
+    test.describe("Sorting / ordering", () => {
+      test("PUT /files/rooms/:id/pin - Pinned room stays above unpinned when sorting by title", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        // "Z" would sort last by title ascending, but pinning floats it to the top.
+        const zRoom = await createRoom(ownerApi, "ZZZ Autotest Pin Sort");
+        await createRoom(ownerApi, "AAA Autotest Pin Sort");
+        await createRoom(ownerApi, "MMM Autotest Pin Sort");
+
+        await ownerApi.rooms.pinRoom({ id: zRoom });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({
+          sortBy: "title",
+          sortOrder: SortOrder.Ascending,
+        });
+        const folders = data.response!.folders!;
+        const zIndex = folders.findIndex((f) => (f as any).id === zRoom);
+        const firstUnpinned = folders.findIndex((f) => !(f as any).pinned);
+
+        expect((folders[zIndex] as any).pinned).toBe(true);
+        expect(zIndex).toBeLessThan(firstUnpinned);
+      });
+
+      test("PUT /files/rooms/:id/pin - Pinned room stays above unpinned when sorting by created date", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        // The oldest room would normally be last with Descending-by-created.
+        const oldest = await createRoom(ownerApi, "Autotest Pin Created Old");
+        await createRoom(ownerApi, "Autotest Pin Created Mid");
+        await createRoom(ownerApi, "Autotest Pin Created New");
+
+        await ownerApi.rooms.pinRoom({ id: oldest });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({
+          sortBy: "DateAndTime",
+          sortOrder: SortOrder.Descending,
+        });
+        const folders = data.response!.folders!;
+        const oldestIndex = folders.findIndex((f) => (f as any).id === oldest);
+        const firstUnpinned = folders.findIndex((f) => !(f as any).pinned);
+
+        expect((folders[oldestIndex] as any).pinned).toBe(true);
+        expect(oldestIndex).toBeLessThan(firstUnpinned);
+      });
+
+      test("PUT /files/rooms/:id/pin - Multiple pinned rooms have a stable order across calls", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const b = await createRoom(ownerApi, "Autotest Pin Stable B");
+        const d = await createRoom(ownerApi, "Autotest Pin Stable D");
+        await createRoom(ownerApi, "Autotest Pin Stable A");
+
+        await ownerApi.rooms.pinRoom({ id: b });
+        await ownerApi.rooms.pinRoom({ id: d });
+
+        const order1 = (await ownerApi.rooms.getRoomsFolder({})).data
+          .response!.folders!.filter((f) => (f as any).pinned)
+          .map((f) => (f as any).id);
+        const order2 = (await ownerApi.rooms.getRoomsFolder({})).data
+          .response!.folders!.filter((f) => (f as any).pinned)
+          .map((f) => (f as any).id);
+
+        expect(order1).toEqual(order2);
+      });
+    });
+
+    test.describe("Room types", () => {
+      for (const { name, roomType } of [
+        { name: "CustomRoom", roomType: RoomType.CustomRoom },
+        { name: "PublicRoom", roomType: RoomType.PublicRoom },
+        { name: "FillingFormsRoom", roomType: RoomType.FillingFormsRoom },
+        { name: "EditingRoom", roomType: RoomType.EditingRoom },
+        { name: "VirtualDataRoom", roomType: RoomType.VirtualDataRoom },
+      ] as const) {
+        test(`PUT /files/rooms/:id/pin - Can pin a ${name}`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const roomId = await createRoom(
+            ownerApi,
+            `Autotest Pin ${name}`,
+            roomType,
+          );
+          // An extra unpinned room so the "floats to the top" check is meaningful.
+          await createRoom(ownerApi, `Autotest Pin ${name} Other`);
+
+          const { status, data } = await ownerApi.rooms.pinRoom({ id: roomId });
+
+          expect(status).toBe(200);
+          expect(data.response!.pinned).toBe(true);
+          // Effect: the room is actually pinned in the list and sits above unpinned rooms.
+          await expectPinnedOnTop(ownerApi, roomId);
+        });
+      }
+    });
+
+    test.describe("Invalid id validation", () => {
+      // An invalid/non-existent numeric id should be a validation error (400), but the
+      // API currently returns 403 "The required folder was not found". Marked test.fail
+      // until the bug is fixed; when it starts returning 400 the test will report an
+      // unexpected pass, signaling test.fail can be removed.
+      for (const id of [0, -1, 999999999]) {
+        test.fail(
+          `BUG 81850: PUT /files/rooms/:id/pin - id=${id} should return 400 (validation), but API returns 403`,
+          async ({ apiSdk }) => {
+            const ownerApi = apiSdk.forRole("owner");
+            const { status } = await ownerApi.rooms.pinRoom({ id });
+
+            expect(status).toBe(400);
+          },
+        );
+      }
+
+      test('PUT /files/rooms/:id/pin - non-numeric id "abc" returns 404', async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { status } = await ownerApi.rooms.pinRoom({
+          id: "abc" as unknown as number,
+        });
+
+        expect(status).toBe(404);
+      });
+
+      test("PUT /files/rooms/:id/pin - id=null throws at SDK level", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        await expect(
+          ownerApi.rooms.pinRoom({ id: null as unknown as number }),
+        ).rejects.toThrow(/Required parameter id/);
+      });
+
+      test("PUT /files/rooms/:id/pin - id=undefined throws at SDK level", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        await expect(
+          ownerApi.rooms.pinRoom({ id: undefined as unknown as number }),
+        ).rejects.toThrow(/Required parameter id/);
+      });
+    });
+
+    test.describe("Deleted / archived rooms", () => {
+      test("PUT /files/rooms/:id/pin - Cannot pin a deleted room", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin Deleted");
+
+        await ownerApi.rooms.deleteRoom({
+          id: roomId,
+          deleteRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status, data } = await ownerApi.rooms.pinRoom({ id: roomId });
+
+        expect(status).toBe(403);
+        expect((data as any).error?.message).toBe(
+          "The required folder was not found",
+        );
+      });
+
+      test("PUT /files/rooms/:id/pin - Cannot pin an archived room", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin Archived");
+
+        await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status, data } = await ownerApi.rooms.pinRoom({ id: roomId });
+
+        expect(status).toBe(403);
+        expect((data as any).error?.message).toBe("You can't pin a room");
+      });
+
+      test("PUT /files/rooms/:id/pin - Pin does not survive archive/unarchive", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin ArchiveCycle");
+
+        await ownerApi.rooms.pinRoom({ id: roomId });
+
+        await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const row = data.response!.folders!.find(
+          (f) => (f as any).id === roomId,
+        ) as any;
+        // Archiving resets the pin state.
+        expect(row.pinned).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/pin - Pinned room disappears from list after deletion", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin DeleteGone");
+
+        await ownerApi.rooms.pinRoom({ id: roomId });
+        await ownerApi.rooms.deleteRoom({
+          id: roomId,
+          deleteRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const ids = data.response!.folders!.map((f) => (f as any).id);
+        expect(ids).not.toContain(roomId);
+      });
+    });
+
+    test.describe("Cross-check with unpin", () => {
+      test("PUT /files/rooms/:id/unpin - Unpinning a never-pinned room returns 200", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Unpin Fresh");
+
+        const { status, data } = await ownerApi.rooms.unpinRoom({ id: roomId });
+
+        expect(status).toBe(200);
+        expect(data.response!.pinned).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/pin - Pin then verify, unpin then verify", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin RoundTrip");
+
+        await test.step("pin and verify pinned", async () => {
+          const pin = await ownerApi.rooms.pinRoom({ id: roomId });
+          expect(pin.status).toBe(200);
+          const info = await ownerApi.rooms.getRoomInfo({ id: roomId });
+          expect((info.data.response as any).pinned).toBe(true);
+        });
+
+        await test.step("unpin and verify not pinned", async () => {
+          const unpin = await ownerApi.rooms.unpinRoom({ id: roomId });
+          expect(unpin.status).toBe(200);
+          const info = await ownerApi.rooms.getRoomInfo({ id: roomId });
+          expect((info.data.response as any).pinned).toBe(false);
+        });
+      });
+    });
+
+    test.describe("Pagination / filtering", () => {
+      test("PUT /files/rooms/:id/pin - Pinned room appears on the first page", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const created: number[] = [];
+        for (let i = 0; i < 8; i++) {
+          created.push(await createRoom(ownerApi, `Autotest Pin Page ${i}`));
+        }
+        // Pin the last-created room, then request only the first 3 rooms.
+        const pinned = created[created.length - 1];
+        await ownerApi.rooms.pinRoom({ id: pinned });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({
+          count: 3,
+          startIndex: 0,
+        });
+        const ids = data.response!.folders!.map((f) => (f as any).id);
+        expect(ids).toContain(pinned);
+        expect((data.response!.folders![0] as any).pinned).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/pin - Pagination over pinned+unpinned has no duplicates or gaps", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const created: number[] = [];
+        for (let i = 0; i < 6; i++) {
+          created.push(
+            await createRoom(ownerApi, `Autotest Pin Paginate ${i}`),
+          );
+        }
+        await ownerApi.rooms.pinRoom({ id: created[1] });
+        await ownerApi.rooms.pinRoom({ id: created[4] });
+
+        const page1 = (
+          await ownerApi.rooms.getRoomsFolder({ count: 3, startIndex: 0 })
+        ).data.response!.folders!.map((f) => (f as any).id);
+        const page2 = (
+          await ownerApi.rooms.getRoomsFolder({ count: 3, startIndex: 3 })
+        ).data.response!.folders!.map((f) => (f as any).id);
+
+        const all = [...page1, ...page2];
+        const unique = new Set(all);
+        // No duplicates across pages.
+        expect(unique.size).toBe(all.length);
+        // All created rooms are present across the two pages.
+        for (const id of created) {
+          expect(all).toContain(id);
+        }
+      });
+
+      test("PUT /files/rooms/:id/pin - Filtered list keeps the pinned matching room on top", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const marker = `Mark${apiSdk.faker.generateString(8)}`;
+        const r1 = await createRoom(ownerApi, `${marker} One`);
+        await createRoom(ownerApi, `${marker} Two`);
+        await createRoom(ownerApi, `${marker} Three`);
+
+        await ownerApi.rooms.pinRoom({ id: r1 });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({
+          filterValue: marker,
+        });
+        const folders = data.response!.folders!;
+        expect(folders.length).toBeGreaterThanOrEqual(3);
+        const r1Index = folders.findIndex((f) => (f as any).id === r1);
+        const firstUnpinned = folders.findIndex((f) => !(f as any).pinned);
+
+        expect((folders[r1Index] as any).pinned).toBe(true);
+        expect(r1Index).toBeLessThan(firstUnpinned);
+      });
+    });
+
+    test.describe("Concurrency", () => {
+      test("PUT /files/rooms/:id/pin - Concurrent pin requests do not duplicate the room", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin Concurrent");
+
+        const results = await Promise.all([
+          ownerApi.rooms.pinRoom({ id: roomId }),
+          ownerApi.rooms.pinRoom({ id: roomId }),
+        ]);
+
+        for (const r of results) {
+          expect(r.status).toBe(200);
+        }
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const occurrences = data.response!.folders!.filter(
+          (f) => (f as any).id === roomId,
+        );
+        expect(occurrences.length).toBe(1);
+        expect((occurrences[0] as any).pinned).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/pin - Concurrent pin and unpin do not error", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Pin Race");
+
+        const [pin, unpin] = await Promise.all([
+          ownerApi.rooms.pinRoom({ id: roomId }),
+          ownerApi.rooms.unpinRoom({ id: roomId }),
+        ]);
+
+        // Neither request should crash the server; final state is whichever won.
+        expect(pin.status).toBe(200);
+        expect(unpin.status).toBe(200);
+
+        // The race must not corrupt the room: it appears exactly once...
+        const afterRace = await findRoomRow(ownerApi, roomId);
+        expect(afterRace.count).toBe(1);
+
+        // ...and the pin state stays deterministically settable afterwards.
+        await ownerApi.rooms.pinRoom({ id: roomId });
+        await expectPinnedOnTop(ownerApi, roomId);
+
+        await ownerApi.rooms.unpinRoom({ id: roomId });
+        const afterUnpin = await findRoomRow(ownerApi, roomId);
+        expect(afterUnpin.row.pinned).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/pin - Many rooms can be pinned sequentially", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const created: number[] = [];
+        for (let i = 0; i < 5; i++) {
+          created.push(await createRoom(ownerApi, `Autotest Pin Many ${i}`));
+        }
+        for (const id of created) {
+          const { status } = await ownerApi.rooms.pinRoom({ id });
+          expect(status).toBe(200);
+        }
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const folders = data.response!.folders!;
+        const pinnedIds = folders
+          .filter((f) => (f as any).pinned)
+          .map((f) => (f as any).id);
+        // Every room we pinned is actually pinned, and nothing else got pinned.
+        expect(pinnedIds.sort()).toEqual([...created].sort());
+        // The pinned rooms occupy the top contiguous block of the list.
+        const firstUnpinned = folders.findIndex((f) => !(f as any).pinned);
+        if (firstUnpinned !== -1) {
+          expect(firstUnpinned).toBe(created.length);
+        }
+      });
+    });
+
+    // The rooms list allows at most 10 pinned rooms - pinning an 11th non-AI room
+    // returns 403 "You can't pin a room". An AI room is expected to be EXEMPT from
+    // this limit, so it should still pin even when 10 rooms are already pinned.
+    // Verified: an AI room pins fine on its own (200), but the API currently counts
+    // it against the same 10-room limit and rejects it with 403 - marked test.fail
+    // until fixed (when it returns 200 the test will report an unexpected pass).
+    test.describe("Pin limit", () => {
+      test("PUT /files/rooms/:id/pin - Cannot pin more than 10 non-AI rooms", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        // Pin 10 non-AI rooms - all allowed.
+        const pinned: number[] = [];
+        for (let i = 0; i < 10; i++) {
+          const id = await createRoom(ownerApi, `Autotest Pin Cap ${i}`);
+          const { status } = await ownerApi.rooms.pinRoom({ id });
+          expect(status).toBe(200);
+          pinned.push(id);
+        }
+
+        // The 11th non-AI room exceeds the limit and must be rejected.
+        const eleventh = await createRoom(ownerApi, "Autotest Pin Cap 11");
+        const { status, data } = await ownerApi.rooms.pinRoom({ id: eleventh });
+
+        // Side-effect first: the 11th room is NOT pinned and exactly 10 stay pinned.
+        const { row: eleventhRow } = await findRoomRow(ownerApi, eleventh);
+        expect(eleventhRow.pinned).toBe(false);
+        const list = await ownerApi.rooms.getRoomsFolder({});
+        const pinnedIds = list.data
+          .response!.folders!.filter((f) => (f as any).pinned)
+          .map((f) => (f as any).id);
+        expect(pinnedIds.sort()).toEqual([...pinned].sort());
+
+        expect(status).toBe(403);
+        expect((data as any).error?.message).toBe("You can't pin a room");
+      });
+
+      test.fail(
+        "BUG 81852: PUT /files/rooms/:id/pin - AI room is exempt from the 10-room pin limit (should pin past 10), but API returns 403",
+        async ({ apiSdk }) => {
+          const ownerApi = apiSdk.forRole("owner");
+
+          // Reach the limit: pin 10 non-AI rooms.
+          for (let i = 0; i < 10; i++) {
+            const id = await createRoom(ownerApi, `Autotest Pin Limit ${i}`);
+            const { status } = await ownerApi.rooms.pinRoom({ id });
+            expect(status).toBe(200);
+          }
+
+          // An AI room is not counted in the 10-room limit, so it should still pin.
+          const aiRoomId = await createRoom(
+            ownerApi,
+            "Autotest Pin Limit AI",
+            RoomType.AiRoom,
+          );
+          const { status, data } = await ownerApi.rooms.pinRoom({
+            id: aiRoomId,
+          });
+
+          expect(status).toBe(200);
+          expect(data.response!.pinned).toBe(true);
+          await expectPinnedOnTop(ownerApi, aiRoomId);
+        },
+      );
+    });
+  });
+
   test.describe("POST /files/roomtemplate", () => {
     test("POST /files/roomtemplate - Owner creates a room template", async ({
       apiSdk,
@@ -3298,6 +4061,400 @@ test.describe("API rooms methods", () => {
 
     expect(status).toBe(200);
     expect(data.response).toBe(true);
+  });
+
+  test.describe("GET /files/tags/:tagName/haslinks - hasTagLinks", () => {
+    // tagName2 = path param ({tagName} in route), tagName = query param ([FromQuery] in DTO).
+    // Both are normally passed with the same value (see the path/query mismatch test below).
+
+    test("GET /files/tags/haslinks - Tag linked to multiple rooms returns true", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "MultiRoomLinkedTag" },
+      });
+
+      for (const title of [
+        "Autotest HasLinks Room A",
+        "Autotest HasLinks Room B",
+      ]) {
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+        });
+        await ownerApi.rooms.addRoomTags({
+          id: roomData.response!.id!,
+          batchTagsRequestDto: { names: ["MultiRoomLinkedTag"] },
+        });
+      }
+
+      const { data, status } = await ownerApi.rooms.hasTagLinks({
+        tagName2: "MultiRoomLinkedTag",
+        tagName: "MultiRoomLinkedTag",
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    test("GET /files/tags/haslinks - Detaching the tag from its only room returns false (tag stays in catalog)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "DetachTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Detach Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["DetachTag"] },
+      });
+
+      const before = await ownerApi.rooms.hasTagLinks({
+        tagName2: "DetachTag",
+        tagName: "DetachTag",
+      });
+      expect(before.data.response).toBe(true);
+
+      const { status: detachStatus } = await ownerApi.rooms.deleteRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["DetachTag"] },
+      });
+      expect(detachStatus).toBe(200);
+
+      const after = await ownerApi.rooms.hasTagLinks({
+        tagName2: "DetachTag",
+        tagName: "DetachTag",
+      });
+      expect(after.status).toBe(200);
+      expect(after.data.response).toBe(false);
+
+      // Detaching from a room does NOT remove the tag from the catalog
+      // (unlike deleting the room, which garbage-collects single-use tags).
+      const { data: list } = await ownerApi.rooms.getRoomTagsInfo();
+      expect(list.response as unknown as string[]).toContain("DetachTag");
+    });
+
+    test("GET /files/tags/haslinks - Tag removed from one of two rooms still returns true", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "PartialDetachTag" },
+      });
+
+      const { data: room1 } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Partial Detach A",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const { data: room2 } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Partial Detach B",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const room1Id = room1.response!.id!;
+      const room2Id = room2.response!.id!;
+      await ownerApi.rooms.addRoomTags({
+        id: room1Id,
+        batchTagsRequestDto: { names: ["PartialDetachTag"] },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: room2Id,
+        batchTagsRequestDto: { names: ["PartialDetachTag"] },
+      });
+
+      await ownerApi.rooms.deleteRoomTags({
+        id: room1Id,
+        batchTagsRequestDto: { names: ["PartialDetachTag"] },
+      });
+
+      const { data, status } = await ownerApi.rooms.hasTagLinks({
+        tagName2: "PartialDetachTag",
+        tagName: "PartialDetachTag",
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    test("GET /files/tags/haslinks - Deleting the only room garbage-collects the tag and returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "GcTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest GC Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.rooms.addRoomTags({
+        id: roomId,
+        batchTagsRequestDto: { names: ["GcTag"] },
+      });
+
+      const before = await ownerApi.rooms.hasTagLinks({
+        tagName2: "GcTag",
+        tagName: "GcTag",
+      });
+      expect(before.data.response).toBe(true);
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      // The tag was attached only to the deleted room, so it is garbage-collected
+      // from the catalog; the endpoint then reports the tag as non-existent (404).
+      const after = await ownerApi.rooms.hasTagLinks({
+        tagName2: "GcTag",
+        tagName: "GcTag",
+      });
+      expect(after.status).toBe(404);
+
+      const { data: list } = await ownerApi.rooms.getRoomTagsInfo();
+      expect(list.response as unknown as string[]).not.toContain("GcTag");
+    });
+
+    test("GET /files/tags/haslinks - Non-existent / empty / spaces-only tag names return 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await test.step("non-existent tag name", async () => {
+        const { status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "NoSuchTagEver",
+          tagName: "NoSuchTagEver",
+        });
+        expect(status).toBe(404);
+      });
+
+      await test.step("empty tag name", async () => {
+        const { status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "",
+          tagName: "",
+        });
+        expect(status).toBe(404);
+      });
+
+      await test.step("spaces-only tag name", async () => {
+        const { status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "   ",
+          tagName: "   ",
+        });
+        expect(status).toBe(404);
+      });
+    });
+
+    test("GET /files/tags/haslinks - Lookup is case-insensitive", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "CaseSensitiveTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Case Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["CaseSensitiveTag"] },
+      });
+
+      const { data, status } = await ownerApi.rooms.hasTagLinks({
+        tagName2: "casesensitivetag",
+        tagName: "casesensitivetag",
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    test("GET /files/tags/haslinks - Tag names with special characters are matched (URL-encoded)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const names = ["Tag/Slash", "ТестТег", "C++"];
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Special Chars Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names },
+      });
+
+      for (const name of names) {
+        await test.step(`tag "${name}"`, async () => {
+          const { data, status } = await ownerApi.rooms.hasTagLinks({
+            tagName2: name,
+            tagName: name,
+          });
+          expect(status).toBe(200);
+          expect(data.response).toBe(true);
+        });
+      }
+    });
+
+    test("GET /files/tags/haslinks - On path/query mismatch the query param (tagName) determines the result", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "MismatchLinkedTag" },
+      });
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "MismatchUnlinkedTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Mismatch Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["MismatchLinkedTag"] },
+      });
+
+      await test.step("path=linked, query=unlinked -> false (follows query)", async () => {
+        const { data, status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "MismatchLinkedTag",
+          tagName: "MismatchUnlinkedTag",
+        });
+        expect(status).toBe(200);
+        expect(data.response).toBe(false);
+      });
+
+      await test.step("path=unlinked, query=linked -> true (follows query)", async () => {
+        const { data, status } = await ownerApi.rooms.hasTagLinks({
+          tagName2: "MismatchUnlinkedTag",
+          tagName: "MismatchLinkedTag",
+        });
+        expect(status).toBe(200);
+        expect(data.response).toBe(true);
+      });
+    });
+
+    test("GET /files/tags/haslinks - Multiple tags on one room are detected independently", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "RoomTagOne" },
+      });
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "RoomTagTwo" },
+      });
+      // RoomTagThree exists in the catalog but is not attached to any room
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "RoomTagThree" },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Multi-Tag Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["RoomTagOne", "RoomTagTwo"] },
+      });
+
+      const one = await ownerApi.rooms.hasTagLinks({
+        tagName2: "RoomTagOne",
+        tagName: "RoomTagOne",
+      });
+      const two = await ownerApi.rooms.hasTagLinks({
+        tagName2: "RoomTagTwo",
+        tagName: "RoomTagTwo",
+      });
+      const three = await ownerApi.rooms.hasTagLinks({
+        tagName2: "RoomTagThree",
+        tagName: "RoomTagThree",
+      });
+
+      expect(one.data.response).toBe(true);
+      expect(two.data.response).toBe(true);
+      expect(three.data.response).toBe(false);
+    });
+
+    test("GET /files/tags/haslinks - Detects a tag linked to a PublicRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "PublicRoomTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Public HasLinks Room",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["PublicRoomTag"] },
+      });
+
+      const { data, status } = await ownerApi.rooms.hasTagLinks({
+        tagName2: "PublicRoomTag",
+        tagName: "PublicRoomTag",
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    test("GET /files/tags/haslinks - Repeated calls return a stable result", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "StableTag" },
+      });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Stable Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      await ownerApi.rooms.addRoomTags({
+        id: roomData.response!.id!,
+        batchTagsRequestDto: { names: ["StableTag"] },
+      });
+
+      const first = await ownerApi.rooms.hasTagLinks({
+        tagName2: "StableTag",
+        tagName: "StableTag",
+      });
+      const second = await ownerApi.rooms.hasTagLinks({
+        tagName2: "StableTag",
+        tagName: "StableTag",
+      });
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(first.data.response).toBe(true);
+      expect(second.data.response).toBe(true);
+    });
   });
 
   test.describe("POST /files/tags - createRoomTag", () => {
@@ -8905,6 +10062,609 @@ test.describe("API rooms methods", () => {
         ["Folder C", 2],
         ["Folder B", 3],
       ]);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Already-sequential folder order stays unchanged", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Sequential",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder C" },
+      });
+
+      const { data: before } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const ordersBefore = before.response!.folders!.map((f) => [
+        f.title,
+        Number(f.order),
+      ]);
+      // Freshly created folders already have a gap-free 1..N order
+      expect(ordersBefore.map(([, o]) => o)).toEqual([1, 2, 3]);
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const ordersAfter = after.response!.folders!.map((f) => [
+        f.title,
+        Number(f.order),
+      ]);
+      // Reorder is a no-op when order is already sequential
+      expect(ordersAfter).toEqual(ordersBefore);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Files with sparse order are compacted to 1..N preserving order", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Files",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileA } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "File A" },
+      });
+      const { data: fileB } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "File B" },
+      });
+      const { data: fileC } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "File C" },
+      });
+      const idA = fileA.response!.id!;
+      const idB = fileB.response!.id!;
+      const idC = fileC.response!.id!;
+      // File entries in folder content are typed without `id`, so match by title
+      const titleA = fileA.response!.title!;
+      const titleB = fileB.response!.title!;
+      const titleC = fileC.response!.title!;
+
+      // Manually set non-sequential indexes with gaps
+      await ownerApi.files.setFileOrder({
+        fileId: idA,
+        orderRequestDto: { order: 10 },
+      });
+      await ownerApi.files.setFileOrder({
+        fileId: idC,
+        orderRequestDto: { order: 30 },
+      });
+      await ownerApi.files.setFileOrder({
+        fileId: idB,
+        orderRequestDto: { order: 50 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const byTitle = new Map(
+        after.response!.files!.map((f) => [f.title, Number(f.order)]),
+      );
+      // Gaps removed, relative order (A < C < B) preserved
+      expect(byTitle.get(titleA)).toBe(1);
+      expect(byTitle.get(titleC)).toBe(2);
+      expect(byTitle.get(titleB)).toBe(3);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Mixed folders and files are compacted without gaps", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Mixed",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Mixed Folder" },
+      });
+      const { data: file } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Mixed File" },
+      });
+      const folderId = folder.response!.id!;
+      const fileId = file.response!.id!;
+
+      await ownerApi.folders.setFolderOrder({
+        folderId,
+        orderRequestDto: { order: 20 },
+      });
+      await ownerApi.files.setFileOrder({
+        fileId,
+        orderRequestDto: { order: 90 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      // The combined folder+file index is compacted to a contiguous 1..N range
+      const allOrders = [
+        ...after.response!.folders!.map((f) => Number(f.order)),
+        ...after.response!.files!.map((f) => Number(f.order)),
+      ].sort((a, b) => a - b);
+      expect(allOrders).toEqual([1, 2]);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Nested folder content is not affected by root reorder", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Nested",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // A folder at the room root with a nested file inside it
+      const { data: parentFolder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Parent Folder" },
+      });
+      const parentFolderId = parentFolder.response!.id!;
+      const { data: nestedFile } = await ownerApi.files.createFile({
+        folderId: parentFolderId,
+        createFileJsonElement: { title: "Nested File" },
+      });
+      const nestedTitle = nestedFile.response!.title!;
+
+      // A second root folder, with a sparse order forcing a root reindex
+      const { data: rootFolder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Root Folder" },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: rootFolder.response!.id!,
+        orderRequestDto: { order: 77 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: parentFolderId,
+        orderRequestDto: { order: 5 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      // Root level reindexed to 1..N
+      const { data: rootAfter } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(
+        rootAfter.response!.folders!.map((f) => Number(f.order)).sort(),
+      ).toEqual([1, 2]);
+
+      // Nested file still lives inside the parent folder, untouched
+      const { data: nestedAfter } = await ownerApi.folders.getFolderByFolderId({
+        folderId: parentFolderId,
+      });
+      const nestedTitles = nestedAfter.response!.files!.map((f) => f.title);
+      expect(nestedTitles).toContain(nestedTitle);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Single item gets order 1", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Single",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Lonely Folder" },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folder.response!.id!,
+        orderRequestDto: { order: 50 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(Number(after.response!.folders![0].order)).toBe(1);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Large order gaps are compacted to 1..N", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Large Gaps",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      const { data: folderC } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder C" },
+      });
+
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderA.response!.id!,
+        orderRequestDto: { order: 100 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderB.response!.id!,
+        orderRequestDto: { order: 5000 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderC.response!.id!,
+        orderRequestDto: { order: 999999 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(
+        after.response!.folders!.map((f) => [f.title, Number(f.order)]),
+      ).toEqual([
+        ["Folder A", 1],
+        ["Folder B", 2],
+        ["Folder C", 3],
+      ]);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Duplicate order values are compacted to a dense unique range", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Duplicates",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      const { data: folderC } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder C" },
+      });
+
+      // Force the same order value on every folder
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderA.response!.id!,
+        orderRequestDto: { order: 5 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderB.response!.id!,
+        orderRequestDto: { order: 5 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderC.response!.id!,
+        orderRequestDto: { order: 5 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      // Tie-break order is not contractually defined, so only assert the
+      // resulting indexes are dense and unique (1..N), not a specific sort.
+      const orders = after
+        .response!.folders!.map((f) => Number(f.order))
+        .sort((a, b) => a - b);
+      expect(orders).toEqual([1, 2, 3]);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Repeated reorder is idempotent", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Idempotent",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderA.response!.id!,
+        orderRequestDto: { order: 40 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderB.response!.id!,
+        orderRequestDto: { order: 10 },
+      });
+
+      const first = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(first.status).toBe(200);
+      const { data: afterFirst } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const ordersFirst = afterFirst.response!.folders!.map((f) => [
+        f.title,
+        Number(f.order),
+      ]);
+
+      const second = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(second.status).toBe(200);
+      const { data: afterSecond } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const ordersSecond = afterSecond.response!.folders!.map((f) => [
+        f.title,
+        Number(f.order),
+      ]);
+
+      expect(ordersSecond).toEqual(ordersFirst);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Reorder does not delete, duplicate, rename or move items", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Integrity",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Doc" },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderA.response!.id!,
+        orderRequestDto: { order: 30 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderB.response!.id!,
+        orderRequestDto: { order: 10 },
+      });
+
+      const { data: before } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      // Folder/file entries in folder content are typed without `id`; identify by title
+      const foldersBefore = before
+        .response!.folders!.map((f) => f.title)
+        .sort();
+      const filesBefore = before.response!.files!.map((f) => f.title).sort();
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const foldersAfter = after.response!.folders!.map((f) => f.title).sort();
+      const filesAfter = after.response!.files!.map((f) => f.title).sort();
+
+      // Same ids, same titles, same counts — nothing added, removed or renamed
+      expect(foldersAfter).toEqual(foldersBefore);
+      expect(filesAfter).toEqual(filesBefore);
+    });
+
+    // An invalid/out-of-range numeric id should be a validation error (400), but the
+    // API does not pre-validate: the storage layer throws InvalidOperationException
+    // "The required folder was not found" from ReOrderAsync, which is mapped to 403.
+    // Same defect class as the sibling pinRoom endpoint (BUG 81850). Marked test.fail
+    // until fixed; when the API starts returning 400 the test reports an unexpected
+    // pass, signaling test.fail can be removed.
+    for (const id of [0, -1, 999999999]) {
+      test.fail(
+        `BUG XXXXX: PUT /files/rooms/:id/reorder - id=${id} should return 400 (validation), but API returns 403`,
+        async ({ apiSdk }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { status } = await ownerApi.rooms.reorderRoom({ id });
+          expect(status).toBe(400);
+        },
+      );
+    }
+
+    // A well-formed id for a room that was deleted should be 404 (not found), but the
+    // same missing-folder path returns 403. Marked test.fail until fixed.
+    test.fail(
+      "BUG XXXXX: PUT /files/rooms/:id/reorder - deleted room should return 404, but API returns 403",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Reorder Deleted",
+            roomType: RoomType.VirtualDataRoom,
+            indexing: true,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        await ownerApi.rooms.deleteRoom({
+          id: roomId,
+          deleteRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+        expect(status).toBe(404);
+      },
+    );
+
+    test("PUT /files/rooms/:id/reorder - Archived room is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Archived",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(403);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Non-indexed room is reordered without error", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Non-indexed",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+
+      const { data, status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+      expect(data.response!.id).toBe(roomId);
+
+      // Content must remain intact after reordering a non-indexed room
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const titles = after.response!.folders!.map((f) => f.title);
+      expect(titles).toContain(folderA.response!.title!);
+      expect(titles).toContain(folderB.response!.title!);
+    });
+
+    test("PUT /files/rooms/:id/reorder - VDR room with indexing disabled is reordered without error", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      // Same room type as the indexed tests, but indexing is explicitly off — this
+      // exercises a different controller path than a CustomRoom that never supports it.
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder VDR No Indexing",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: false,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+
+      const { data, status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+      expect(data.response!.id).toBe(roomId);
+
+      // Content must remain intact after reordering a non-indexed VDR room
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const titles = after.response!.folders!.map((f) => f.title);
+      expect(titles).toContain(folderA.response!.title!);
+      expect(titles).toContain(folderB.response!.title!);
     });
   });
 
