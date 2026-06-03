@@ -1,4 +1,4 @@
-import { expect } from "@playwright/test";
+﻿import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import {
   Configuration,
@@ -1406,46 +1406,41 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // BUG 81463: GET /api/2.0/files/:folderId/subfolders returns 403 for RoomManager access
-  // while lower roles (ContentCreator, Review, Comment) return 200.
-  // Actual response: { "error": { "message": "You don't have enough permission to view the folder content",
-  // "type": "System.InvalidOperationException", "hresult": -2146233079 }, "status": 1, "statusCode": 403 }
-  test.fail(
-    "BUG 81463: GET /api/2.0/files/:folderId/subfolders - User with RoomManager access gets 200",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For RoomManager Subfolders",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-      await ownerApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: "Autotest Subfolder RoomManager" },
-      });
+  test("BUG 81463: GET /api/2.0/files/:folderId/subfolders - RoomAdmin with RoomManager access gets 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For RoomManager Subfolders",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Subfolder RoomManager" },
+    });
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.RoomManager }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
 
-      const { data, status } = await userApi.folders.getFolders({
-        folderId: roomId,
-      });
+    const { data, status } = await userApi.folders.getFolders({
+      folderId: roomId,
+    });
 
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-    },
-  );
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
 
   test("GET /api/2.0/files/:folderId/subfolders - User with ContentCreator access gets 200", async ({
     apiSdk,
