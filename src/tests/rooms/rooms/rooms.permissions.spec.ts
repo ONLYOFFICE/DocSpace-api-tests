@@ -3712,3 +3712,172 @@ test.describe("PUT /api/2.0/files/rooms/{id}/links - external sharing restrictio
     },
   );
 });
+
+// PUT /files/rooms/:id/reorder — reorderRoom. Reordering the room index is a
+// room-management action: only the room owner, portal admins (DocSpaceAdmin) or a
+// member invited with management access (RoomManager) may run it. Lower access
+// levels and non-members get 403; anonymous requests get 401.
+test.describe("PUT /files/rooms/:id/reorder - access control", () => {
+  test("Owner can reorder their own indexed room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Reorder Perm Owner",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+    expect(status).toBe(200);
+  });
+
+  // Unlike PUT /archive (which a DocSpaceAdmin may run on any room), reorder is
+  // membership-scoped: a portal admin who is not a member of the room cannot reorder it
+  // and gets the same 403 "folder not found" as any other non-member.
+  test("DocSpaceAdmin not invited to owner's room cannot reorder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Reorder Perm Admin",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { status } = await adminApi.rooms.reorderRoom({ id: roomId });
+    expect(status).toBe(403);
+  });
+
+  test("RoomAdmin not invited to owner's room cannot reorder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Reorder Perm RoomAdmin Outside",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { status } = await roomAdminApi.rooms.reorderRoom({ id: roomId });
+    expect(status).toBe(403);
+  });
+
+  // RoomAdmin invited to the room: only management access (RoomManager) grants the
+  // ability to reorder the index; lower access levels are forbidden.
+  for (const { label, access } of roomAccesses) {
+    const allowed = access === FileShare.RoomManager;
+    test(`RoomAdmin invited as ${label} ${
+      allowed ? "can" : "cannot"
+    } reorder the room`, async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Reorder Perm Invited ${label}`,
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: roomAdminApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const userId = memberData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access }],
+          notify: false,
+        },
+      });
+
+      const { status } = await roomAdminApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(allowed ? 200 : 403);
+    });
+  }
+
+  test("User invited to room cannot reorder", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Reorder Perm User",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.rooms.reorderRoom({ id: roomId });
+    expect(status).toBe(403);
+  });
+
+  test("Guest invited to room cannot reorder", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Reorder Perm Guest",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: guestApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await guestApi.rooms.reorderRoom({ id: roomId });
+    expect(status).toBe(403);
+  });
+
+  test("Reordering a room without authorization returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Reorder Perm Anonymous",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().rooms.reorderRoom({
+      id: roomId,
+    });
+    expect(status).toBe(401);
+  });
+});
