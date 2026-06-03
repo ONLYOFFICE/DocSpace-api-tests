@@ -2030,6 +2030,37 @@ test.describe("API rooms methods", () => {
     // it against the same 10-room limit and rejects it with 403 - marked test.fail
     // until fixed (when it returns 200 the test will report an unexpected pass).
     test.describe("Pin limit", () => {
+      test("PUT /files/rooms/:id/pin - Cannot pin more than 10 non-AI rooms", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        // Pin 10 non-AI rooms - all allowed.
+        const pinned: number[] = [];
+        for (let i = 0; i < 10; i++) {
+          const id = await createRoom(ownerApi, `Autotest Pin Cap ${i}`);
+          const { status } = await ownerApi.rooms.pinRoom({ id });
+          expect(status).toBe(200);
+          pinned.push(id);
+        }
+
+        // The 11th non-AI room exceeds the limit and must be rejected.
+        const eleventh = await createRoom(ownerApi, "Autotest Pin Cap 11");
+        const { status, data } = await ownerApi.rooms.pinRoom({ id: eleventh });
+
+        // Side-effect first: the 11th room is NOT pinned and exactly 10 stay pinned.
+        const { row: eleventhRow } = await findRoomRow(ownerApi, eleventh);
+        expect(eleventhRow.pinned).toBe(false);
+        const list = await ownerApi.rooms.getRoomsFolder({});
+        const pinnedIds = list.data
+          .response!.folders!.filter((f) => (f as any).pinned)
+          .map((f) => (f as any).id);
+        expect(pinnedIds.sort()).toEqual([...pinned].sort());
+
+        expect(status).toBe(403);
+        expect((data as any).error?.message).toBe("You can't pin a room");
+      });
+
       test.fail(
         "BUG 81852: PUT /files/rooms/:id/pin - AI room is exempt from the 10-room pin limit (should pin past 10), but API returns 403",
         async ({ apiSdk }) => {
