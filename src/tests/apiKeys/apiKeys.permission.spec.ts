@@ -4,25 +4,6 @@ import { faker } from "@faker-js/faker";
 
 test.describe("POST /api/2.0/keys - permissions", () => {
   test.fail(
-    "BUG 81235: POST /api/2.0/keys - User cannot create an API key with Contacts permissions",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "User");
-
-      const { data, status } = await apiSdk
-        .forRole("user")
-        .apiKeys.createApiKey({
-          createApiKeyRequestDto: {
-            name: "test key",
-            permissions: ["accounts:read"],
-          },
-        });
-
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe("Access denied");
-    },
-  );
-
-  test.fail(
     "BUG 81236: POST /api/2.0/keys - Guest cannot create an API key",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");

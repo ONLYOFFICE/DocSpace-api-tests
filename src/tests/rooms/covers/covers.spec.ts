@@ -48,6 +48,86 @@ test.describe("GET /files/rooms/covers - Get room covers", () => {
     const uniqueIds = new Set(ids);
     expect(uniqueIds.size).toBe(ids.length);
   });
+
+  test("GET /files/rooms/covers - Default 'schedule' cover is present in the list", async ({
+    apiSdk,
+  }) => {
+    const { data } = await apiSdk.forRole("owner").rooms.getRoomCovers();
+    const ids = data.response!.map((c) => c.id);
+    expect(ids).toContain("schedule");
+  });
+
+  test("GET /files/rooms/covers - Each cover.data is a non-null non-empty string", async ({
+    apiSdk,
+  }) => {
+    const { data } = await apiSdk.forRole("owner").rooms.getRoomCovers();
+    for (const cover of data.response!) {
+      expect(cover.data).not.toBeNull();
+      expect(typeof cover.data).toBe("string");
+      expect((cover.data as string).length).toBeGreaterThan(0);
+    }
+  });
+
+  test("GET /files/rooms/covers - Owner, DocSpaceAdmin, RoomAdmin and User see the same cover ids", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const [ownerRes, adminRes, roomAdminRes, userRes] = await Promise.all([
+      apiSdk.forRole("owner").rooms.getRoomCovers(),
+      apiSdk.forRole("docSpaceAdmin").rooms.getRoomCovers(),
+      apiSdk.forRole("roomAdmin").rooms.getRoomCovers(),
+      apiSdk.forRole("user").rooms.getRoomCovers(),
+    ]);
+
+    const sortedIds = (res: typeof ownerRes) =>
+      res.data.response!.map((c) => c.id).sort();
+    const ownerIds = sortedIds(ownerRes);
+
+    expect(sortedIds(adminRes)).toEqual(ownerIds);
+    expect(sortedIds(roomAdminRes)).toEqual(ownerIds);
+    expect(sortedIds(userRes)).toEqual(ownerIds);
+  });
+
+  test("GET /files/rooms/covers - Accept-Language does not change the set of cover ids", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const [ru, en] = await Promise.all([
+      ownerApi.rooms.getRoomCovers({
+        headers: { "Accept-Language": "ru-RU" },
+      }),
+      ownerApi.rooms.getRoomCovers({
+        headers: { "Accept-Language": "en-US" },
+      }),
+    ]);
+    const idsRu = ru.data.response!.map((c) => c.id).sort();
+    const idsEn = en.data.response!.map((c) => c.id).sort();
+    expect(idsEn).toEqual(idsRu);
+  });
+
+  test("GET /files/rooms/covers - List does not depend on rooms existing on the portal", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: before } = await ownerApi.rooms.getRoomCovers();
+    const idsBefore = before.response!.map((c) => c.id).sort();
+
+    await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Covers Portal-State Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    const { data: after } = await ownerApi.rooms.getRoomCovers();
+    const idsAfter = after.response!.map((c) => c.id).sort();
+
+    expect(idsAfter).toEqual(idsBefore);
+  });
 });
 
 test.describe("PUT /files/rooms/:id/cover - Change room cover", () => {

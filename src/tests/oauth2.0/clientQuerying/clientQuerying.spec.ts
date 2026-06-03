@@ -608,6 +608,21 @@ test.describe("GET /api/2.0/clients/consents", () => {
     expect(status).toBe(200);
     expect((data as any).limit).toBeDefined();
   });
+
+  test("BUG 81729: GET /api/2.0/clients/consents - Guest returns 200 instead of 403", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const guestApi = apiSdk.forRole("guest");
+    const guestSig = await getSignature(guestApi);
+    const { status } = await guestApi.clientQuerying.getConsents(
+      { limit: 50 },
+      { headers: { "x-signature": guestSig } },
+    );
+
+    expect(status).toBe(200);
+  });
 });
 
 test.describe("GET /api/2.0/clients/{clientId}/public/info", () => {

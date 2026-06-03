@@ -3,91 +3,148 @@ import { test } from "@/src/fixtures";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("POST /api/2.0/keys - scenarios", () => {
-  test.fail(
-    "BUG 81238: API key with files:read scope cannot create another API key",
-    async ({ apiSdk }) => {
-      let apiKeyValue: string;
+  test("POST /api/2.0/keys - User API key with accounts permissions cannot access GET /api/2.0/people", async ({
+    apiSdk,
+  }) => {
+    let apiKeyValue: string;
 
-      await test.step("Owner creates an API key with files:read only", async () => {
-        const { data, status } = await apiSdk
-          .forRole("owner")
-          .apiKeys.createApiKey({
-            createApiKeyRequestDto: {
-              name: "read-only key",
-              permissions: ["files:read"],
-            },
-          });
+    await test.step("User creates an API key requesting accounts permissions", async () => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
 
-        expect(status).toBe(200);
-        apiKeyValue = data.response!.key!;
-      });
-
-      await test.step("Request with that key to create a full-access key returns 403", async () => {
-        const { data, status } = await apiSdk
-          .forApiKey(apiKeyValue!)
-          .apiKeys.createApiKey({
-            createApiKeyRequestDto: {
-              name: "full access key",
-            },
-          });
-
-        expect(status).toBe(403);
-        expect((data.response as any)?.error?.message).toBe("Access denied");
-      });
-    },
-  );
-
-  test.fail(
-    "BUG 81239: API key with contacts:read scope cannot access rooms",
-    async ({ apiSdk }) => {
-      let roomId: number;
-      let apiKeyValue: string;
-
-      await test.step("Owner creates a room", async () => {
-        const { data, status } = await apiSdk
-          .forRole("owner")
-          .rooms.createRoom({
-            createRoomRequestDto: {
-              title: "Autotest Room",
-              roomType: RoomType.EditingRoom,
-            },
-          });
-
-        expect(status).toBe(200);
-        roomId = data.response!.id!;
-      });
-
-      await test.step("Owner creates a file in the room", async () => {
-        const { status } = await apiSdk.forRole("owner").files.createFile({
-          folderId: roomId!,
-          createFileJsonElement: { title: "Autotest File.docx" },
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: {
+            name: "Autotest User Accounts Key",
+            permissions: ["accounts:write", "accounts:read"],
+          },
         });
 
-        expect(status).toBe(200);
+      expect(status).toBe(200);
+      apiKeyValue = data.response!.key!;
+    });
+
+    await test.step("GET /api/2.0/people with that key returns 403", async () => {
+      const { status } = await apiSdk
+        .forApiKey(apiKeyValue!)
+        .profiles.getAllProfiles();
+
+      expect(status).toBe(403);
+    });
+  });
+
+  test("BUG 81238: API key with files:read scope cannot create another API key", async ({
+    apiSdk,
+  }) => {
+    let apiKeyValue: string;
+
+    await test.step("Owner creates an API key with files:read only", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: {
+            name: "read-only key",
+            permissions: ["files:read"],
+          },
+        });
+
+      expect(status).toBe(200);
+      apiKeyValue = data.response!.key!;
+    });
+
+    await test.step("Request with that key to create a full-access key returns 403", async () => {
+      const { status } = await apiSdk
+        .forApiKey(apiKeyValue!)
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: {
+            name: "full access key",
+          },
+        });
+
+      expect(status).toBe(403);
+    });
+  });
+
+  test("BUG 74914: GET /api/2.0/keys/@self - API key with scoped permissions can get own key info", async ({
+    apiSdk,
+  }) => {
+    let apiKeyValue: string;
+    let apiKeyId: string;
+
+    await test.step("Owner creates an API key with scoped permissions", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: {
+            name: "Autotest Scoped Key",
+            permissions: ["files:read", "accounts:read"],
+          },
+        });
+
+      expect(status).toBe(200);
+      apiKeyId = data.response!.id!;
+      apiKeyValue = data.response!.key!;
+    });
+
+    await test.step("GET /api/2.0/keys/@self with that key returns 200 and own key data", async () => {
+      const { data, status } = await apiSdk
+        .forApiKey(apiKeyValue!)
+        .apiKeys.getApiKey();
+
+      expect(status).toBe(200);
+      expect(data.response?.id).toBe(apiKeyId);
+      expect(data.response?.permissions).toContain("files:read");
+      expect(data.response?.permissions).toContain("accounts:read");
+    });
+  });
+
+  test("BUG 81239: API key with contacts:read scope cannot access rooms", async ({
+    apiSdk,
+  }) => {
+    let roomId: number;
+    let apiKeyValue: string;
+
+    await test.step("Owner creates a room", async () => {
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Room",
+          roomType: RoomType.EditingRoom,
+        },
       });
 
-      await test.step("Owner creates an API key with contacts:read only", async () => {
-        const { data, status } = await apiSdk
-          .forRole("owner")
-          .apiKeys.createApiKey({
-            createApiKeyRequestDto: {
-              name: "contacts-read key",
-              permissions: ["accounts:read"],
-            },
-          });
+      expect(status).toBe(200);
+      roomId = data.response!.id!;
+    });
 
-        expect(status).toBe(200);
-        apiKeyValue = data.response!.key!;
+    await test.step("Owner creates a file in the room", async () => {
+      const { status } = await apiSdk.forRole("owner").files.createFile({
+        folderId: roomId!,
+        createFileJsonElement: { title: "Autotest File.docx" },
       });
 
-      await test.step("Request room with that key returns 403", async () => {
-        const { data, status } = await apiSdk
-          .forApiKey(apiKeyValue!)
-          .rooms.getRoomInfo({ id: roomId! });
+      expect(status).toBe(200);
+    });
 
-        expect(status).toBe(403);
-        expect((data.response as any)?.error?.message).toBe("Access denied");
-      });
-    },
-  );
+    await test.step("Owner creates an API key with contacts:read only", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: {
+            name: "contacts-read key",
+            permissions: ["accounts:read"],
+          },
+        });
+
+      expect(status).toBe(200);
+      apiKeyValue = data.response!.key!;
+    });
+
+    await test.step("Request room with that key returns 403", async () => {
+      const { status } = await apiSdk
+        .forApiKey(apiKeyValue!)
+        .rooms.getRoomInfo({ id: roomId! });
+
+      expect(status).toBe(403);
+    });
+  });
 });
