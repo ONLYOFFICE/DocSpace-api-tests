@@ -1,4 +1,4 @@
-import { expect } from "@playwright/test";
+﻿import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { createTestImageBuffer } from "@/src/utils/test-image";
@@ -53,7 +53,7 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
 
     const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
     expect(status).toBe(200);
@@ -80,7 +80,13 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
     );
     const { data } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     expect(data.response!.logo?.original).toBeTruthy();
@@ -129,7 +135,13 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
     );
     const { status } = await apiSdk.forRole("owner").rooms.createRoomLogo({
       id: 999999999,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
     expect(status).toBe(404);
   });
@@ -165,7 +177,13 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
       );
       const { status } = await ownerApi.rooms.createRoomLogo({
         id: roomId,
-        logoRequest: { tmpFile: uploadResult.data.response.data as string },
+        logoRequest: {
+          tmpFile: uploadResult.data.response.data as string,
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+        },
       });
       expect(status).toBe(403);
     });
@@ -185,7 +203,13 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
 
     const { status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: "/non/existent/path/fake.png" },
+      logoRequest: {
+        tmpFile: "/non/existent/path/fake.png",
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     expect(status).toBe(403);
@@ -215,7 +239,13 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
     );
     const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: templateId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     expect(status).toBe(200);
@@ -240,7 +270,13 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
     );
     const { data: createData } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     const { data: infoData, status } = await ownerApi.rooms.getRoomInfo({
@@ -283,7 +319,13 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
     );
     const { data: firstLogoData } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: firstUpload.data.response.data as string },
+      logoRequest: {
+        tmpFile: firstUpload.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
     const firstOriginal = firstLogoData.response!.logo!.original!;
 
@@ -294,7 +336,13 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
     const { data: secondLogoData, status } =
       await ownerApi.rooms.createRoomLogo({
         id: roomId,
-        logoRequest: { tmpFile: secondUpload.data.response.data as string },
+        logoRequest: {
+          tmpFile: secondUpload.data.response.data as string,
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+        },
       });
 
     expect(status).toBe(200);
@@ -304,68 +352,65 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
 });
 
 test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
-  test.fail(
-    "BUG 81677: POST /files/rooms/:id/logo - Missing tmpFile (empty logoRequest) returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Missing TmpFile Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81677: POST /files/rooms/:id/logo - Missing tmpFile (empty logoRequest) returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Missing TmpFile Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: {} as any,
-      });
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: {} as any,
+    });
 
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+  });
 
-  test.fail(
-    "BUG 81677: POST /files/rooms/:id/logo - Empty string tmpFile returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Empty TmpFile Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81677: POST /files/rooms/:id/logo - Empty string tmpFile returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Empty TmpFile Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: { tmpFile: "" },
-      });
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile: "" },
+    });
 
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+  });
 
-  test.fail(
-    "BUG 81677: POST /files/rooms/:id/logo - Null tmpFile returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Null TmpFile Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81677: POST /files/rooms/:id/logo - Null tmpFile returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Null TmpFile Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: { tmpFile: null as unknown as string },
-      });
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile: null as unknown as string },
+    });
 
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+  });
 
   test("POST /files/rooms/:id/logo - Numeric tmpFile returns 400", async ({
     apiSdk,
@@ -453,7 +498,13 @@ test.describe("POST /files/rooms/:id/logo - Room ID validation", () => {
     );
     const { status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     expect(status).toBe(404);
@@ -470,7 +521,13 @@ test.describe("POST /files/rooms/:id/logo - Room ID validation", () => {
 
     const { status } = await ownerApi.rooms.createRoomLogo({
       id: "abc" as unknown as number,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     expect(status).toBe(404);
@@ -478,129 +535,125 @@ test.describe("POST /files/rooms/:id/logo - Room ID validation", () => {
 });
 
 test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
-  test.fail(
-    "BUG 81678: POST /files/rooms/:id/logo - Negative x coordinate returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Negative X Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-      const uploadResult = await apiSdk.uploadRoomLogo(
-        "owner",
-        createTestImageBuffer(),
-      );
+  test("BUG 81678: POST /files/rooms/:id/logo - Negative x coordinate returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Negative X Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: {
-          tmpFile: uploadResult.data.response.data as string,
-          x: -1,
-          y: 0,
-          width: 1,
-          height: 1,
-        },
-      });
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: -1,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
+    });
 
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+  });
 
-  test.fail(
-    "BUG 81678: POST /files/rooms/:id/logo - Negative y coordinate returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Negative Y Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-      const uploadResult = await apiSdk.uploadRoomLogo(
-        "owner",
-        createTestImageBuffer(),
-      );
+  test("BUG 81678: POST /files/rooms/:id/logo - Negative y coordinate returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Negative Y Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: {
-          tmpFile: uploadResult.data.response.data as string,
-          x: 0,
-          y: -1,
-          width: 1,
-          height: 1,
-        },
-      });
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: -1,
+        width: 1,
+        height: 1,
+      },
+    });
 
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+  });
 
-  test.fail(
-    "BUG 81678: POST /files/rooms/:id/logo - Zero width returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Zero Width Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-      const uploadResult = await apiSdk.uploadRoomLogo(
-        "owner",
-        createTestImageBuffer(),
-      );
+  test("BUG 81678: POST /files/rooms/:id/logo - Zero width returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Zero Width Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: {
-          tmpFile: uploadResult.data.response.data as string,
-          x: 0,
-          y: 0,
-          width: 0,
-          height: 1,
-        },
-      });
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 1,
+      },
+    });
 
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+  });
 
-  test.fail(
-    "BUG 81678: POST /files/rooms/:id/logo - Zero height returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Zero Height Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-      const uploadResult = await apiSdk.uploadRoomLogo(
-        "owner",
-        createTestImageBuffer(),
-      );
+  test("BUG 81678: POST /files/rooms/:id/logo - Zero height returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Zero Height Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: {
-          tmpFile: uploadResult.data.response.data as string,
-          x: 0,
-          y: 0,
-          width: 1,
-          height: 0,
-        },
-      });
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 0,
+      },
+    });
 
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+  });
 
   test("POST /files/rooms/:id/logo - Negative width returns 400", async ({
     apiSdk,
@@ -755,7 +808,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
     },
   );
 
-  test("POST /files/rooms/:id/logo - Only x and y without width/height returns 200", async ({
+  test("POST /files/rooms/:id/logo - Only x and y without width/height returns 400", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -780,7 +833,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       },
     });
 
-    expect(status).toBe(200);
+    expect(status).toBe(400);
   });
 
   test("POST /files/rooms/:id/logo - Only width and height without x/y returns 200", async ({
@@ -840,13 +893,13 @@ test.describe("POST /files/rooms/:id/logo - File lifecycle and consistency", () 
 
     const firstResult = await ownerApi.rooms.createRoomLogo({
       id: roomAId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
     expect(firstResult.status).toBe(200);
 
     const { status } = await ownerApi.rooms.createRoomLogo({
       id: roomBId,
-      logoRequest: { tmpFile },
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
     expect(status).toBe(404);
@@ -871,7 +924,13 @@ test.describe("POST /files/rooms/:id/logo - File lifecycle and consistency", () 
 
       const { status } = await ownerApi.rooms.createRoomLogo({
         id: roomId,
-        logoRequest: { tmpFile: uploadResult.data.response.data as string },
+        logoRequest: {
+          tmpFile: uploadResult.data.response.data as string,
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+        },
       });
 
       expect(status).toBe(403);
@@ -898,7 +957,13 @@ test.describe("POST /files/rooms/:id/logo - File lifecycle and consistency", () 
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     const { data: after } = await ownerApi.rooms.getRoomInfo({ id: roomId });
@@ -927,7 +992,13 @@ test.describe("POST /files/rooms/:id/logo - File lifecycle and consistency", () 
     );
     const { data: created } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
     const originalPath = created.response!.logo!.original!.split("?")[0];
 
@@ -970,7 +1041,13 @@ test.describe("POST /files/rooms/:id/logo - File lifecycle and consistency", () 
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     const { data: first } = await ownerApi.rooms.getRoomInfo({ id: roomId });
@@ -1007,7 +1084,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     const { data, status } = await ownerApi.rooms.deleteRoomLogo({
@@ -1038,7 +1121,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     const { data } = await ownerApi.rooms.deleteRoomLogo({ id: roomId });
@@ -1099,7 +1188,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
       );
       await ownerApi.rooms.createRoomLogo({
         id: roomId,
-        logoRequest: { tmpFile: uploadResult.data.response.data as string },
+        logoRequest: {
+          tmpFile: uploadResult.data.response.data as string,
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+        },
       });
     });
 
@@ -1136,7 +1231,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.createRoomTemplate({
@@ -1175,7 +1276,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.deleteRoomLogo({ id: roomId });
@@ -1204,7 +1311,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     const first = await ownerApi.rooms.deleteRoomLogo({ id: roomId });
@@ -1233,7 +1346,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: firstUpload.data.response.data as string },
+      logoRequest: {
+        tmpFile: firstUpload.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     const secondUpload = await apiSdk.uploadRoomLogo(
@@ -1242,7 +1361,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: secondUpload.data.response.data as string },
+      logoRequest: {
+        tmpFile: secondUpload.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     const { data, status } = await ownerApi.rooms.deleteRoomLogo({
@@ -1280,7 +1405,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.deleteRoomLogo({ id: roomId });
@@ -1309,7 +1440,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     const before = await ownerApi.rooms.getRoomInfo({ id: roomId });
@@ -1345,7 +1482,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.deleteRoom({
@@ -1376,7 +1519,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: firstUpload.data.response.data as string },
+      logoRequest: {
+        tmpFile: firstUpload.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.deleteRoomLogo({ id: roomId });
@@ -1387,7 +1536,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: secondUpload.data.response.data as string },
+      logoRequest: {
+        tmpFile: secondUpload.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     expect(status).toBe(200);
@@ -1420,7 +1575,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.deleteRoomLogo({ id: roomId });
@@ -1445,7 +1606,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.deleteRoomLogo({ id: roomId });
@@ -1479,7 +1646,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.deleteRoomLogo({ id: roomId });
@@ -1515,7 +1688,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.createRoomTemplate({
@@ -1573,7 +1752,13 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
     );
     await ownerApi.rooms.createRoomLogo({
       id: roomId,
-      logoRequest: { tmpFile: uploadResult.data.response.data as string },
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
     });
 
     await ownerApi.rooms.deleteRoomLogo({ id: roomId });

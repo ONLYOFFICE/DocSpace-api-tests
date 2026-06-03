@@ -1,4 +1,4 @@
-import { expect } from "@playwright/test";
+﻿import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import {
   EmployeeType,
@@ -3050,7 +3050,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
       });
       const folderId = folderData.response!.id!;
 
-      const specialTitle = "���� ����� & Folder (2024)";
+      const specialTitle = "Тест Папка & Folder (2024)";
 
       const { data, status } = await ownerApi.folders.renameFolder({
         folderId,
@@ -3307,7 +3307,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     // owner visits the room to establish last-read baseline
     await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
 
-    // authenticate user only when needed � right before creating the file
+    // authenticate user only when needed — right before creating the file
     const userApi = await apiSdk.authenticateMember(userCredentials, "User");
     await userApi.files.createFile({
       folderId: roomId,
@@ -3361,7 +3361,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
     });
 
     expect(status).toBe(200);
-    // folders are intentionally not marked as new � only files are
+    // folders are intentionally not marked as new — only files are
     const titles = (data.response ?? []).map((e) => e.title);
     expect(titles).not.toContain("Autotest News Subfolder By User");
   });
@@ -3545,7 +3545,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
       createFileJsonElement: { title: "Autotest Pre-Visit File.docx" },
     });
 
-    // owner visits � establishes baseline after file was already created
+    // owner visits — establishes baseline after file was already created
     await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
 
     const { data, status } = await ownerApi.folders.getNewFolderItems({
@@ -3588,7 +3588,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
       createFileJsonElement: { title: "Autotest Re-Visit File.docx" },
     });
 
-    // owner re-visits � marks all new items as read
+    // owner re-visits — marks all new items as read
     await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
 
     const { data, status } = await ownerApi.folders.getNewFolderItems({
@@ -4002,7 +4002,7 @@ test.describe("POST /api/2.0/files/{folderId}/upload - Upload file", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const fileName = "autotest ���� (special) file.txt";
+    const fileName = "autotest тест (special) file.txt";
     const { data, status } = await uploadFileToFolder(
       apiSdk,
       "owner",
@@ -5048,6 +5048,7 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
     expect(data.response!.sharedLink!.primary).toBe(true);
   });
 
+  // BUG 81573: title parameter is ignored, server always returns "Shared link"
   test("BUG 81573: POST /api/2.0/files/folder/:id/link - Title is reflected in response", async ({
     apiSdk,
   }) => {
@@ -8698,6 +8699,7 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(fileEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
+  // BUG 81623: POST /api/2.0/files/{folderId}/upload does not write FileUploaded event to room history
   test("BUG 81623: GET /api/2.0/files/folder/{folderId}/log - History contains FileUploaded after file is uploaded via POST /files/{folderId}/upload", async ({
     apiSdk,
   }) => {
