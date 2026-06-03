@@ -1,4 +1,4 @@
-﻿import { expect } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import {
   Configuration,
@@ -3176,128 +3176,120 @@ test.describe("POST /api/2.0/files/folder/:id/link - Create folder primary exter
   });
 
   // BUG 81575: User with Read access should get 403 but server returns 200 with count:0
-  test.fail(
-    "BUG 81575: POST /api/2.0/files/folder/:id/link - User with Read access gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link User Read Perm",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81575: POST /api/2.0/files/folder/:id/link - User with Read access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link User Read Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userData.response!.id!, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { status } = await userApi.folders.createFolderPrimaryExternalLink({
-        id: roomId,
-        folderLinkRequest: { access: FileShare.Read },
-      });
+    const { status } = await userApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   // BUG 81575: DocSpaceAdmin without room access should get 403 but server returns 200 with count:0
-  test.fail(
-    "BUG 81575: POST /api/2.0/files/folder/:id/link - DocSpaceAdmin without room access gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Admin No Access Perm",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81575: POST /api/2.0/files/folder/:id/link - DocSpaceAdmin without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Admin No Access Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
 
-      const { status } = await adminApi.folders.createFolderPrimaryExternalLink(
-        {
-          id: roomId,
-          folderLinkRequest: { access: FileShare.Read },
-        },
-      );
+    const { status } = await adminApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   // BUG 81575: User with ContentCreator access should get 403 but server returns 200 with count:0
-  test.fail(
-    "BUG 81575: POST /api/2.0/files/folder/:id/link - User with ContentCreator access gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link User Perm",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81575: POST /api/2.0/files/folder/:id/link - User with ContentCreator access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link User Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [
-            { id: userData.response!.id!, access: FileShare.ContentCreator },
-          ],
-          notify: false,
-        },
-      });
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: userData.response!.id!, access: FileShare.ContentCreator },
+        ],
+        notify: false,
+      },
+    });
 
-      const { status } = await userApi.folders.createFolderPrimaryExternalLink({
-        id: roomId,
-        folderLinkRequest: { access: FileShare.Read },
-      });
+    const { status } = await userApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   // BUG 81575: Guest without room access should get 403 but server returns 200 with count:0
-  test.fail(
-    "BUG 81575: POST /api/2.0/files/folder/:id/link - Guest without room access gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Guest Perm",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81575: POST /api/2.0/files/folder/:id/link - Guest without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Guest Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "Guest",
-      );
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
 
-      const { status } = await guestApi.folders.createFolderPrimaryExternalLink(
-        {
-          id: roomId,
-          folderLinkRequest: { access: FileShare.Read },
-        },
-      );
+    const { status } = await guestApi.folders.createFolderPrimaryExternalLink({
+      id: roomId,
+      folderLinkRequest: { access: FileShare.Read },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   test("POST /api/2.0/files/folder/:id/link - Anonymous request returns 401", async ({
     apiSdk,
@@ -4069,50 +4061,162 @@ test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links - access 
 });
 
 test.describe("GET /api/2.0/files/folder/{id}/link - Get folder primary external link - access control", () => {
-  // BUG 81571: unauthenticated user should get 403 (fixed via BUG 81572: removed [AllowAnonymous])
-  test.fail(
-    "BUG 81571: GET /api/2.0/files/folder/{id}/link - Unauthenticated user gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Anon",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("GET /api/2.0/files/folder/{id}/link - Owner can get primary external link returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Link Owner Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { status } = await apiSdk
-        .forAnonymous()
-        .folders.getFolderPrimaryExternalLink({ id: roomId });
+    const { data, status } =
+      await ownerApi.folders.getFolderPrimaryExternalLink({ id: roomId });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
+    expect(data.response!.sharedLink!.primary).toBe(true);
+  });
 
-  // BUG 81572: user without access should get 403 (endpoint previously marked [AllowAnonymous])
-  test.fail(
-    "BUG 81572: GET /api/2.0/files/folder/{id}/link - User without room access gets 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+  test("GET /api/2.0/files/folder/{id}/link - DocSpaceAdmin with RoomManager access can get primary external link returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Link Admin Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link No Access",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: adminData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
 
-      const { status } = await userApi.folders.getFolderPrimaryExternalLink({
-        id: roomId,
-      });
+    const { data, status } =
+      await adminApi.folders.getFolderPrimaryExternalLink({ id: roomId });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
+    expect(data.response!.sharedLink!.primary).toBe(true);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/link - RoomAdmin with RoomManager access can get primary external link returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Link RoomAdmin Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: roomAdminData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } =
+      await roomAdminApi.folders.getFolderPrimaryExternalLink({ id: roomId });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
+    expect(data.response!.sharedLink!.primary).toBe(true);
+  });
+
+  test("GET /api/2.0/files/folder/{id}/link - User with Read access cannot get primary external link returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Get Folder Link User Read Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.folders.getFolderPrimaryExternalLink({
+      id: roomId,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("BUG 81571: GET /api/2.0/files/folder/{id}/link - Unauthenticated user gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Anon",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .folders.getFolderPrimaryExternalLink({ id: roomId });
+
+    expect(status).toBe(403);
+  });
+
+  test("BUG 81572: GET /api/2.0/files/folder/{id}/link - User without room access gets 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link No Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status } = await userApi.folders.getFolderPrimaryExternalLink({
+      id: roomId,
+    });
+
+    expect(status).toBe(403);
+  });
 });
