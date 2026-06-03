@@ -215,7 +215,7 @@ test.describe("GET /api/2.0/security/audit/settings/lifetime - permissions", () 
 
 test.describe("GET /api/2.0/security/audit/mappers - permissions", () => {
   test.fail(
-    "BUG : GET /api/2.0/security/audit/mappers - Anonymous cannot get audit trail mappers",
+    "BUG 81861: GET /api/2.0/security/audit/mappers - Anonymous cannot get audit trail mappers",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forAnonymous()
@@ -226,7 +226,7 @@ test.describe("GET /api/2.0/security/audit/mappers - permissions", () => {
   );
 
   test.fail(
-    "BUG : GET /api/2.0/security/audit/mappers - RoomAdmin cannot get audit trail mappers",
+    "BUG 81861: GET /api/2.0/security/audit/mappers - RoomAdmin cannot get audit trail mappers",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
@@ -240,7 +240,7 @@ test.describe("GET /api/2.0/security/audit/mappers - permissions", () => {
   );
 
   test.fail(
-    "BUG : GET /api/2.0/security/audit/mappers - User cannot get audit trail mappers",
+    "BUG 81861: GET /api/2.0/security/audit/mappers - User cannot get audit trail mappers",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "User");
 
@@ -254,7 +254,7 @@ test.describe("GET /api/2.0/security/audit/mappers - permissions", () => {
   );
 
   test.fail(
-    "BUG : GET /api/2.0/security/audit/mappers - Guest cannot get audit trail mappers",
+    "BUG 81861: GET /api/2.0/security/audit/mappers - Guest cannot get audit trail mappers",
     async ({ apiSdk }) => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
 
