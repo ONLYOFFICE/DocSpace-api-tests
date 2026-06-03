@@ -1707,7 +1707,7 @@ test.describe("API rooms methods", () => {
       // unexpected pass, signaling test.fail can be removed.
       for (const id of [0, -1, 999999999]) {
         test.fail(
-          `BUG XXXXX: PUT /files/rooms/:id/pin - id=${id} should return 400 (validation), but API returns 403`,
+          `BUG 81850: PUT /files/rooms/:id/pin - id=${id} should return 400 (validation), but API returns 403`,
           async ({ apiSdk }) => {
             const ownerApi = apiSdk.forRole("owner");
             const { status } = await ownerApi.rooms.pinRoom({ id });
@@ -2021,6 +2021,42 @@ test.describe("API rooms methods", () => {
           expect(firstUnpinned).toBe(created.length);
         }
       });
+    });
+
+    // The rooms list allows at most 10 pinned rooms - pinning an 11th non-AI room
+    // returns 403 "You can't pin a room". An AI room is expected to be EXEMPT from
+    // this limit, so it should still pin even when 10 rooms are already pinned.
+    // Verified: an AI room pins fine on its own (200), but the API currently counts
+    // it against the same 10-room limit and rejects it with 403 - marked test.fail
+    // until fixed (when it returns 200 the test will report an unexpected pass).
+    test.describe("Pin limit", () => {
+      test.fail(
+        "BUG XXXXX: PUT /files/rooms/:id/pin - AI room is exempt from the 10-room pin limit (should pin past 10), but API returns 403",
+        async ({ apiSdk }) => {
+          const ownerApi = apiSdk.forRole("owner");
+
+          // Reach the limit: pin 10 non-AI rooms.
+          for (let i = 0; i < 10; i++) {
+            const id = await createRoom(ownerApi, `Autotest Pin Limit ${i}`);
+            const { status } = await ownerApi.rooms.pinRoom({ id });
+            expect(status).toBe(200);
+          }
+
+          // An AI room is not counted in the 10-room limit, so it should still pin.
+          const aiRoomId = await createRoom(
+            ownerApi,
+            "Autotest Pin Limit AI",
+            RoomType.AiRoom,
+          );
+          const { status, data } = await ownerApi.rooms.pinRoom({
+            id: aiRoomId,
+          });
+
+          expect(status).toBe(200);
+          expect(data.response!.pinned).toBe(true);
+          await expectPinnedOnTop(ownerApi, aiRoomId);
+        },
+      );
     });
   });
 
