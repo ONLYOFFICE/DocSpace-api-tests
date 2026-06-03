@@ -2031,7 +2031,7 @@ test.describe("API rooms methods", () => {
     // until fixed (when it returns 200 the test will report an unexpected pass).
     test.describe("Pin limit", () => {
       test.fail(
-        "BUG XXXXX: PUT /files/rooms/:id/pin - AI room is exempt from the 10-room pin limit (should pin past 10), but API returns 403",
+        "BUG 81852: PUT /files/rooms/:id/pin - AI room is exempt from the 10-room pin limit (should pin past 10), but API returns 403",
         async ({ apiSdk }) => {
           const ownerApi = apiSdk.forRole("owner");
 
