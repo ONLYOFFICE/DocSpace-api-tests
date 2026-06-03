@@ -10538,7 +10538,7 @@ test.describe("API rooms methods", () => {
     // pass, signaling test.fail can be removed.
     for (const id of [0, -1, 999999999]) {
       test.fail(
-        `BUG XXXXX: PUT /files/rooms/:id/reorder - id=${id} should return 400 (validation), but API returns 403`,
+        `BUG 81862: PUT /files/rooms/:id/reorder - id=${id} should return 400 (validation), but API returns 403`,
         async ({ apiSdk }) => {
           const ownerApi = apiSdk.forRole("owner");
           const { status } = await ownerApi.rooms.reorderRoom({ id });
@@ -10550,7 +10550,7 @@ test.describe("API rooms methods", () => {
     // A well-formed id for a room that was deleted should be 404 (not found), but the
     // same missing-folder path returns 403. Marked test.fail until fixed.
     test.fail(
-      "BUG XXXXX: PUT /files/rooms/:id/reorder - deleted room should return 404, but API returns 403",
+      "BUG 81863: PUT /files/rooms/:id/reorder - deleted room should return 404, but API returns 403",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
