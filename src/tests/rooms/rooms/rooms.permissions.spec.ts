@@ -3673,10 +3673,10 @@ test.describe("PUT /files/rooms/:id/pin - RoomAdmin invited to owner's room", ()
 });
 
 test.describe("PUT /api/2.0/files/rooms/{id}/links - external sharing restriction", () => {
-  test(
-    "BUG 81840: PUT /api/2.0/files/rooms/{id}/links - Owner cannot create new external link when external sharing is restricted with Allow existing links",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81840: PUT /api/2.0/files/rooms/{id}/links - Owner cannot create new external link when external sharing is restricted with Allow existing links", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
