@@ -211,6 +211,26 @@ test.describe("PUT /api/2.0/security/activeconnections/logout/{loginEventId}", (
     expect(status).toBe(200);
     expect(data.response).toBe(true);
   });
+
+  test("PUT /api/2.0/security/activeconnections/logout/{loginEventId} - DocSpaceAdmin logs out another user's connection", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data: ownerConnectionsData } = await apiSdk
+      .forRole("owner")
+      .activeConnections.getAllActiveConnections();
+
+    const loginEventId = ownerConnectionsData.response!.items![0].id;
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .activeConnections.logOutActiveConnection({ loginEventId });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+    expect(data.count).toBe(1);
+  });
 });
 
 function assertPasswordChangeUrl(data: { response?: string | null }) {
