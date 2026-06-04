@@ -49,89 +49,68 @@ test.describe("PUT /api/2.0/security/activeconnections/logout/{loginEventId} - p
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - DocSpaceAdmin cannot log out Owner's connection",
-    async ({ apiSdk }) => {
-      const { data: ownerConnectionsData } = await apiSdk
-        .forRole("owner")
-        .activeConnections.getAllActiveConnections();
+  test("BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - RoomAdmin cannot log out Owner's connection", async ({
+    apiSdk,
+  }) => {
+    const { data: ownerConnectionsData } = await apiSdk
+      .forRole("owner")
+      .activeConnections.getAllActiveConnections();
 
-      const ownerLoginEventId = ownerConnectionsData.response!.items![0].id;
+    const ownerLoginEventId = ownerConnectionsData.response!.items![0].id;
 
-      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-      const { status } = await apiSdk
-        .forRole("docSpaceAdmin")
-        .activeConnections.logOutActiveConnection({
-          loginEventId: ownerLoginEventId,
-        });
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .activeConnections.logOutActiveConnection({
+        loginEventId: ownerLoginEventId,
+      });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - RoomAdmin cannot log out Owner's connection",
-    async ({ apiSdk }) => {
-      const { data: ownerConnectionsData } = await apiSdk
-        .forRole("owner")
-        .activeConnections.getAllActiveConnections();
+  test("BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - User cannot log out Owner's connection", async ({
+    apiSdk,
+  }) => {
+    const { data: ownerConnectionsData } = await apiSdk
+      .forRole("owner")
+      .activeConnections.getAllActiveConnections();
 
-      const ownerLoginEventId = ownerConnectionsData.response!.items![0].id;
+    const ownerLoginEventId = ownerConnectionsData.response!.items![0].id;
 
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
-      const { status } = await apiSdk
-        .forRole("roomAdmin")
-        .activeConnections.logOutActiveConnection({
-          loginEventId: ownerLoginEventId,
-        });
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .activeConnections.logOutActiveConnection({
+        loginEventId: ownerLoginEventId,
+      });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - User cannot log out Owner's connection",
-    async ({ apiSdk }) => {
-      const { data: ownerConnectionsData } = await apiSdk
-        .forRole("owner")
-        .activeConnections.getAllActiveConnections();
+  test("BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - Guest cannot log out Owner's connection", async ({
+    apiSdk,
+  }) => {
+    const { data: ownerConnectionsData } = await apiSdk
+      .forRole("owner")
+      .activeConnections.getAllActiveConnections();
 
-      const ownerLoginEventId = ownerConnectionsData.response!.items![0].id;
+    const ownerLoginEventId = ownerConnectionsData.response!.items![0].id;
 
-      await apiSdk.addAuthenticatedMember("owner", "User");
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { status } = await apiSdk
-        .forRole("user")
-        .activeConnections.logOutActiveConnection({
-          loginEventId: ownerLoginEventId,
-        });
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .activeConnections.logOutActiveConnection({
+        loginEventId: ownerLoginEventId,
+      });
 
-      expect(status).toBe(403);
-    },
-  );
-
-  test.fail(
-    "BUG 81824: PUT /api/2.0/security/activeconnections/logout/{loginEventId} - Guest cannot log out Owner's connection",
-    async ({ apiSdk }) => {
-      const { data: ownerConnectionsData } = await apiSdk
-        .forRole("owner")
-        .activeConnections.getAllActiveConnections();
-
-      const ownerLoginEventId = ownerConnectionsData.response!.items![0].id;
-
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
-
-      const { status } = await apiSdk
-        .forRole("guest")
-        .activeConnections.logOutActiveConnection({
-          loginEventId: ownerLoginEventId,
-        });
-
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
 });
 
 test.describe("PUT /api/2.0/security/activeconnections/logoutallchangepassword - permissions", () => {
