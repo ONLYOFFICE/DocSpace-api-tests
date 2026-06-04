@@ -2030,6 +2030,37 @@ test.describe("API rooms methods", () => {
     // it against the same 10-room limit and rejects it with 403 - marked test.fail
     // until fixed (when it returns 200 the test will report an unexpected pass).
     test.describe("Pin limit", () => {
+      test("PUT /files/rooms/:id/pin - Cannot pin more than 10 non-AI rooms", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        // Pin 10 non-AI rooms - all allowed.
+        const pinned: number[] = [];
+        for (let i = 0; i < 10; i++) {
+          const id = await createRoom(ownerApi, `Autotest Pin Cap ${i}`);
+          const { status } = await ownerApi.rooms.pinRoom({ id });
+          expect(status).toBe(200);
+          pinned.push(id);
+        }
+
+        // The 11th non-AI room exceeds the limit and must be rejected.
+        const eleventh = await createRoom(ownerApi, "Autotest Pin Cap 11");
+        const { status, data } = await ownerApi.rooms.pinRoom({ id: eleventh });
+
+        // Side-effect first: the 11th room is NOT pinned and exactly 10 stay pinned.
+        const { row: eleventhRow } = await findRoomRow(ownerApi, eleventh);
+        expect(eleventhRow.pinned).toBe(false);
+        const list = await ownerApi.rooms.getRoomsFolder({});
+        const pinnedIds = list.data
+          .response!.folders!.filter((f) => (f as any).pinned)
+          .map((f) => (f as any).id);
+        expect(pinnedIds.sort()).toEqual([...pinned].sort());
+
+        expect(status).toBe(403);
+        expect((data as any).error?.message).toBe("You can't pin a room");
+      });
+
       test.fail(
         "BUG 81852: PUT /files/rooms/:id/pin - AI room is exempt from the 10-room pin limit (should pin past 10), but API returns 403",
         async ({ apiSdk }) => {
@@ -10031,6 +10062,609 @@ test.describe("API rooms methods", () => {
         ["Folder C", 2],
         ["Folder B", 3],
       ]);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Already-sequential folder order stays unchanged", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Sequential",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder C" },
+      });
+
+      const { data: before } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const ordersBefore = before.response!.folders!.map((f) => [
+        f.title,
+        Number(f.order),
+      ]);
+      // Freshly created folders already have a gap-free 1..N order
+      expect(ordersBefore.map(([, o]) => o)).toEqual([1, 2, 3]);
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const ordersAfter = after.response!.folders!.map((f) => [
+        f.title,
+        Number(f.order),
+      ]);
+      // Reorder is a no-op when order is already sequential
+      expect(ordersAfter).toEqual(ordersBefore);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Files with sparse order are compacted to 1..N preserving order", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Files",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileA } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "File A" },
+      });
+      const { data: fileB } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "File B" },
+      });
+      const { data: fileC } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "File C" },
+      });
+      const idA = fileA.response!.id!;
+      const idB = fileB.response!.id!;
+      const idC = fileC.response!.id!;
+      // File entries in folder content are typed without `id`, so match by title
+      const titleA = fileA.response!.title!;
+      const titleB = fileB.response!.title!;
+      const titleC = fileC.response!.title!;
+
+      // Manually set non-sequential indexes with gaps
+      await ownerApi.files.setFileOrder({
+        fileId: idA,
+        orderRequestDto: { order: 10 },
+      });
+      await ownerApi.files.setFileOrder({
+        fileId: idC,
+        orderRequestDto: { order: 30 },
+      });
+      await ownerApi.files.setFileOrder({
+        fileId: idB,
+        orderRequestDto: { order: 50 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const byTitle = new Map(
+        after.response!.files!.map((f) => [f.title, Number(f.order)]),
+      );
+      // Gaps removed, relative order (A < C < B) preserved
+      expect(byTitle.get(titleA)).toBe(1);
+      expect(byTitle.get(titleC)).toBe(2);
+      expect(byTitle.get(titleB)).toBe(3);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Mixed folders and files are compacted without gaps", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Mixed",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Mixed Folder" },
+      });
+      const { data: file } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Mixed File" },
+      });
+      const folderId = folder.response!.id!;
+      const fileId = file.response!.id!;
+
+      await ownerApi.folders.setFolderOrder({
+        folderId,
+        orderRequestDto: { order: 20 },
+      });
+      await ownerApi.files.setFileOrder({
+        fileId,
+        orderRequestDto: { order: 90 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      // The combined folder+file index is compacted to a contiguous 1..N range
+      const allOrders = [
+        ...after.response!.folders!.map((f) => Number(f.order)),
+        ...after.response!.files!.map((f) => Number(f.order)),
+      ].sort((a, b) => a - b);
+      expect(allOrders).toEqual([1, 2]);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Nested folder content is not affected by root reorder", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Nested",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // A folder at the room root with a nested file inside it
+      const { data: parentFolder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Parent Folder" },
+      });
+      const parentFolderId = parentFolder.response!.id!;
+      const { data: nestedFile } = await ownerApi.files.createFile({
+        folderId: parentFolderId,
+        createFileJsonElement: { title: "Nested File" },
+      });
+      const nestedTitle = nestedFile.response!.title!;
+
+      // A second root folder, with a sparse order forcing a root reindex
+      const { data: rootFolder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Root Folder" },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: rootFolder.response!.id!,
+        orderRequestDto: { order: 77 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: parentFolderId,
+        orderRequestDto: { order: 5 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      // Root level reindexed to 1..N
+      const { data: rootAfter } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(
+        rootAfter.response!.folders!.map((f) => Number(f.order)).sort(),
+      ).toEqual([1, 2]);
+
+      // Nested file still lives inside the parent folder, untouched
+      const { data: nestedAfter } = await ownerApi.folders.getFolderByFolderId({
+        folderId: parentFolderId,
+      });
+      const nestedTitles = nestedAfter.response!.files!.map((f) => f.title);
+      expect(nestedTitles).toContain(nestedTitle);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Single item gets order 1", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Single",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Lonely Folder" },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folder.response!.id!,
+        orderRequestDto: { order: 50 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(Number(after.response!.folders![0].order)).toBe(1);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Large order gaps are compacted to 1..N", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Large Gaps",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      const { data: folderC } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder C" },
+      });
+
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderA.response!.id!,
+        orderRequestDto: { order: 100 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderB.response!.id!,
+        orderRequestDto: { order: 5000 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderC.response!.id!,
+        orderRequestDto: { order: 999999 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(
+        after.response!.folders!.map((f) => [f.title, Number(f.order)]),
+      ).toEqual([
+        ["Folder A", 1],
+        ["Folder B", 2],
+        ["Folder C", 3],
+      ]);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Duplicate order values are compacted to a dense unique range", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Duplicates",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      const { data: folderC } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder C" },
+      });
+
+      // Force the same order value on every folder
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderA.response!.id!,
+        orderRequestDto: { order: 5 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderB.response!.id!,
+        orderRequestDto: { order: 5 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderC.response!.id!,
+        orderRequestDto: { order: 5 },
+      });
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      // Tie-break order is not contractually defined, so only assert the
+      // resulting indexes are dense and unique (1..N), not a specific sort.
+      const orders = after
+        .response!.folders!.map((f) => Number(f.order))
+        .sort((a, b) => a - b);
+      expect(orders).toEqual([1, 2, 3]);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Repeated reorder is idempotent", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Idempotent",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderA.response!.id!,
+        orderRequestDto: { order: 40 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderB.response!.id!,
+        orderRequestDto: { order: 10 },
+      });
+
+      const first = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(first.status).toBe(200);
+      const { data: afterFirst } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const ordersFirst = afterFirst.response!.folders!.map((f) => [
+        f.title,
+        Number(f.order),
+      ]);
+
+      const second = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(second.status).toBe(200);
+      const { data: afterSecond } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const ordersSecond = afterSecond.response!.folders!.map((f) => [
+        f.title,
+        Number(f.order),
+      ]);
+
+      expect(ordersSecond).toEqual(ordersFirst);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Reorder does not delete, duplicate, rename or move items", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Integrity",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+      await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Doc" },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderA.response!.id!,
+        orderRequestDto: { order: 30 },
+      });
+      await ownerApi.folders.setFolderOrder({
+        folderId: folderB.response!.id!,
+        orderRequestDto: { order: 10 },
+      });
+
+      const { data: before } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      // Folder/file entries in folder content are typed without `id`; identify by title
+      const foldersBefore = before
+        .response!.folders!.map((f) => f.title)
+        .sort();
+      const filesBefore = before.response!.files!.map((f) => f.title).sort();
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const foldersAfter = after.response!.folders!.map((f) => f.title).sort();
+      const filesAfter = after.response!.files!.map((f) => f.title).sort();
+
+      // Same ids, same titles, same counts — nothing added, removed or renamed
+      expect(foldersAfter).toEqual(foldersBefore);
+      expect(filesAfter).toEqual(filesBefore);
+    });
+
+    // An invalid/out-of-range numeric id should be a validation error (400), but the
+    // API does not pre-validate: the storage layer throws InvalidOperationException
+    // "The required folder was not found" from ReOrderAsync, which is mapped to 403.
+    // Same defect class as the sibling pinRoom endpoint (BUG 81850). Marked test.fail
+    // until fixed; when the API starts returning 400 the test reports an unexpected
+    // pass, signaling test.fail can be removed.
+    for (const id of [0, -1, 999999999]) {
+      test.fail(
+        `BUG 81862: PUT /files/rooms/:id/reorder - id=${id} should return 400 (validation), but API returns 403`,
+        async ({ apiSdk }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { status } = await ownerApi.rooms.reorderRoom({ id });
+          expect(status).toBe(400);
+        },
+      );
+    }
+
+    // A well-formed id for a room that was deleted should be 404 (not found), but the
+    // same missing-folder path returns 403. Marked test.fail until fixed.
+    test.fail(
+      "BUG 81863: PUT /files/rooms/:id/reorder - deleted room should return 404, but API returns 403",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Reorder Deleted",
+            roomType: RoomType.VirtualDataRoom,
+            indexing: true,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        await ownerApi.rooms.deleteRoom({
+          id: roomId,
+          deleteRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+        expect(status).toBe(404);
+      },
+    );
+
+    test("PUT /files/rooms/:id/reorder - Archived room is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Archived",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(403);
+    });
+
+    test("PUT /files/rooms/:id/reorder - Non-indexed room is reordered without error", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder Non-indexed",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+
+      const { data, status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+      expect(data.response!.id).toBe(roomId);
+
+      // Content must remain intact after reordering a non-indexed room
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const titles = after.response!.folders!.map((f) => f.title);
+      expect(titles).toContain(folderA.response!.title!);
+      expect(titles).toContain(folderB.response!.title!);
+    });
+
+    test("PUT /files/rooms/:id/reorder - VDR room with indexing disabled is reordered without error", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      // Same room type as the indexed tests, but indexing is explicitly off — this
+      // exercises a different controller path than a CustomRoom that never supports it.
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Reorder VDR No Indexing",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: false,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderA } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder A" },
+      });
+      const { data: folderB } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder B" },
+      });
+
+      const { data, status } = await ownerApi.rooms.reorderRoom({ id: roomId });
+      expect(status).toBe(200);
+      expect(data.response!.id).toBe(roomId);
+
+      // Content must remain intact after reordering a non-indexed VDR room
+      const { data: after } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      const titles = after.response!.folders!.map((f) => f.title);
+      expect(titles).toContain(folderA.response!.title!);
+      expect(titles).toContain(folderB.response!.title!);
     });
   });
 
