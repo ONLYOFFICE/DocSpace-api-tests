@@ -1564,9 +1564,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     expect(data.response).toHaveLength(0);
   });
 
-  // BUG XXXXX: GET /api/2.0/files/fileops/move - non-existent destFolderId returns 403 instead of 404
+  // BUG 81881: GET /api/2.0/files/fileops/move - non-existent destFolderId returns 403 instead of 404
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/fileops/move - Non-existent destFolderId returns 404",
+    "BUG 81881: GET /api/2.0/files/fileops/move - Non-existent destFolderId returns 404",
     async ({ apiSdk }) => {
       // Catches: non-existent destFolderId returns 403 (Access denied) instead of 404 (Not found);
       // misleads callers into thinking it is a permissions issue rather than a missing resource
@@ -1594,9 +1594,9 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
     },
   );
 
-  // BUG XXXXX: GET /api/2.0/files/fileops/move - missing destFolderId returns 403 instead of 400
+  // BUG 81882: GET /api/2.0/files/fileops/move - missing destFolderId returns 403 instead of 400
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/fileops/move - No destFolderId specified returns 400",
+    "BUG 81882: GET /api/2.0/files/fileops/move - No destFolderId specified returns 400",
     async ({ apiSdk }) => {
       // Catches: omitting required destFolderId field returns 403 instead of 400,
       // hiding a client-side input error behind an access-denied response
