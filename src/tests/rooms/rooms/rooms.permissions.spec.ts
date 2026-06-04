@@ -3673,7 +3673,7 @@ test.describe("PUT /files/rooms/:id/pin - RoomAdmin invited to owner's room", ()
 });
 
 test.describe("PUT /api/2.0/files/rooms/{id}/links - external sharing restriction", () => {
-  test.fail(
+  test(
     "BUG 81840: PUT /api/2.0/files/rooms/{id}/links - Owner cannot create new external link when external sharing is restricted with Allow existing links",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -3880,4 +3880,232 @@ test.describe("PUT /files/rooms/:id/reorder - access control", () => {
     });
     expect(status).toBe(401);
   });
+});
+
+// Resending room invitations is membership-scoped: only the room owner and members
+// granted RoomManager access may do it. Unlike most endpoints, a DocSpaceAdmin who is
+// NOT a member of the room is NOT auto-allowed (same model as reorder).
+test.describe("POST /files/rooms/:id/resend - access control", () => {
+  // Owner room with one pending invited user that resend can target.
+  async function createOwnerRoomWithPendingUser(apiSdk: any) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Resend Perm",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: pendingData } = await apiSdk.addMember("owner", "User");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: pendingData.response!.id!, access: FileShare.Read },
+        ],
+        notify: false,
+      },
+    });
+    return { ownerApi, roomId };
+  }
+
+  test("Owner can resend invitations", async ({ apiSdk }) => {
+    const { ownerApi, roomId } = await createOwnerRoomWithPendingUser(apiSdk);
+
+    const { status } = await ownerApi.rooms.resendEmailInvitations({
+      id: roomId,
+      userInvitation: { resendAll: true },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("RoomAdmin invited with RoomManager access can resend invitations", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, roomId } = await createOwnerRoomWithPendingUser(apiSdk);
+
+    const { api: roomAdminApi, data: raData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: raData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { status } = await roomAdminApi.rooms.resendEmailInvitations({
+      id: roomId,
+      userInvitation: { resendAll: true },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("DocSpaceAdmin not invited to the room cannot resend invitations", async ({
+    apiSdk,
+  }) => {
+    const { roomId } = await createOwnerRoomWithPendingUser(apiSdk);
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status, data } = await adminApi.rooms.resendEmailInvitations({
+      id: roomId,
+      userInvitation: { resendAll: true },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("RoomAdmin not invited to the room cannot resend invitations", async ({
+    apiSdk,
+  }) => {
+    const { roomId } = await createOwnerRoomWithPendingUser(apiSdk);
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { status } = await roomAdminApi.rooms.resendEmailInvitations({
+      id: roomId,
+      userInvitation: { resendAll: true },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Anonymous cannot resend invitations", async ({ apiSdk }) => {
+    const { roomId } = await createOwnerRoomWithPendingUser(apiSdk);
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { resendAll: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("Disabled (terminated) room manager cannot resend invitations", async ({
+    apiSdk,
+  }) => {
+    const { ownerApi, roomId } = await createOwnerRoomWithPendingUser(apiSdk);
+
+    const { api: roomAdminApi, data: raData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = raData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [roomAdminId], resendAll: false },
+    });
+
+    const { status } = await roomAdminApi.rooms.resendEmailInvitations({
+      id: roomId,
+      userInvitation: { resendAll: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+// A User or Guest invited to the room with any non-manager access level cannot resend
+// invitations. RoomManager access is rejected for User/Guest at invitation time, so that
+// combination is skipped - see [[user_guest_no_roommanager_access]].
+for (const userType of ["User", "Guest"] as const) {
+  test.describe(`POST /files/rooms/:id/resend - ${userType} invited to room`, () => {
+    for (const { label, access } of roomAccesses) {
+      if (access === FileShare.RoomManager) {
+        continue;
+      }
+
+      test(`Room access: ${label} - cannot resend invitations`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: `Autotest Resend Access ${userType} ${label}`,
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        const { api: memberApi, data: memberData } =
+          await apiSdk.addAuthenticatedMember("owner", userType);
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: memberData.response!.id!, access }],
+            notify: false,
+          },
+        });
+
+        const { status, data } = await memberApi.rooms.resendEmailInvitations({
+          id: roomId,
+          userInvitation: { resendAll: true },
+        });
+
+        expect(status).toBe(403);
+        expect((data as any).error?.message).toBe(
+          "You don't have enough permission to perform the operation",
+        );
+      });
+    }
+  });
+}
+
+// A RoomAdmin invited to another owner's room may resend invitations only when granted
+// RoomManager access; every lower access level is forbidden.
+test.describe("POST /files/rooms/:id/resend - RoomAdmin invited to owner's room", () => {
+  for (const { label, access } of roomAccesses) {
+    test(`Room access: ${label} - ${
+      access === FileShare.RoomManager ? "can" : "cannot"
+    } resend invitations`, async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Resend RoomAdmin Access ${label}`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: roomAdminApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
+
+      const { status } = await roomAdminApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { resendAll: true },
+      });
+
+      expect(status).toBe(access === FileShare.RoomManager ? 200 : 403);
+    });
+  }
 });
