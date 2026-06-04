@@ -10,7 +10,9 @@ import {
   EmployeeStatus,
   SortOrder,
   SubjectFilter,
+  UserInvitation,
 } from "@onlyoffice/docspace-api-sdk";
+import type { ApiSDK } from "@/src/services/api-sdk";
 import { createAllRoomTypes } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
@@ -2061,33 +2063,32 @@ test.describe("API rooms methods", () => {
         expect((data as any).error?.message).toBe("You can't pin a room");
       });
 
-      test.fail(
-        "BUG 81852: PUT /files/rooms/:id/pin - AI room is exempt from the 10-room pin limit (should pin past 10), but API returns 403",
-        async ({ apiSdk }) => {
-          const ownerApi = apiSdk.forRole("owner");
+      test("BUG 81852: PUT /files/rooms/:id/pin - AI room is exempt from the 10-room pin limit (should pin past 10), but API returns 403", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
 
-          // Reach the limit: pin 10 non-AI rooms.
-          for (let i = 0; i < 10; i++) {
-            const id = await createRoom(ownerApi, `Autotest Pin Limit ${i}`);
-            const { status } = await ownerApi.rooms.pinRoom({ id });
-            expect(status).toBe(200);
-          }
-
-          // An AI room is not counted in the 10-room limit, so it should still pin.
-          const aiRoomId = await createRoom(
-            ownerApi,
-            "Autotest Pin Limit AI",
-            RoomType.AiRoom,
-          );
-          const { status, data } = await ownerApi.rooms.pinRoom({
-            id: aiRoomId,
-          });
-
+        // Reach the limit: pin 10 non-AI rooms.
+        for (let i = 0; i < 10; i++) {
+          const id = await createRoom(ownerApi, `Autotest Pin Limit ${i}`);
+          const { status } = await ownerApi.rooms.pinRoom({ id });
           expect(status).toBe(200);
-          expect(data.response!.pinned).toBe(true);
-          await expectPinnedOnTop(ownerApi, aiRoomId);
-        },
-      );
+        }
+
+        // An AI room is not counted in the 10-room limit, so it should still pin.
+        const aiRoomId = await createRoom(
+          ownerApi,
+          "Autotest Pin Limit AI",
+          RoomType.AiRoom,
+        );
+        const { status, data } = await ownerApi.rooms.pinRoom({
+          id: aiRoomId,
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.pinned).toBe(true);
+        await expectPinnedOnTop(ownerApi, aiRoomId);
+      });
     });
   });
 
@@ -10728,6 +10729,440 @@ test.describe("API rooms methods", () => {
       });
 
       expect(status).toBe(200);
+    });
+
+    // Invite N users into a fresh CustomRoom and return [roomId, userIds].
+    async function createRoomWithInvitedUsers(
+      api: ApiSDK,
+      ownerApi: ReturnType<ApiSDK["forRole"]>,
+      count: number,
+      access: FileShare = FileShare.Editing,
+    ) {
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Resend Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const userIds: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const { data: memberData } = await api.addMember("owner", "User");
+        userIds.push(memberData.response!.id!);
+      }
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: userIds.map((id) => ({ id, access })),
+          notify: false,
+        },
+      });
+      return { roomId, userIds };
+    }
+
+    // Snapshot the room's invite/member records as a stable, comparable list. Each entry
+    // in getRoomSecurityInfo is one invitation/membership record, so the array length is
+    // the number of pending+accepted invites and {id, access} captures who has what.
+    async function readRoomMembers(
+      ownerApi: ReturnType<ApiSDK["forRole"]>,
+      roomId: number,
+    ) {
+      const { data } = await ownerApi.rooms.getRoomSecurityInfo({ id: roomId });
+      return ((data as any).response as any[])
+        .map((s) => ({ id: s.sharedTo?.id, access: s.access }))
+        .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    }
+
+    test("POST /files/rooms/:id/resend - Owner resends to all invited users with resendAll", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { roomId } = await createRoomWithInvitedUsers(apiSdk, ownerApi, 3);
+
+      const { status } = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { resendAll: true },
+      });
+
+      expect(status).toBe(200);
+    });
+
+    test("POST /files/rooms/:id/resend - resendAll:true together with usersIds is accepted", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { roomId, userIds } = await createRoomWithInvitedUsers(
+        apiSdk,
+        ownerApi,
+        2,
+      );
+
+      // resendAll drives a bulk resend; usersIds is ignored, not validated against.
+      const { status } = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { resendAll: true, usersIds: [userIds[0]] },
+      });
+
+      expect(status).toBe(200);
+    });
+
+    test("POST /files/rooms/:id/resend - Batch with one member and one existing non-member succeeds", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { roomId, userIds } = await createRoomWithInvitedUsers(
+        apiSdk,
+        ownerApi,
+        1,
+      );
+
+      // A real, existing user who is NOT a member of the room is silently skipped.
+      const { data: outsiderData } = await apiSdk.addMember("owner", "User");
+      const outsiderId = outsiderData.response!.id!;
+
+      const { status } = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { usersIds: [userIds[0], outsiderId] },
+      });
+
+      expect(status).toBe(200);
+    });
+
+    test("POST /files/rooms/:id/resend - Resend is idempotent (two consecutive calls both succeed)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { roomId, userIds } = await createRoomWithInvitedUsers(
+        apiSdk,
+        ownerApi,
+        1,
+      );
+
+      const first = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { usersIds: [userIds[0]] },
+      });
+      const second = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { usersIds: [userIds[0]] },
+      });
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+    });
+
+    test("POST /files/rooms/:id/resend - Resend to an already-active member is a no-op (200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Resend Active Member",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // An authenticated member already has an active account (not a pending invite).
+      const { data: memberData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+      const userId = memberData.response!.id!;
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Editing }],
+          notify: false,
+        },
+      });
+
+      const { status } = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { usersIds: [userId] },
+      });
+
+      expect(status).toBe(200);
+    });
+
+    test("POST /files/rooms/:id/resend - Resend to several pending users via usersIds", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { roomId, userIds } = await createRoomWithInvitedUsers(
+        apiSdk,
+        ownerApi,
+        3,
+      );
+
+      const { status } = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { usersIds: userIds },
+      });
+
+      expect(status).toBe(200);
+    });
+
+    test.describe("Body variants are no-ops that leave invites untouched", () => {
+      const variants: { label: string; body: UserInvitation }[] = [
+        { label: "empty body {}", body: {} },
+        { label: "usersIds: []", body: { usersIds: [] } },
+        { label: "usersIds: null", body: { usersIds: null } },
+        {
+          label: "resendAll:false without usersIds",
+          body: { resendAll: false },
+        },
+      ];
+
+      for (const { label, body } of variants) {
+        test(`POST /files/rooms/:id/resend - ${label} is a 200 no-op`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { roomId } = await createRoomWithInvitedUsers(
+            apiSdk,
+            ownerApi,
+            2,
+          );
+
+          const before = await readRoomMembers(ownerApi, roomId);
+
+          const { status } = await ownerApi.rooms.resendEmailInvitations({
+            id: roomId,
+            userInvitation: body,
+          });
+          expect(status).toBe(200);
+
+          // A no-op must not touch the invite records: same members, same access
+          // levels, same count (no new/duplicated/dropped pending invites).
+          const after = await readRoomMembers(ownerApi, roomId);
+          expect(after).toEqual(before);
+        });
+      }
+    });
+
+    test.describe("Invalid user id in usersIds returns 400", () => {
+      // A malformed or non-existent user id is rejected with 400. (Contrast with a
+      // real, existing user who is simply not a room member: that is silently skipped
+      // and returns 200 - see the "non-member" batch tests above.)
+      for (const badId of ["0", "-1", "abc", "999999999"]) {
+        test(`POST /files/rooms/:id/resend - usersIds: ["${badId}"] returns 400`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { roomId } = await createRoomWithInvitedUsers(
+            apiSdk,
+            ownerApi,
+            1,
+          );
+
+          const { status } = await ownerApi.rooms.resendEmailInvitations({
+            id: roomId,
+            userInvitation: { usersIds: [badId] },
+          });
+
+          expect(status).toBe(400);
+        });
+      }
+    });
+
+    test.describe("Invalid / inaccessible room ids", () => {
+      // A bad numeric room id is a validation error and should return 400, but the
+      // endpoint reports 403 "You don't have enough permission to perform the operation"
+      // (same defect as pin - see BUG 81850). Marked test.fail expecting the correct 400;
+      // when the API is fixed these report an unexpected pass and test.fail can drop.
+      for (const id of [999999999, 0, -1]) {
+        test.fail(
+          `BUG XXXXX: POST /files/rooms/:id/resend - room id=${id} should return 400 (validation), but API returns 403`,
+          async ({ apiSdk }) => {
+            const ownerApi = apiSdk.forRole("owner");
+            const { status } = await ownerApi.rooms.resendEmailInvitations({
+              id,
+              userInvitation: { resendAll: true },
+            });
+
+            expect(status).toBe(400);
+          },
+        );
+      }
+
+      // A deleted room no longer exists and should return 404, but the endpoint returns
+      // 403 (same membership-scoped masking as the bad-id case). Marked test.fail.
+      test.fail(
+        "BUG XXXXX: POST /files/rooms/:id/resend - deleted room should return 404, but API returns 403",
+        async ({ apiSdk }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { roomId } = await createRoomWithInvitedUsers(
+            apiSdk,
+            ownerApi,
+            1,
+          );
+
+          await ownerApi.rooms.deleteRoom({
+            id: roomId,
+            deleteRoomRequest: { deleteAfter: false },
+          });
+          await waitForOperation(ownerApi.operations);
+
+          const { status } = await ownerApi.rooms.resendEmailInvitations({
+            id: roomId,
+            userInvitation: { resendAll: true },
+          });
+
+          expect(status).toBe(404);
+        },
+      );
+
+      // Archived rooms reject mutations: 403 is the intended response here (unlike the
+      // bad-id/deleted cases above), so this is asserted as correct behavior.
+      test("POST /files/rooms/:id/resend - Archived room returns 403", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { roomId } = await createRoomWithInvitedUsers(
+          apiSdk,
+          ownerApi,
+          1,
+        );
+
+        await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status, data } = await ownerApi.rooms.resendEmailInvitations({
+          id: roomId,
+          userInvitation: { resendAll: true },
+        });
+
+        expect(status).toBe(403);
+        expect((data as any).error?.message).toBe(
+          "You don't have enough permission to perform the operation",
+        );
+      });
+    });
+
+    test("POST /files/rooms/:id/resend - Resend does not change room membership", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { roomId, userIds } = await createRoomWithInvitedUsers(
+        apiSdk,
+        ownerApi,
+        2,
+      );
+
+      const before = await readRoomMembers(ownerApi, roomId);
+
+      const { status } = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { resendAll: true },
+      });
+      expect(status).toBe(200);
+
+      const after = await readRoomMembers(ownerApi, roomId);
+
+      // Same set of members, same access, and no duplicate invite records.
+      for (const userId of userIds) {
+        expect(after.filter((m) => m.id === userId)).toHaveLength(1);
+      }
+      expect(after).toEqual(before);
+    });
+
+    test("POST /files/rooms/:id/resend - resendAll does not affect an already-accepted member", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Resend Accepted Mix",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // accepted (active) member + pending (just-created) member.
+      // The pending member is created first: authenticating a member shares its session
+      // cookie on the request context, which would make a later direct addMember run as
+      // that low-privilege user and fail with 403.
+      const { data: pendingData } = await apiSdk.addMember("owner", "User");
+      const pendingId = pendingData.response!.id!;
+      const { data: acceptedData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+      const acceptedId = acceptedData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: acceptedId, access: FileShare.Editing },
+            { id: pendingId, access: FileShare.Read },
+          ],
+          notify: false,
+        },
+      });
+
+      const { status } = await ownerApi.rooms.resendEmailInvitations({
+        id: roomId,
+        userInvitation: { resendAll: true },
+      });
+      expect(status).toBe(200);
+
+      const { data: afterData } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const accepted = ((afterData as any).response as any[]).filter(
+        (s) => s.sharedTo?.id === acceptedId,
+      );
+      // The accepted member is still present exactly once with unchanged access.
+      expect(accepted).toHaveLength(1);
+      expect(accepted[0].access).toBe(FileShare.Editing);
+    });
+
+    test.describe("Resend works across room types", () => {
+      const roomTypes: { label: string; type: RoomType }[] = [
+        { label: "PublicRoom", type: RoomType.PublicRoom },
+        { label: "FillingFormsRoom", type: RoomType.FillingFormsRoom },
+        { label: "EditingRoom (Collaboration)", type: RoomType.EditingRoom },
+        { label: "VirtualDataRoom", type: RoomType.VirtualDataRoom },
+      ];
+
+      for (const { label, type } of roomTypes) {
+        test(`POST /files/rooms/:id/resend - ${label} returns 200`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { data: roomData } = await ownerApi.rooms.createRoom({
+            createRoomRequestDto: {
+              title: `Autotest Resend ${label}`,
+              roomType: type,
+            },
+          });
+          const roomId = roomData.response!.id!;
+
+          const { data: memberData } = await apiSdk.addMember("owner", "User");
+          await ownerApi.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [
+                { id: memberData.response!.id!, access: FileShare.Read },
+              ],
+              notify: false,
+            },
+          });
+
+          const { status } = await ownerApi.rooms.resendEmailInvitations({
+            id: roomId,
+            userInvitation: { resendAll: true },
+          });
+
+          expect(status).toBe(200);
+        });
+      }
     });
   });
 
