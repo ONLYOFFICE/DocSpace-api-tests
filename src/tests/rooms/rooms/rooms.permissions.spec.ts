@@ -3673,44 +3673,43 @@ test.describe("PUT /files/rooms/:id/pin - RoomAdmin invited to owner's room", ()
 });
 
 test.describe("PUT /api/2.0/files/rooms/{id}/links - external sharing restriction", () => {
-  test(
-    "BUG 81840: PUT /api/2.0/files/rooms/{id}/links - Owner cannot create new external link when external sharing is restricted with Allow existing links",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81840: PUT /api/2.0/files/rooms/{id}/links - Owner cannot create new external link when external sharing is restricted with Allow existing links", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest External Link Restriction Room",
-          roomType: RoomType.PublicRoom,
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest External Link Restriction Room",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await test.step("Enable external sharing restriction with Allow existing links", async () => {
+      await ownerApi.filesSettings.changeExternalSharingSettings({
+        externalSharingSettingsRequestDto: {
+          externalShare: false,
+          externalShareApplyToRooms: true,
+          blockExistingLinksOnRestrict: false,
         },
       });
-      const roomId = roomData.response!.id!;
+    });
 
-      await test.step("Enable external sharing restriction with Allow existing links", async () => {
-        await ownerApi.filesSettings.changeExternalSharingSettings({
-          externalSharingSettingsRequestDto: {
-            externalShare: false,
-            externalShareApplyToRooms: true,
-            blockExistingLinksOnRestrict: false,
-          },
-        });
+    await test.step("Attempt to create new external link — expect 403", async () => {
+      const { data, status } = await ownerApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: {
+          internal: false,
+          linkType: LinkType.External,
+          access: FileShare.Read,
+        },
       });
 
-      await test.step("Attempt to create new external link — expect 403", async () => {
-        const { data, status } = await ownerApi.rooms.setRoomLink({
-          id: roomId,
-          roomLinkRequest: {
-            internal: false,
-            linkType: LinkType.External,
-            access: FileShare.Read,
-          },
-        });
-
-        expect(status).toBe(403);
-        expect((data as any).error?.message).toBe("Access denied");
-      });
-    },
-  );
+      expect(status).toBe(403);
+      expect((data as any).error?.message).toBe("Access denied");
+    });
+  });
 });
 
 // PUT /files/rooms/:id/reorder — reorderRoom. Reordering the room index is a
