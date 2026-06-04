@@ -10968,13 +10968,13 @@ test.describe("API rooms methods", () => {
     });
 
     test.describe("Invalid / inaccessible room ids", () => {
-      // A bad numeric room id is a validation error and should return 400, but the
-      // endpoint reports 403 "You don't have enough permission to perform the operation"
-      // (same defect as pin - see BUG 81850). Marked test.fail expecting the correct 400;
-      // when the API is fixed these report an unexpected pass and test.fail can drop.
-      for (const id of [999999999, 0, -1]) {
+      // An incorrect (malformed) numeric room id is a validation error and should return
+      // 400, but the endpoint reports 403 "You don't have enough permission to perform the
+      // operation" (same defect class as pin - see BUG 81850). Marked test.fail expecting
+      // 400; when the API is fixed these report an unexpected pass and test.fail can drop.
+      for (const id of [0, -1]) {
         test.fail(
-          `BUG XXXXX: POST /files/rooms/:id/resend - room id=${id} should return 400 (validation), but API returns 403`,
+          `BUG 81879: POST /files/rooms/:id/resend - incorrect room id=${id} should return 400 (validation), but API returns 403`,
           async ({ apiSdk }) => {
             const ownerApi = apiSdk.forRole("owner");
             const { status } = await ownerApi.rooms.resendEmailInvitations({
@@ -10987,10 +10987,25 @@ test.describe("API rooms methods", () => {
         );
       }
 
-      // A deleted room no longer exists and should return 404, but the endpoint returns
-      // 403 (same membership-scoped masking as the bad-id case). Marked test.fail.
+      // A well-formed room id that does not exist should return 404, but the endpoint
+      // returns 403. Marked test.fail expecting 404.
       test.fail(
-        "BUG XXXXX: POST /files/rooms/:id/resend - deleted room should return 404, but API returns 403",
+        "BUG 81880: POST /files/rooms/:id/resend - non-existent room id should return 404, but API returns 403",
+        async ({ apiSdk }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { status } = await ownerApi.rooms.resendEmailInvitations({
+            id: 999999999,
+            userInvitation: { resendAll: true },
+          });
+
+          expect(status).toBe(404);
+        },
+      );
+
+      // A deleted room no longer exists and should return 404, but the endpoint returns
+      // 403 (same masking as the non-existent case). Marked test.fail.
+      test.fail(
+        "BUG 81880: POST /files/rooms/:id/resend - deleted room should return 404, but API returns 403",
         async ({ apiSdk }) => {
           const ownerApi = apiSdk.forRole("owner");
           const { roomId } = await createRoomWithInvitedUsers(
