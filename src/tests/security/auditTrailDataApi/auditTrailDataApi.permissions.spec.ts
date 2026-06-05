@@ -214,56 +214,52 @@ test.describe("GET /api/2.0/security/audit/settings/lifetime - permissions", () 
 });
 
 test.describe("GET /api/2.0/security/audit/mappers - permissions", () => {
-  test.fail(
-    "BUG 81861: GET /api/2.0/security/audit/mappers - Anonymous cannot get audit trail mappers",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forAnonymous()
-        .auditTrail.getAuditTrailMappers();
+  test("BUG 81861: GET /api/2.0/security/audit/mappers - Anonymous cannot get audit trail mappers", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .auditTrail.getAuditTrailMappers();
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 
-  test.fail(
-    "BUG 81861: GET /api/2.0/security/audit/mappers - RoomAdmin cannot get audit trail mappers",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+  test("BUG 81861: GET /api/2.0/security/audit/mappers - RoomAdmin cannot get audit trail mappers", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-      const { data, status } = await apiSdk
-        .forRole("roomAdmin")
-        .auditTrail.getAuditTrailMappers();
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .auditTrail.getAuditTrailMappers();
 
-      expect(status).toBe(403);
-      expect((data as any).error?.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81861: GET /api/2.0/security/audit/mappers - User cannot get audit trail mappers",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "User");
+  test("BUG 81861: GET /api/2.0/security/audit/mappers - User cannot get audit trail mappers", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
-      const { data, status } = await apiSdk
-        .forRole("user")
-        .auditTrail.getAuditTrailMappers();
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .auditTrail.getAuditTrailMappers();
 
-      expect(status).toBe(403);
-      expect((data as any).error?.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81861: GET /api/2.0/security/audit/mappers - Guest cannot get audit trail mappers",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+  test("BUG 81861: GET /api/2.0/security/audit/mappers - Guest cannot get audit trail mappers", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .auditTrail.getAuditTrailMappers();
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .auditTrail.getAuditTrailMappers();
 
-      expect(status).toBe(403);
-      expect((data as any).error?.message).toBe("Access denied");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
 });
