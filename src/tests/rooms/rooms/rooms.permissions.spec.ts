@@ -2666,6 +2666,190 @@ test.describe("GET /files/roomtemplate/{id}/public - access control", () => {
   });
 });
 
+test.describe("PUT /files/roomtemplate/public - access control", () => {
+  async function createTemplate(
+    api: any,
+    title: string,
+    isPublic = false,
+  ): Promise<number> {
+    const { data: roomData } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `${title} Source`,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await api.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: roomData.response!.id!,
+        title,
+        public: isPublic,
+      },
+    });
+    return waitForRoomTemplate(api.rooms);
+  }
+
+  test("Owner can update public flag of own template", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const templateId = await createTemplate(
+      ownerApi,
+      "Autotest SetPublic Owner Own",
+    );
+
+    const { status } = await ownerApi.rooms.setPublicSettings({
+      setPublicDto: { id: templateId, public: true },
+    });
+    expect(status).toBe(200);
+
+    const { data } = await ownerApi.rooms.getPublicSettings({ id: templateId });
+    expect(data.response).toBe(true);
+  });
+
+  for (const role of ["DocSpaceAdmin", "RoomAdmin"] as const) {
+    test(`${role} can update public flag of own template`, async ({
+      apiSdk,
+    }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const templateId = await createTemplate(
+        api,
+        `Autotest SetPublic ${role} Own`,
+      );
+
+      const { status } = await api.rooms.setPublicSettings({
+        setPublicDto: { id: templateId, public: true },
+      });
+      expect(status).toBe(200);
+
+      const { data } = await api.rooms.getPublicSettings({ id: templateId });
+      expect(data.response).toBe(true);
+    });
+  }
+
+  for (const role of ["DocSpaceAdmin", "RoomAdmin", "User", "Guest"] as const) {
+    test(`${role} cannot update public flag of Owner's template`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const templateId = await createTemplate(
+        ownerApi,
+        `Autotest SetPublic ${role} OnOwner`,
+      );
+
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const { data } = await api.rooms.setPublicSettings({
+        setPublicDto: { id: templateId, public: true },
+      });
+
+      const { data: flag } = await ownerApi.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(flag.response).toBe(false);
+      expect((data as any).statusCode).toBe(403);
+    });
+  }
+
+  test("Owner cannot update public flag of DocSpaceAdmin's template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const templateId = await createTemplate(
+      adminApi,
+      "Autotest SetPublic OwnerOnAdmin",
+    );
+
+    const { data } = await ownerApi.rooms.setPublicSettings({
+      setPublicDto: { id: templateId, public: true },
+    });
+
+    const { data: flag } = await adminApi.rooms.getPublicSettings({
+      id: templateId,
+    });
+    expect(flag.response).toBe(false);
+    expect((data as any).statusCode).toBe(403);
+  });
+
+  test("Invited source-room member cannot update template public flag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest SetPublic Invited Source",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const sourceRoomId = roomData.response!.id!;
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: sourceRoomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: sourceRoomId,
+        title: "Autotest SetPublic Invited Template",
+      },
+    });
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
+
+    const { data } = await userApi.rooms.setPublicSettings({
+      setPublicDto: { id: templateId, public: true },
+    });
+
+    const { data: flag } = await ownerApi.rooms.getPublicSettings({
+      id: templateId,
+    });
+    expect(flag.response).toBe(false);
+    expect((data as any).statusCode).toBe(403);
+  });
+
+  test("Terminated user cannot update own template public flag", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: memberData, api: adminApi } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const userId = memberData.response!.id!;
+    const templateId = await createTemplate(
+      adminApi,
+      "Autotest SetPublic Terminated",
+    );
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await adminApi.rooms.setPublicSettings({
+      setPublicDto: { id: templateId, public: true },
+    });
+    expect(status).toBe(401);
+  });
+
+  test("Unauthenticated request returns 401", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const templateId = await createTemplate(
+      ownerApi,
+      "Autotest SetPublic Anon",
+    );
+
+    const { status } = await apiSdk.forAnonymous().rooms.setPublicSettings({
+      setPublicDto: { id: templateId, public: true },
+    });
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("POST /files/rooms/fromtemplate - access control", () => {
   test("DocSpaceAdmin can create a room from a public template", async ({
     apiSdk,
