@@ -2537,7 +2537,7 @@ test.describe("API rooms methods", () => {
     };
 
     test.fail(
-      "BUG: PUT /files/roomtemplate/public - Re-applying public:true on an already-public template incorrectly disables it",
+      "BUG 81938: PUT /files/roomtemplate/public - Re-applying public:true on an already-public template incorrectly disables it",
       async ({ apiSdk }) => {
         // setPublicSettings is not idempotent for public:true. The first call
         // enables the flag; a second identical call flips it back to false
@@ -2769,7 +2769,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG 81726: PUT /files/roomtemplate/public - Accepts a regular room id (200) instead of returning 404",
+      "BUG 81939: PUT /files/roomtemplate/public - Accepts a regular room id (200) instead of returning 404",
       async ({ apiSdk }) => {
         // Same defect class as the GET variant (BUG 81726): the endpoint does
         // not verify that the id belongs to a template and silently returns
