@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 
 test.describe("PUT /api/2.0/files/settings/defaulttemplate - permissions", () => {
-  test("BUG NNNNN: PUT /api/2.0/files/settings/defaulttemplate - DocSpaceAdmin cannot set Owner's file as default template", async ({
+  test("BUG 81953: PUT /api/2.0/files/settings/defaulttemplate - DocSpaceAdmin cannot set Owner's file as default template", async ({
     apiSdk,
   }) => {
     const { data: fileData } = await apiSdk
