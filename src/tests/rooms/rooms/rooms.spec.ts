@@ -2537,7 +2537,7 @@ test.describe("API rooms methods", () => {
     };
 
     test.fail(
-      "BUG: PUT /files/roomtemplate/public - Re-applying public:true on an already-public template incorrectly disables it",
+      "BUG 81938: PUT /files/roomtemplate/public - Re-applying public:true on an already-public template incorrectly disables it",
       async ({ apiSdk }) => {
         // setPublicSettings is not idempotent for public:true. The first call
         // enables the flag; a second identical call flips it back to false
@@ -2648,25 +2648,27 @@ test.describe("API rooms methods", () => {
       expect((data as any).statusCode).toBe(404);
     });
 
-    test("PUT /files/roomtemplate/public - id:0 returns 404", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
-        setPublicDto: { id: 0, public: true },
-      });
-      expect((data as any).statusCode).toBe(404);
-    });
+    test.fail(
+      "BUG 81949: PUT /files/roomtemplate/public - id:0 returns 404 instead of 400",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data } = await ownerApi.rooms.setPublicSettings({
+          setPublicDto: { id: 0, public: true },
+        });
+        expect((data as any).statusCode).toBe(400);
+      },
+    );
 
-    test("PUT /files/roomtemplate/public - id:-1 returns 404", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
-        setPublicDto: { id: -1, public: true },
-      });
-      expect((data as any).statusCode).toBe(404);
-    });
+    test.fail(
+      "BUG 81949: PUT /files/roomtemplate/public - id:-1 returns 404 instead of 400",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data } = await ownerApi.rooms.setPublicSettings({
+          setPublicDto: { id: -1, public: true },
+        });
+        expect((data as any).statusCode).toBe(400);
+      },
+    );
 
     test("PUT /files/roomtemplate/public - id:'abc' returns 400 (type validation)", async ({
       apiSdk,
@@ -2769,7 +2771,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "BUG 81726: PUT /files/roomtemplate/public - Accepts a regular room id (200) instead of returning 404",
+      "BUG 81939: PUT /files/roomtemplate/public - Accepts a regular room id (200) instead of returning 404",
       async ({ apiSdk }) => {
         // Same defect class as the GET variant (BUG 81726): the endpoint does
         // not verify that the id belongs to a template and silently returns
