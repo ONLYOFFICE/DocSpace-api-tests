@@ -2648,25 +2648,27 @@ test.describe("API rooms methods", () => {
       expect((data as any).statusCode).toBe(404);
     });
 
-    test("PUT /files/roomtemplate/public - id:0 returns 404", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
-        setPublicDto: { id: 0, public: true },
-      });
-      expect((data as any).statusCode).toBe(404);
-    });
+    test.fail(
+      "BUG 81949: PUT /files/roomtemplate/public - id:0 returns 404 instead of 400",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data } = await ownerApi.rooms.setPublicSettings({
+          setPublicDto: { id: 0, public: true },
+        });
+        expect((data as any).statusCode).toBe(400);
+      },
+    );
 
-    test("PUT /files/roomtemplate/public - id:-1 returns 404", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
-        setPublicDto: { id: -1, public: true },
-      });
-      expect((data as any).statusCode).toBe(404);
-    });
+    test.fail(
+      "BUG 81949: PUT /files/roomtemplate/public - id:-1 returns 404 instead of 400",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data } = await ownerApi.rooms.setPublicSettings({
+          setPublicDto: { id: -1, public: true },
+        });
+        expect((data as any).statusCode).toBe(400);
+      },
+    );
 
     test("PUT /files/roomtemplate/public - id:'abc' returns 400 (type validation)", async ({
       apiSdk,
