@@ -5,7 +5,7 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - permissions", () =>
   test("BUG NNNNN: PUT /api/2.0/files/settings/defaulttemplate - DocSpaceAdmin cannot set Owner's file as default template", async ({
     apiSdk,
   }) => {
-     const { data: fileData } = await apiSdk
+    const { data: fileData } = await apiSdk
       .forRole("owner")
       .files.createFileInMyDocuments({
         createFileJsonElement: { title: "Autotest Default Template File" },
