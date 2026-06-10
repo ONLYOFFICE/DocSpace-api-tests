@@ -2465,24 +2465,25 @@ for (const userType of [
               seenCallIds.add(callId);
 
               // Member tries to approve owner's managed tool call — should be 403
-              memberResults.push(
-                memberApi.chat.providePermission({
-                  callId,
-                  toolDecisionRequestBody: {
-                    decision: ToolExecutionDecision.Allow,
-                  },
-                }),
-              );
+              const memberPromise = memberApi.chat.providePermission({
+                callId,
+                toolDecisionRequestBody: {
+                  decision: ToolExecutionDecision.Allow,
+                },
+              });
+              memberResults.push(memberPromise);
 
-              // Owner approves so the stream can continue and finish normally
-              ownerApi.chat
-                .providePermission({
-                  callId,
-                  toolDecisionRequestBody: {
-                    decision: ToolExecutionDecision.Allow,
-                  },
-                })
-                .catch(() => undefined);
+              // Owner approves only after member's call resolves to avoid race condition
+              memberPromise.finally(() => {
+                ownerApi.chat
+                  .providePermission({
+                    callId,
+                    toolDecisionRequestBody: {
+                      decision: ToolExecutionDecision.Allow,
+                    },
+                  })
+                  .catch(() => undefined);
+              });
             }
           },
         } as any,
