@@ -8,7 +8,7 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - permissions", () =>
     const { data: fileData } = await apiSdk
       .forRole("owner")
       .files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Default Template File" },
+        createFileJsonElement: { title: "Autotest Default Template File.docx" },
       });
     const fileId = fileData.response!.id!;
 
@@ -19,11 +19,13 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - permissions", () =>
       .filesSettings.setDefaultTemplate({
         defaultTemplateSettingsRequestDto: {
           selectedFile: fileId,
-          fileExtension: null,
+          fileExtension: ".docx",
         },
       });
 
-    expect(status).toBe(404);
-    expect((data as any).error?.message).toBeDefined();
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
   });
 });
