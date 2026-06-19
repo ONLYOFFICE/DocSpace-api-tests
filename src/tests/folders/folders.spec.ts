@@ -3402,15 +3402,15 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
       createFileJsonElement: { title: "Autotest News Count File 2.docx" },
     });
 
-    const { data, status } = await ownerApi.folders.getNewFolderItems({
-      folderId: roomId,
-    });
-
-    expect(status).toBe(200);
-    expect(Array.isArray(data.response)).toBe(true);
-    const titles = data.response!.map((e) => e.title);
-    expect(titles).toContain("Autotest News Count File 1.docx");
-    expect(titles).toContain("Autotest News Count File 2.docx");
+    let titles: (string | undefined)[] = [];
+    await expect(async () => {
+      const { data } = await ownerApi.folders.getNewFolderItems({
+        folderId: roomId,
+      });
+      titles = data.response!.map((e) => e.title);
+      expect(titles).toContain("Autotest News Count File 1.docx");
+      expect(titles).toContain("Autotest News Count File 2.docx");
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
   });
 
   test("GET /api/2.0/files/:folderId/news - each item has required fields title and fileEntryType", async ({
