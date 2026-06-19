@@ -3896,6 +3896,272 @@ test.describe("PUT /api/2.0/files/rooms/{id}/links - external sharing restrictio
   });
 });
 
+// PUT /files/rooms/:id/links — setRoomLink. Creating/updating/deleting a room
+// link is a write action and is scoped more tightly than the read endpoints:
+// only the room owner and members invited with RoomManager access may run it.
+// Unlike getRoomsPrimaryExternalLink, a portal admin (DocSpaceAdmin) does NOT get
+// access to another owner's room (403), and ContentCreator is NOT enough either.
+// Lower access levels (Editing / Read), non-members and guests get 403; anonymous
+// gets 401; terminated users get 401.
+test.describe("PUT /files/rooms/:id/links - access control", () => {
+  const externalLink = {
+    access: FileShare.Read,
+    linkType: LinkType.External,
+    title: "Autotest Perm Link",
+    denyDownload: false,
+  };
+
+  test("Owner can create a link in their own room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest setLink Perm Owner",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { data, status } = await ownerApi.rooms.setRoomLink({
+      id: roomData.response!.id!,
+      roomLinkRequest: externalLink,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.id).toBeDefined();
+  });
+
+  test("DocSpaceAdmin can create a link in their own room", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest setLink Perm Admin Own",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { data, status } = await adminApi.rooms.setRoomLink({
+      id: roomData.response!.id!,
+      roomLinkRequest: externalLink,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.id).toBeDefined();
+  });
+
+  test("DocSpaceAdmin cannot create a link in another owner's room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest setLink Perm Admin Other",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data } = await adminApi.rooms.setRoomLink({
+      id: roomData.response!.id!,
+      roomLinkRequest: externalLink,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("RoomAdmin not invited to the room gets 403", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest setLink Perm RoomAdmin NotInvited",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data } = await roomAdminApi.rooms.setRoomLink({
+      id: roomData.response!.id!,
+      roomLinkRequest: externalLink,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  for (const { label, access, expectedStatus } of [
+    {
+      label: "RoomManager",
+      access: FileShare.RoomManager,
+      expectedStatus: 200,
+    },
+    {
+      label: "ContentCreator",
+      access: FileShare.ContentCreator,
+      expectedStatus: 403,
+    },
+    { label: "Editing", access: FileShare.Editing, expectedStatus: 403 },
+  ]) {
+    test(`RoomAdmin invited with ${label} access gets ${expectedStatus}`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest setLink Perm RoomAdmin ${label}`,
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: roomAdminApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
+
+      const { data } = await roomAdminApi.rooms.setRoomLink({
+        id: roomId,
+        roomLinkRequest: externalLink,
+      });
+
+      expect(data.statusCode).toBe(expectedStatus);
+    });
+  }
+
+  test("User invited with Read access gets 403", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest setLink Perm User Invited",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data } = await userApi.rooms.setRoomLink({
+      id: roomId,
+      roomLinkRequest: externalLink,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("User not invited to the room gets 403", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest setLink Perm User NotInvited",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data } = await userApi.rooms.setRoomLink({
+      id: roomData.response!.id!,
+      roomLinkRequest: externalLink,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Guest not invited to the room gets 403", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest setLink Perm Guest",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data } = await guestApi.rooms.setRoomLink({
+      id: roomData.response!.id!,
+      roomLinkRequest: externalLink,
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Anonymous request returns 401", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest setLink Perm Anonymous",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { status } = await apiSdk.forAnonymous().rooms.setRoomLink({
+      id: roomData.response!.id!,
+      roomLinkRequest: externalLink,
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("Disabled (terminated) user returns 401", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest setLink Perm Terminated",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: {
+        userIds: [memberData.response!.id!],
+        resendAll: false,
+      },
+    });
+
+    const { status } = await userApi.rooms.setRoomLink({
+      id: roomData.response!.id!,
+      roomLinkRequest: externalLink,
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
 // PUT /files/rooms/:id/reorder — reorderRoom. Reordering the room index is a
 // room-management action: only the room owner, portal admins (DocSpaceAdmin) or a
 // member invited with management access (RoomManager) may run it. Lower access

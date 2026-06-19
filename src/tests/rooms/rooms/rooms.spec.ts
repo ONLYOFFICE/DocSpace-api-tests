@@ -11,6 +11,7 @@ import {
   SortOrder,
   SubjectFilter,
   UserInvitation,
+  RoomLinkRequest,
 } from "@onlyoffice/docspace-api-sdk";
 import type { ApiSDK } from "@/src/services/api-sdk";
 import { createAllRoomTypes } from "@/src/helpers/rooms";
@@ -7734,6 +7735,1155 @@ test.describe("API rooms methods", () => {
           id: undefined as unknown as number,
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  // setRoomLink — PUT /files/rooms/:id/links. Creates, updates (by linkId) or
+  // deletes (access: None) an External or Invitation link of a room. External
+  // links may be multiple per room; an Invitation link is a singleton (a second
+  // create without linkId is rejected). Behaviour mirrors the folder-link family
+  // (setFolderPrimaryExternalLink): password is echoed back, a past expirationDate
+  // is silently ignored, and an unknown linkId is upserted (created with that id).
+  test.describe("PUT /files/rooms/:id/links - setRoomLink", () => {
+    type RoomClient = ReturnType<ApiSDK["forRole"]>;
+
+    const mkRoom = async (
+      api: RoomClient,
+      title: string,
+      roomType: RoomType = RoomType.CustomRoom,
+    ): Promise<number> => {
+      const { data } = await api.rooms.createRoom({
+        createRoomRequestDto: { title, roomType },
+      });
+      return data.response!.id!;
+    };
+
+    const setLink = (
+      api: RoomClient,
+      roomId: number,
+      roomLinkRequest: RoomLinkRequest,
+    ) => api.rooms.setRoomLink({ id: roomId, roomLinkRequest });
+
+    const listLinks = async (
+      api: RoomClient,
+      roomId: number,
+      type?: LinkType,
+    ) => {
+      const { data } = await api.rooms.getRoomLinks({ id: roomId, type });
+      return data.response ?? [];
+    };
+
+    // ===== Functional: External =====
+
+    test("PUT /files/rooms/:id/links - Owner creates an External link without linkId", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Create External");
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Autotest New External",
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      const linkId = data.response!.sharedLink!.id!;
+      expect(linkId).toBeDefined();
+      expect(data.response!.sharedLink!.linkType).toBe(LinkType.External);
+      expect(data.response!.sharedLink!.shareLink).toBeDefined();
+
+      const links = await listLinks(ownerApi, roomId, LinkType.External);
+      expect(links.map((l) => l.sharedLink?.id)).toContain(linkId);
+    });
+
+    test("PUT /files/rooms/:id/links - Owner updates an External link by linkId", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Update External");
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "External Before",
+        denyDownload: false,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "External After",
+        denyDownload: true,
+        internal: true,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.id).toBe(linkId);
+      expect(data.response!.sharedLink!.title).toBe("External After");
+      expect(data.response!.sharedLink!.denyDownload).toBe(true);
+      expect(data.response!.sharedLink!.internal).toBe(true);
+
+      const links = await listLinks(ownerApi, roomId, LinkType.External);
+      const link = links.find((l) => l.sharedLink?.id === linkId);
+      expect(link!.sharedLink!.title).toBe("External After");
+      expect(link!.sharedLink!.denyDownload).toBe(true);
+      expect(link!.sharedLink!.internal).toBe(true);
+    });
+
+    test("PUT /files/rooms/:id/links - Owner deletes an External link via access None", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Delete External");
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "External To Delete",
+        denyDownload: false,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+
+      const { status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.None,
+        linkType: LinkType.External,
+        title: "External To Delete",
+        denyDownload: false,
+      });
+
+      const links = await listLinks(ownerApi, roomId, LinkType.External);
+      expect(links.map((l) => l.sharedLink?.id)).not.toContain(linkId);
+      expect(status).toBe(200);
+    });
+
+    // ===== Functional: Invitation =====
+
+    test("PUT /files/rooms/:id/links - Second Invitation link without linkId is rejected (singleton)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink Invitation Single",
+      );
+
+      const { data: first } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "First Invitation",
+        denyDownload: false,
+      });
+      const firstId = first.response!.sharedLink!.id!;
+
+      const { data } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "Second Invitation",
+        denyDownload: false,
+      });
+
+      const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
+      expect(links.map((l) => l.sharedLink?.id)).toContain(firstId);
+      expect(data.statusCode).toBe(403);
+    });
+
+    test("PUT /files/rooms/:id/links - Owner updates an Invitation link by linkId", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink Update Invitation",
+      );
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "Invitation Before",
+        denyDownload: false,
+        maxUseCount: 3,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "Invitation After",
+        denyDownload: true,
+        maxUseCount: 10,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.id).toBe(linkId);
+      expect(data.response!.sharedLink!.title).toBe("Invitation After");
+      expect(data.response!.sharedLink!.maxUseCount).toBe(10);
+
+      const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
+      const link = links.find((l) => l.sharedLink?.id === linkId);
+      expect(link!.sharedLink!.title).toBe("Invitation After");
+      expect(link!.sharedLink!.maxUseCount).toBe(10);
+    });
+
+    test("PUT /files/rooms/:id/links - Invitation link can be re-created after deletion", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink Recreate Invitation",
+      );
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "Invitation V1",
+        denyDownload: false,
+      });
+      const firstId = created.response!.sharedLink!.id!;
+
+      await setLink(ownerApi, roomId, {
+        linkId: firstId,
+        access: FileShare.None,
+        linkType: LinkType.Invitation,
+        title: "Invitation V1",
+        denyDownload: false,
+      });
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "Invitation V2",
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.id).toBeDefined();
+
+      const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
+      expect(links.length).toBe(1);
+    });
+
+    // ===== Field behaviours =====
+
+    for (const access of [
+      FileShare.Read,
+      FileShare.Review,
+      FileShare.Comment,
+      FileShare.Editing,
+    ]) {
+      test(`PUT /files/rooms/:id/links - Invitation link accepts access ${access}`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await mkRoom(
+          ownerApi,
+          `Autotest setLink Access ${access}`,
+        );
+
+        const { data, status } = await setLink(ownerApi, roomId, {
+          access,
+          linkType: LinkType.Invitation,
+          title: `Invitation Access ${access}`,
+          denyDownload: false,
+        });
+
+        expect(status).toBe(200);
+        const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
+        const link = links.find(
+          (l) => l.sharedLink?.id === data.response!.sharedLink!.id,
+        );
+        expect(link!.access).toBe(access);
+      });
+    }
+
+    test("PUT /files/rooms/:id/links - Password is reflected on create and update", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Password");
+
+      const { data: created, status: createStatus } = await setLink(
+        ownerApi,
+        roomId,
+        {
+          access: FileShare.Read,
+          linkType: LinkType.External,
+          title: "Password Link",
+          password: "Secret123!",
+          denyDownload: false,
+        },
+      );
+      expect(createStatus).toBe(200);
+      expect(created.response!.sharedLink!.password).toBeTruthy();
+      const linkId = created.response!.sharedLink!.id!;
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Password Link",
+        password: "Updated456!",
+        denyDownload: false,
+      });
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.password).toBeTruthy();
+    });
+
+    test("PUT /files/rooms/:id/links - Future expirationDate is reflected, past is silently ignored", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Expiration");
+
+      const { data: created, status: createStatus } = await setLink(
+        ownerApi,
+        roomId,
+        {
+          access: FileShare.Read,
+          linkType: LinkType.External,
+          title: "Expiry Link",
+          denyDownload: false,
+          expirationDate:
+            "2030-01-01T00:00:00.000Z" as unknown as RoomLinkRequest["expirationDate"],
+        },
+      );
+      expect(createStatus).toBe(200);
+      expect(created.response!.sharedLink!.isExpired).toBe(false);
+      expect(
+        (created.response!.sharedLink! as { expirationDate?: unknown })
+          .expirationDate,
+      ).toBeDefined();
+      const linkId = created.response!.sharedLink!.id!;
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Expiry Link",
+        denyDownload: false,
+        expirationDate:
+          "2020-01-01T00:00:00.000Z" as unknown as RoomLinkRequest["expirationDate"],
+      });
+      expect(status).toBe(200);
+      expect(
+        (data.response!.sharedLink! as { expirationDate?: unknown })
+          .expirationDate,
+      ).toBeUndefined();
+    });
+
+    test("PUT /files/rooms/:id/links - denyDownload toggles from true to false", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink DenyDownload");
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "DenyDownload Link",
+        denyDownload: true,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+      expect(created.response!.sharedLink!.denyDownload).toBe(true);
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "DenyDownload Link",
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.denyDownload).toBe(false);
+    });
+
+    test("PUT /files/rooms/:id/links - internal toggles from true to false", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Internal");
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Internal Link",
+        internal: true,
+        denyDownload: false,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+      expect(created.response!.sharedLink!.internal).toBe(true);
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Internal Link",
+        internal: false,
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.internal).toBe(false);
+    });
+
+    test("PUT /files/rooms/:id/links - maxUseCount is saved and currentUseCount stays 0 on update", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink maxUseCount");
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "MaxUse Link",
+        maxUseCount: 5,
+        denyDownload: false,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+      expect(created.response!.sharedLink!.maxUseCount).toBe(5);
+      expect(created.response!.sharedLink!.currentUseCount).toBe(0);
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "MaxUse Link",
+        maxUseCount: 8,
+        currentUseCount: 99,
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.maxUseCount).toBe(8);
+      // The server must not trust a client-supplied currentUseCount.
+      expect(data.response!.sharedLink!.currentUseCount).toBe(0);
+    });
+
+    // ===== Negative / validation =====
+
+    for (const badId of [0, -1, 999999999]) {
+      test(`PUT /files/rooms/:id/links - Invalid room id ${badId} returns 404`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { data } = await setLink(ownerApi, badId, {
+          access: FileShare.Read,
+          linkType: LinkType.External,
+          title: "Bad Room Id",
+          denyDownload: false,
+        });
+
+        expect(data.statusCode).toBe(404);
+      });
+    }
+
+    test("PUT /files/rooms/:id/links - Deleted room returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Deleted Room");
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "On Deleted Room",
+        denyDownload: false,
+      });
+
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("PUT /files/rooms/:id/links - Archived room returns 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink Archived Room",
+        RoomType.PublicRoom,
+      );
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "On Archived Room",
+        denyDownload: false,
+      });
+
+      expect(data.statusCode).toBe(403);
+    });
+
+    test("PUT /files/rooms/:id/links - Unknown linkId is upserted (created with that id)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Unknown LinkId");
+
+      const fakeLinkId = "00000000-0000-0000-0000-000000000001";
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        linkId: fakeLinkId,
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Upserted Link",
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.id).toBe(fakeLinkId);
+    });
+
+    test("PUT /files/rooms/:id/links - linkId from another room creates a separate link, leaving the original intact", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomIdA = await mkRoom(ownerApi, "Autotest setLink Cross Room A");
+      const roomIdB = await mkRoom(ownerApi, "Autotest setLink Cross Room B");
+
+      const { data: linkA } = await setLink(ownerApi, roomIdA, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Cross Room Link A",
+        denyDownload: false,
+      });
+      const linkIdA = linkA.response!.sharedLink!.id!;
+
+      await setLink(ownerApi, roomIdB, {
+        linkId: linkIdA,
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Cross Room Link On B",
+        denyDownload: false,
+      });
+
+      const linksA = await listLinks(ownerApi, roomIdA, LinkType.External);
+      expect(linksA.map((l) => l.sharedLink?.id)).toContain(linkIdA);
+    });
+
+    test("PUT /files/rooms/:id/links - Deleting an already-deleted link is idempotent", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Double Delete");
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Double Delete Link",
+        denyDownload: false,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+
+      await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.None,
+        linkType: LinkType.External,
+        title: "Double Delete Link",
+        denyDownload: false,
+      });
+
+      const { status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.None,
+        linkType: LinkType.External,
+        title: "Double Delete Link",
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      const links = await listLinks(ownerApi, roomId, LinkType.External);
+      expect(links.map((l) => l.sharedLink?.id)).not.toContain(linkId);
+    });
+
+    // ===== Negative: request-body validation =====
+    // DocSpace tends to be permissive with link bodies (defaults / normalizes
+    // rather than 400). Assertions below reflect the observed contract.
+
+    test("PUT /files/rooms/:id/links - Missing linkType defaults to an Invitation link", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink No LinkType");
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        title: "No LinkType",
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.linkType).toBe(LinkType.Invitation);
+    });
+
+    test("PUT /files/rooms/:id/links - Missing access creates no link (treated as None)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink No Access");
+
+      const { status } = await setLink(ownerApi, roomId, {
+        linkType: LinkType.Invitation,
+        title: "No Access",
+        denyDownload: false,
+      });
+
+      const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
+      expect(links.length).toBe(0);
+      expect(status).toBe(200);
+    });
+
+    test("PUT /files/rooms/:id/links - Missing title is accepted", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink No Title");
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.id).toBeDefined();
+    });
+
+    // An out-of-range enum in the body should be a 400 Bad Request, but the API
+    // currently returns 403. Marked test.fail until the validation is fixed.
+    test.fail(
+      "BUG XXXXX: PUT /files/rooms/:id/links - Invalid linkType should be rejected with 400 (API returns 403)",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await mkRoom(ownerApi, "Autotest setLink Bad LinkType");
+
+        const { data } = await setLink(ownerApi, roomId, {
+          access: FileShare.Read,
+          linkType: 5 as unknown as LinkType,
+          title: "Bad LinkType",
+          denyDownload: false,
+        });
+
+        expect(data.statusCode).toBe(400);
+      },
+    );
+
+    test.fail(
+      "BUG XXXXX: PUT /files/rooms/:id/links - Invalid access should be rejected with 400 (API returns 403)",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await mkRoom(ownerApi, "Autotest setLink Bad Access");
+
+        const { data } = await setLink(ownerApi, roomId, {
+          access: 99 as unknown as FileShare,
+          linkType: LinkType.Invitation,
+          title: "Bad Access",
+          denyDownload: false,
+        });
+
+        expect(data.statusCode).toBe(400);
+      },
+    );
+
+    test("PUT /files/rooms/:id/links - Empty title is accepted (auto-named)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Empty Title");
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "",
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.id).toBeDefined();
+    });
+
+    test("PUT /files/rooms/:id/links - Whitespace-only title is accepted", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink Whitespace Title",
+      );
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "   ",
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.id).toBeDefined();
+    });
+
+    test("PUT /files/rooms/:id/links - Title over the length limit is rejected with 400", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Long Title");
+
+      const longTitle = "L".repeat(300);
+      const { data } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: longTitle,
+        denyDownload: false,
+      });
+
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("PUT /files/rooms/:id/links - Malformed expirationDate is silently ignored", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Bad Date");
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Bad Date",
+        denyDownload: false,
+        expirationDate:
+          "not-a-date" as unknown as RoomLinkRequest["expirationDate"],
+      });
+
+      // A malformed date is dropped (like a past date), the link is still created.
+      expect(status).toBe(200);
+      expect(
+        (data.response!.sharedLink! as { expirationDate?: unknown })
+          .expirationDate,
+      ).toBeUndefined();
+    });
+
+    test("PUT /files/rooms/:id/links - maxUseCount 0 is rejected with 400 (must be >= 1)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink MaxUse Zero");
+
+      const { data } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "MaxUse Zero",
+        maxUseCount: 0,
+        denyDownload: false,
+      });
+
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("PUT /files/rooms/:id/links - Negative maxUseCount is rejected with 400", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink MaxUse Negative");
+
+      const { data } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "MaxUse Negative",
+        maxUseCount: -1,
+        denyDownload: false,
+      });
+
+      expect(data.statusCode).toBe(400);
+    });
+
+    test("PUT /files/rooms/:id/links - Changing linkType on update is ignored (link keeps its original type)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink LinkType Switch");
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Switch Me",
+        denyDownload: false,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+
+      const { data, status } = await setLink(ownerApi, roomId, {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "Switch Me",
+        denyDownload: false,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.sharedLink!.linkType).toBe(LinkType.External);
+    });
+
+    // ===== Side effects / integrity =====
+
+    test("PUT /files/rooms/:id/links - Link operations do not change room members", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Members Intact");
+
+      const { data: before } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const beforeCount = before.response!.length;
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Members Intact Link",
+        denyDownload: false,
+      });
+      await setLink(ownerApi, roomId, {
+        linkId: created.response!.sharedLink!.id!,
+        access: FileShare.None,
+        linkType: LinkType.External,
+        title: "Members Intact Link",
+        denyDownload: false,
+      });
+
+      const { data: after } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      expect(after.response!.length).toBe(beforeCount);
+      expect(after.response!.some((s) => s.isOwner)).toBe(true);
+    });
+
+    test("PUT /files/rooms/:id/links - Link creation does not change room title or type", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink Metadata Intact",
+        RoomType.CustomRoom,
+      );
+
+      await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Metadata Link",
+        denyDownload: false,
+      });
+
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(data.response!.title).toBe("Autotest setLink Metadata Intact");
+      expect(data.response!.roomType).toBe(RoomType.CustomRoom);
+    });
+
+    test("PUT /files/rooms/:id/links - A repeated identical update keeps a single link", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink Idempotent Update",
+      );
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Idempotent Link",
+        denyDownload: false,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+
+      const body: RoomLinkRequest = {
+        linkId,
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Idempotent Link Updated",
+        denyDownload: true,
+      };
+      const { data: first } = await setLink(ownerApi, roomId, body);
+      const { data: second } = await setLink(ownerApi, roomId, body);
+
+      expect(first.response!.sharedLink!.id).toBe(linkId);
+      expect(second.response!.sharedLink!.id).toBe(linkId);
+
+      const links = await listLinks(ownerApi, roomId, LinkType.External);
+      expect(links.filter((l) => l.sharedLink?.id === linkId).length).toBe(1);
+    });
+
+    test("PUT /files/rooms/:id/links - Parallel External creation yields unique links", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink Parallel External",
+        RoomType.CustomRoom,
+      );
+
+      const results = await Promise.all(
+        [0, 1, 2].map((i) =>
+          setLink(ownerApi, roomId, {
+            access: FileShare.Read,
+            linkType: LinkType.External,
+            title: `Parallel External ${i}`,
+            denyDownload: false,
+          }),
+        ),
+      );
+
+      for (const { status } of results) {
+        expect(status).toBe(200);
+      }
+      const links = await listLinks(ownerApi, roomId, LinkType.External);
+      const ids = links.map((l) => l.sharedLink!.id!);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids.length).toBe(3);
+    });
+
+    test("PUT /files/rooms/:id/links - Parallel Invitation creation leaves exactly one Invitation link", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink Parallel Invitation",
+      );
+
+      await Promise.all(
+        [0, 1, 2].map((i) =>
+          setLink(ownerApi, roomId, {
+            access: FileShare.Read,
+            linkType: LinkType.Invitation,
+            title: `Parallel Invitation ${i}`,
+            denyDownload: false,
+          }),
+        ),
+      );
+
+      const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
+      expect(links.length).toBe(1);
+    });
+
+    test("PUT /files/rooms/:id/links - Concurrent update and delete of the same link leaves a consistent state", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest setLink Concurrent");
+
+      const { data: created } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.External,
+        title: "Concurrent Link",
+        denyDownload: false,
+      });
+      const linkId = created.response!.sharedLink!.id!;
+
+      await Promise.all([
+        setLink(ownerApi, roomId, {
+          linkId,
+          access: FileShare.Read,
+          linkType: LinkType.External,
+          title: "Concurrent Updated",
+          denyDownload: true,
+        }),
+        setLink(ownerApi, roomId, {
+          linkId,
+          access: FileShare.None,
+          linkType: LinkType.External,
+          title: "Concurrent Link",
+          denyDownload: false,
+        }),
+      ]);
+
+      const links = await listLinks(ownerApi, roomId, LinkType.External);
+      const matching = links.filter((l) => l.sharedLink?.id === linkId);
+      // Either the update won (one link) or the delete won (zero links), never a
+      // duplicated or corrupted entry.
+      expect(matching.length).toBeLessThanOrEqual(1);
+    });
+
+    // ===== Room type coverage =====
+
+    // Most room types support the full Invitation-link lifecycle. A
+    // FillingFormsRoom is the exception: it exposes only its auto-created
+    // External link and rejects Invitation-link creation with 403.
+    for (const { label, roomType } of [
+      { label: "CustomRoom", roomType: RoomType.CustomRoom },
+      { label: "PublicRoom", roomType: RoomType.PublicRoom },
+      { label: "EditingRoom", roomType: RoomType.EditingRoom },
+      { label: "VirtualDataRoom", roomType: RoomType.VirtualDataRoom },
+    ]) {
+      test(`PUT /files/rooms/:id/links - ${label} supports Invitation create/update/delete`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await mkRoom(
+          ownerApi,
+          `Autotest setLink Type ${label}`,
+          roomType,
+        );
+
+        const { data: created, status: createStatus } = await setLink(
+          ownerApi,
+          roomId,
+          {
+            access: FileShare.Read,
+            linkType: LinkType.Invitation,
+            title: `${label} Invitation`,
+            denyDownload: false,
+          },
+        );
+        expect(createStatus).toBe(200);
+        const linkId = created.response!.sharedLink!.id!;
+
+        const { status: updateStatus } = await setLink(ownerApi, roomId, {
+          linkId,
+          access: FileShare.Read,
+          linkType: LinkType.Invitation,
+          title: `${label} Invitation Updated`,
+          denyDownload: false,
+        });
+        expect(updateStatus).toBe(200);
+
+        const { status: deleteStatus } = await setLink(ownerApi, roomId, {
+          linkId,
+          access: FileShare.None,
+          linkType: LinkType.Invitation,
+          title: `${label} Invitation Updated`,
+          denyDownload: false,
+        });
+        expect(deleteStatus).toBe(200);
+
+        const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
+        expect(links.map((l) => l.sharedLink?.id)).not.toContain(linkId);
+      });
+    }
+
+    // Only CustomRoom and PublicRoom let an owner manage External links through
+    // setRoomLink. FillingFormsRoom exposes only its single auto-created External
+    // link, while EditingRoom and VirtualDataRoom have no External-link feature at
+    // all — all three reject External-link creation with 403 (covered below).
+    for (const { label, roomType } of [
+      { label: "CustomRoom", roomType: RoomType.CustomRoom },
+      { label: "PublicRoom", roomType: RoomType.PublicRoom },
+    ]) {
+      test(`PUT /files/rooms/:id/links - ${label} supports External create/update/delete`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await mkRoom(
+          ownerApi,
+          `Autotest setLink External Type ${label}`,
+          roomType,
+        );
+
+        const { data: created, status: createStatus } = await setLink(
+          ownerApi,
+          roomId,
+          {
+            access: FileShare.Read,
+            linkType: LinkType.External,
+            title: `${label} External`,
+            denyDownload: false,
+          },
+        );
+        expect(createStatus).toBe(200);
+        const linkId = created.response!.sharedLink!.id!;
+
+        const { status: updateStatus } = await setLink(ownerApi, roomId, {
+          linkId,
+          access: FileShare.Read,
+          linkType: LinkType.External,
+          title: `${label} External Updated`,
+          denyDownload: true,
+        });
+        expect(updateStatus).toBe(200);
+
+        const { status: deleteStatus } = await setLink(ownerApi, roomId, {
+          linkId,
+          access: FileShare.None,
+          linkType: LinkType.External,
+          title: `${label} External Updated`,
+          denyDownload: false,
+        });
+        expect(deleteStatus).toBe(200);
+
+        const links = await listLinks(ownerApi, roomId, LinkType.External);
+        expect(links.map((l) => l.sharedLink?.id)).not.toContain(linkId);
+      });
+    }
+
+    // FillingFormsRoom, EditingRoom and VirtualDataRoom do not allow creating an
+    // External link through setRoomLink — the request is rejected with 403.
+    for (const { label, roomType } of [
+      { label: "FillingFormsRoom", roomType: RoomType.FillingFormsRoom },
+      { label: "EditingRoom", roomType: RoomType.EditingRoom },
+      { label: "VirtualDataRoom", roomType: RoomType.VirtualDataRoom },
+    ]) {
+      test(`PUT /files/rooms/:id/links - ${label} rejects External link creation with 403`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await mkRoom(
+          ownerApi,
+          `Autotest setLink External Reject ${label}`,
+          roomType,
+        );
+
+        const { data } = await setLink(ownerApi, roomId, {
+          access: FileShare.Read,
+          linkType: LinkType.External,
+          title: `${label} External`,
+          denyDownload: false,
+        });
+
+        expect(data.statusCode).toBe(403);
+      });
+    }
+
+    // A FillingFormsRoom rejects Invitation-link creation with 403; only its
+    // auto-created External link exists for this room type.
+    test("PUT /files/rooms/:id/links - FillingFormsRoom rejects Invitation link creation with 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest setLink FillingForms NoInvitation",
+        RoomType.FillingFormsRoom,
+      );
+
+      const { data } = await setLink(ownerApi, roomId, {
+        access: FileShare.Read,
+        linkType: LinkType.Invitation,
+        title: "FillingForms Invitation",
+        denyDownload: false,
+      });
+
+      expect(data.statusCode).toBe(403);
+      const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
+      expect(links.length).toBe(0);
     });
   });
 
