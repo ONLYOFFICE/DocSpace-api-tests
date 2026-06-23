@@ -11955,6 +11955,295 @@ test.describe("API rooms methods", () => {
       const { status } = await ownerApi.rooms.getRoomIndexExport();
       expect(status).toBe(200);
     });
+
+    // === startRoomIndexExport (POST) as the target endpoint ===
+
+    test("POST /files/rooms/:id/indexexport - Starts export for an indexed VDR room with a nested structure", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Nested",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // root-level folder, a nested folder inside it, and a couple of files
+      const { data: rootFolder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Root Folder" },
+      });
+      await ownerApi.folders.createFolder({
+        folderId: rootFolder.response!.id!,
+        createFolder: { title: "Nested Folder" },
+      });
+      await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Root File" },
+      });
+      await ownerApi.files.createFile({
+        folderId: rootFolder.response!.id!,
+        createFileJsonElement: { title: "Nested File" },
+      });
+
+      const { data, status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomId,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeDefined();
+      expect(data.response!.error).toBeFalsy();
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("POST /files/rooms/:id/indexexport - Second start for the same room joins the running task (same id, 200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Double Start",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const first = await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      const second = await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+
+      // A second start while one is running is not a conflict: the API returns 200
+      // and hands back the already-running task rather than creating a new one.
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(second.data.response!.id).toBe(first.data.response!.id);
+      expect(second.data.response!.error).toBeFalsy();
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("POST /files/rooms/:id/indexexport - Parallel starts for the same room stay consistent (no 5xx)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Parallel Same Room",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const results = await Promise.all([
+        ownerApi.rooms.startRoomIndexExport({ id: roomId }),
+        ownerApi.rooms.startRoomIndexExport({ id: roomId }),
+        ownerApi.rooms.startRoomIndexExport({ id: roomId }),
+      ]);
+
+      for (const res of results) {
+        expect(res.status).toBe(200);
+        expect(res.data.response!.error).toBeFalsy();
+      }
+      // All concurrent starts must converge on a single running task.
+      const ids = results.map((r) => r.data.response!.id);
+      expect(new Set(ids).size).toBe(1);
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("POST /files/rooms/:id/indexexport - A new export can be started after the previous one completed", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Restart",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.folders.getMyFolder({});
+
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      await expect(async () => {
+        const { data } = await ownerApi.rooms.getRoomIndexExport();
+        expect(data.response!.isCompleted).toBe(true);
+        expect(data.response!.error).toBeFalsy();
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+      // The completed task must not block a fresh export.
+      const { data, status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomId,
+      });
+      expect(status).toBe(200);
+      expect(data.response!.id).toBeDefined();
+      expect(data.response!.error).toBeFalsy();
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("POST /files/rooms/:id/indexexport - Non-VDR (Custom) room is rejected with 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Custom Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      // Index export is a VDR-only feature; non-VDR rooms are forbidden.
+      expect(status).toBe(403);
+    });
+
+    test("POST /files/rooms/:id/indexexport - VDR room with indexing disabled is rejected with 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export No Indexing",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: false,
+        },
+      });
+
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      // Even for a VDR room, the export requires indexing to be enabled.
+      expect(status).toBe(403);
+    });
+
+    // A well-formed but non-existent room id is correctly reported as 404
+    // "The required folder was not found".
+    test("POST /files/rooms/:id/indexexport - id=999999999 returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: 999999999,
+      });
+      expect(status).toBe(404);
+    });
+
+    // Out-of-range / malformed numeric ids should be a validation error (400),
+    // but the API does not pre-validate and returns 404 "folder not found"
+    // instead. Marked test.fail until fixed; when the API starts returning 400
+    // the test reports an unexpected pass, signaling test.fail can be removed.
+    for (const id of [0, -1]) {
+      test.fail(
+        `POST /files/rooms/:id/indexexport - id=${id} should return 400 (validation), but API returns 404`,
+        async ({ apiSdk }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { status } = await ownerApi.rooms.startRoomIndexExport({ id });
+          expect(status).toBe(400);
+        },
+      );
+    }
+
+    test('POST /files/rooms/:id/indexexport - non-numeric id "abc" returns 404', async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: "abc" as unknown as number,
+      });
+      expect(status).toBe(404);
+    });
+
+    test("POST /files/rooms/:id/indexexport - id=null throws at SDK level", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.startRoomIndexExport({ id: null as unknown as number }),
+      ).rejects.toThrow(/Required parameter id/);
+    });
+
+    test("POST /files/rooms/:id/indexexport - id=undefined throws at SDK level", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.startRoomIndexExport({
+          id: undefined as unknown as number,
+        }),
+      ).rejects.toThrow(/Required parameter id/);
+    });
+
+    test("POST /files/rooms/:id/indexexport - Deleted room returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Deleted",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomId,
+      });
+      expect(status).toBe(404);
+    });
+
+    // Starting an index export on an archived room should be forbidden (403,
+    // consistent with reorder and other write operations on archived rooms),
+    // but the API currently accepts it and returns 200. Marked test.fail until
+    // fixed; when the API starts rejecting it the test reports an unexpected
+    // pass, signaling test.fail can be removed.
+    test.fail(
+      "POST /files/rooms/:id/indexexport - archived room should be forbidden (403), but API returns 200",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Index Export Archived Start",
+            roomType: RoomType.VirtualDataRoom,
+            indexing: true,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status } = await ownerApi.rooms.startRoomIndexExport({
+          id: roomId,
+        });
+
+        // Clean up the export the buggy 200 actually started before asserting.
+        await ownerApi.rooms.terminateRoomIndexExport().catch(() => {});
+
+        expect(status).toBe(403);
+      },
+    );
   });
 
   // Could not trigger MarkAsNew via API - new items list is always empty. Contract test only.
