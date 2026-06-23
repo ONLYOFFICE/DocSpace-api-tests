@@ -12244,6 +12244,220 @@ test.describe("API rooms methods", () => {
         expect(status).toBe(403);
       },
     );
+
+    // === terminateRoomIndexExport (DELETE) as the target endpoint ===
+    // The endpoint takes no id and no body: it cancels the *current user's*
+    // running export task (see the per-user scoping proven by the GET tests
+    // above). These tests pin down its happy path, no-op cases and scope.
+
+    test("DELETE /files/rooms/indexexport - Owner cancels an active export (200) and no active task remains", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Terminate Active",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // Nested content so the export is not guaranteed to finish instantly.
+      const { data: folder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder" },
+      });
+      await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "File A" },
+      });
+      await ownerApi.files.createFile({
+        folderId: folder.response!.id!,
+        createFileJsonElement: { title: "File B" },
+      });
+
+      const start = await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      expect(start.status).toBe(200);
+      expect(start.data.response!.id).toBeDefined();
+
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(status).toBe(200);
+
+      const after = await ownerApi.rooms.getRoomIndexExport();
+      expect(after.status).toBe(200);
+      const resp = after.data.response;
+      const hasActiveRunning =
+        Boolean(resp?.id) && resp?.isCompleted === false && !resp?.error;
+      expect(hasActiveRunning).toBe(false);
+    });
+
+    test("DELETE /files/rooms/indexexport - Terminate with no active task is a no-op (200)", async ({
+      apiSdk,
+    }) => {
+      // A fresh portal owner has never started an export, so there is nothing
+      // to cancel. Documenting the contract: the API treats this as a no-op.
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - Second terminate after the first is a no-op (200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Double Terminate",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const first = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(first.status).toBe(200);
+
+      // Terminate is idempotent: cancelling an already-cancelled task is a no-op.
+      const second = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(second.status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - Terminate immediately after start is handled without a 5xx (200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Race Terminate",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // Cancel the task while it is still Queued/Started, without polling first.
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - Terminate after the export completed is a no-op (200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Terminate After Done",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.folders.getMyFolder({});
+
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      await expect(async () => {
+        const { data } = await ownerApi.rooms.getRoomIndexExport();
+        expect(data.response!.isCompleted).toBe(true);
+        expect(data.response!.error).toBeFalsy();
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+      // Cancelling a finished task must not error.
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - A new export can be started after terminate", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Restart After Terminate",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      await ownerApi.rooms.terminateRoomIndexExport();
+
+      // Terminate must not leave the task in a state that blocks a fresh export.
+      const restart = await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      expect(restart.status).toBe(200);
+      expect(restart.data.response!.id).toBeDefined();
+      expect(restart.data.response!.error).toBeFalsy();
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("DELETE /files/rooms/indexexport - Terminate is per-user: it does not cancel another user's export", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Terminate Scope",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // Content so the owner's export is still running when the admin terminates.
+      const { data: folder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder" },
+      });
+      await ownerApi.files.createFile({
+        folderId: folder.response!.id!,
+        createFileJsonElement: { title: "File" },
+      });
+
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      const ownerBefore = await ownerApi.rooms.getRoomIndexExport();
+      expect(ownerBefore.data.response!.id).toBeDefined();
+
+      // The admin has no task of their own; their terminate must not touch the
+      // owner's running task (the GET endpoint already proves per-user scoping).
+      const adminTerminate = await adminApi.rooms.terminateRoomIndexExport();
+      expect(adminTerminate.status).toBe(200);
+
+      const ownerAfter = await ownerApi.rooms.getRoomIndexExport();
+      expect(ownerAfter.status).toBe(200);
+      expect(ownerAfter.data.response!.id).toBe(ownerBefore.data.response!.id);
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("DELETE /files/rooms/indexexport - Unexpected request body is ignored (200)", async ({
+      apiSdk,
+    }) => {
+      // The endpoint declares no body; sending one must not change the outcome.
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport({
+        data: { unexpected: "payload", id: 123 },
+      });
+      expect(status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - Unexpected query parameters are ignored (200)", async ({
+      apiSdk,
+    }) => {
+      // The endpoint takes no id; a stray ?id=... query must be ignored.
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport({
+        params: { id: 123 },
+      });
+      expect(status).toBe(200);
+    });
   });
 
   // Could not trigger MarkAsNew via API - new items list is always empty. Contract test only.

@@ -4873,3 +4873,132 @@ test.describe("POST /files/rooms/:id/indexexport - access control", () => {
     expect(status).toBe(401);
   });
 });
+
+test.describe("DELETE /files/rooms/indexexport - access control", () => {
+  async function createIndexedVdr(apiSdk: ApiSDK, title: string) {
+    const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      createRoomRequestDto: {
+        title,
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    return data.response!.id!;
+  }
+
+  test("Owner can terminate the export they started", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const roomId = await createIndexedVdr(
+      apiSdk,
+      "Autotest IdxTerminate AC Owner",
+    );
+    await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+
+    const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+
+    expect(status).toBe(200);
+  });
+
+  test("DocSpaceAdmin can terminate the export they started", async ({
+    apiSdk,
+  }) => {
+    const roomId = await createIndexedVdr(
+      apiSdk,
+      "Autotest IdxTerminate AC Admin",
+    );
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    await adminApi.rooms.startRoomIndexExport({ id: roomId });
+
+    const { status } = await adminApi.rooms.terminateRoomIndexExport();
+
+    expect(status).toBe(200);
+  });
+
+  test("RoomAdmin can terminate the export they started on their own VDR room", async ({
+    apiSdk,
+  }) => {
+    // A RoomAdmin owns the VDR room they create, so this exercises a
+    // non-DocSpaceAdmin manager terminating their own task. (An *invited*
+    // RoomManager on a VDR room is skipped here for the same non-determinism
+    // reason the start access-control suite skips it.)
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IdxTerminate AC RoomAdmin",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    await roomAdminApi.rooms.startRoomIndexExport({
+      id: roomData.response!.id!,
+    });
+
+    const { status } = await roomAdminApi.rooms.terminateRoomIndexExport();
+
+    expect(status).toBe(200);
+  });
+
+  // terminate takes no room id and is scoped to the caller's own task, so a
+  // low-access member has nothing to cancel: the call is a per-user no-op (200),
+  // NOT a room-permission 403 like start. Pinning the actual contract here.
+  for (const userType of ["User", "Guest"] as const) {
+    test.describe(`${userType} invited to room`, () => {
+      for (const { label, access } of roomAccesses) {
+        // User/Guest cannot hold RoomManager — see [[user_guest_no_roommanager_access]].
+        if (access === FileShare.RoomManager) {
+          continue;
+        }
+
+        test(`Room access: ${label} - terminate is a no-op (200)`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const roomId = await createIndexedVdr(
+            apiSdk,
+            `Autotest IdxTerminate AC ${userType} ${label}`,
+          );
+
+          const { api: memberApi, data: memberData } =
+            await apiSdk.addAuthenticatedMember("owner", userType);
+
+          await ownerApi.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: memberData.response!.id!, access }],
+              notify: false,
+            },
+          });
+
+          // Owner starts an export; the member terminating must not affect it.
+          await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+          const ownerBefore = await ownerApi.rooms.getRoomIndexExport();
+
+          const { status } = await memberApi.rooms.terminateRoomIndexExport();
+          expect(status).toBe(200);
+
+          // The owner's task is untouched by the member's per-user terminate.
+          const ownerAfter = await ownerApi.rooms.getRoomIndexExport();
+          expect(ownerAfter.data.response!.id).toBe(
+            ownerBefore.data.response!.id,
+          );
+
+          await ownerApi.rooms.terminateRoomIndexExport();
+        });
+      }
+    });
+  }
+
+  test("Anonymous request returns 401", async ({ apiSdk }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .rooms.terminateRoomIndexExport();
+
+    expect(status).toBe(401);
+  });
+});
