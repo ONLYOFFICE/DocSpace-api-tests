@@ -1293,9 +1293,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG XXXXX: checkMoveOrCopyDestFolder returns AllAllowed for user without dest access instead of 403
+  // BUG 82104: checkMoveOrCopyDestFolder returns AllAllowed for user without dest access instead of 403
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/fileops/checkdestfolder - User without" +
+    "BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - User without" +
       " access to destination room returns 403",
     async ({ apiSdk }) => {
       // Catches: user without dest access gets AllAllowed instead of 403;
@@ -1340,9 +1340,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG XXXXX: checkMoveOrCopyDestFolder returns 200 AllAllowed for guest without dest access instead of 403
+  // BUG 82104: checkMoveOrCopyDestFolder returns 200 AllAllowed for guest without dest access instead of 403
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/fileops/checkdestfolder - Guest without" +
+    "BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - Guest without" +
       " access to destination room gets 403",
     async ({ apiSdk }) => {
       // Catches: guest without dest access gets AllAllowed instead of 403;

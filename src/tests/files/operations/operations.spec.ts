@@ -8,6 +8,7 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { createOoForm } from "@/src/helpers/files";
+import config from "@/config";
 
 test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", () => {
   test("POST /api/2.0/files/favorites - Add file returns 200 response true and file appears in getFavoritesFolder", async ({
@@ -2037,9 +2038,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG XXXXX: checkMoveOrCopyDestFolder returns 200 AllAllowed for archived room instead of 403
+  // BUG 82103: checkMoveOrCopyDestFolder returns 200 AllAllowed for archived room instead of 403
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/fileops/checkdestfolder - Move to" +
+    "BUG 82103: GET /api/2.0/files/fileops/checkdestfolder - Move to" +
       " archived room returns 403",
     async ({ apiSdk }) => {
       // Catches: archived room returns 200 AllAllowed instead of 403;
@@ -2143,6 +2144,60 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
       });
 
       expect(status).toBe(400);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
+      " to room with connected Third-party storage returns AllAllowed",
+    async ({ apiSdk }) => {
+      // Catches: checkMoveOrCopyDestFolder returns wrong result when destination
+      // room is backed by third-party storage (Nextcloud)
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder ThirdParty File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: thirdPartyData } =
+        await ownerApi.thirdPartyIntegration.saveThirdParty({
+          thirdPartyRequestDto: {
+            url: config.NEXTCLOUD_URL,
+            login: config.NEXTCLOUD_LOGIN,
+            password: config.NEXTCLOUD_PASSWORD,
+            customerTitle: "Autotest CheckDestFolder Nextcloud",
+            providerKey: "Nextcloud",
+          },
+        });
+      const thirdPartyFolderId = thirdPartyData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
+        id: thirdPartyFolderId,
+        createThirdPartyRoom: {
+          title: "Autotest CheckDestFolder ThirdParty Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds: [fileId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
     },
   );
 });
