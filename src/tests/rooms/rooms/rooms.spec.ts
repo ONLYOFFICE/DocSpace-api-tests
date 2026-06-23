@@ -5517,6 +5517,172 @@ test.describe("API rooms methods", () => {
         expect(data.response![0].sharedToUser?.id).not.toBe(userId);
       });
     });
+
+    test("PUT /files/rooms/:id/share - Owner invites user with ContentCreator access", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share ContentCreator",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const entry = info.response!.find((s) => s.sharedToUser?.id === userId);
+      expect(entry).toBeDefined();
+      expect(entry!.access).toBe(FileShare.ContentCreator);
+    });
+
+    test("PUT /files/rooms/:id/share - Mixed batch adds, updates and removes participants in one request", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: keepData } = await apiSdk.addMember("owner", "User");
+      const { data: removeData } = await apiSdk.addMember("owner", "User");
+      const { data: addData } = await apiSdk.addMember("owner", "User");
+      const keepId = keepData.response!.id!;
+      const removeId = removeData.response!.id!;
+      const addId = addData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Mixed Batch",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // seed: two existing participants
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: keepId, access: FileShare.Read },
+            { id: removeId, access: FileShare.Read },
+          ],
+          notify: false,
+        },
+      });
+
+      // single request: update keepId, remove removeId, add addId
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: keepId, access: FileShare.Editing },
+            { id: removeId, access: FileShare.None },
+            { id: addId, access: FileShare.Read },
+          ],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const byId = (uid: string) =>
+        info.response!.find((s) => s.sharedToUser?.id === uid);
+
+      expect(byId(keepId)).toBeDefined();
+      expect(byId(keepId)!.access).toBe(FileShare.Editing);
+      expect(byId(removeId)).toBeUndefined();
+      expect(byId(addId)).toBeDefined();
+      expect(byId(addId)!.access).toBe(FileShare.Read);
+    });
+
+    test("PUT /files/rooms/:id/share - Duplicate user in one request keeps a single entry with the last access", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Duplicate User",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: userId, access: FileShare.Read },
+            { id: userId, access: FileShare.Editing },
+          ],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const entries = info.response!.filter(
+        (s) => s.sharedToUser?.id === userId,
+      );
+      expect(entries.length).toBe(1);
+      expect(entries[0].access).toBe(FileShare.Editing);
+    });
+
+    test("PUT /files/rooms/:id/share - Owner cannot remove themselves via access None", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: profile } = await ownerApi.profiles.getSelfProfile();
+      const ownerId = profile.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Owner Self Remove",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: ownerId, access: FileShare.None }],
+          notify: false,
+        },
+      });
+
+      // owner must still be present afterwards (self-removal is a no-op)
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      expect(info.response!.some((s) => s.isOwner === true)).toBe(true);
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+    });
   });
 
   test.describe("GET /files/rooms/:id/share", () => {
@@ -6673,6 +6839,346 @@ test.describe("API rooms methods", () => {
 
       expect(data.statusCode).toBe(403);
     });
+  });
+
+  test.describe("PUT /files/rooms/:id/share - input validation", () => {
+    async function createShareRoom(
+      ownerApi: ReturnType<ApiSDK["forRole"]>,
+      title: string,
+    ) {
+      const { data } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      return data.response!.id!;
+    }
+
+    test("PUT /files/rooms/:id/share - invitation id 0 returns 400", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await createShareRoom(ownerApi, "Autotest Share Id0");
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: 0 as unknown as string, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(400);
+      expect(data.statusCode).toBe(400);
+
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      expect(info.response!.length).toBe(1);
+      expect(info.response![0].isOwner).toBe(true);
+    });
+
+    test("PUT /files/rooms/:id/share - invalid access value is rejected with 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      const roomId = await createShareRoom(
+        ownerApi,
+        "Autotest Share BadAccess",
+      );
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: 999 as unknown as FileShare }],
+          notify: false,
+        },
+      });
+
+      // side-effect first: nothing was added
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const ids = info.response!.map((s) => s.sharedToUser?.id);
+      expect(ids).not.toContain(userId);
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+    });
+
+    // The endpoint treats "nothing to apply" payloads as a successful no-op.
+    // Each case must leave the room membership unchanged (owner only).
+    const noOpCases: {
+      label: string;
+      body: () => unknown;
+    }[] = [
+      {
+        label: "empty invitations array",
+        body: () => ({ invitations: [], notify: false }),
+      },
+      {
+        label: "invitations null",
+        body: () => ({ invitations: null, notify: false }),
+      },
+      { label: "empty body", body: () => ({}) },
+    ];
+
+    for (const { label, body } of noOpCases) {
+      test(`PUT /files/rooms/:id/share - ${label} is a 200 no-op`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createShareRoom(
+          ownerApi,
+          `Autotest Share NoOp ${label}`,
+        );
+
+        const { data, status } = await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: body() as never,
+        });
+
+        const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+          id: roomId,
+        });
+        expect(info.response!.length).toBe(1);
+        expect(info.response![0].isOwner).toBe(true);
+
+        expect(status).toBe(200);
+        expect(data.statusCode).toBe(200);
+      });
+    }
+
+    test("PUT /files/rooms/:id/share - invitation without access is ignored (200 no-op)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      const roomId = await createShareRoom(ownerApi, "Autotest Share NoAccess");
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId } as unknown as never],
+          notify: false,
+        },
+      });
+
+      // side-effect first: the user without an access level is not added
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const ids = info.response!.map((s) => s.sharedToUser?.id);
+      expect(ids).not.toContain(userId);
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+    });
+
+    for (const [label, badId] of [
+      ["id 0", 0],
+      ["id -1", -1],
+      ["non-existing id", 999999999],
+    ] as const) {
+      test(`PUT /files/rooms/:id/share - room ${label} returns 404`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: memberData } = await apiSdk.addMember("owner", "User");
+        const userId = memberData.response!.id!;
+
+        const { data, status } = await ownerApi.rooms.setRoomSecurity({
+          id: badId as unknown as number,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access: FileShare.Read }],
+            notify: false,
+          },
+        });
+
+        expect(status).toBe(404);
+        expect(data.statusCode).toBe(404);
+      });
+    }
+
+    test("PUT /files/rooms/:id/share - deleted room returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      const roomId = await createShareRoom(ownerApi, "Autotest Share Deleted");
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(404);
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("PUT /files/rooms/:id/share - archived room returns 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      const roomId = await createShareRoom(ownerApi, "Autotest Share Archived");
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+    });
+  });
+
+  test.describe("PUT /files/rooms/:id/share - room type access levels", () => {
+    // Each room type allows only a subset of FileShare levels for direct member
+    // invitations. Captured from live API behaviour.
+    const matrix = [
+      {
+        typeLabel: "Collaboration",
+        type: RoomType.EditingRoom,
+        accepted: [
+          { label: "Read", access: FileShare.Read },
+          { label: "Editing", access: FileShare.Editing },
+          { label: "ContentCreator", access: FileShare.ContentCreator },
+        ],
+        rejected: [
+          { label: "FillForms", access: FileShare.FillForms },
+          { label: "Review", access: FileShare.Review },
+          { label: "Comment", access: FileShare.Comment },
+        ],
+      },
+      {
+        typeLabel: "Public",
+        type: RoomType.PublicRoom,
+        accepted: [
+          { label: "ContentCreator", access: FileShare.ContentCreator },
+        ],
+        rejected: [
+          { label: "Read", access: FileShare.Read },
+          { label: "Editing", access: FileShare.Editing },
+        ],
+      },
+      {
+        typeLabel: "VirtualData",
+        type: RoomType.VirtualDataRoom,
+        accepted: [
+          { label: "Read", access: FileShare.Read },
+          { label: "Editing", access: FileShare.Editing },
+          { label: "FillForms", access: FileShare.FillForms },
+          { label: "ContentCreator", access: FileShare.ContentCreator },
+        ],
+        rejected: [
+          { label: "Review", access: FileShare.Review },
+          { label: "Comment", access: FileShare.Comment },
+        ],
+      },
+    ];
+
+    for (const { typeLabel, type, accepted, rejected } of matrix) {
+      for (const { label, access } of accepted) {
+        test(`PUT /files/rooms/:id/share - ${typeLabel} accepts ${label}`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { data: memberData } = await apiSdk.addMember("owner", "User");
+          const userId = memberData.response!.id!;
+
+          const { data: roomData } = await ownerApi.rooms.createRoom({
+            createRoomRequestDto: {
+              title: `Autotest Share Type ${typeLabel} ${label}`,
+              roomType: type,
+            },
+          });
+          const roomId = roomData.response!.id!;
+
+          const { data, status } = await ownerApi.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: userId, access }],
+              notify: false,
+            },
+          });
+
+          expect(status).toBe(200);
+          expect(data.statusCode).toBe(200);
+
+          const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+            id: roomId,
+          });
+          const entry = info.response!.find(
+            (s) => s.sharedToUser?.id === userId,
+          );
+          expect(entry).toBeDefined();
+          expect(entry!.access).toBe(access);
+        });
+      }
+
+      for (const { label, access } of rejected) {
+        test(`PUT /files/rooms/:id/share - ${typeLabel} rejects ${label}`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { data: memberData } = await apiSdk.addMember("owner", "User");
+          const userId = memberData.response!.id!;
+
+          const { data: roomData } = await ownerApi.rooms.createRoom({
+            createRoomRequestDto: {
+              title: `Autotest Share Type ${typeLabel} ${label}`,
+              roomType: type,
+            },
+          });
+          const roomId = roomData.response!.id!;
+
+          const { data, status } = await ownerApi.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: userId, access }],
+              notify: false,
+            },
+          });
+
+          // side-effect first: the rejected user is not added
+          const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+            id: roomId,
+          });
+          const ids = info.response!.map((s) => s.sharedToUser?.id);
+          expect(ids).not.toContain(userId);
+
+          expect(status).toBe(403);
+          expect(data.statusCode).toBe(403);
+        });
+      }
+    }
+
+    // NOTE: VirtualDataRoom + RoomManager for a RoomAdmin is intentionally NOT
+    // covered: the API is non-deterministic for this combination (observed both
+    // 200/added and 403/not-added across identical back-to-back requests), so it
+    // cannot be asserted as a stable contract.
   });
 
   test.describe("Room links", () => {

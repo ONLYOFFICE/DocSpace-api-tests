@@ -1667,6 +1667,159 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
     expect(data.statusCode).toBe(200);
     expect(data.response!.members).toStrictEqual([]);
   });
+
+  test("RoomManager invited to the room can set room access rights", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: targetData } = await apiSdk.addMember("owner", "User");
+    const targetId = targetData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: managerData, api: managerApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const managerId = managerData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: managerId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await managerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: targetId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.members!.length).toBeGreaterThan(0);
+  });
+
+  test("RoomManager whose access was revoked can no longer set room access rights", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: targetData } = await apiSdk.addMember("owner", "User");
+    const targetId = targetData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: managerData, api: managerApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const managerId = managerData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: managerId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: managerId, access: FileShare.None }],
+        notify: false,
+      },
+    });
+
+    const { data } = await managerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: targetId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Owner cannot grant a User RoomManager access", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    // side-effect first: the User must not have been added to the room
+    const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+      id: roomId,
+    });
+    const ids = info.response!.map((s) => s.sharedToUser?.id);
+    expect(ids).not.toContain(userId);
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Owner cannot grant a Guest RoomManager access", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    // side-effect first: the Guest must not have been added to the room
+    const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+      id: roomId,
+    });
+    const ids = info.response!.map((s) => s.sharedToUser?.id);
+    expect(ids).not.toContain(guestId);
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
 });
 
 for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
