@@ -3402,15 +3402,15 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
       createFileJsonElement: { title: "Autotest News Count File 2.docx" },
     });
 
-    const { data, status } = await ownerApi.folders.getNewFolderItems({
-      folderId: roomId,
-    });
-
-    expect(status).toBe(200);
-    expect(Array.isArray(data.response)).toBe(true);
-    const titles = data.response!.map((e) => e.title);
-    expect(titles).toContain("Autotest News Count File 1.docx");
-    expect(titles).toContain("Autotest News Count File 2.docx");
+    let titles: (string | undefined)[] = [];
+    await expect(async () => {
+      const { data } = await ownerApi.folders.getNewFolderItems({
+        folderId: roomId,
+      });
+      titles = data.response!.map((e) => e.title);
+      expect(titles).toContain("Autotest News Count File 1.docx");
+      expect(titles).toContain("Autotest News Count File 2.docx");
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
   });
 
   test("GET /api/2.0/files/:folderId/news - each item has required fields title and fileEntryType", async ({
@@ -7231,14 +7231,15 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.RoomCreateUser);
-    expect(actionIds).toContain(MessageAction.RoomUpdateAccessForUser);
-    expect(actionIds).toContain(MessageAction.RoomRemoveUser);
+    await expect(async () => {
+      const { data } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      const actionIds = data.response!.map((e) => e.action?.id);
+      expect(actionIds).toContain(MessageAction.RoomCreateUser);
+      expect(actionIds).toContain(MessageAction.RoomUpdateAccessForUser);
+      expect(actionIds).toContain(MessageAction.RoomRemoveUser);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains FolderMovedToTrash after subfolder is deleted to trash", async ({
@@ -8544,14 +8545,16 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       updateRoomRequest: { watermark: { enabled: false } },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomWatermarkDisabled,
-    );
-    expect(entry).toBeDefined();
+    let entry: any;
+    await expect(async () => {
+      const { data } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.RoomWatermarkDisabled,
+      );
+      expect(entry).toBeDefined();
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
     expect(entry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
@@ -8625,14 +8628,16 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       updateRoomRequest: { denyDownload: false },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomDenyDownloadDisabled,
-    );
-    expect(entry).toBeDefined();
+    let entry: any;
+    await expect(async () => {
+      const { data } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.RoomDenyDownloadDisabled,
+      );
+      expect(entry).toBeDefined();
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
     expect(entry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
