@@ -3402,7 +3402,7 @@ test.describe("GET /api/2.0/files/:folderId/news - Get new folder items", () => 
       createFileJsonElement: { title: "Autotest News Count File 2.docx" },
     });
 
-    let titles: (string | undefined)[] = [];
+    let titles: (string | null | undefined)[] = [];
     await expect(async () => {
       const { data } = await ownerApi.folders.getNewFolderItems({
         folderId: roomId,
