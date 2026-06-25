@@ -1475,7 +1475,11 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems - Permissions", 
       " returns 200 and Copy operation finishes",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
 
       const { data: adminFolderData } = await adminApi.folders.getMyFolder();
       const adminMyDocsFolderId = adminFolderData.response!.current!.id!;
@@ -1698,6 +1702,134 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems - Permissions", 
       });
 
       expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - RoomAdmin (ContentCreator) copies file" +
+      " to level 3 subfolder returns 200 and operation finishes",
+    async ({ apiSdk }) => {
+      // Catches: ContentCreator denied write access to deeply nested subfolder
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch Perm RoomAdmin L3 Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folder2 } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Autotest Perm RoomAdmin L3 L2" },
+      });
+      const { data: folder3 } = await ownerApi.folders.createFolder({
+        folderId: folder2.response!.id!,
+        createFolder: { title: "Autotest Perm RoomAdmin L3 L3" },
+      });
+      const folder3Id = folder3.response!.id!;
+
+      const { api: roomAdminApi, data: roomAdminData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminId = roomAdminData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data: myDocsData } = await roomAdminApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData2 } = await roomAdminApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CopyBatch Perm RoomAdmin L3 File.docx",
+        },
+      });
+
+      const { data, status } = await roomAdminApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData2.response!.id!],
+          destFolderId: folder3Id,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Copy);
+
+      const operation = await waitForOperation(roomAdminApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - User (ContentCreator in room) copies file" +
+      " to level 3 subfolder returns 200 and operation finishes",
+    async ({ apiSdk }) => {
+      // Catches: User with ContentCreator denied write access to deeply nested subfolder
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch Perm User L3 Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folder2 } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Autotest Perm User L3 L2" },
+      });
+      const { data: folder3 } = await ownerApi.folders.createFolder({
+        folderId: folder2.response!.id!,
+        createFolder: { title: "Autotest Perm User L3 L3" },
+      });
+      const folder3Id = folder3.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data: myDocsData } = await userApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData2 } = await userApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CopyBatch Perm User L3 File.docx",
+        },
+      });
+
+      const { data, status } = await userApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData2.response!.id!],
+          destFolderId: folder3Id,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Copy);
+
+      const operation = await waitForOperation(userApi.operations);
+      expect(operation.finished).toBe(true);
     },
   );
 });
