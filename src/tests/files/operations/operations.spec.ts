@@ -1,12 +1,14 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import {
+  CheckDestFolderResult,
   FileConflictResolveType,
   FileOperationType,
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { createOoForm } from "@/src/helpers/files";
+import config from "@/config";
 
 test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", () => {
   test("POST /api/2.0/files/favorites - Add file returns 200 response true and file appears in getFavoritesFolder", async ({
@@ -1620,6 +1622,582 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
       });
 
       expect(status).toBe(400);
+    },
+  );
+});
+
+test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestFolder", () => {
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
+      " to CustomRoom returns AllAllowed and files contains source file",
+    async ({ apiSdk }) => {
+      // Catches: method returns wrong result or fails when checking move to an empty destination room;
+      // files field contains the source files being moved, not the destination contents
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const sourceFileTitle = "Autotest CheckDestFolder File CustomRoom.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: sourceFileTitle },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder CustomRoom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds: [fileId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
+      expect(data.response!.files).toHaveLength(1);
+      expect(data.response!.files![0].title).toBe(sourceFileTitle);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - files field contains all" +
+      " source files when multiple files are checked",
+    async ({ apiSdk }) => {
+      // Catches: files field should list all source files passed in the request
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const file1Title = "Autotest CheckDestFolder Multi Source1.docx";
+      const file2Title = "Autotest CheckDestFolder Multi Source2.docx";
+
+      const { data: file1Data } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: file1Title },
+      });
+      const { data: file2Data } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: file2Title },
+      });
+      const fileIds = [file1Data.response!.id!, file2Data.response!.id!];
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder Multi Files Field Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds,
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
+      expect(data.response!.files).toHaveLength(2);
+      const titles = data.response!.files!.map((f) => f.title);
+      expect(titles).toContain(file1Title);
+      expect(titles).toContain(file2Title);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
+      " to EditingRoom returns AllAllowed",
+    async ({ apiSdk }) => {
+      // Catches: method returns wrong result for EditingRoom destination
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder File EditingRoom.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder EditingRoom",
+          roomType: RoomType.EditingRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds: [fileId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of" +
+      " .docx file to FillingFormsRoom returns NoneAllowed",
+    async ({ apiSdk }) => {
+      // FillingFormsRoom only accepts form files (.oform/.pdf form);
+      // moving a regular .docx returns NoneAllowed
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder Docx FillingForms.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder FillingFormsRoom Docx",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds: [fileId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.NoneAllowed);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of" +
+      " form file to FillingFormsRoom returns AllAllowed",
+    async ({ apiSdk }) => {
+      // Catches: form file (.pdf form) should be allowed in FillingFormsRoom
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      // createOoForm creates the form file in myDocsFolderId
+      const formFileId = await createOoForm(ownerApi, myDocsFolderId);
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder FillingFormsRoom Form",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds: [formFileId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
+      " to PublicRoom returns AllAllowed",
+    async ({ apiSdk }) => {
+      // Catches: method returns wrong result for PublicRoom destination
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder File PublicRoom.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder PublicRoom",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds: [fileId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
+      " to VirtualDataRoom returns AllAllowed",
+    async ({ apiSdk }) => {
+      // Catches: method returns wrong result for VirtualDataRoom destination
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder File VDR.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder VirtualDataRoom",
+          roomType: RoomType.VirtualDataRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds: [fileId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks copy" +
+      " (deleteAfter: false) of file returns AllAllowed",
+    async ({ apiSdk }) => {
+      // Catches: copy operation (deleteAfter false) returns wrong result
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder Copy File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder Copy Dest Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds: [fileId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: false,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of folder" +
+      " returns AllAllowed",
+    async ({ apiSdk }) => {
+      // Catches: folder move check returns wrong result when folderIds used instead of fileIds
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest CheckDestFolder Source Folder" },
+      });
+      const sourceFolderId = folderData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder Folder Dest Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            folderIds: [sourceFolderId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of" +
+      " multiple files returns AllAllowed",
+    async ({ apiSdk }) => {
+      // Catches: multi-file check returns wrong result or partial AllAllowed
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: file1Data } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder Multi File1.docx",
+        },
+      });
+      const { data: file2Data } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder Multi File2.docx",
+        },
+      });
+      const fileIds = [file1Data.response!.id!, file2Data.response!.id!];
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder Multi Files Dest",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds,
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
+    },
+  );
+
+  // BUG 82103: checkMoveOrCopyDestFolder returns 200 AllAllowed for archived room instead of 403
+  test.fail(
+    "BUG 82103: GET /api/2.0/files/fileops/checkdestfolder - Move to" +
+      " archived room returns 403",
+    async ({ apiSdk }) => {
+      // Catches: archived room returns 200 AllAllowed instead of 403;
+      // checkMoveOrCopyBatchItems correctly returns 403 for archived room,
+      // but checkMoveOrCopyDestFolder ignores room archive status
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder Archived Dest.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CheckDestFolder Archived Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
+        inDto: {
+          fileIds: [fileId],
+          destFolderId: roomId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  // BUG XXXXX: non-existent destFolderId returns 403 instead of 404
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/fileops/checkdestfolder - Non-existent" +
+      " destFolderId returns 404",
+    async ({ apiSdk }) => {
+      // Catches: non-existent destFolderId returns 403 (Access denied) instead of 404 (Not found);
+      // misleads callers into thinking it is a permissions issue rather than a missing resource
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder NonExistent Dest.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
+        inDto: {
+          fileIds: [fileId],
+          destFolderId: 999999999,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
+        },
+      });
+
+      expect(status).toBe(404);
+    },
+  );
+
+  // BUG XXXXX: missing destFolderId returns 403 instead of 400
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/fileops/checkdestfolder - No destFolderId" +
+      " specified returns 400",
+    async ({ apiSdk }) => {
+      // Catches: omitting required destFolderId field returns 403 instead of 400,
+      // hiding a client-side input error behind an access-denied response
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder No Dest.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
+        inDto: {
+          fileIds: [fileId],
+          conflictResolveType: FileConflictResolveType.Skip,
+        },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  test(
+    "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
+      " to room with connected Third-party storage returns AllAllowed",
+    async ({ apiSdk }) => {
+      // Catches: checkMoveOrCopyDestFolder returns wrong result when destination
+      // room is backed by third-party storage (Nextcloud)
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CheckDestFolder ThirdParty File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: thirdPartyData } =
+        await ownerApi.thirdPartyIntegration.saveThirdParty({
+          thirdPartyRequestDto: {
+            url: config.NEXTCLOUD_URL,
+            login: config.NEXTCLOUD_LOGIN,
+            password: config.NEXTCLOUD_PASSWORD,
+            customerTitle: "Autotest CheckDestFolder Nextcloud",
+            providerKey: "Nextcloud",
+          },
+        });
+      const thirdPartyFolderId = thirdPartyData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
+        id: thirdPartyFolderId,
+        createThirdPartyRoom: {
+          title: "Autotest CheckDestFolder ThirdParty Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.checkMoveOrCopyDestFolder({
+          inDto: {
+            fileIds: [fileId],
+            destFolderId,
+            conflictResolveType: FileConflictResolveType.Skip,
+            deleteAfter: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.result).toBe(CheckDestFolderResult.AllAllowed);
     },
   );
 });
