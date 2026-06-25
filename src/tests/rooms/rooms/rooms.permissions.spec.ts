@@ -11,6 +11,7 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
 import { roomAccesses } from "@/src/helpers/rooms";
+import type { ApiSDK } from "@/src/services/api-sdk";
 
 test.describe("POST /files/rooms - access control", () => {
   test("Owner can create a room", async ({ apiSdk }) => {
@@ -1666,6 +1667,159 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.members).toStrictEqual([]);
+  });
+
+  test("RoomManager invited to the room can set room access rights", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: targetData } = await apiSdk.addMember("owner", "User");
+    const targetId = targetData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: managerData, api: managerApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const managerId = managerData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: managerId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await managerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: targetId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.members!.length).toBeGreaterThan(0);
+  });
+
+  test("RoomManager whose access was revoked can no longer set room access rights", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: targetData } = await apiSdk.addMember("owner", "User");
+    const targetId = targetData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: managerData, api: managerApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const managerId = managerData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: managerId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: managerId, access: FileShare.None }],
+        notify: false,
+      },
+    });
+
+    const { data } = await managerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: targetId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Owner cannot grant a User RoomManager access", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: memberData } = await apiSdk.addMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    // side-effect first: the User must not have been added to the room
+    const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+      id: roomId,
+    });
+    const ids = info.response!.map((s) => s.sharedToUser?.id);
+    expect(ids).not.toContain(userId);
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+  });
+
+  test("Owner cannot grant a Guest RoomManager access", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    // side-effect first: the Guest must not have been added to the room
+    const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+      id: roomId,
+    });
+    const ids = info.response!.map((s) => s.sharedToUser?.id);
+    expect(ids).not.toContain(guestId);
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
   });
 });
 
@@ -4557,4 +4711,294 @@ test.describe("POST /files/rooms/:id/resend - RoomAdmin invited to owner's room"
       expect(status).toBe(access === FileShare.RoomManager ? 200 : 403);
     });
   }
+});
+
+// Index export is a manager-level operation on an indexed VDR room: the owner
+// and DocSpace admins can start it, while members invited with any non-manager
+// access level (Viewer/Commenter/Reviewer/Editor/ContentCreator), non-members
+// and anonymous callers cannot. The VDR + RoomManager invitation path is
+// intentionally not asserted here — it is non-deterministic at invitation time
+// (see [[set_room_security_room_type_access_matrix]]); the positive manager
+// case is covered deterministically via the DocSpace admin and the owner.
+test.describe("POST /files/rooms/:id/indexexport - access control", () => {
+  async function createIndexedVdr(apiSdk: ApiSDK, title: string) {
+    const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      createRoomRequestDto: {
+        title,
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    return data.response!.id!;
+  }
+
+  test("Owner can start index export", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const roomId = await createIndexedVdr(
+      apiSdk,
+      "Autotest IdxExport AC Owner",
+    );
+
+    const { data, status } = await ownerApi.rooms.startRoomIndexExport({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.error).toBeFalsy();
+
+    await ownerApi.rooms.terminateRoomIndexExport();
+  });
+
+  test("DocSpaceAdmin can start index export on owner's room", async ({
+    apiSdk,
+  }) => {
+    const roomId = await createIndexedVdr(
+      apiSdk,
+      "Autotest IdxExport AC Admin",
+    );
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.rooms.startRoomIndexExport({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.error).toBeFalsy();
+
+    await adminApi.rooms.terminateRoomIndexExport();
+  });
+
+  for (const userType of ["User", "Guest"] as const) {
+    test.describe(`${userType} invited to room`, () => {
+      for (const { label, access } of roomAccesses) {
+        // User/Guest cannot hold RoomManager — see [[user_guest_no_roommanager_access]].
+        if (access === FileShare.RoomManager) {
+          continue;
+        }
+
+        test(`Room access: ${label} - cannot start index export`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const roomId = await createIndexedVdr(
+            apiSdk,
+            `Autotest IdxExport AC ${userType} ${label}`,
+          );
+
+          const { api: memberApi, data: memberData } =
+            await apiSdk.addAuthenticatedMember("owner", userType);
+
+          await ownerApi.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: memberData.response!.id!, access }],
+              notify: false,
+            },
+          });
+
+          const { status } = await memberApi.rooms.startRoomIndexExport({
+            id: roomId,
+          });
+
+          expect(status).toBe(403);
+        });
+      }
+    });
+  }
+
+  test.describe("RoomAdmin invited to owner's room", () => {
+    for (const { label, access } of roomAccesses) {
+      // RoomManager grants the export; the VDR + RoomManager invite is skipped
+      // here because it is non-deterministic (see the describe-level comment).
+      if (access === FileShare.RoomManager) {
+        continue;
+      }
+
+      test(`Room access: ${label} - cannot start index export`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createIndexedVdr(
+          apiSdk,
+          `Autotest IdxExport AC RoomAdmin ${label}`,
+        );
+
+        const { api: roomAdminApi, data: memberData } =
+          await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: memberData.response!.id!, access }],
+            notify: false,
+          },
+        });
+
+        const { status } = await roomAdminApi.rooms.startRoomIndexExport({
+          id: roomId,
+        });
+
+        expect(status).toBe(403);
+      });
+    }
+  });
+
+  test("Non-member User cannot start index export", async ({ apiSdk }) => {
+    const roomId = await createIndexedVdr(
+      apiSdk,
+      "Autotest IdxExport AC NonMember",
+    );
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.rooms.startRoomIndexExport({
+      id: roomId,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Anonymous request returns 401", async ({ apiSdk }) => {
+    const roomId = await createIndexedVdr(apiSdk, "Autotest IdxExport AC Anon");
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .rooms.startRoomIndexExport({ id: roomId });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("DELETE /files/rooms/indexexport - access control", () => {
+  async function createIndexedVdr(apiSdk: ApiSDK, title: string) {
+    const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      createRoomRequestDto: {
+        title,
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    return data.response!.id!;
+  }
+
+  test("Owner can terminate the export they started", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const roomId = await createIndexedVdr(
+      apiSdk,
+      "Autotest IdxTerminate AC Owner",
+    );
+    await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+
+    const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+
+    expect(status).toBe(200);
+  });
+
+  test("DocSpaceAdmin can terminate the export they started", async ({
+    apiSdk,
+  }) => {
+    const roomId = await createIndexedVdr(
+      apiSdk,
+      "Autotest IdxTerminate AC Admin",
+    );
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    await adminApi.rooms.startRoomIndexExport({ id: roomId });
+
+    const { status } = await adminApi.rooms.terminateRoomIndexExport();
+
+    expect(status).toBe(200);
+  });
+
+  test("RoomAdmin can terminate the export they started on their own VDR room", async ({
+    apiSdk,
+  }) => {
+    // A RoomAdmin owns the VDR room they create, so this exercises a
+    // non-DocSpaceAdmin manager terminating their own task. (An *invited*
+    // RoomManager on a VDR room is skipped here for the same non-determinism
+    // reason the start access-control suite skips it.)
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { data: roomData } = await roomAdminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest IdxTerminate AC RoomAdmin",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    await roomAdminApi.rooms.startRoomIndexExport({
+      id: roomData.response!.id!,
+    });
+
+    const { status } = await roomAdminApi.rooms.terminateRoomIndexExport();
+
+    expect(status).toBe(200);
+  });
+
+  // terminate takes no room id and is scoped to the caller's own task, so a
+  // low-access member has nothing to cancel: the call is a per-user no-op (200),
+  // NOT a room-permission 403 like start. Pinning the actual contract here.
+  for (const userType of ["User", "Guest"] as const) {
+    test.describe(`${userType} invited to room`, () => {
+      for (const { label, access } of roomAccesses) {
+        // User/Guest cannot hold RoomManager — see [[user_guest_no_roommanager_access]].
+        if (access === FileShare.RoomManager) {
+          continue;
+        }
+
+        test(`Room access: ${label} - terminate is a no-op (200)`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const roomId = await createIndexedVdr(
+            apiSdk,
+            `Autotest IdxTerminate AC ${userType} ${label}`,
+          );
+
+          const { api: memberApi, data: memberData } =
+            await apiSdk.addAuthenticatedMember("owner", userType);
+
+          await ownerApi.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: memberData.response!.id!, access }],
+              notify: false,
+            },
+          });
+
+          // Owner starts an export; the member terminating must not affect it.
+          await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+          const ownerBefore = await ownerApi.rooms.getRoomIndexExport();
+
+          const { status } = await memberApi.rooms.terminateRoomIndexExport();
+          expect(status).toBe(200);
+
+          // The owner's task is untouched by the member's per-user terminate.
+          const ownerAfter = await ownerApi.rooms.getRoomIndexExport();
+          expect(ownerAfter.data.response!.id).toBe(
+            ownerBefore.data.response!.id,
+          );
+
+          await ownerApi.rooms.terminateRoomIndexExport();
+        });
+      }
+    });
+  }
+
+  test("Anonymous request returns 401", async ({ apiSdk }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .rooms.terminateRoomIndexExport();
+
+    expect(status).toBe(401);
+  });
 });

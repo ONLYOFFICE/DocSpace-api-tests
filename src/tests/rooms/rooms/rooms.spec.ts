@@ -5517,6 +5517,172 @@ test.describe("API rooms methods", () => {
         expect(data.response![0].sharedToUser?.id).not.toBe(userId);
       });
     });
+
+    test("PUT /files/rooms/:id/share - Owner invites user with ContentCreator access", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share ContentCreator",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const entry = info.response!.find((s) => s.sharedToUser?.id === userId);
+      expect(entry).toBeDefined();
+      expect(entry!.access).toBe(FileShare.ContentCreator);
+    });
+
+    test("PUT /files/rooms/:id/share - Mixed batch adds, updates and removes participants in one request", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: keepData } = await apiSdk.addMember("owner", "User");
+      const { data: removeData } = await apiSdk.addMember("owner", "User");
+      const { data: addData } = await apiSdk.addMember("owner", "User");
+      const keepId = keepData.response!.id!;
+      const removeId = removeData.response!.id!;
+      const addId = addData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Mixed Batch",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // seed: two existing participants
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: keepId, access: FileShare.Read },
+            { id: removeId, access: FileShare.Read },
+          ],
+          notify: false,
+        },
+      });
+
+      // single request: update keepId, remove removeId, add addId
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: keepId, access: FileShare.Editing },
+            { id: removeId, access: FileShare.None },
+            { id: addId, access: FileShare.Read },
+          ],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const byId = (uid: string) =>
+        info.response!.find((s) => s.sharedToUser?.id === uid);
+
+      expect(byId(keepId)).toBeDefined();
+      expect(byId(keepId)!.access).toBe(FileShare.Editing);
+      expect(byId(removeId)).toBeUndefined();
+      expect(byId(addId)).toBeDefined();
+      expect(byId(addId)!.access).toBe(FileShare.Read);
+    });
+
+    test("PUT /files/rooms/:id/share - Duplicate user in one request keeps a single entry with the last access", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Duplicate User",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: userId, access: FileShare.Read },
+            { id: userId, access: FileShare.Editing },
+          ],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const entries = info.response!.filter(
+        (s) => s.sharedToUser?.id === userId,
+      );
+      expect(entries.length).toBe(1);
+      expect(entries[0].access).toBe(FileShare.Editing);
+    });
+
+    test("PUT /files/rooms/:id/share - Owner cannot remove themselves via access None", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: profile } = await ownerApi.profiles.getSelfProfile();
+      const ownerId = profile.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Owner Self Remove",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: ownerId, access: FileShare.None }],
+          notify: false,
+        },
+      });
+
+      // owner must still be present afterwards (self-removal is a no-op)
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      expect(info.response!.some((s) => s.isOwner === true)).toBe(true);
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+    });
   });
 
   test.describe("GET /files/rooms/:id/share", () => {
@@ -6673,6 +6839,346 @@ test.describe("API rooms methods", () => {
 
       expect(data.statusCode).toBe(403);
     });
+  });
+
+  test.describe("PUT /files/rooms/:id/share - input validation", () => {
+    async function createShareRoom(
+      ownerApi: ReturnType<ApiSDK["forRole"]>,
+      title: string,
+    ) {
+      const { data } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+      });
+      return data.response!.id!;
+    }
+
+    test("PUT /files/rooms/:id/share - invitation id 0 returns 400", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await createShareRoom(ownerApi, "Autotest Share Id0");
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: 0 as unknown as string, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(400);
+      expect(data.statusCode).toBe(400);
+
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      expect(info.response!.length).toBe(1);
+      expect(info.response![0].isOwner).toBe(true);
+    });
+
+    test("PUT /files/rooms/:id/share - invalid access value is rejected with 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      const roomId = await createShareRoom(
+        ownerApi,
+        "Autotest Share BadAccess",
+      );
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: 999 as unknown as FileShare }],
+          notify: false,
+        },
+      });
+
+      // side-effect first: nothing was added
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const ids = info.response!.map((s) => s.sharedToUser?.id);
+      expect(ids).not.toContain(userId);
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+    });
+
+    // The endpoint treats "nothing to apply" payloads as a successful no-op.
+    // Each case must leave the room membership unchanged (owner only).
+    const noOpCases: {
+      label: string;
+      body: () => unknown;
+    }[] = [
+      {
+        label: "empty invitations array",
+        body: () => ({ invitations: [], notify: false }),
+      },
+      {
+        label: "invitations null",
+        body: () => ({ invitations: null, notify: false }),
+      },
+      { label: "empty body", body: () => ({}) },
+    ];
+
+    for (const { label, body } of noOpCases) {
+      test(`PUT /files/rooms/:id/share - ${label} is a 200 no-op`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createShareRoom(
+          ownerApi,
+          `Autotest Share NoOp ${label}`,
+        );
+
+        const { data, status } = await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: body() as never,
+        });
+
+        const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+          id: roomId,
+        });
+        expect(info.response!.length).toBe(1);
+        expect(info.response![0].isOwner).toBe(true);
+
+        expect(status).toBe(200);
+        expect(data.statusCode).toBe(200);
+      });
+    }
+
+    test("PUT /files/rooms/:id/share - invitation without access is ignored (200 no-op)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      const roomId = await createShareRoom(ownerApi, "Autotest Share NoAccess");
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId } as unknown as never],
+          notify: false,
+        },
+      });
+
+      // side-effect first: the user without an access level is not added
+      const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const ids = info.response!.map((s) => s.sharedToUser?.id);
+      expect(ids).not.toContain(userId);
+
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+    });
+
+    for (const [label, badId] of [
+      ["id 0", 0],
+      ["id -1", -1],
+      ["non-existing id", 999999999],
+    ] as const) {
+      test(`PUT /files/rooms/:id/share - room ${label} returns 404`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: memberData } = await apiSdk.addMember("owner", "User");
+        const userId = memberData.response!.id!;
+
+        const { data, status } = await ownerApi.rooms.setRoomSecurity({
+          id: badId as unknown as number,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access: FileShare.Read }],
+            notify: false,
+          },
+        });
+
+        expect(status).toBe(404);
+        expect(data.statusCode).toBe(404);
+      });
+    }
+
+    test("PUT /files/rooms/:id/share - deleted room returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      const roomId = await createShareRoom(ownerApi, "Autotest Share Deleted");
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(404);
+      expect(data.statusCode).toBe(404);
+    });
+
+    test("PUT /files/rooms/:id/share - archived room returns 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const userId = memberData.response!.id!;
+      const roomId = await createShareRoom(ownerApi, "Autotest Share Archived");
+
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+    });
+  });
+
+  test.describe("PUT /files/rooms/:id/share - room type access levels", () => {
+    // Each room type allows only a subset of FileShare levels for direct member
+    // invitations. Captured from live API behaviour.
+    const matrix = [
+      {
+        typeLabel: "Collaboration",
+        type: RoomType.EditingRoom,
+        accepted: [
+          { label: "Read", access: FileShare.Read },
+          { label: "Editing", access: FileShare.Editing },
+          { label: "ContentCreator", access: FileShare.ContentCreator },
+        ],
+        rejected: [
+          { label: "FillForms", access: FileShare.FillForms },
+          { label: "Review", access: FileShare.Review },
+          { label: "Comment", access: FileShare.Comment },
+        ],
+      },
+      {
+        typeLabel: "Public",
+        type: RoomType.PublicRoom,
+        accepted: [
+          { label: "ContentCreator", access: FileShare.ContentCreator },
+        ],
+        rejected: [
+          { label: "Read", access: FileShare.Read },
+          { label: "Editing", access: FileShare.Editing },
+        ],
+      },
+      {
+        typeLabel: "VirtualData",
+        type: RoomType.VirtualDataRoom,
+        accepted: [
+          { label: "Read", access: FileShare.Read },
+          { label: "Editing", access: FileShare.Editing },
+          { label: "FillForms", access: FileShare.FillForms },
+          { label: "ContentCreator", access: FileShare.ContentCreator },
+        ],
+        rejected: [
+          { label: "Review", access: FileShare.Review },
+          { label: "Comment", access: FileShare.Comment },
+        ],
+      },
+    ];
+
+    for (const { typeLabel, type, accepted, rejected } of matrix) {
+      for (const { label, access } of accepted) {
+        test(`PUT /files/rooms/:id/share - ${typeLabel} accepts ${label}`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { data: memberData } = await apiSdk.addMember("owner", "User");
+          const userId = memberData.response!.id!;
+
+          const { data: roomData } = await ownerApi.rooms.createRoom({
+            createRoomRequestDto: {
+              title: `Autotest Share Type ${typeLabel} ${label}`,
+              roomType: type,
+            },
+          });
+          const roomId = roomData.response!.id!;
+
+          const { data, status } = await ownerApi.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: userId, access }],
+              notify: false,
+            },
+          });
+
+          expect(status).toBe(200);
+          expect(data.statusCode).toBe(200);
+
+          const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+            id: roomId,
+          });
+          const entry = info.response!.find(
+            (s) => s.sharedToUser?.id === userId,
+          );
+          expect(entry).toBeDefined();
+          expect(entry!.access).toBe(access);
+        });
+      }
+
+      for (const { label, access } of rejected) {
+        test(`PUT /files/rooms/:id/share - ${typeLabel} rejects ${label}`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { data: memberData } = await apiSdk.addMember("owner", "User");
+          const userId = memberData.response!.id!;
+
+          const { data: roomData } = await ownerApi.rooms.createRoom({
+            createRoomRequestDto: {
+              title: `Autotest Share Type ${typeLabel} ${label}`,
+              roomType: type,
+            },
+          });
+          const roomId = roomData.response!.id!;
+
+          const { data, status } = await ownerApi.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: userId, access }],
+              notify: false,
+            },
+          });
+
+          // side-effect first: the rejected user is not added
+          const { data: info } = await ownerApi.rooms.getRoomSecurityInfo({
+            id: roomId,
+          });
+          const ids = info.response!.map((s) => s.sharedToUser?.id);
+          expect(ids).not.toContain(userId);
+
+          expect(status).toBe(403);
+          expect(data.statusCode).toBe(403);
+        });
+      }
+    }
+
+    // NOTE: VirtualDataRoom + RoomManager for a RoomAdmin is intentionally NOT
+    // covered: the API is non-deterministic for this combination (observed both
+    // 200/added and 403/not-added across identical back-to-back requests), so it
+    // cannot be asserted as a stable contract.
   });
 
   test.describe("Room links", () => {
@@ -11447,6 +11953,509 @@ test.describe("API rooms methods", () => {
       await waitForOperation(ownerApi.operations);
 
       const { status } = await ownerApi.rooms.getRoomIndexExport();
+      expect(status).toBe(200);
+    });
+
+    // === startRoomIndexExport (POST) as the target endpoint ===
+
+    test("POST /files/rooms/:id/indexexport - Starts export for an indexed VDR room with a nested structure", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Nested",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // root-level folder, a nested folder inside it, and a couple of files
+      const { data: rootFolder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Root Folder" },
+      });
+      await ownerApi.folders.createFolder({
+        folderId: rootFolder.response!.id!,
+        createFolder: { title: "Nested Folder" },
+      });
+      await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Root File" },
+      });
+      await ownerApi.files.createFile({
+        folderId: rootFolder.response!.id!,
+        createFileJsonElement: { title: "Nested File" },
+      });
+
+      const { data, status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomId,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBeDefined();
+      expect(data.response!.error).toBeFalsy();
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("POST /files/rooms/:id/indexexport - Second start for the same room joins the running task (same id, 200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Double Start",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const first = await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      const second = await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+
+      // A second start while one is running is not a conflict: the API returns 200
+      // and hands back the already-running task rather than creating a new one.
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(second.data.response!.id).toBe(first.data.response!.id);
+      expect(second.data.response!.error).toBeFalsy();
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("POST /files/rooms/:id/indexexport - Parallel starts for the same room stay consistent (no 5xx)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Parallel Same Room",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const results = await Promise.all([
+        ownerApi.rooms.startRoomIndexExport({ id: roomId }),
+        ownerApi.rooms.startRoomIndexExport({ id: roomId }),
+        ownerApi.rooms.startRoomIndexExport({ id: roomId }),
+      ]);
+
+      for (const res of results) {
+        expect(res.status).toBe(200);
+        expect(res.data.response!.error).toBeFalsy();
+      }
+      // All concurrent starts must converge on a single running task.
+      const ids = results.map((r) => r.data.response!.id);
+      expect(new Set(ids).size).toBe(1);
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("POST /files/rooms/:id/indexexport - A new export can be started after the previous one completed", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Restart",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.folders.getMyFolder({});
+
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      await expect(async () => {
+        const { data } = await ownerApi.rooms.getRoomIndexExport();
+        expect(data.response!.isCompleted).toBe(true);
+        expect(data.response!.error).toBeFalsy();
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+      // The completed task must not block a fresh export.
+      const { data, status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomId,
+      });
+      expect(status).toBe(200);
+      expect(data.response!.id).toBeDefined();
+      expect(data.response!.error).toBeFalsy();
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("POST /files/rooms/:id/indexexport - Non-VDR (Custom) room is rejected with 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Custom Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      // Index export is a VDR-only feature; non-VDR rooms are forbidden.
+      expect(status).toBe(403);
+    });
+
+    test("POST /files/rooms/:id/indexexport - VDR room with indexing disabled is rejected with 403", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export No Indexing",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: false,
+        },
+      });
+
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      // Even for a VDR room, the export requires indexing to be enabled.
+      expect(status).toBe(403);
+    });
+
+    // A well-formed but non-existent room id is correctly reported as 404
+    // "The required folder was not found".
+    test("POST /files/rooms/:id/indexexport - id=999999999 returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: 999999999,
+      });
+      expect(status).toBe(404);
+    });
+
+    // Out-of-range / malformed numeric ids should be a validation error (400),
+    // but the API does not pre-validate and returns 404 "folder not found"
+    // instead. Marked test.fail until fixed; when the API starts returning 400
+    // the test reports an unexpected pass, signaling test.fail can be removed.
+    for (const id of [0, -1]) {
+      test.fail(
+        `POST /files/rooms/:id/indexexport - id=${id} should return 400 (validation), but API returns 404`,
+        async ({ apiSdk }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const { status } = await ownerApi.rooms.startRoomIndexExport({ id });
+          expect(status).toBe(400);
+        },
+      );
+    }
+
+    test('POST /files/rooms/:id/indexexport - non-numeric id "abc" returns 404', async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: "abc" as unknown as number,
+      });
+      expect(status).toBe(404);
+    });
+
+    test("POST /files/rooms/:id/indexexport - id=null throws at SDK level", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.startRoomIndexExport({ id: null as unknown as number }),
+      ).rejects.toThrow(/Required parameter id/);
+    });
+
+    test("POST /files/rooms/:id/indexexport - id=undefined throws at SDK level", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.startRoomIndexExport({
+          id: undefined as unknown as number,
+        }),
+      ).rejects.toThrow(/Required parameter id/);
+    });
+
+    test("POST /files/rooms/:id/indexexport - Deleted room returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Deleted",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomId,
+      });
+      expect(status).toBe(404);
+    });
+
+    // Starting an index export on an archived room should be forbidden (403,
+    // consistent with reorder and other write operations on archived rooms),
+    // but the API currently accepts it and returns 200. Marked test.fail until
+    // fixed; when the API starts rejecting it the test reports an unexpected
+    // pass, signaling test.fail can be removed.
+    test.fail(
+      "POST /files/rooms/:id/indexexport - archived room should be forbidden (403), but API returns 200",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Index Export Archived Start",
+            roomType: RoomType.VirtualDataRoom,
+            indexing: true,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status } = await ownerApi.rooms.startRoomIndexExport({
+          id: roomId,
+        });
+
+        // Clean up the export the buggy 200 actually started before asserting.
+        await ownerApi.rooms.terminateRoomIndexExport().catch(() => {});
+
+        expect(status).toBe(403);
+      },
+    );
+
+    // === terminateRoomIndexExport (DELETE) as the target endpoint ===
+    // The endpoint takes no id and no body: it cancels the *current user's*
+    // running export task (see the per-user scoping proven by the GET tests
+    // above). These tests pin down its happy path, no-op cases and scope.
+
+    test("DELETE /files/rooms/indexexport - Owner cancels an active export (200) and no active task remains", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Terminate Active",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // Nested content so the export is not guaranteed to finish instantly.
+      const { data: folder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder" },
+      });
+      await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "File A" },
+      });
+      await ownerApi.files.createFile({
+        folderId: folder.response!.id!,
+        createFileJsonElement: { title: "File B" },
+      });
+
+      const start = await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      expect(start.status).toBe(200);
+      expect(start.data.response!.id).toBeDefined();
+
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(status).toBe(200);
+
+      const after = await ownerApi.rooms.getRoomIndexExport();
+      expect(after.status).toBe(200);
+      const resp = after.data.response;
+      const hasActiveRunning =
+        Boolean(resp?.id) && resp?.isCompleted === false && !resp?.error;
+      expect(hasActiveRunning).toBe(false);
+    });
+
+    test("DELETE /files/rooms/indexexport - Terminate with no active task is a no-op (200)", async ({
+      apiSdk,
+    }) => {
+      // A fresh portal owner has never started an export, so there is nothing
+      // to cancel. Documenting the contract: the API treats this as a no-op.
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - Second terminate after the first is a no-op (200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Double Terminate",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      await ownerApi.rooms.startRoomIndexExport({
+        id: roomData.response!.id!,
+      });
+
+      const first = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(first.status).toBe(200);
+
+      // Terminate is idempotent: cancelling an already-cancelled task is a no-op.
+      const second = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(second.status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - Terminate immediately after start is handled without a 5xx (200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Race Terminate",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // Cancel the task while it is still Queued/Started, without polling first.
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - Terminate after the export completed is a no-op (200)", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Terminate After Done",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      await ownerApi.folders.getMyFolder({});
+
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      await expect(async () => {
+        const { data } = await ownerApi.rooms.getRoomIndexExport();
+        expect(data.response!.isCompleted).toBe(true);
+        expect(data.response!.error).toBeFalsy();
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+      // Cancelling a finished task must not error.
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport();
+      expect(status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - A new export can be started after terminate", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Restart After Terminate",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      await ownerApi.rooms.terminateRoomIndexExport();
+
+      // Terminate must not leave the task in a state that blocks a fresh export.
+      const restart = await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      expect(restart.status).toBe(200);
+      expect(restart.data.response!.id).toBeDefined();
+      expect(restart.data.response!.error).toBeFalsy();
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("DELETE /files/rooms/indexexport - Terminate is per-user: it does not cancel another user's export", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Terminate Scope",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // Content so the owner's export is still running when the admin terminates.
+      const { data: folder } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: { title: "Folder" },
+      });
+      await ownerApi.files.createFile({
+        folderId: folder.response!.id!,
+        createFileJsonElement: { title: "File" },
+      });
+
+      await ownerApi.rooms.startRoomIndexExport({ id: roomId });
+      const ownerBefore = await ownerApi.rooms.getRoomIndexExport();
+      expect(ownerBefore.data.response!.id).toBeDefined();
+
+      // The admin has no task of their own; their terminate must not touch the
+      // owner's running task (the GET endpoint already proves per-user scoping).
+      const adminTerminate = await adminApi.rooms.terminateRoomIndexExport();
+      expect(adminTerminate.status).toBe(200);
+
+      const ownerAfter = await ownerApi.rooms.getRoomIndexExport();
+      expect(ownerAfter.status).toBe(200);
+      expect(ownerAfter.data.response!.id).toBe(ownerBefore.data.response!.id);
+
+      await ownerApi.rooms.terminateRoomIndexExport();
+    });
+
+    test("DELETE /files/rooms/indexexport - Unexpected request body is ignored (200)", async ({
+      apiSdk,
+    }) => {
+      // The endpoint declares no body; sending one must not change the outcome.
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport({
+        data: { unexpected: "payload", id: 123 },
+      });
+      expect(status).toBe(200);
+    });
+
+    test("DELETE /files/rooms/indexexport - Unexpected query parameters are ignored (200)", async ({
+      apiSdk,
+    }) => {
+      // The endpoint takes no id; a stray ?id=... query must be ignored.
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.terminateRoomIndexExport({
+        params: { id: 123 },
+      });
       expect(status).toBe(200);
     });
   });
