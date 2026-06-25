@@ -1385,3 +1385,319 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 });
+
+test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems - Permissions", () => {
+  test("PUT /api/2.0/files/fileops/copy - Unauthenticated request returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CopyBatch Perm Anon File.docx",
+      },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CopyBatch Perm Anon Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    const anonConfig = new Configuration({
+      basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { status } = await anonOperations.copyBatchItems({
+      batchRequestDto: {
+        fileIds: [fileData.response!.id!],
+        destFolderId: roomData.response!.id!,
+        conflictResolveType: FileConflictResolveType.Skip,
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Owner can copy file to room" +
+      " returns 200 and Copy operation finishes",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CopyBatch Perm Owner File.docx",
+        },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch Perm Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId: roomData.response!.id!,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Copy);
+
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - DocSpaceAdmin can copy file to room" +
+      " returns 200 and Copy operation finishes",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+      const { data: adminFolderData } = await adminApi.folders.getMyFolder();
+      const adminMyDocsFolderId = adminFolderData.response!.current!.id!;
+
+      const { data: fileData } = await adminApi.files.createFile({
+        folderId: adminMyDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CopyBatch Perm Admin File.docx",
+        },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch Perm Admin Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+
+      const { data, status } = await adminApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId: roomData.response!.id!,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Copy);
+
+      const operation = await waitForOperation(adminApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - RoomAdmin (ContentCreator in dest room)" +
+      " can copy file to that room returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch Perm RoomAdmin Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: roomAdminApi, data: roomAdminData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminId = roomAdminData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data: myDocsData } = await roomAdminApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await roomAdminApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CopyBatch Perm RoomAdmin File.docx",
+        },
+      });
+
+      const { data, status } = await roomAdminApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Copy);
+
+      const operation = await waitForOperation(roomAdminApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - User (ContentCreator in dest room)" +
+      " can copy file to that room returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch Perm User Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data: myDocsData } = await userApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await userApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CopyBatch Perm User File.docx",
+        },
+      });
+
+      const { data, status } = await userApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Copy);
+
+      const operation = await waitForOperation(userApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - User without access to destination room" +
+      " returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch Perm UserNoAccess Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+
+      const { data: myDocsData } = await userApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await userApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CopyBatch Perm UserNoAccess File.docx",
+        },
+      });
+
+      const { status } = await userApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Guest without access to destination room" +
+      " returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch Perm GuestNoAccess Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
+
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest CopyBatch Perm Guest File.docx",
+        },
+      });
+
+      const { status } = await guestApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+});
