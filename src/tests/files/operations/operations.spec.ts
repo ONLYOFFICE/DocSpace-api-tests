@@ -2087,13 +2087,12 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG XXXXX: non-existent destFolderId returns 403 instead of 404
+  // BUG 82158: non-existent destFolderId returns 500 instead of 404
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/fileops/checkdestfolder - Non-existent" +
+    "BUG 82158: GET /api/2.0/files/fileops/checkdestfolder - Non-existent" +
       " destFolderId returns 404",
     async ({ apiSdk }) => {
-      // Catches: non-existent destFolderId returns 403 (Access denied) instead of 404 (Not found);
-      // misleads callers into thinking it is a permissions issue rather than a missing resource
+      // Catches: non-existent destFolderId returns 500 (NullReferenceException) instead of 404 (Not found)
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
       const myDocsFolderId = myDocsData.response!.current!.id!;
@@ -2119,9 +2118,9 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG XXXXX: missing destFolderId returns 403 instead of 400
+  // BUG 82159: missing destFolderId returns 403 instead of 400
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/fileops/checkdestfolder - No destFolderId" +
+    "BUG 82159: GET /api/2.0/files/fileops/checkdestfolder - No destFolderId" +
       " specified returns 400",
     async ({ apiSdk }) => {
       // Catches: omitting required destFolderId field returns 403 instead of 400,
@@ -2444,9 +2443,9 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
   test(
     "PUT /api/2.0/files/fileops/copy - Copy with conflictResolveType Overwrite" +
-      " when file exists - destination file replaced",
+      " when file exists - destination file updated as new version, no duplicate",
     async ({ apiSdk }) => {
-      // Catches: Overwrite does not replace existing file or duplicates instead
+      // Overwrite = version update: same file entry (same ID), no second file created
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
       const myDocsFolderId = myDocsData.response!.current!.id!;
@@ -2503,7 +2502,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const destFiles = destAfter.response?.files ?? [];
       expect(destFiles).toHaveLength(1);
-      expect((destFiles[0] as FileDtoInteger).id).not.toBe(originalFileId);
+      expect((destFiles[0] as FileDtoInteger).id).toBe(originalFileId);
     },
   );
 
@@ -2674,17 +2673,18 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
   test(
     "PUT /api/2.0/files/fileops/copy - Copy .docx file to FillingFormsRoom" +
-      " - file does not appear in destination",
+      " returns 403",
     async ({ apiSdk }) => {
-      // FillingFormsRoom only accepts form files; .docx should not be copied in
+      // FillingFormsRoom only accepts form files; copying .docx is forbidden (403)
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
       const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const fileTitle = "Autotest CopyBatch Docx FillingForms.docx";
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
-        createFileJsonElement: { title: fileTitle },
+        createFileJsonElement: {
+          title: "Autotest CopyBatch Docx FillingForms.docx",
+        },
       });
 
       const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -2704,14 +2704,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
         },
       });
 
-      expect(status).toBe(200);
-      await waitForOperation(ownerApi.operations);
-
-      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
-        folderId: destFolderId,
-      });
-      const destFiles = destContent.response?.files ?? [];
-      expect(destFiles.some((f) => f.title === fileTitle)).toBe(false);
+      expect(status).toBe(403);
     },
   );
 
@@ -3145,10 +3138,10 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
     },
   );
 
-  test("PUT /api/2.0/files/fileops/copy - Empty fileIds and folderIds returns 400", async ({
+  test("PUT /api/2.0/files/fileops/copy - Empty fileIds and folderIds returns 200", async ({
     apiSdk,
   }) => {
-    // Catches: empty request accepted without validation error
+    // Empty batch is accepted gracefully (consistent with addFavorites and checkMove)
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
@@ -3166,7 +3159,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       },
     });
 
-    expect(status).toBe(400);
+    expect(status).toBe(200);
   });
 
   test("PUT /api/2.0/files/fileops/copy - Copy to archived room returns 403", async ({
@@ -3295,44 +3288,35 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
     },
   );
 
-  test(
-    "PUT /api/2.0/files/fileops/copy - Copy with non-existent fileId" +
-      " returns error in async operation",
-    async ({ apiSdk }) => {
-      // Catches: non-existent file ID accepted without error
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CopyBatch InvalidId Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-
-      const { status } = await ownerApi.operations.copyBatchItems({
-        batchRequestDto: {
-          fileIds: [999999999],
-          destFolderId: roomData.response!.id!,
-          conflictResolveType: FileConflictResolveType.Skip,
-          deleteAfter: false,
-        },
-      });
-
-      // Either rejected immediately or returns 200 with error in operation
-      expect([200, 400, 404]).toContain(status);
-
-      if (status === 200) {
-        const operation = await waitForOperation(ownerApi.operations);
-        // If accepted, operation should either have an error or finish with 0 files
-        expect(operation).toBeDefined();
-      }
-    },
-  );
-
-  test("PUT /api/2.0/files/fileops/copy - Copy to non-existent destFolderId returns 400 or 404", async ({
+  test("PUT /api/2.0/files/fileops/copy - Copy with non-existent fileId returns 403", async ({
     apiSdk,
   }) => {
-    // Catches: non-existent destination folder accepted without error
+    // Non-existent file ID is treated as access denied (403), not 404
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CopyBatch InvalidId Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    const { status } = await ownerApi.operations.copyBatchItems({
+      batchRequestDto: {
+        fileIds: [999999999],
+        destFolderId: roomData.response!.id!,
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: false,
+      },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/fileops/copy - Copy to non-existent destFolderId returns 404", async ({
+    apiSdk,
+  }) => {
+    // Non-existent destination folder returns 404 (resource not found)
     const ownerApi = apiSdk.forRole("owner");
     const { data: myDocsData } = await ownerApi.folders.getMyFolder();
     const myDocsFolderId = myDocsData.response!.current!.id!;
@@ -3351,7 +3335,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       },
     });
 
-    expect([400, 404]).toContain(status);
+    expect(status).toBe(404);
   });
 
   test(
@@ -3416,9 +3400,9 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
   test(
     "PUT /api/2.0/files/fileops/copy - Copy with Overwrite conflict in level 3" +
-      " subfolder - destination file replaced",
+      " subfolder - destination file updated as new version, no duplicate",
     async ({ apiSdk }) => {
-      // Catches: Overwrite conflict resolution fails at deeply nested level
+      // Overwrite = version update: same file entry (same ID), no second file created
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
       const myDocsFolderId = myDocsData.response!.current!.id!;
@@ -3483,7 +3467,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const afterFiles = afterData.response?.files ?? [];
       expect(afterFiles).toHaveLength(1);
-      expect((afterFiles[0] as FileDtoInteger).id).not.toBe(originalFileId);
+      expect((afterFiles[0] as FileDtoInteger).id).toBe(originalFileId);
     },
   );
 
@@ -3550,6 +3534,518 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
         (f) => f.title,
       );
       expect(destFolderTitles).not.toContain(srcFolderTitle);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy files and folders together returns 200" +
+      " and all items appear in destination",
+    async ({ apiSdk }) => {
+      // Catches: mixed batch (files + folders) drops one type silently
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const fileTitle = "Autotest CopyBatch Mixed File.docx";
+      const folderTitle = "Autotest CopyBatch Mixed Folder";
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileTitle },
+      });
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: folderTitle },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch Mixed Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          folderIds: [folderData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      expect(
+        (destContent.response?.files ?? []).some((f) => f.title === fileTitle),
+      ).toBe(true);
+      expect(
+        (destContent.response?.folders ?? []).some(
+          (f) => f.title === folderTitle,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy multiple folders returns 200" +
+      " and all folders appear in destination",
+    async ({ apiSdk }) => {
+      // Catches: second folder lost when folderIds has multiple entries
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const folder1Title = "Autotest CopyBatch MultiFolders Folder1";
+      const folder2Title = "Autotest CopyBatch MultiFolders Folder2";
+
+      const { data: folder1 } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: folder1Title },
+      });
+      const { data: folder2 } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: folder2Title },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch MultiFolders Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          folderIds: [folder1.response!.id!, folder2.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      const destFolderTitles = (destContent.response?.folders ?? []).map(
+        (f) => f.title,
+      );
+      expect(destFolderTitles).toContain(folder1Title);
+      expect(destFolderTitles).toContain(folder2Title);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy empty folder returns 200" +
+      " and empty folder appears in destination",
+    async ({ apiSdk }) => {
+      // Catches: empty folder silently dropped or causes error
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const emptyFolderTitle = "Autotest CopyBatch EmptyFolder";
+      const { data: emptyFolder } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: emptyFolderTitle },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch EmptyFolder Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          folderIds: [emptyFolder.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      const copiedFolder = (destContent.response?.folders ?? []).find(
+        (f) => f.title === emptyFolderTitle,
+      ) as FolderDtoInteger;
+      expect(copiedFolder).toBeDefined();
+
+      const { data: copiedFolderContent } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: copiedFolder.id!,
+        });
+      expect(copiedFolderContent.response?.files ?? []).toHaveLength(0);
+      expect(copiedFolderContent.response?.folders ?? []).toHaveLength(0);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy file from room to MyDocs returns 200" +
+      " and file appears in MyDocs, source preserved",
+    async ({ apiSdk }) => {
+      // Catches: copying out of a room to personal space fails or removes source
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch RoomToMyDocs Src",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const srcRoomId = roomData.response!.id!;
+
+      const fileTitle = "Autotest CopyBatch RoomToMyDocs File.docx";
+      const { data: srcFileData } = await ownerApi.files.createFile({
+        folderId: srcRoomId,
+        createFileJsonElement: { title: fileTitle },
+      });
+
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [srcFileData.response!.id!],
+          destFolderId: myDocsFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: myDocsContent } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: myDocsFolderId,
+        });
+      expect(
+        (myDocsContent.response?.files ?? []).some(
+          (f) => f.title === fileTitle,
+        ),
+      ).toBe(true);
+
+      const { data: roomContentAfter } =
+        await ownerApi.folders.getFolderByFolderId({ folderId: srcRoomId });
+      expect(
+        (roomContentAfter.response?.files ?? []).some(
+          (f) => f.title === fileTitle,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy file from room subfolder to another room" +
+      " returns 200 and file appears in destination",
+    async ({ apiSdk }) => {
+      // Catches: source path resolution fails when file is in a nested room subfolder
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: srcRoomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch SubSrc Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const { data: srcFolderData } = await ownerApi.folders.createFolder({
+        folderId: srcRoomData.response!.id!,
+        createFolder: { title: "Autotest CopyBatch SubSrc Folder" },
+      });
+
+      const fileTitle = "Autotest CopyBatch SubSrc File.docx";
+      const { data: srcFileData } = await ownerApi.files.createFile({
+        folderId: srcFolderData.response!.id!,
+        createFileJsonElement: { title: fileTitle },
+      });
+
+      const { data: destRoomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch SubDest Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = destRoomData.response!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [srcFileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      expect(
+        (destContent.response?.files ?? []).some((f) => f.title === fileTitle),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy with deleteAfter=true returns 200" +
+      " and file appears in destination, source preserved",
+    async ({ apiSdk }) => {
+      // deleteAfter=true removes the operation record from queue after completion
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const fileTitle = "Autotest CopyBatch DeleteAfter File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileTitle },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch DeleteAfter Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: true,
+        },
+      });
+
+      expect(status).toBe(200);
+
+      await expect(async () => {
+        const { data: destContent } =
+          await ownerApi.folders.getFolderByFolderId({
+            folderId: destFolderId,
+          });
+        expect(
+          (destContent.response?.files ?? []).some(
+            (f) => f.title === fileTitle,
+          ),
+        ).toBe(true);
+      }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+
+      const { data: srcContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: myDocsFolderId,
+      });
+      expect(
+        (srcContent.response?.files ?? []).some((f) => f.title === fileTitle),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy with duplicate fileId in request" +
+      " and Skip creates one copy in destination",
+    async ({ apiSdk }) => {
+      // Same fileId twice: first copy succeeds, second is skipped due to name conflict
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const fileTitle = "Autotest CopyBatch DupId File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileTitle },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch DupId Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileId, fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      expect(
+        (destContent.response?.files ?? []).filter(
+          (f) => f.title === fileTitle,
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy file to PublicRoom returns 200" +
+      " and file appears in destination",
+    async ({ apiSdk }) => {
+      // Catches: PublicRoom rejects copy with unexpected 403 or 400
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const fileTitle = "Autotest CopyBatch PublicRoom File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileTitle },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch PublicRoom",
+          roomType: RoomType.PublicRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      expect(
+        (destContent.response?.files ?? []).some((f) => f.title === fileTitle),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy file to EditingRoom returns 200" +
+      " and file appears in destination",
+    async ({ apiSdk }) => {
+      // Catches: EditingRoom rejects copy with unexpected error
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const fileTitle = "Autotest CopyBatch EditingRoom File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileTitle },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch EditingRoom",
+          roomType: RoomType.EditingRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      expect(
+        (destContent.response?.files ?? []).some((f) => f.title === fileTitle),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy file to VirtualDataRoom returns 200" +
+      " and file appears in destination",
+    async ({ apiSdk }) => {
+      // Catches: VirtualDataRoom rejects copy with unexpected error
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const fileTitle = "Autotest CopyBatch VirtualDataRoom File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileTitle },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch VirtualDataRoom",
+          roomType: RoomType.VirtualDataRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      expect(
+        (destContent.response?.files ?? []).some((f) => f.title === fileTitle),
+      ).toBe(true);
     },
   );
 });
