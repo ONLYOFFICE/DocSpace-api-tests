@@ -2049,3 +2049,295 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems - Permissions", 
     },
   );
 });
+
+test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFolder - Permissions", () => {
+  test(
+    "POST /api/2.0/files/{folderId}/session - Unauthenticated request" +
+      " returns 401",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession Perm Anon Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const anonConfig = new Configuration({
+        basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+        baseOptions: {
+          headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+        },
+      });
+      const anonOperations = new OperationsApi(
+        anonConfig,
+        undefined,
+        apiSdk.createAxiosInstance() as any,
+      );
+
+      const { status } = await anonOperations.createUploadSessionInFolder({
+        folderId,
+        sessionRequest: {
+          fileName: "Autotest UploadSession Perm Anon.docx",
+          fileSize: 256,
+          createNewIfExist: true,
+        },
+      });
+
+      expect(status).toBe(401);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - Owner can create upload" +
+      " session in room returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession Perm Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest UploadSession Perm Owner.docx",
+            fileSize: 512,
+            createNewIfExist: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.id).toBeDefined();
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - User (ContentCreator) can" +
+      " create upload session in room returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession Perm CC Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: folderId,
+        roomInvitationRequest: {
+          invitations: [
+            {
+              id: userData.response!.id!,
+              access: FileShare.ContentCreator,
+            },
+          ],
+          notify: false,
+        },
+      });
+
+      const { data, status } =
+        await userApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest UploadSession Perm CC.docx",
+            fileSize: 512,
+            createNewIfExist: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.id).toBeDefined();
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - User (Editing) cannot create" +
+      " upload session in room returns 403",
+    async ({ apiSdk }) => {
+      // Editing role allows editing existing files but not uploading new ones
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession Perm Editing Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: folderId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: userData.response!.id!, access: FileShare.Editing },
+          ],
+          notify: false,
+        },
+      });
+
+      const { status } = await userApi.operations.createUploadSessionInFolder({
+        folderId,
+        sessionRequest: {
+          fileName: "Autotest UploadSession Perm Editing.docx",
+          fileSize: 512,
+          createNewIfExist: true,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - User (Read) cannot create" +
+      " upload session in room returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession Perm Read Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: folderId,
+        roomInvitationRequest: {
+          invitations: [{ id: userData.response!.id!, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { status } = await userApi.operations.createUploadSessionInFolder({
+        folderId,
+        sessionRequest: {
+          fileName: "Autotest UploadSession Perm Read.docx",
+          fileSize: 512,
+          createNewIfExist: true,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - Guest (ContentCreator) can" +
+      " create upload session in room returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession Perm Guest CC Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { api: guestApi, data: guestData } =
+        await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: folderId,
+        roomInvitationRequest: {
+          invitations: [
+            {
+              id: guestData.response!.id!,
+              access: FileShare.ContentCreator,
+            },
+          ],
+          notify: false,
+        },
+      });
+
+      const { data, status } =
+        await guestApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest UploadSession Perm Guest CC.docx",
+            fileSize: 512,
+            createNewIfExist: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.id).toBeDefined();
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - RoomAdmin not invited to room" +
+      " cannot create upload session returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession Perm RoomAdmin Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminApi = apiSdk.forRole("roomAdmin");
+
+      const { status } =
+        await roomAdminApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest UploadSession Perm RoomAdmin.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - DocSpaceAdmin not invited to" +
+      " room cannot create upload session returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession Perm Admin Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminApi = apiSdk.forRole("docSpaceAdmin");
+
+      const { status } = await adminApi.operations.createUploadSessionInFolder({
+        folderId,
+        sessionRequest: {
+          fileName: "Autotest UploadSession Perm Admin.docx",
+          fileSize: 512,
+          createNewIfExist: true,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+});

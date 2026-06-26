@@ -4049,3 +4049,354 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
     },
   );
 });
+
+test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFolder", () => {
+  test(
+    "POST /api/2.0/files/{folderId}/session - Owner creates upload session" +
+      " in MyDocs returns 200 and session fields are set",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest UploadSession MyDocs.docx",
+            fileSize: 1024,
+            createNewIfExist: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.id).toBeDefined();
+      expect(data.response!.location).toBeTruthy();
+      expect(new Date(data.response!.expired!).getTime()).toBeGreaterThan(
+        Date.now(),
+      );
+      expect(data.response!.bytes_total).toBe(1024);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - Owner creates upload session" +
+      " in CustomRoom returns 200 and session id is set",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession CustomRoom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest UploadSession CustomRoom File.docx",
+            fileSize: 512,
+            createNewIfExist: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.id).toBeDefined();
+      expect(data.response!.location).toBeTruthy();
+      expect(data.response!.bytes_total).toBe(512);
+      expect(new Date(data.response!.expired!).getTime()).toBeGreaterThan(
+        Date.now(),
+      );
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - Full upload cycle returns 201" +
+      " and file appears in destination folder",
+    async ({ apiSdk }) => {
+      // Catches: session created but upload or finalize step fails silently
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession FullCycle Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const fileContent = Buffer.from("test file content");
+      const fileName = "Autotest UploadSession FullCycle.docx";
+
+      const { data: sessionData, status: sessionStatus } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName,
+            fileSize: fileContent.length,
+            createNewIfExist: true,
+          },
+        });
+      expect(sessionStatus).toBe(200);
+      const sessionId = sessionData.response!.id!;
+
+      const file = new File([fileContent], fileName, {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const { status: uploadStatus } =
+        await ownerApi.operations.uploadAsyncSession({
+          folderId,
+          sessionId,
+          chunkNumber: 1,
+          file,
+        });
+      expect(uploadStatus).toBe(200);
+
+      const { status: finalizeStatus } =
+        await ownerApi.operations.finalizeSession({ folderId, sessionId });
+      expect(finalizeStatus).toBe(201);
+
+      const { data: folderContent } =
+        await ownerApi.folders.getFolderByFolderId({ folderId });
+      expect(
+        (folderContent.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - createNewIfExist=true with" +
+      " existing filename creates session returns 200",
+    async ({ apiSdk }) => {
+      // Catches: session creation fails when file with same name already exists
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest UploadSession ExistingFile.docx";
+      await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: fileName },
+      });
+
+      const fileContent = Buffer.from("uploaded content");
+      const { data: sessionData, status } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName,
+            fileSize: fileContent.length,
+            createNewIfExist: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(sessionData.response!.id).toBeDefined();
+
+      const file = new File([fileContent], fileName, {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      await ownerApi.operations.uploadAsyncSession({
+        folderId,
+        sessionId: sessionData.response!.id!,
+        chunkNumber: 1,
+        file,
+      });
+      await ownerApi.operations.finalizeSession({
+        folderId,
+        sessionId: sessionData.response!.id!,
+      });
+
+      // createNewIfExist=true: original file must not be overwritten
+      const { data: folderContent } =
+        await ownerApi.folders.getFolderByFolderId({ folderId });
+      expect(
+        (folderContent.response?.files ?? []).length,
+      ).toBeGreaterThanOrEqual(2);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - Upload session to archived" +
+      " room returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession Archived Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      await ownerApi.rooms.archiveRoom({
+        id: folderId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { status } = await ownerApi.operations.createUploadSessionInFolder({
+        folderId,
+        sessionRequest: {
+          fileName: "Autotest UploadSession Archived.docx",
+          fileSize: 256,
+          createNewIfExist: true,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - Non-existent folderId" +
+      " returns 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.operations.createUploadSessionInFolder({
+        folderId: 999999999,
+        sessionRequest: {
+          fileName: "Autotest UploadSession NonExistent.docx",
+          fileSize: 256,
+          createNewIfExist: true,
+        },
+      });
+
+      expect(status).toBe(404);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - relativePath creates file in" +
+      " subfolder returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest UploadSession RelativePath Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+      const relativePath = "MySubfolder";
+      const fileName = "Autotest UploadSession RelativePath.docx";
+      const fileContent = Buffer.from("relative path test content");
+
+      const { data: sessionData, status } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName,
+            fileSize: fileContent.length,
+            createNewIfExist: true,
+            relativePath,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(sessionData.response!.id).toBeDefined();
+
+      const file = new File([fileContent], fileName, {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      await ownerApi.operations.uploadAsyncSession({
+        folderId,
+        sessionId: sessionData.response!.id!,
+        chunkNumber: 1,
+        file,
+      });
+      await ownerApi.operations.finalizeSession({
+        folderId,
+        sessionId: sessionData.response!.id!,
+      });
+
+      // File lands in the subfolder, not directly in the room
+      const { data: folderContent } =
+        await ownerApi.folders.getFolderByFolderId({ folderId });
+      expect(
+        (folderContent.response?.folders ?? []).some(
+          (f) => f.title === relativePath,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - fileSize=0 creates session" +
+      " returns 200 with bytes_total=0",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const { data, status } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest UploadSession ZeroSize.docx",
+            fileSize: 0,
+            createNewIfExist: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.id).toBeDefined();
+      expect(data.response!.bytes_total).toBe(0);
+    },
+  );
+
+  test(
+    "POST /api/2.0/files/{folderId}/session - createNewIfExist=false with" +
+      " existing filename overwrites file returns 200",
+    async ({ apiSdk }) => {
+      // Catches: createNewIfExist=false should overwrite, not create a duplicate
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest UploadSession Overwrite.docx";
+      await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: fileName },
+      });
+
+      const fileContent = Buffer.from("overwritten content");
+      const { data: sessionData, status } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName,
+            fileSize: fileContent.length,
+            createNewIfExist: false,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(sessionData.response!.id).toBeDefined();
+
+      const file = new File([fileContent], fileName, {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      await ownerApi.operations.uploadAsyncSession({
+        folderId,
+        sessionId: sessionData.response!.id!,
+        chunkNumber: 1,
+        file,
+      });
+      await ownerApi.operations.finalizeSession({
+        folderId,
+        sessionId: sessionData.response!.id!,
+      });
+
+      // createNewIfExist=false: existing file is overwritten, only 1 copy remains
+      const { data: folderContent } =
+        await ownerApi.folders.getFolderByFolderId({ folderId });
+      const filesWithSameName = (folderContent.response?.files ?? []).filter(
+        (f) => f.title === fileName,
+      );
+      expect(filesWithSameName.length).toBe(1);
+    },
+  );
+});
