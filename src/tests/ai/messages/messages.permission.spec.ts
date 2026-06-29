@@ -1,22 +1,17 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { FileShare } from "@onlyoffice/docspace-api-sdk";
-import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
-
-const provider = aiProviders.deepSeek;
+import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import { enableAiGateway } from "@/src/helpers/wallet-services";
 
 test.describe("AI Messages - Export Permissions (not a member of agent)", () => {
   test("BUG 80770: POST /api/2.0/ai/messages/:messageId/export - DocSpaceAdmin cannot export message without being in agent", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -25,8 +20,8 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -76,15 +71,11 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
 
   test("BUG 80770: POST /api/2.0/ai/messages/:messageId/export - RoomAdmin cannot export message without being in agent", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -93,8 +84,8 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -144,15 +135,11 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
 
   test("BUG 80770: POST /api/2.0/ai/messages/:messageId/export - User cannot export message without being in agent", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -161,8 +148,8 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -212,15 +199,11 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
 
   test("BUG 80770: POST /api/2.0/ai/messages/:messageId/export - Guest cannot export message without being in agent", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -229,8 +212,8 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -283,15 +266,11 @@ test.describe("AI Messages - Export Permissions (not a member of agent)", () => 
 test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
   test("BUG 80772: POST /api/2.0/ai/messages/:messageId/export - DocSpaceAdmin with Viewer role cannot export message", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -300,8 +279,8 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -358,15 +337,11 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
 
   test("BUG 80772: POST /api/2.0/ai/messages/:messageId/export - RoomAdmin with Viewer role cannot export message", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -375,8 +350,8 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -433,15 +408,11 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
 
   test("BUG 80772: POST /api/2.0/ai/messages/:messageId/export - User with Viewer role cannot export message", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -450,8 +421,8 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -508,15 +479,11 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
 
   test("BUG 80772: POST /api/2.0/ai/messages/:messageId/export - Guest with Viewer role cannot export message", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -525,8 +492,8 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -589,15 +556,11 @@ test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
 test.describe("AI Messages - Export Validation", () => {
   test("BUG 80779: POST /api/2.0/ai/messages/:messageId/export - returns 400 for messageId = 0", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -606,8 +569,8 @@ test.describe("AI Messages - Export Validation", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -643,15 +606,11 @@ test.describe("AI Messages - Export Validation", () => {
 
   test("BUG 80779: POST /api/2.0/ai/messages/:messageId/export - returns 400 for messageId = -1", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -660,8 +619,8 @@ test.describe("AI Messages - Export Validation", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },

@@ -1,35 +1,17 @@
 import { test } from "@/src/fixtures";
 import { expect } from "@playwright/test";
-import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
-import {
-  EmbeddingProviderType,
-  FileShare,
-  FolderType,
-} from "@onlyoffice/docspace-api-sdk";
+import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import { enableAiGateway } from "@/src/helpers/wallet-services";
+import { FileShare, FolderType } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("Vectorization - startTask", () => {
-  const provider = aiProviders.openAi;
-
   test("POST /api/2.0/ai/vectorization/tasks - Owner starts vectorization task", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
-
-    const { status: vectorizationStatus } =
-      await ownerApi.aiSettings.setVectorizationSettings({
-        setEmbeddingConfigRequestBody: {
-          type: EmbeddingProviderType.OpenAi,
-          key: provider.key,
-        },
-      });
-    expect(vectorizationStatus).toBe(200);
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -38,8 +20,8 @@ test.describe("Vectorization - startTask", () => {
         cover: "layers",
         tags: ["autotest", "vectorization"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -76,22 +58,11 @@ test.describe("Vectorization - startTask", () => {
 
   test("POST /api/2.0/ai/vectorization/tasks - DocSpaceAdmin with Agent Manager role starts vectorization task", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
-
-    await ownerApi.aiSettings.setVectorizationSettings({
-      setEmbeddingConfigRequestBody: {
-        type: EmbeddingProviderType.OpenAi,
-        key: provider.key,
-      },
-    });
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -100,8 +71,8 @@ test.describe("Vectorization - startTask", () => {
         cover: "layers",
         tags: ["autotest", "vectorization"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -156,22 +127,11 @@ test.describe("Vectorization - startTask", () => {
 
   test("POST /api/2.0/ai/vectorization/tasks - RoomAdmin with Agent Manager role starts vectorization task", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
-
-    await ownerApi.aiSettings.setVectorizationSettings({
-      setEmbeddingConfigRequestBody: {
-        type: EmbeddingProviderType.OpenAi,
-        key: provider.key,
-      },
-    });
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -180,8 +140,8 @@ test.describe("Vectorization - startTask", () => {
         cover: "layers",
         tags: ["autotest", "vectorization"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
