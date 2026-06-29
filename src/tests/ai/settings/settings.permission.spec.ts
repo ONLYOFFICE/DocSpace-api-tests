@@ -4,7 +4,6 @@ import {
   EmbeddingProviderType,
   EngineType,
 } from "@onlyoffice/docspace-api-sdk";
-import { aiProviders } from "@/src/helpers/ai-providers";
 import config from "@/config";
 
 const forbiddenRoles = ["RoomAdmin", "User", "Guest"] as const;
@@ -22,8 +21,6 @@ test.describe("AI Settings - getAiSettings Permissions", () => {
 });
 
 test.describe("AI Settings - setVectorizationSettings Permissions", () => {
-  const provider = aiProviders.openAi;
-
   for (const role of forbiddenRoles) {
     test(`PUT /api/2.0/ai/config/vectorization - ${role} cannot set vectorization settings`, async ({
       apiSdk,
@@ -33,7 +30,7 @@ test.describe("AI Settings - setVectorizationSettings Permissions", () => {
       const { data, status } = await api.aiSettings.setVectorizationSettings({
         setEmbeddingConfigRequestBody: {
           type: EmbeddingProviderType.OpenAi,
-          key: provider.key,
+          key: config.OPENAI_API_KEY,
         },
       });
 
@@ -50,14 +47,16 @@ test.describe("AI Settings - setVectorizationSettings Permissions", () => {
     const { status } = await anonApi.aiSettings.setVectorizationSettings({
       setEmbeddingConfigRequestBody: {
         type: EmbeddingProviderType.OpenAi,
-        key: provider.key,
+        key: config.OPENAI_API_KEY,
       },
     });
 
     expect(status).toBe(401);
   });
 
-  test("PUT /api/2.0/ai/config/vectorization - Owner gets 400 with invalid API key", async ({
+  // The configured AI gateway disables manual vectorization config for everyone,
+  // including the Owner, so this returns 403 instead of validating the API key.
+  test("PUT /api/2.0/ai/config/vectorization - Owner cannot set vectorization settings (gateway disabled)", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -71,10 +70,8 @@ test.describe("AI Settings - setVectorizationSettings Permissions", () => {
       },
     );
 
-    expect(status).toBe(400);
-    expect((data as any).error.message).toBe(
-      "The specified API key is invalid or does not have access rights. Verify that the key is correct and try again",
-    );
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
   });
 });
 

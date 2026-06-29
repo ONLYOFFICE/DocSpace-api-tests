@@ -1,22 +1,17 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { FileShare } from "@onlyoffice/docspace-api-sdk";
-import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
-
-const provider = aiProviders.deepSeek;
+import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import { enableAiGateway } from "@/src/helpers/wallet-services";
 
 test.describe("AI Messages - Export", () => {
   test("POST /api/2.0/ai/messages/:messageId/export - Owner exports AI message to My Documents", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -25,8 +20,8 @@ test.describe("AI Messages - Export", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -70,15 +65,11 @@ test.describe("AI Messages - Export", () => {
 
   test("POST /api/2.0/ai/messages/:messageId/export - DocSpaceAdmin exports AI message to My Documents", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
@@ -90,8 +81,8 @@ test.describe("AI Messages - Export", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -135,15 +126,11 @@ test.describe("AI Messages - Export", () => {
 
   test("POST /api/2.0/ai/messages/:messageId/export - RoomAdmin exports AI message to My Documents", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdminApi = apiSdk.forRole("roomAdmin");
@@ -155,8 +142,8 @@ test.describe("AI Messages - Export", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -200,15 +187,11 @@ test.describe("AI Messages - Export", () => {
 
   test("POST /api/2.0/ai/messages/:messageId/export - User exports AI message to My Documents", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -217,8 +200,8 @@ test.describe("AI Messages - Export", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },

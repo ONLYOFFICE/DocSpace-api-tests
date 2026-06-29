@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
+import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { readIconAsBase64 } from "@/src/utils/icon.utils";
 import config from "@/config";
 import {
@@ -24,6 +25,7 @@ const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
 test.describe("MCP Servers", () => {
   test("BUG 81107: POST /api/2.0/ai/servers - Owner registers a custom MCP server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -32,10 +34,7 @@ test.describe("MCP Servers", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data, status } = await api.mcp.addServer({
       addMcpServerRequestBody: {
@@ -68,6 +67,7 @@ test.describe("MCP Servers", () => {
 test.describe("MCP Servers - Update", () => {
   test("BUG 81107: PUT /api/2.0/ai/servers/:id - Owner updates MCP server name", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -76,10 +76,7 @@ test.describe("MCP Servers - Update", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: created } = await api.mcp.addServer({
       addMcpServerRequestBody: {
@@ -105,6 +102,7 @@ test.describe("MCP Servers - Update", () => {
 
   test("BUG 81107: PUT /api/2.0/ai/servers/:id - Owner updates MCP server description", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -113,10 +111,7 @@ test.describe("MCP Servers - Update", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: created } = await api.mcp.addServer({
       addMcpServerRequestBody: {
@@ -144,6 +139,7 @@ test.describe("MCP Servers - Update", () => {
 test.describe("MCP Servers - Delete", () => {
   test("DELETE /api/2.0/ai/servers - Owner deletes a MCP server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -152,10 +148,7 @@ test.describe("MCP Servers - Delete", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: created } = await api.mcp.addServer({
       addMcpServerRequestBody: {
@@ -182,6 +175,7 @@ test.describe("MCP Servers - Delete", () => {
 
   test("DELETE /api/2.0/ai/servers - Owner deletes multiple MCP servers in one request", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -190,10 +184,7 @@ test.describe("MCP Servers - Delete", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const ts = Date.now();
     const serverIds: string[] = [];
@@ -226,6 +217,7 @@ test.describe("MCP Servers - Delete", () => {
 
   test("DELETE /api/2.0/ai/servers - DocSpaceAdmin deletes multiple MCP servers in one request", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -234,10 +226,7 @@ test.describe("MCP Servers - Delete", () => {
 
     const ownerApi = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const ts = Date.now();
     const serverIds: string[] = [];
@@ -275,6 +264,7 @@ test.describe("MCP Servers - Delete", () => {
 
   test("DELETE /api/2.0/ai/servers - DocSpaceAdmin deletes a MCP server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -283,10 +273,7 @@ test.describe("MCP Servers - Delete", () => {
 
     const ownerApi = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await ownerApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: created } = await ownerApi.mcp.addServer({
       addMcpServerRequestBody: {
@@ -317,6 +304,7 @@ test.describe("MCP Servers - Delete", () => {
 test.describe("MCP Servers - Set Status", () => {
   test("PUT /api/2.0/ai/servers/:id/status - Owner disables an MCP server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -325,10 +313,7 @@ test.describe("MCP Servers - Set Status", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: created } = await api.mcp.addServer({
       addMcpServerRequestBody: {
@@ -351,6 +336,7 @@ test.describe("MCP Servers - Set Status", () => {
 
   test("PUT /api/2.0/ai/servers/:id/status - Owner re-enables a disabled MCP server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -359,10 +345,7 @@ test.describe("MCP Servers - Set Status", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: created } = await api.mcp.addServer({
       addMcpServerRequestBody: {
@@ -392,6 +375,7 @@ test.describe("MCP Servers - Set Status", () => {
 test.describe("MCP Servers - Get", () => {
   test("BUG 81107: GET /api/2.0/ai/servers - Owner gets list of MCP servers", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -400,10 +384,7 @@ test.describe("MCP Servers - Get", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const serverName = `mcp-basic-${Date.now()}`;
     const serverDescription = "GitHub Copilot MCP server";
@@ -433,6 +414,7 @@ test.describe("MCP Servers - Get", () => {
 
   test("GET /api/2.0/ai/servers/:id - Owner gets MCP server by id", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -441,10 +423,7 @@ test.describe("MCP Servers - Get", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const serverName = `mcp-get-${Date.now()}`;
     const { data: created } = await api.mcp.addServer({
@@ -471,6 +450,7 @@ test.describe("MCP Servers - Get", () => {
 
   test("GET /api/2.0/ai/servers/available - Owner gets available MCP servers", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -479,10 +459,7 @@ test.describe("MCP Servers - Get", () => {
 
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.deepSeek;
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const ts = Date.now();
 
@@ -525,6 +502,7 @@ test.describe("MCP Servers - Get", () => {
 test.describe("MCP Servers - Add Room Servers", () => {
   test("POST /api/2.0/ai/rooms/:roomId/servers - Owner adds one MCP server to room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -532,12 +510,9 @@ test.describe("MCP Servers - Add Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -571,6 +546,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
 
   test("POST /api/2.0/ai/rooms/:roomId/servers - Owner adds 2 MCP servers to room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -578,12 +554,9 @@ test.describe("MCP Servers - Add Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -623,6 +596,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
 
   test("POST /api/2.0/ai/rooms/:roomId/servers - Owner adds exactly 5 MCP servers to room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -630,12 +604,9 @@ test.describe("MCP Servers - Add Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -668,6 +639,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
 
   test("POST /api/2.0/ai/rooms/:roomId/servers - response contains valid McpServerStatusDto structure", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -675,12 +647,9 @@ test.describe("MCP Servers - Add Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -717,22 +686,22 @@ test.describe("MCP Servers - Add Room Servers", () => {
 
   test("POST /api/2.0/ai/rooms/:roomId/servers - DocSpaceAdmin can add servers to room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
       throw new Error("MCP_API_KEY is not defined in environment variables");
     }
 
+    const ownerApi = apiSdk.forRole("owner");
+
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
     const { api: adminApi } = await apiSdk.addAuthenticatedMember(
       "owner",
       "DocSpaceAdmin",
     );
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
-
-    await adminApi.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
 
     const { data: room } = await adminApi.rooms.createRoom({
       createRoomRequestDto: {
@@ -762,6 +731,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
 
   test("POST /api/2.0/ai/rooms/:roomId/servers - server is linked to room after request", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -769,12 +739,9 @@ test.describe("MCP Servers - Add Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -809,6 +776,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
 
   test("BUG 81166: POST /api/2.0/ai/rooms/:roomId/servers - re-adding already linked server does not create duplicate", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -816,12 +784,9 @@ test.describe("MCP Servers - Add Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -864,6 +829,7 @@ test.describe("MCP Servers - Add Room Servers", () => {
 test.describe("MCP Servers - Delete Room Servers", () => {
   test("DELETE /api/2.0/ai/rooms/:roomId/servers - Owner deletes one MCP server from room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -871,12 +837,9 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -912,6 +875,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
 
   test("DELETE /api/2.0/ai/rooms/:roomId/servers - Owner deletes multiple MCP servers from room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -919,12 +883,9 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -963,6 +924,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
 
   test("DELETE /api/2.0/ai/rooms/:roomId/servers - deleting all linked servers leaves room with empty server list", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -970,12 +932,9 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1018,6 +977,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
 
   test("DELETE /api/2.0/ai/rooms/:roomId/servers - deleting only selected servers does not remove remaining linked servers", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1025,12 +985,9 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1077,6 +1034,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
 
   test("DELETE /api/2.0/ai/rooms/:roomId/servers - deleting from one room does not affect another room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1084,12 +1042,9 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room1 } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1139,6 +1094,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
 
   test("DELETE /api/2.0/ai/rooms/:roomId/servers - deleted server can be re-added to room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1146,12 +1102,9 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1195,6 +1148,7 @@ test.describe("MCP Servers - Delete Room Servers", () => {
 
   test("DELETE /api/2.0/ai/rooms/:roomId/servers - repeated delete of same server ids returns 204", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1202,12 +1156,9 @@ test.describe("MCP Servers - Delete Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1271,6 +1222,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
 
   test("GET /api/2.0/ai/rooms/:roomId/servers - returns 200 with connected=true for one assigned direct server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1278,12 +1230,9 @@ test.describe("MCP Servers - Get Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1318,6 +1267,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
 
   test("GET /api/2.0/ai/rooms/:roomId/servers - returns all assigned servers when multiple are linked", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1325,12 +1275,9 @@ test.describe("MCP Servers - Get Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1370,6 +1317,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
 
   test("GET /api/2.0/ai/rooms/:roomId/servers - direct server has connected=true for Owner", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1377,12 +1325,9 @@ test.describe("MCP Servers - Get Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1415,6 +1360,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
 
   test("GET /api/2.0/ai/rooms/:roomId/servers - response contains valid McpServerStatusDto structure", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1422,12 +1368,9 @@ test.describe("MCP Servers - Get Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1469,6 +1412,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
 
   test("GET /api/2.0/ai/rooms/:roomId/servers - returns only servers assigned to requested room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1476,12 +1420,9 @@ test.describe("MCP Servers - Get Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room1 } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1549,6 +1490,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
 
   test("GET /api/2.0/ai/rooms/:roomId/servers - needReset is false for a healthy server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1556,12 +1498,9 @@ test.describe("MCP Servers - Get Room Servers", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1599,6 +1538,7 @@ test.describe("MCP Servers - Get Room Servers", () => {
 test.describe("MCP Servers - Get Tools", () => {
   test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - Owner gets tools for valid room and connected MCP server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1606,12 +1546,9 @@ test.describe("MCP Servers - Get Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1644,6 +1581,7 @@ test.describe("MCP Servers - Get Tools", () => {
 
   test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - response returns valid McpToolArrayWrapper structure", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1651,12 +1589,9 @@ test.describe("MCP Servers - Get Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1695,6 +1630,7 @@ test.describe("MCP Servers - Get Tools", () => {
 
   test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - all tools are enabled by default after server is added to room", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1702,12 +1638,9 @@ test.describe("MCP Servers - Get Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1742,6 +1675,7 @@ test.describe("MCP Servers - Get Tools", () => {
 
   test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - tool state changes are reflected in subsequent getTools call", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1749,12 +1683,9 @@ test.describe("MCP Servers - Get Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1813,6 +1744,7 @@ test.describe("MCP Servers - Get Tools", () => {
 test.describe("MCP Servers - Set Tools", () => {
   test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - disables one existing tool and keeps others enabled", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     test.fail();
     const mcpApiKey = process.env.MCP_API_KEY;
@@ -1821,12 +1753,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1875,6 +1804,7 @@ test.describe("MCP Servers - Set Tools", () => {
 
   test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - disables multiple existing tools", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     test.fail();
     const mcpApiKey = process.env.MCP_API_KEY;
@@ -1883,12 +1813,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1939,6 +1866,7 @@ test.describe("MCP Servers - Set Tools", () => {
 
   test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - enables all tools when disabledTools is empty", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -1946,12 +1874,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -1999,6 +1924,7 @@ test.describe("MCP Servers - Set Tools", () => {
 
   test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - is idempotent when sending same disabledTools twice", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -2006,12 +1932,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -2059,6 +1982,7 @@ test.describe("MCP Servers - Set Tools", () => {
 
   test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - re-enables tool when it is removed from disabledTools", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -2066,12 +1990,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -2119,6 +2040,7 @@ test.describe("MCP Servers - Set Tools", () => {
 
   test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - returns 200 and valid McpToolArrayWrapper", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -2126,12 +2048,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -2175,6 +2094,7 @@ test.describe("MCP Servers - Set Tools", () => {
 
   test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - returns tools with correct enabled/disabled states in response", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     test.fail();
     const mcpApiKey = process.env.MCP_API_KEY;
@@ -2183,12 +2103,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -2235,6 +2152,7 @@ test.describe("MCP Servers - Set Tools", () => {
 
   test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - returns all tools of the server in response", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -2242,12 +2160,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -2286,6 +2201,7 @@ test.describe("MCP Servers - Set Tools", () => {
 
   test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - persists disabled state and returns correct data via getTools", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -2293,12 +2209,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -2345,6 +2258,7 @@ test.describe("MCP Servers - Set Tools", () => {
 
   test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - does not affect tool state in other rooms for the same server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -2352,12 +2266,9 @@ test.describe("MCP Servers - Set Tools", () => {
     }
 
     const api = apiSdk.forRole("owner");
-    const provider = aiProviders.deepSeek;
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(provider),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: room1 } = await api.rooms.createRoom({
       createRoomRequestDto: {
@@ -2583,6 +2494,7 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
 
   test("POST /api/2.0/ai/rooms/:roomId/servers - Owner adds built-in DocSpace server together with a custom server", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const mcpApiKey = process.env.MCP_API_KEY;
     if (!mcpApiKey) {
@@ -2592,9 +2504,7 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
     const api = apiSdk.forRole("owner");
     const ts = Date.now();
 
-    await api.providers.addProvider({
-      createProviderRequestDto: toCreateDto(aiProviders.deepSeek),
-    });
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: available } = await api.mcp.getAvailableServers();
     const builtInServerId = available.response!.find(
@@ -3125,16 +3035,11 @@ test.describe("MCP Servers - Built-in DocSpace Server", () => {
 test.describe("MCP Servers - Built-in DocSpace Server - Result Storage upload", () => {
   test("BUG 81131: POST /api/2.0/ai/chats/tool-permissions/:callId/decision - agent calls upload_file but file does not appear in Result Storage on first attempt", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const api = apiSdk.forRole("owner");
 
-    const provider = aiProviders.openAi;
-    const { data: providerData, status: providerStatus } =
-      await api.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, api.payment);
 
     const { data: agentData } = await api.agents.createAgent({
       createAgentRequestDto: {
@@ -3144,8 +3049,8 @@ test.describe("MCP Servers - Built-in DocSpace Server - Result Storage upload", 
         tags: ["autotest"],
         attachDefaultTools: true,
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful assistant.",
         },
       },
