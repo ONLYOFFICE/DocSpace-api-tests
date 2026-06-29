@@ -1344,7 +1344,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
   });
 
   test.fail(
-    "BUG: PUT /files/file/:fileId/lock - Unlocking one of several locked files leaves the rest locked",
+    "BUG 82178: PUT /files/file/:fileId/lock - Unlocking one of several locked files leaves the rest locked",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const fileIds: number[] = [];
