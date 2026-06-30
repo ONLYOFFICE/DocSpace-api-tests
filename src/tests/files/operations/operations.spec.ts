@@ -3288,9 +3288,9 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
     },
   );
 
-  // BUG XXXXX: Non-existent fileId returns 403 (SecurityException "Access denied") instead of 404
+  // BUG 82204: Non-existent fileId returns 403 (SecurityException "Access denied") instead of 404
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/fileops/copy - Non-existent fileId" +
+    "BUG 82204: PUT /api/2.0/files/fileops/copy - Non-existent fileId" +
       " returns 403 instead of 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
