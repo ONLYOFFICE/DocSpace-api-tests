@@ -1,13 +1,8 @@
 import { test } from "@/src/fixtures";
 import { expect } from "@playwright/test";
-import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
-import {
-  EmbeddingProviderType,
-  FileShare,
-  FolderType,
-} from "@onlyoffice/docspace-api-sdk";
-
-const provider = aiProviders.openAi;
+import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import { enableAiGateway } from "@/src/helpers/wallet-services";
+import { FileShare, FolderType } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("Vectorization - startTask permissions", () => {
   test("POST /api/2.0/ai/vectorization/tasks - Anonymous gets 401 Unauthorized", async ({
@@ -27,22 +22,10 @@ test.describe("Vectorization - startTask permissions", () => {
   for (const role of ["DocSpaceAdmin", "RoomAdmin", "User", "Guest"] as const) {
     test.fail(
       `BUG 80736: POST /api/2.0/ai/vectorization/tasks - ${role} with Viewer role cannot start vectorization task`,
-      async ({ apiSdk }) => {
+      async ({ apiSdk, paymentsApi }) => {
         const ownerApi = apiSdk.forRole("owner");
 
-        const { data: providerData, status: providerStatus } =
-          await ownerApi.providers.addProvider({
-            createProviderRequestDto: toCreateDto(provider),
-          });
-        expect(providerStatus).toBe(200);
-        const providerId = providerData.response!.id!;
-
-        await ownerApi.aiSettings.setVectorizationSettings({
-          setEmbeddingConfigRequestBody: {
-            type: EmbeddingProviderType.OpenAi,
-            key: provider.key,
-          },
-        });
+        await enableAiGateway(paymentsApi, ownerApi.payment);
 
         const { data: agentData } = await ownerApi.agents.createAgent({
           createAgentRequestDto: {
@@ -51,8 +34,8 @@ test.describe("Vectorization - startTask permissions", () => {
             cover: "layers",
             tags: ["autotest", "vectorization"],
             chatSettings: {
-              providerId,
-              modelId: provider.modelId,
+              providerId: onlyofficeAiProvider.providerId,
+              modelId: onlyofficeAiProvider.defaultModel,
               prompt: "You are a test assistant",
             },
           },
@@ -100,22 +83,10 @@ test.describe("Vectorization - startTask permissions", () => {
   for (const role of ["DocSpaceAdmin", "RoomAdmin", "User", "Guest"] as const) {
     test.fail(
       `BUG 80736: POST /api/2.0/ai/vectorization/tasks - ${role} not added to agent cannot start vectorization task`,
-      async ({ apiSdk }) => {
+      async ({ apiSdk, paymentsApi }) => {
         const ownerApi = apiSdk.forRole("owner");
 
-        const { data: providerData, status: providerStatus } =
-          await ownerApi.providers.addProvider({
-            createProviderRequestDto: toCreateDto(provider),
-          });
-        expect(providerStatus).toBe(200);
-        const providerId = providerData.response!.id!;
-
-        await ownerApi.aiSettings.setVectorizationSettings({
-          setEmbeddingConfigRequestBody: {
-            type: EmbeddingProviderType.OpenAi,
-            key: provider.key,
-          },
-        });
+        await enableAiGateway(paymentsApi, ownerApi.payment);
 
         const { data: agentData } = await ownerApi.agents.createAgent({
           createAgentRequestDto: {
@@ -124,8 +95,8 @@ test.describe("Vectorization - startTask permissions", () => {
             cover: "layers",
             tags: ["autotest", "vectorization"],
             chatSettings: {
-              providerId,
-              modelId: provider.modelId,
+              providerId: onlyofficeAiProvider.providerId,
+              modelId: onlyofficeAiProvider.defaultModel,
               prompt: "You are a test assistant",
             },
           },

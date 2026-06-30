@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { aiProviders } from "@/src/helpers/ai-providers";
+import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
 
 const fakeAgentId = 999999999;
 
@@ -21,8 +21,8 @@ test.describe("AI Agents - AI Disabled", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId: 1,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -88,8 +88,8 @@ test.describe("AI Agents - AI Disabled", () => {
         title: "Updated Agent",
         tags: ["autotest"],
         chatSettings: {
-          providerId: 1,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "Updated prompt",
         },
       },

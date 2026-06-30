@@ -1,24 +1,23 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { FileShare, ToolExecutionDecision } from "@onlyoffice/docspace-api-sdk";
-import { aiProviders, toCreateDto } from "@/src/helpers/ai-providers";
+import {
+  FileShare,
+  ProviderType,
+  ToolExecutionDecision,
+} from "@onlyoffice/docspace-api-sdk";
+import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { parseSseEvents } from "@/src/helpers/parse-sse-events";
 import { UserType } from "@/src/services/api-sdk";
-
-const provider = aiProviders.openAi;
 
 test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Guest cannot start a new chat", () => {
   test("POST /api/2.0/ai/rooms/:roomId/chats - Guest with ContentCreator role gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -27,8 +26,8 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Guest cannot start a new c
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -66,15 +65,11 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Guest cannot start a new c
 test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a new chat", () => {
   test("POST /api/2.0/ai/rooms/:roomId/chats - DocSpaceAdmin not in agent gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -83,8 +78,8 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -109,15 +104,11 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
 
   test("POST /api/2.0/ai/rooms/:roomId/chats - RoomAdmin not in agent gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -126,8 +117,8 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -152,15 +143,11 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
 
   test("POST /api/2.0/ai/rooms/:roomId/chats - User not in agent gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -169,8 +156,8 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -195,15 +182,11 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
 
   test("POST /api/2.0/ai/rooms/:roomId/chats - Guest not in agent gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -212,8 +195,8 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -241,15 +224,11 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Non-member cannot start a 
 test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Validation", () => {
   test("POST /api/2.0/ai/rooms/:roomId/chats - Owner sends empty message gets 400", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -258,8 +237,8 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Validation", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -316,15 +295,11 @@ test.describe("POST /api/2.0/ai/rooms/:roomId/chats - Validation", () => {
 test.describe("POST /api/2.0/ai/chats/:chatId/messages - Validation", () => {
   test("POST /api/2.0/ai/chats/:chatId/messages - Owner sends empty message gets 400", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -333,8 +308,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Validation", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -401,15 +376,11 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Validation", () => {
 test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot continue a chat", () => {
   test("BUG 80791: POST /api/2.0/ai/chats/:chatId/messages - DocSpaceAdmin not in agent gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -418,8 +389,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -456,15 +427,11 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
 
   test("BUG 80791: POST /api/2.0/ai/chats/:chatId/messages - RoomAdmin not in agent gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -473,8 +440,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -511,15 +478,11 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
 
   test("BUG 80791: POST /api/2.0/ai/chats/:chatId/messages - User not in agent gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -528,8 +491,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -566,15 +529,11 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
 
   test("BUG 80791: POST /api/2.0/ai/chats/:chatId/messages - Guest not in agent gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -583,8 +542,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -624,15 +583,11 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Non-member cannot conti
 test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue a chat", () => {
   test("BUG 80791: POST /api/2.0/ai/chats/:chatId/messages - DocSpaceAdmin with Viewer role gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -641,8 +596,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -686,15 +641,11 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
 
   test("BUG 80791: POST /api/2.0/ai/chats/:chatId/messages - RoomAdmin with Viewer role gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -703,8 +654,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -748,15 +699,11 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
 
   test("BUG 80791: POST /api/2.0/ai/chats/:chatId/messages - User with Viewer role gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -765,8 +712,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -810,15 +757,11 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
 
   test("BUG 80791: POST /api/2.0/ai/chats/:chatId/messages - Guest with Viewer role gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -827,8 +770,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -878,15 +821,11 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages - Viewer cannot continue 
 test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat", () => {
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - DocSpaceAdmin cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -895,8 +834,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -933,15 +872,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
 
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - RoomAdmin cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -950,8 +885,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -988,15 +923,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
 
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - User cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1005,8 +936,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1043,15 +974,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
 
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - Guest cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1060,8 +987,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1101,15 +1028,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Non-member cannot rename a chat",
 test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () => {
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - DocSpaceAdmin with Viewer role cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1118,8 +1041,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1163,15 +1086,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
 
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - RoomAdmin with Viewer role cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1180,8 +1099,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1225,15 +1144,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
 
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - User with Viewer role cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1242,8 +1157,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1287,15 +1202,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
 
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - Guest with Viewer role cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1304,8 +1215,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Viewer cannot rename a chat", () 
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1388,15 +1299,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - Validation", () => {
 test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename another user's chat", () => {
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - DocSpaceAdmin with ContentCreator role cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1405,8 +1312,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1450,15 +1357,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
 
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - RoomAdmin with ContentCreator role cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1467,8 +1370,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1512,15 +1415,11 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
 
   test("BUG 80797: PUT /api/2.0/ai/chats/:chatId - User with ContentCreator role cannot rename Owner's chat gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1529,8 +1428,8 @@ test.describe("PUT /api/2.0/ai/chats/:chatId - ContentCreator cannot rename anot
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1603,15 +1502,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Validation", () => {
 test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a chat", () => {
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin not in agent cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1620,8 +1515,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1653,15 +1548,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
 
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - RoomAdmin not in agent cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1670,8 +1561,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1703,15 +1594,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
 
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - User not in agent cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1720,8 +1607,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1753,15 +1640,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
 
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - Guest not in agent cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1770,8 +1653,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1806,15 +1689,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Non-member cannot delete a cha
 test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's chat", () => {
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin with Viewer role cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1823,8 +1702,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1863,15 +1742,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
 
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - RoomAdmin with Viewer role cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1880,8 +1755,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1920,15 +1795,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
 
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - User with Viewer role cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1937,8 +1808,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -1977,15 +1848,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
 
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - Guest with Viewer role cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1994,8 +1861,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -2040,15 +1907,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - Viewer cannot delete owner's c
 test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete owner's chat", () => {
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - DocSpaceAdmin with ContentCreator role cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -2057,8 +1920,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -2097,15 +1960,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
 
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - RoomAdmin with ContentCreator role cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -2114,8 +1973,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -2154,15 +2013,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
 
   test("BUG 80801: DELETE /api/2.0/ai/chats/:chatId - User with ContentCreator role cannot delete owner's chat", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -2171,8 +2026,8 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -2213,15 +2068,11 @@ test.describe("DELETE /api/2.0/ai/chats/:chatId - ContentCreator cannot delete o
 test.describe("PUT /api/2.0/ai/rooms/:roomId/chats/config - Set user chats settings permissions", () => {
   test("PUT /api/2.0/ai/rooms/:roomId/chats/config - User cannot set user chats settings", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -2230,8 +2081,8 @@ test.describe("PUT /api/2.0/ai/rooms/:roomId/chats/config - Set user chats setti
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -2257,15 +2108,11 @@ test.describe("PUT /api/2.0/ai/rooms/:roomId/chats/config - Set user chats setti
 
   test("PUT /api/2.0/ai/rooms/:roomId/chats/config - Guest cannot set user chats settings", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -2274,8 +2121,8 @@ test.describe("PUT /api/2.0/ai/rooms/:roomId/chats/config - Set user chats setti
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -2310,15 +2157,11 @@ for (const userType of [
   test.describe(`PUT /api/2.0/ai/rooms/:roomId/chats/config - ${userType} with Viewer role cannot set user chats settings`, () => {
     test(`PUT /api/2.0/ai/rooms/:roomId/chats/config - ${userType} with Viewer role gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -2327,8 +2170,8 @@ for (const userType of [
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -2408,15 +2251,11 @@ for (const userType of [
   test.describe(`POST /api/2.0/ai/chats/tool-permissions/:callId/decision - ${userType} cannot approve tool execution in another user's chat`, () => {
     test(`BUG 80930: POST /api/2.0/ai/chats/tool-permissions/:callId/decision - ${userType} should get 403 when approving tool call in Owner's chat session but gets 200`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -2426,8 +2265,8 @@ for (const userType of [
           tags: ["autotest"],
           attachDefaultTools: true,
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt: "You are a helpful assistant.",
           },
         },
@@ -2507,15 +2346,11 @@ for (const userType of [
   test.describe(`GET /api/2.0/ai/rooms/:roomId/chats/config - ${userType} with Viewer role cannot get user chats settings`, () => {
     test(`GET /api/2.0/ai/rooms/:roomId/chats/config - ${userType} with Viewer role gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -2524,8 +2359,8 @@ for (const userType of [
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -2564,15 +2399,11 @@ for (const userType of [
   test.describe(`GET /api/2.0/ai/rooms/:roomId/chats/config - ${userType} not in agent cannot get user chats settings`, () => {
     test(`GET /api/2.0/ai/rooms/:roomId/chats/config - ${userType} not in agent gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -2581,8 +2412,8 @@ for (const userType of [
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -2643,15 +2474,11 @@ for (const userType of [
   test.describe(`GET /api/2.0/ai/rooms/:roomId/chats - ${userType} not in agent cannot get chats`, () => {
     test(`GET /api/2.0/ai/rooms/:roomId/chats - ${userType} not in agent gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -2660,8 +2487,8 @@ for (const userType of [
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -2693,15 +2520,11 @@ for (const userType of [
   test.describe(`GET /api/2.0/ai/rooms/:roomId/chats - ${userType} with Viewer role cannot get chats`, () => {
     test(`GET /api/2.0/ai/rooms/:roomId/chats - ${userType} with Viewer role gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -2710,8 +2533,8 @@ for (const userType of [
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -2774,15 +2597,11 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
   test.describe(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} with ContentCreator role cannot read Owner's chat`, () => {
     test(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} with ContentCreator role gets 403 on Owner's chatId`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -2791,8 +2610,8 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -2844,15 +2663,11 @@ for (const userType of [
   test.describe(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} not in agent cannot read Owner's chat`, () => {
     test(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} not in agent gets 403 on Owner's chatId`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -2861,8 +2676,8 @@ for (const userType of [
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -2907,15 +2722,11 @@ for (const userType of [
   test.describe(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} with Viewer role cannot read Owner's chat`, () => {
     test(`GET /api/2.0/ai/chats/:chatId/messages - ${userType} with Viewer role gets 403 on Owner's chatId`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -2924,8 +2735,8 @@ for (const userType of [
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -2999,15 +2810,11 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
   test.describe(`POST /api/2.0/ai/chats/:chatId/messages/export - ${userType} with Viewer role cannot export Owner's chat`, () => {
     test(`POST /api/2.0/ai/chats/:chatId/messages/export - ${userType} with Viewer role gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -3016,8 +2823,8 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -3067,15 +2874,11 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
 test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest with Viewer role cannot export Owner's chat", () => {
   test("POST /api/2.0/ai/chats/:chatId/messages/export - Guest with Viewer role gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -3084,8 +2887,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest with Viewe
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -3141,15 +2944,11 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
   test.describe(`POST /api/2.0/ai/chats/:chatId/messages/export - ${userType} not in agent cannot export Owner's chat`, () => {
     test(`POST /api/2.0/ai/chats/:chatId/messages/export - ${userType} not in agent gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -3158,8 +2957,8 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -3202,15 +3001,11 @@ for (const userType of ["DocSpaceAdmin", "RoomAdmin", "User"] as UserType[]) {
 test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest not in agent cannot export Owner's chat", () => {
   test("POST /api/2.0/ai/chats/:chatId/messages/export - Guest not in agent gets 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(provider),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -3219,8 +3014,8 @@ test.describe("POST /api/2.0/ai/chats/:chatId/messages/export - Guest not in age
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: provider.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a helpful test assistant. Keep answers very short.",
         },
       },
@@ -3312,15 +3107,11 @@ for (const userType of [
   test.describe(`GET /api/2.0/ai/chats/:chatId - ${userType} with Viewer role cannot get Owner's chat`, () => {
     test(`GET /api/2.0/ai/chats/:chatId - ${userType} with Viewer role gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -3329,8 +3120,8 @@ for (const userType of [
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -3379,15 +3170,11 @@ for (const userType of [
   test.describe(`GET /api/2.0/ai/chats/:chatId - ${userType} not in agent cannot get Owner's chat`, () => {
     test(`GET /api/2.0/ai/chats/:chatId - ${userType} not in agent gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const { data: agentData } = await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -3396,8 +3183,8 @@ for (const userType of [
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: provider.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt:
               "You are a helpful test assistant. Keep answers very short.",
           },
@@ -3461,15 +3248,20 @@ for (const userType of ["User", "Guest"] as UserType[]) {
   test.describe(`GET /api/2.0/ai/chats/models - ${userType} not in agent cannot get models`, () => {
     test(`BUG 81005: GET /api/2.0/ai/chats/models - ${userType} not in agent gets 403`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      // Use the id of a provider that REALLY exists in the tenant (not a
+      // sentinel like 0 / a non-existent id), so this exercises the actual
+      // "enumerate an existing provider's models" bypass from the report.
+      // On the gateway build the only provider is the built-in gateway
+      // (id -1); manual providers cannot be created (ThrowIfGatewayConfigured
+      // → 403), so -1 is the genuine existing provider id here.
+      const { data: ownerProviders } = await ownerApi.providers.getProviders();
+      const existingProviderId = ownerProviders.response![0]!.id!;
 
       const { api: memberApi } = await apiSdk.addAuthenticatedMember(
         "owner",
@@ -3477,14 +3269,158 @@ for (const userType of ["User", "Guest"] as UserType[]) {
       );
 
       const { data, status } = await memberApi.chat.getChatModels({
-        provider: providerId,
+        provider: existingProviderId,
       });
+
+      // Content first: even if the status check ever regresses to 200, the
+      // response must not leak the provider's config (providerId / title /
+      // model list) — that is the actual harm described in the report.
+      const leaked =
+        Array.isArray((data as any).response) &&
+        (data as any).response.some(
+          (m: any) => m.providerId === existingProviderId,
+        );
+      expect(leaked).toBe(false);
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
     });
   });
 }
+
+for (const { label, access } of [
+  { label: "ContentCreator", access: FileShare.ContentCreator },
+  { label: "Viewer", access: FileShare.Read },
+] as const) {
+  test.describe(`GET /api/2.0/ai/chats/models - Guest member of an agent room cannot enumerate providers (${label})`, () => {
+    test(`BUG 81005: GET /api/2.0/ai/chats/models - Guest invited to agent room with ${label} access still gets 403`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const { data: agentData } = await ownerApi.agents.createAgent({
+        createAgentRequestDto: {
+          title: "Autotest Chat Agent",
+          color: "FF5733",
+          cover: "layers",
+          tags: ["autotest"],
+          chatSettings: {
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
+            prompt:
+              "You are a helpful test assistant. Keep answers very short.",
+          },
+        },
+      });
+      const agentRoomId = agentData.response!.id!;
+
+      const { data: guestData, userData: guestUserData } =
+        await apiSdk.addMember("owner", "Guest");
+      const guestId = guestData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentRoomId,
+        roomInvitationRequest: {
+          invitations: [{ id: guestId, access }],
+          notify: false,
+        },
+      });
+
+      const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
+
+      // Query the id of a provider that really exists in the tenant.
+      const { data: ownerProviders } = await ownerApi.providers.getProviders();
+      const existingProviderId = ownerProviders.response![0]!.id!;
+
+      const { data, status } = await guestApi.chat.getChatModels({
+        provider: existingProviderId,
+      });
+
+      // Content first: the response must not leak the existing provider.
+      const leaked =
+        Array.isArray((data as any).response) &&
+        (data as any).response.some(
+          (m: any) => m.providerId === existingProviderId,
+        );
+      expect(leaked).toBe(false);
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  });
+}
+
+// Reproduction of the original report exactly as filed: an admin registers a
+// manual AI provider, gets its real providerId, and a Guest — who is denied on
+// GET /api/2.0/ai/providers — tries to read that provider's models through
+// GET /api/2.0/ai/chats/models?provider=<realId>.
+//
+// This requires a build WITHOUT the AI gateway, where manual provider creation
+// works. On the gateway build every provider-management endpoint is blocked
+// server-side (AiProviderService.ThrowIfGatewayConfigured → 403), so there is
+// no real provider id to query and the test skips itself. The screenshots in
+// the report (providerId 543, OpenRouter model "openai/gpt-5.2") come from such
+// a pre-gateway build.
+test.describe("GET /api/2.0/ai/chats/models - Guest cannot read an admin-created provider's models", () => {
+  test("BUG 81005: GET /api/2.0/ai/chats/models - Guest cannot enumerate an admin-created provider by its real id", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    // Make sure AI access is on, then try to register a manual provider.
+    await ownerApi.commonSettings.setTenantAiAccessSettings({
+      tenantAiAccessSettingsDto: { enabled: true },
+    });
+
+    const create = await ownerApi.providers.addProvider({
+      createProviderRequestDto: {
+        type: ProviderType.OpenRouter,
+        title: apiSdk.faker.generateString(10),
+        key: "sk-fake-autotest-key",
+      },
+    });
+
+    test.skip(
+      create.status !== 200,
+      `Manual AI provider creation is unavailable here (addProvider → ${create.status}); ` +
+        "on the gateway build it is blocked by ThrowIfGatewayConfigured. " +
+        "Run this on a non-gateway build to reproduce the report.",
+    );
+
+    const existingProviderId = create.data.response?.id;
+    expect(existingProviderId).toBeDefined();
+
+    const { userData: guestUserData } = await apiSdk.addMember(
+      "owner",
+      "Guest",
+    );
+    const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
+
+    // Precondition from the report: Guest is denied on the providers list.
+    const providersResponse = await guestApi.providers.getProviders();
+    expect(providersResponse.status).toBe(403);
+
+    // The bypass: reading that existing provider's models by its real id must
+    // also be denied, and must not leak the provider config (id / title /
+    // model list) — that is the actual harm in the report.
+    const { data, status } = await guestApi.chat.getChatModels({
+      provider: existingProviderId!,
+    });
+
+    const leaked =
+      Array.isArray((data as any).response) &&
+      (data as any).response.some(
+        (m: any) => m.providerId === existingProviderId,
+      );
+    expect(leaked).toBe(false);
+
+    expect(status).toBe(403);
+    expect((data as any).error.message).toBe("Access denied");
+  });
+});
 
 test.describe("GET /api/2.0/ai/chats/models - Get models validation", () => {
   test("GET /api/2.0/ai/chats/models - Anonymous gets 401", async ({

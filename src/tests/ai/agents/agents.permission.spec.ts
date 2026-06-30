@@ -1,94 +1,74 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import {
-  aiProviders,
-  onlyofficeAiProvider,
-  toCreateDto,
-} from "@/src/helpers/ai-providers";
-import {
-  topUpDeposit,
-  creditAiBalance,
-  enableWalletService,
-} from "@/src/helpers/wallet-services";
+import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
+import { enableAiGateway } from "@/src/helpers/wallet-services";
 
 test.describe("POST /ai/agents - User cannot create AI agent", () => {
-  for (const [key, provider] of Object.entries(aiProviders)) {
-    test(`POST /ai/agents - User cannot create an agent with ${provider.title} provider`, async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("POST /ai/agents - User cannot create an agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-      await apiSdk.addAuthenticatedMember("owner", "User");
-      const userApi = apiSdk.forRole("user");
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const userApi = apiSdk.forRole("user");
 
-      const { data, status } = await userApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: `Autotest ${provider.title} Agent`,
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest", key],
-          chatSettings: {
-            providerId,
-            modelId: provider.modelId,
-            prompt: `You are a test assistant powered by ${provider.title}`,
-          },
+    const { data, status } = await userApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
+          prompt: "You are a test assistant",
         },
-      });
-
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have enough permission to create",
-      );
+      },
     });
-  }
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to create",
+    );
+  });
 });
 
 test.describe("POST /ai/agents - Guest cannot create AI agent", () => {
-  for (const [key, provider] of Object.entries(aiProviders)) {
-    test(`POST /ai/agents - Guest cannot create an agent with ${provider.title} provider`, async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("POST /ai/agents - Guest cannot create an agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(provider),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
-      const guestApi = apiSdk.forRole("guest");
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestApi = apiSdk.forRole("guest");
 
-      const { data, status } = await guestApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: `Autotest ${provider.title} Agent`,
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest", key],
-          chatSettings: {
-            providerId,
-            modelId: provider.modelId,
-            prompt: `You are a test assistant powered by ${provider.title}`,
-          },
+    const { data, status } = await guestApi.agents.createAgent({
+      createAgentRequestDto: {
+        title: "Autotest Agent",
+        color: "FF5733",
+        cover: "layers",
+        tags: ["autotest"],
+        chatSettings: {
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
+          prompt: "You are a test assistant",
         },
-      });
-
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have enough permission to create",
-      );
+      },
     });
-  }
+
+    expect(status).toBe(403);
+    expect(data.statusCode).toBe(403);
+    expect((data as any).error.message).toBe(
+      "You don't have enough permission to create",
+    );
+  });
 });
 
 test.describe("POST /ai/agents - Anonymous cannot create AI agent", () => {
@@ -104,8 +84,8 @@ test.describe("POST /ai/agents - Anonymous cannot create AI agent", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId: 1,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -118,15 +98,11 @@ test.describe("POST /ai/agents - Anonymous cannot create AI agent", () => {
 test.describe("GET /ai/agents - Get AI agents access control", () => {
   test("BUG 80658: GET /ai/agents - Room Admin cannot see agents created by Owner", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -135,8 +111,8 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -162,15 +138,11 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
 
   test("BUG 80658: GET /ai/agents - User cannot see agents created by Owner", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -179,8 +151,8 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -207,15 +179,10 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
 
   test.fail(
     "BUG 81482, 80658: GET /ai/agents - Guest cannot see agents created by Owner",
-    async ({ apiSdk }) => {
+    async ({ apiSdk, paymentsApi }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data: providerData, status: providerStatus } =
-        await ownerApi.providers.addProvider({
-          createProviderRequestDto: toCreateDto(aiProviders.openAi),
-        });
-      expect(providerStatus).toBe(200);
-      const providerId = providerData.response!.id!;
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
       await ownerApi.agents.createAgent({
         createAgentRequestDto: {
@@ -224,8 +191,8 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
           cover: "layers",
           tags: ["autotest"],
           chatSettings: {
-            providerId,
-            modelId: aiProviders.openAi.modelId,
+            providerId: onlyofficeAiProvider.providerId,
+            modelId: onlyofficeAiProvider.defaultModel,
             prompt: "You are a test assistant",
           },
         },
@@ -267,15 +234,11 @@ test.describe("GET /ai/agents - Get AI agents access control", () => {
 test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
   test("GET /ai/agents/:id - Room Admin cannot get agent info", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -284,8 +247,8 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -307,15 +270,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
 
   test("GET /ai/agents/:id - User cannot get agent info", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -324,8 +283,8 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -345,15 +304,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
 
   test("GET /ai/agents/:id - Guest cannot get agent info", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -362,8 +317,8 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -385,15 +340,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
 
   test("GET /ai/agents/:id - Anonymous cannot get agent info without authorization", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -402,8 +353,8 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -421,15 +372,11 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
 test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
   test("BUG 80654: DELETE /ai/agents/:id - User cannot delete an agent", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -438,8 +385,8 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -460,15 +407,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
 
   test("BUG 80654: DELETE /ai/agents/:id - Guest cannot delete an agent", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -477,8 +420,8 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -499,15 +442,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
 
   test("DELETE /ai/agents/:id - Anonymous cannot delete an agent without authorization", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -516,8 +455,8 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -536,15 +475,11 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
 
   test("BUG 80654: DELETE /ai/agents/:id - DocSpace Admin cannot delete an agent created by Owner", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -553,8 +488,8 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -603,12 +538,7 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -617,8 +547,8 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -654,12 +584,7 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -668,8 +593,8 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -705,12 +630,7 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -719,8 +639,8 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -756,12 +676,7 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -770,8 +685,8 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -807,12 +722,7 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -821,8 +731,8 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -854,12 +764,7 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -868,8 +773,8 @@ test.describe("PUT /ai/agents/agentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -906,12 +811,7 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -920,8 +820,8 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -961,12 +861,7 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -975,8 +870,8 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1016,12 +911,7 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1030,8 +920,8 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1071,12 +961,7 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1085,8 +970,8 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1126,12 +1011,7 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
       },
     });
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1140,8 +1020,8 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1168,23 +1048,19 @@ test.describe("PUT /ai/agents/resetagentquota - access control", () => {
 test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
   test("PUT /ai/agents/:id - Non-owner roles cannot update an agent created by Owner", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
         title: "Autotest Agent",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1209,8 +1085,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
       title: "Updated Agent",
       tags: ["updated-tag"],
       chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
+        providerId: onlyofficeAiProvider.providerId,
+        modelId: onlyofficeAiProvider.defaultModel,
         prompt: "Updated prompt",
       },
     };
@@ -1276,23 +1152,19 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
   test("PUT /ai/agents/:id - Anonymous cannot update an agent without authorization", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
         title: "Autotest Agent",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1307,8 +1179,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         title: "Updated Agent",
         tags: ["updated-tag"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "Updated prompt",
         },
       },
@@ -1319,15 +1191,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
   test("PUT /ai/agents/:id - Non-admin roles and Owner cannot update an agent created by DocSpace Admin", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
@@ -1337,8 +1205,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         title: "Autotest Agent",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1359,8 +1227,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
       title: "Updated Agent",
       tags: ["updated-tag"],
       chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
+        providerId: onlyofficeAiProvider.providerId,
+        modelId: onlyofficeAiProvider.defaultModel,
         prompt: "Updated prompt",
       },
     };
@@ -1410,15 +1278,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
   test("PUT /ai/agents/:id - Owner cannot update an agent created by DocSpace Admin", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
@@ -1428,8 +1292,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         title: "Autotest Agent",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1442,8 +1306,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         title: "Updated Agent",
         tags: ["updated-tag"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "Updated prompt",
         },
       },
@@ -1457,15 +1321,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
   test("PUT /ai/agents/:id - Owner cannot update an agent created by Room Admin", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdminApi = apiSdk.forRole("roomAdmin");
@@ -1475,8 +1335,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         title: "Autotest Agent",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1489,8 +1349,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         title: "Updated Agent",
         tags: ["updated-tag"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "Updated prompt",
         },
       },
@@ -1504,15 +1364,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 
   test("PUT /ai/agents/:id - Other roles cannot update an agent created by Room Admin", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { userData: adminUserData } = await apiSdk.addMember(
       "owner",
@@ -1532,8 +1388,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
         title: "Autotest Agent",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1544,8 +1400,8 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
       title: "Updated Agent",
       tags: ["updated-tag"],
       chatSettings: {
-        providerId,
-        modelId: aiProviders.openAi.modelId,
+        providerId: onlyofficeAiProvider.providerId,
+        modelId: onlyofficeAiProvider.defaultModel,
         prompt: "Updated prompt",
       },
     };
@@ -1597,15 +1453,11 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
 test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued)", () => {
   test("BUG 80654: DELETE /ai/agents/:id - Room Admin cannot delete an agent created by Owner", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: providerData, status: providerStatus } =
-      await ownerApi.providers.addProvider({
-        createProviderRequestDto: toCreateDto(aiProviders.openAi),
-      });
-    expect(providerStatus).toBe(200);
-    const providerId = providerData.response!.id!;
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: agentData } = await ownerApi.agents.createAgent({
       createAgentRequestDto: {
@@ -1614,8 +1466,8 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued
         cover: "layers",
         tags: ["autotest"],
         chatSettings: {
-          providerId,
-          modelId: aiProviders.openAi.modelId,
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
           prompt: "You are a test assistant",
         },
       },
@@ -1632,49 +1484,5 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
-  });
-});
-
-// Skipped due to OO AI service being hidden
-test.describe
-  .skip("POST /ai/agents - Create agent with restricted model via ONLYOFFICE AI", () => {
-  test("POST /ai/agents - Owner creates agent with deepseek model when only GPT is allowed", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-
-    await topUpDeposit(ownerApi.payment, 100);
-    await creditAiBalance(ownerApi.payment, 50);
-    await enableWalletService(ownerApi.payment, "aiTools");
-
-    const nonGptModelIds = Object.values(aiProviders)
-      .map((p) => p.modelId)
-      .filter((id) => !id.toLowerCase().includes("gpt"));
-
-    await ownerApi.payment.setRestrictedAiModels({
-      setRestrictedAiModelsRequestDto: {
-        models: new Set(nonGptModelIds),
-      },
-    });
-
-    const { data, status } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Restricted Model Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: aiProviders.deepSeek.modelId,
-          prompt: "You are a test assistant powered by DeepSeek",
-        },
-      },
-    });
-
-    expect(status).toBe(400);
-    expect(data.statusCode).toBe(400);
-    expect((data as any).error.message).toBe("ModelId");
   });
 });

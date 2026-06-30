@@ -1,85 +1,16 @@
-import {
-  ProviderType,
-  CreateProviderRequestDto,
-} from "@onlyoffice/docspace-api-sdk";
-import config from "@/config";
+// The product runs AI through the built-in "ONLYOFFICE AI" gateway only.
+// Manual providers (OpenRouter, OpenAI, etc.) were removed from the product, so
+// there is no manual-provider config here — agents/chats reference the gateway
+// provider via providerId -1 + defaultModel, and the portal is provisioned with
+// enableAiGateway() from wallet-services.
+export const onlyofficeAiProvider = {
+  providerId: -1,
+  defaultModel: "gpt-5.5",
+  providerTitle: "ONLYOFFICE AI",
+} as const;
 
-export interface AiProviderConfig {
-  type: ProviderType;
-  title: string;
-  key: string;
-  modelId: string;
-}
-
-function modelSettings(
-  modelId: string,
-): CreateProviderRequestDto["modelSettings"] {
-  return new Set([
-    {
-      modelId,
-      isEnabled: true,
-      alias: modelId,
-      capabilities: { vision: false, toolCalling: false, thinking: false },
-    },
-  ]);
-}
-
-export function toCreateDto(
-  provider: AiProviderConfig,
-): CreateProviderRequestDto {
-  return {
-    type: provider.type,
-    title: provider.title,
-    key: provider.key,
-    modelSettings: modelSettings(provider.modelId),
-  };
-}
-
-export const aiProviders: Record<string, AiProviderConfig> = {
-  openAi: {
-    type: ProviderType.OpenAi,
-    title: "OpenAI",
-    key: config.OPENAI_API_KEY,
-    modelId: "gpt-5.5",
-  },
-  anthropic: {
-    type: ProviderType.Anthropic,
-    title: "Anthropic",
-    key: config.ANTHROPIC_API_KEY,
-    modelId: "claude-opus-4-8",
-  },
-  deepSeek: {
-    type: ProviderType.DeepSeek,
-    title: "DeepSeek",
-    key: config.DEEPSEEK_API_KEY,
-    modelId: "deepseek-v4-flash",
-  },
-  xAi: {
-    type: ProviderType.XAi,
-    title: "xAI",
-    key: config.XAI_API_KEY,
-    modelId: "grok-4.3",
-  },
-  googleAi: {
-    type: ProviderType.GoogleAi,
-    title: "Google AI",
-    key: config.GOOGLE_AI_API_KEY,
-    modelId: "models/gemini-3.1-pro-preview",
-  },
-  openRouter: {
-    type: ProviderType.OpenRouter,
-    title: "OpenRouter",
-    key: config.OPENROUTER_API_KEY,
-    modelId: "openai/gpt-5.4",
-  },
-  togetherAi: {
-    type: ProviderType.TogetherAi,
-    title: "Together AI",
-    key: config.TOGETHER_AI_API_KEY,
-    modelId: "Qwen/Qwen3.6-Plus",
-  },
-};
-
+// Model ids that can be restricted via the payments/wallet "restricted models"
+// setting (used by portal payment tests, unrelated to provider management).
 export const restrictableAiModelIds = [
   "claude-sonnet-4.6",
   "deepseek-v3.2",
@@ -88,19 +19,3 @@ export const restrictableAiModelIds = [
   "gpt-5.2",
   "gpt-5.4",
 ] as const;
-
-export const onlyofficeAiProvider = {
-  providerId: -1,
-  defaultModel: "gpt-5.4",
-  providerTitle: "ONLYOFFICE AI",
-} as const;
-
-export const expectedAvailableProviders = [
-  { type: 1, url: "https://api.openai.com/v1" },
-  { type: 2, url: "https://api.together.xyz/v1" },
-  { type: 4, url: "https://api.anthropic.com/v1" },
-  { type: 5, url: "https://openrouter.ai/api/v1" },
-  { type: 6, url: "https://api.deepseek.com" },
-  { type: 7, url: "https://api.x.ai/v1" },
-  { type: 8, url: "https://generativelanguage.googleapis.com/v1beta" },
-];
