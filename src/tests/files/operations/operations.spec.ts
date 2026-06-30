@@ -3288,30 +3288,32 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
     },
   );
 
-  test("PUT /api/2.0/files/fileops/copy - Copy with non-existent fileId returns 403", async ({
-    apiSdk,
-  }) => {
-    // Non-existent file ID is treated as access denied (403), not 404
-    const ownerApi = apiSdk.forRole("owner");
+  // BUG XXXXX: Non-existent fileId returns 403 (SecurityException "Access denied") instead of 404
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/fileops/copy - Non-existent fileId" +
+      " returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CopyBatch InvalidId Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch InvalidId Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
 
-    const { status } = await ownerApi.operations.copyBatchItems({
-      batchRequestDto: {
-        fileIds: [999999999],
-        destFolderId: roomData.response!.id!,
-        conflictResolveType: FileConflictResolveType.Skip,
-        deleteAfter: false,
-      },
-    });
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [999999999],
+          destFolderId: roomData.response!.id!,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
 
-    expect(status).toBe(403);
-  });
+      expect(status).toBe(404);
+    },
+  );
 
   test("PUT /api/2.0/files/fileops/copy - Copy to non-existent destFolderId returns 404", async ({
     apiSdk,
@@ -4397,6 +4399,295 @@ test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFol
         (f) => f.title === fileName,
       );
       expect(filesWithSameName.length).toBe(1);
+    },
+  );
+});
+
+test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems", () => {
+  test(
+    "PUT /api/2.0/files/fileops/delete - Owner moves file to trash returns" +
+      " 200 and file appears in trash",
+    async ({ apiSdk }) => {
+      // Catches: immediately=false must move to trash, not delete permanently
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest Delete ToTrash File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: fileName },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileId],
+          immediately: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // File must appear in trash
+      const { data: trashData } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashData.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(true);
+
+      // File must NOT be in MyDocs anymore
+      const { data: myDocs } = await ownerApi.folders.getFolderByFolderId({
+        folderId,
+      });
+      expect(
+        (myDocs.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Owner permanently deletes file" +
+      " returns 200 and file not in trash or source",
+    async ({ apiSdk }) => {
+      // Catches: immediately=true must skip trash and delete permanently
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest Delete Permanent File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: fileName },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileId],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // File must NOT be in trash
+      const { data: trashData } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashData.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+
+      // File must NOT be in MyDocs
+      const { data: myDocs } = await ownerApi.folders.getFolderByFolderId({
+        folderId,
+      });
+      expect(
+        (myDocs.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Owner moves folder to trash" +
+      " returns 200 and folder appears in trash",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const parentId = myDocsData.response!.current!.id!;
+
+      const folderTitle = "Autotest Delete FolderToTrash";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: parentId,
+        createFolder: { title: folderTitle },
+      });
+      const subFolderId = folderData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          folderIds: [subFolderId],
+          immediately: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // Folder must appear in trash
+      const { data: trashData } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashData.response?.folders ?? []).some(
+          (f) => f.title === folderTitle,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Owner permanently deletes folder" +
+      " with files returns 200 and folder removed from MyDocs",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const parentId = myDocsData.response!.current!.id!;
+
+      const folderTitle = "Autotest Delete FolderWithFiles";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: parentId,
+        createFolder: { title: folderTitle },
+      });
+      const subFolderId = folderData.response!.id!;
+
+      await ownerApi.files.createFile({
+        folderId: subFolderId,
+        createFileJsonElement: { title: "Autotest Delete InnerFile.docx" },
+      });
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          folderIds: [subFolderId],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // Folder must NOT be in MyDocs
+      const { data: myDocs } = await ownerApi.folders.getFolderByFolderId({
+        folderId: parentId,
+      });
+      expect(
+        (myDocs.response?.folders ?? []).some((f) => f.title === folderTitle),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Batch delete multiple files and" +
+      " folders returns 200 and all removed from source",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const parentId = myDocsData.response!.current!.id!;
+
+      const { data: file1 } = await ownerApi.files.createFile({
+        folderId: parentId,
+        createFileJsonElement: { title: "Autotest Batch Delete File1.docx" },
+      });
+      const { data: file2 } = await ownerApi.files.createFile({
+        folderId: parentId,
+        createFileJsonElement: { title: "Autotest Batch Delete File2.docx" },
+      });
+      const { data: folder1 } = await ownerApi.folders.createFolder({
+        folderId: parentId,
+        createFolder: { title: "Autotest Batch Delete Folder1" },
+      });
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [file1.response!.id!, file2.response!.id!],
+          folderIds: [folder1.response!.id!],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      const { data: myDocs } = await ownerApi.folders.getFolderByFolderId({
+        folderId: parentId,
+      });
+      const fileTitles = (myDocs.response?.files ?? []).map((f) => f.title);
+      const folderTitles = (myDocs.response?.folders ?? []).map((f) => f.title);
+      expect(fileTitles).not.toContain("Autotest Batch Delete File1.docx");
+      expect(fileTitles).not.toContain("Autotest Batch Delete File2.docx");
+      expect(folderTitles).not.toContain("Autotest Batch Delete Folder1");
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Empty fileIds and folderIds" +
+      " returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [],
+          folderIds: [],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+    },
+  );
+
+  test("PUT /api/2.0/files/fileops/delete - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: {
+        fileIds: [999999999],
+        immediately: true,
+      },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - File already in trash permanently" +
+      " deleted returns 200 and not in trash",
+    async ({ apiSdk }) => {
+      // Catches: double-delete should work -- move to trash then delete permanently
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest Delete FromTrash File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: fileName },
+      });
+      const fileId = fileData.response!.id!;
+
+      // Step 1: move to trash
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      // Step 2: permanently delete from trash
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // File must not be in trash
+      const { data: trashData } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashData.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
     },
   );
 });
