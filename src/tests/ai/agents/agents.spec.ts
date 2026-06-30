@@ -4,6 +4,7 @@ import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
 import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
+import { parseSseEvents } from "@/src/helpers/parse-sse-events";
 
 test.describe("POST /ai/agents - Create AI agent", () => {
   test("POST /ai/agents - Owner creates an agent", async ({
@@ -168,6 +169,76 @@ test.describe("POST /ai/agents - Create AI agent with invalid modelId", () => {
       "The value cannot be an empty string. (Parameter 'chatSettings.ModelId')",
     );
   });
+});
+
+test.describe("POST /ai/agents - Create AI agent with oversized AI Instructions", () => {
+  // AI Instructions (prompt) length significantly exceeding a normal prompt size.
+  const OVERSIZED_PROMPT = "A".repeat(1_000_000);
+
+  test.fail(
+    "BUG 82190: POST /ai/agents - Room Admin creates an agent with an oversized prompt and the agent stays usable",
+    async ({ apiSdk, paymentsApi }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+
+      // Step 1: Room Admin creates an agent with an excessively long AI Instructions.
+      // Correct behavior: either the prompt length is limited / rejected with a clear
+      // error before saving, or the agent is created but stays operational.
+      const { data: agentData, status: createStatus } =
+        await roomAdminApi.agents.createAgent({
+          createAgentRequestDto: {
+            title: "Autotest Oversized Prompt Agent",
+            color: "FF5733",
+            cover: "layers",
+            tags: ["autotest"],
+            chatSettings: {
+              providerId: onlyofficeAiProvider.providerId,
+              modelId: onlyofficeAiProvider.defaultModel,
+              prompt: OVERSIZED_PROMPT,
+            },
+          },
+        });
+
+      // Acceptable fix path: the oversized prompt is rejected up front with a
+      // validation error and no agent is created.
+      if (createStatus !== 200) {
+        expect(createStatus).toBe(400);
+        return;
+      }
+
+      const agentRoomId = agentData.response!.id!;
+
+      // Step 2: Using the agent (starting a chat) must remain operational and must
+      // NOT fail with an internal server error such as
+      // "Out of sort memory, consider increasing server sort buffer size".
+      const response = await roomAdminApi.chat.startNewChat(
+        {
+          roomId: agentRoomId,
+          startNewChatBody: {
+            message: "What is 2+2? Answer in one word.",
+          },
+        },
+        { responseType: "stream", timeout: 30000 },
+      );
+
+      const { messageStart, messageStop, tokens } = parseSseEvents(
+        response.data,
+      );
+
+      expect(response.status).toBe(200);
+      expect(messageStart).toBeDefined();
+      expect(messageStart!.data.error).toBe("");
+      expect(tokens.length).toBeGreaterThan(0);
+      expect(messageStop).toBeDefined();
+      expect(messageStop!.data.messageId).toBeGreaterThan(0);
+    },
+  );
 });
 
 test.describe("GET /ai/agents - Get AI agents", () => {
