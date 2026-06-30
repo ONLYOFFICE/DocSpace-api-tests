@@ -2341,3 +2341,295 @@ test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFol
     },
   );
 });
+
+test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems - Permissions", () => {
+  test("PUT /api/2.0/files/fileops/delete - Unauthenticated request returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsData.response!.current!.id!,
+      createFileJsonElement: {
+        title: "Autotest Delete Perm Anon File.docx",
+      },
+    });
+
+    const anonConfig = new Configuration({
+      basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { status } = await anonOperations.deleteBatchItems({
+      deleteBatchRequestDto: {
+        fileIds: [fileData.response!.id!],
+        immediately: true,
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Owner deletes file from room" +
+      " returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Delete Perm Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest Delete Perm Owner File.docx",
+        },
+      });
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // File must be gone from the room
+      const { data: roomContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(
+        (roomContent.response?.files ?? []).some(
+          (f) => f.title === "Autotest Delete Perm Owner File.docx",
+        ),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - RoomAdmin with RoomManager access" +
+      " deletes file returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Delete Perm RoomAdmin Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest Delete Perm RoomAdmin File.docx",
+        },
+      });
+
+      const { data: roomAdminData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            {
+              id: roomAdminData.response!.id!,
+              access: FileShare.RoomManager,
+            },
+          ],
+          notify: false,
+        },
+      });
+
+      const roomAdminApi = apiSdk.forRole("roomAdmin");
+      const { data, status } = await roomAdminApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(roomAdminApi.operations);
+
+      // File must be gone from the room
+      const { data: roomContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(
+        (roomContent.response?.files ?? []).some(
+          (f) => f.title === "Autotest Delete Perm RoomAdmin File.docx",
+        ),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - User with Editing access cannot" +
+      " delete file returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Delete Perm Editing Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest Delete Perm Editing File.docx",
+        },
+      });
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: userData.response!.id!, access: FileShare.Editing },
+          ],
+          notify: false,
+        },
+      });
+
+      const { status } = await userApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(403);
+
+      // File must still be in the room -- 403 must not cause deletion
+      const { data: roomContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(
+        (roomContent.response?.files ?? []).some(
+          (f) => f.title === "Autotest Delete Perm Editing File.docx",
+        ),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - User with Read access cannot" +
+      " delete file returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Delete Perm Read Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest Delete Perm Read File.docx",
+        },
+      });
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userData.response!.id!, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      const { status } = await userApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(403);
+
+      // File must still be in the room -- 403 must not cause deletion
+      const { data: roomContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(
+        (roomContent.response?.files ?? []).some(
+          (f) => f.title === "Autotest Delete Perm Read File.docx",
+        ),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - User not invited to room cannot" +
+      " delete file returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Delete Perm NonMember Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest Delete Perm NonMember File.docx",
+        },
+      });
+
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+
+      const { status } = await userApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(403);
+
+      // File must still be in the room -- 403 must not cause deletion
+      const { data: roomContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: roomId,
+      });
+      expect(
+        (roomContent.response?.files ?? []).some(
+          (f) => f.title === "Autotest Delete Perm NonMember File.docx",
+        ),
+      ).toBe(true);
+    },
+  );
+});
