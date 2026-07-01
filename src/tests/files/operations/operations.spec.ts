@@ -3288,30 +3288,32 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
     },
   );
 
-  test("PUT /api/2.0/files/fileops/copy - Copy with non-existent fileId returns 403", async ({
-    apiSdk,
-  }) => {
-    // Non-existent file ID is treated as access denied (403), not 404
-    const ownerApi = apiSdk.forRole("owner");
+  // BUG 82204: Non-existent fileId returns 403 (SecurityException "Access denied") instead of 404
+  test.fail(
+    "BUG 82204: PUT /api/2.0/files/fileops/copy - Non-existent fileId" +
+      " returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CopyBatch InvalidId Room",
-        roomType: RoomType.CustomRoom,
-      },
-    });
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch InvalidId Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
 
-    const { status } = await ownerApi.operations.copyBatchItems({
-      batchRequestDto: {
-        fileIds: [999999999],
-        destFolderId: roomData.response!.id!,
-        conflictResolveType: FileConflictResolveType.Skip,
-        deleteAfter: false,
-      },
-    });
+      const { status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [999999999],
+          destFolderId: roomData.response!.id!,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
 
-    expect(status).toBe(403);
-  });
+      expect(status).toBe(404);
+    },
+  );
 
   test("PUT /api/2.0/files/fileops/copy - Copy to non-existent destFolderId returns 404", async ({
     apiSdk,
@@ -4399,4 +4401,859 @@ test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFol
       expect(filesWithSameName.length).toBe(1);
     },
   );
+});
+
+test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems", () => {
+  test(
+    "PUT /api/2.0/files/fileops/delete - Owner moves file to trash returns" +
+      " 200 and file appears in trash",
+    async ({ apiSdk }) => {
+      // Catches: immediately=false must move to trash, not delete permanently
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest Delete ToTrash File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: fileName },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileId],
+          immediately: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // File must appear in trash
+      const { data: trashData } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashData.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(true);
+
+      // File must NOT be in MyDocs anymore
+      const { data: myDocs } = await ownerApi.folders.getFolderByFolderId({
+        folderId,
+      });
+      expect(
+        (myDocs.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Owner permanently deletes file" +
+      " returns 200 and file not in trash or source",
+    async ({ apiSdk }) => {
+      // Catches: immediately=true must skip trash and delete permanently
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest Delete Permanent File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: fileName },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileId],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // File must NOT be in trash
+      const { data: trashData } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashData.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+
+      // File must NOT be in MyDocs
+      const { data: myDocs } = await ownerApi.folders.getFolderByFolderId({
+        folderId,
+      });
+      expect(
+        (myDocs.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Owner moves folder to trash" +
+      " returns 200 and folder appears in trash",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const parentId = myDocsData.response!.current!.id!;
+
+      const folderTitle = "Autotest Delete FolderToTrash";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: parentId,
+        createFolder: { title: folderTitle },
+      });
+      const subFolderId = folderData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          folderIds: [subFolderId],
+          immediately: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // Folder must appear in trash
+      const { data: trashData } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashData.response?.folders ?? []).some(
+          (f) => f.title === folderTitle,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Owner permanently deletes folder" +
+      " with files returns 200 and folder removed from MyDocs",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const parentId = myDocsData.response!.current!.id!;
+
+      const folderTitle = "Autotest Delete FolderWithFiles";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: parentId,
+        createFolder: { title: folderTitle },
+      });
+      const subFolderId = folderData.response!.id!;
+
+      await ownerApi.files.createFile({
+        folderId: subFolderId,
+        createFileJsonElement: { title: "Autotest Delete InnerFile.docx" },
+      });
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          folderIds: [subFolderId],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // Folder must NOT be in MyDocs
+      const { data: myDocs } = await ownerApi.folders.getFolderByFolderId({
+        folderId: parentId,
+      });
+      expect(
+        (myDocs.response?.folders ?? []).some((f) => f.title === folderTitle),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Batch delete multiple files and" +
+      " folders returns 200 and all removed from source",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const parentId = myDocsData.response!.current!.id!;
+
+      const { data: file1 } = await ownerApi.files.createFile({
+        folderId: parentId,
+        createFileJsonElement: { title: "Autotest Batch Delete File1.docx" },
+      });
+      const { data: file2 } = await ownerApi.files.createFile({
+        folderId: parentId,
+        createFileJsonElement: { title: "Autotest Batch Delete File2.docx" },
+      });
+      const { data: folder1 } = await ownerApi.folders.createFolder({
+        folderId: parentId,
+        createFolder: { title: "Autotest Batch Delete Folder1" },
+      });
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [file1.response!.id!, file2.response!.id!],
+          folderIds: [folder1.response!.id!],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      const { data: myDocs } = await ownerApi.folders.getFolderByFolderId({
+        folderId: parentId,
+      });
+      const fileTitles = (myDocs.response?.files ?? []).map((f) => f.title);
+      const folderTitles = (myDocs.response?.folders ?? []).map((f) => f.title);
+      expect(fileTitles).not.toContain("Autotest Batch Delete File1.docx");
+      expect(fileTitles).not.toContain("Autotest Batch Delete File2.docx");
+      expect(folderTitles).not.toContain("Autotest Batch Delete Folder1");
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - Empty fileIds and folderIds" +
+      " returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [],
+          folderIds: [],
+          immediately: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+    },
+  );
+
+  test("PUT /api/2.0/files/fileops/delete - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: {
+        fileIds: [999999999],
+        immediately: true,
+      },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test(
+    "PUT /api/2.0/files/fileops/delete - File already in trash permanently" +
+      " deleted returns 200 and not in trash",
+    async ({ apiSdk }) => {
+      // Catches: double-delete should work -- move to trash then delete permanently
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest Delete FromTrash File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: fileName },
+      });
+      const fileId = fileData.response!.id!;
+
+      // Step 1: move to trash
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      // Step 2: permanently delete from trash
+      const { data, status } = await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      // File must not be in trash
+      const { data: trashData } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashData.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+    },
+  );
+});
+
+test.describe("PUT /api/2.0/files/fileops/deleteversion - deleteFileVersions", () => {
+  test("PUT /api/2.0/files/fileops/deleteversion - Delete version 1 from file with 2 versions returns 200 operation Delete and version 1 is gone", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelVer Single File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data, status } = await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: { fileId, versions: [1] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    await waitForOperation(ownerApi.operations);
+
+    const { data: versionsData } = await ownerApi.files.getFileVersionInfo({
+      fileId,
+    });
+    const versionNumbers = versionsData.response!.map((v) => v.version);
+    expect(versionNumbers).not.toContain(1);
+    expect(versionNumbers).toContain(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/deleteversion - Delete multiple versions at once returns 200 and only remaining version stays", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelVer Multi File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 3 } });
+
+    const { data, status } = await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: { fileId, versions: [1, 2] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    await waitForOperation(ownerApi.operations);
+
+    const { data: versionsData } = await ownerApi.files.getFileVersionInfo({
+      fileId,
+    });
+    const versionNumbers = versionsData.response!.map((v) => v.version);
+    expect(versionNumbers).not.toContain(1);
+    expect(versionNumbers).not.toContain(2);
+    expect(versionNumbers).toContain(3);
+  });
+
+  test("PUT /api/2.0/files/fileops/deleteversion - File is still accessible in source folder after version deletion", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelVer Accessible.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+
+    await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: { fileId, versions: [1] },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data: folderContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: myDocsFolderId,
+    });
+    const titles = (folderContent.response!.files ?? []).map((f) => f.title);
+    expect(titles).toContain("Autotest DelVer Accessible.docx");
+  });
+
+  test("PUT /api/2.0/files/fileops/deleteversion - Non-existent version number silently ignored returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelVer NonExistVer.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: { fileId, versions: [999] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    await waitForOperation(ownerApi.operations);
+
+    const { data: versionsData } = await ownerApi.files.getFileVersionInfo({
+      fileId,
+    });
+    expect(versionsData.response!.length).toBe(1);
+    expect(versionsData.response![0].version).toBe(1);
+  });
+
+  test("PUT /api/2.0/files/fileops/deleteversion - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: { fileId: 999999999, versions: [1] },
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("PUT /api/2.0/files/fileops/deleteversion - File in Custom Room version deleted and only remaining version stays", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest DelVer CustomRoom",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest DelVer Room File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+
+    const { data, status } = await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: { fileId, versions: [1] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    await waitForOperation(ownerApi.operations);
+
+    const { data: versionsData } = await ownerApi.files.getFileVersionInfo({
+      fileId,
+    });
+    const versionNumbers = versionsData.response!.map((v) => v.version);
+    expect(versionNumbers).not.toContain(1);
+    expect(versionNumbers).toContain(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/deleteversion - File in archived room cannot delete versions returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest DelVer ArchivedRoom",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest DelVer Archived File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: { fileId, versions: [1] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/fileops/deleteversion - File moved to trash cannot delete versions returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelVer Trash File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+
+    await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: { fileId, versions: [1] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/fileops/deleteversion - versions null returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelVer Null Versions.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+
+    const { data, status } = await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: { fileId, versions: null },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/fileops/deleteversion - returnSingleOperation true returns 200 and version is deleted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest DelVer SingleOp File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({ fileId, updateFile: { lastVersion: 2 } });
+
+    const { data, status } = await ownerApi.operations.deleteFileVersions({
+      deleteVersionBatchRequestDto: {
+        fileId,
+        versions: [1],
+        returnSingleOperation: true,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBeDefined();
+
+    await waitForOperation(ownerApi.operations);
+
+    const { data: versionsData } = await ownerApi.files.getFileVersionInfo({
+      fileId,
+    });
+    const versionNumbers = versionsData.response!.map((v) => v.version);
+    expect(versionNumbers).not.toContain(1);
+    expect(versionNumbers).toContain(2);
+  });
+});
+
+test.describe("DELETE /api/2.0/files/favorites - Remove favorite files and folders", () => {
+  test("DELETE /api/2.0/files/favorites - Delete file from favorites returns 200 response true and file no longer appears in getFavoritesFolder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelFav File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+
+    const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+    const titles = (favData.response!.files ?? []).map((f) => f.title);
+    expect(titles).not.toContain("Autotest DelFav File.docx");
+  });
+
+  test("DELETE /api/2.0/files/favorites - Delete folder from favorites returns 200 response true and folder no longer appears in getFavoritesFolder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest DelFav Folder" },
+    });
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { folderIds: [folderId] },
+    });
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { folderIds: [folderId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+
+    const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+    const folderTitles = (favData.response!.folders ?? []).map((f) => f.title);
+    expect(folderTitles).not.toContain("Autotest DelFav Folder");
+  });
+
+  test("DELETE /api/2.0/files/favorites - Delete multiple files at once all removed from getFavoritesFolder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelFav Multi1.docx" },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelFav Multi2.docx" },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { fileIds: [fileId1, fileId2] },
+    });
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { fileIds: [fileId1, fileId2] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+
+    const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+    const titles = (favData.response!.files ?? []).map((f) => f.title);
+    expect(titles).not.toContain("Autotest DelFav Multi1.docx");
+    expect(titles).not.toContain("Autotest DelFav Multi2.docx");
+  });
+
+  test("DELETE /api/2.0/files/favorites - Delete multiple folders at once all removed from getFavoritesFolder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: folder1Data } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest DelFav MultiFolderA" },
+    });
+    const { data: folder2Data } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest DelFav MultiFolderB" },
+    });
+    const folderId1 = folder1Data.response!.id!;
+    const folderId2 = folder2Data.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { folderIds: [folderId1, folderId2] },
+    });
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { folderIds: [folderId1, folderId2] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+
+    const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+    const folderTitles = (favData.response!.folders ?? []).map((f) => f.title);
+    expect(folderTitles).not.toContain("Autotest DelFav MultiFolderA");
+    expect(folderTitles).not.toContain("Autotest DelFav MultiFolderB");
+  });
+
+  test("DELETE /api/2.0/files/favorites - Delete file and folder simultaneously both removed from getFavoritesFolder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelFav Mixed File.docx" },
+    });
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest DelFav Mixed Folder" },
+    });
+    const fileId = fileData.response!.id!;
+    const folderId = folderData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { fileIds: [fileId], folderIds: [folderId] },
+    });
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { fileIds: [fileId], folderIds: [folderId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+
+    const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+    const fileTitles = (favData.response!.files ?? []).map((f) => f.title);
+    const folderTitles = (favData.response!.folders ?? []).map((f) => f.title);
+    expect(fileTitles).not.toContain("Autotest DelFav Mixed File.docx");
+    expect(folderTitles).not.toContain("Autotest DelFav Mixed Folder");
+  });
+
+  test("DELETE /api/2.0/files/favorites - Source file is still accessible after removing from favorites", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelFav Source File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    const { data: folderContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: myDocsFolderId,
+    });
+    const titles = (folderContent.response!.files ?? []).map((f) => f.title);
+    expect(titles).toContain("Autotest DelFav Source File.docx");
+  });
+
+  test("DELETE /api/2.0/files/favorites - Delete file not in favorites is idempotent returns 200 response true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest DelFav Idempotent File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/favorites - Empty body returns 200 response true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody(
+      {},
+    );
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/favorites - Empty fileIds and folderIds arrays returns 200 response true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { fileIds: [], folderIds: [] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/favorites - Non-existent fileId returns 200 response true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { fileIds: [999999999] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/favorites - Non-existent folderId returns 200 response true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.operations.deleteFavoritesFromBody({
+      baseBatchRequestDto: { folderIds: [999999999] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
 });
