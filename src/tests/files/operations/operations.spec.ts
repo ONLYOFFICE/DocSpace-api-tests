@@ -5462,9 +5462,9 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // BUG XXXXX: duplicateBatchItems returns 500 instead of 404 for non-existent fileId
+  // BUG 82210: duplicateBatchItems returns 500 instead of 404 for non-existent fileId
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/fileops/duplicate - Non-existent fileId returns 404",
+    "BUG 82210: PUT /api/2.0/files/fileops/duplicate - Non-existent fileId returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -5533,9 +5533,9 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
     expect(status).toBe(403);
   });
 
-  // BUG XXXXX: duplicateBatchItems returns 500 instead of 404 for non-existent folderId
+  // BUG 82210: duplicateBatchItems returns 500 instead of 404 for non-existent folderId
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/fileops/duplicate - Non-existent folderId returns 404",
+    "BUG 82210: PUT /api/2.0/files/fileops/duplicate - Non-existent folderId returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -5691,6 +5691,235 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
         (f) => f.title?.includes(fileBase),
       );
       expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+    },
+  );
+});
+
+test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
+  test(
+    "PUT /api/2.0/files/fileops/emptytrash - Empty trash with one file" +
+      " returns 200 and file no longer in trash",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest EmptyTrash File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileName },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data: trashBefore } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashBefore.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(true);
+
+      const { data, status } = await ownerApi.operations.emptyTrash();
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      const { data: trashAfter } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashAfter.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/emptytrash - Empty trash with one folder" +
+      " returns 200 and folder no longer in trash",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const folderTitle = "Autotest EmptyTrash Folder";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: folderTitle },
+      });
+      const folderId = folderData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { folderIds: [folderId], immediately: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data: trashBefore } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashBefore.response?.folders ?? []).some(
+          (f) => f.title === folderTitle,
+        ),
+      ).toBe(true);
+
+      const { data, status } = await ownerApi.operations.emptyTrash();
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      const { data: trashAfter } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashAfter.response?.folders ?? []).some(
+          (f) => f.title === folderTitle,
+        ),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/emptytrash - Empty trash with mixed content" +
+      " returns 200 and trash is empty",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest EmptyTrash Mixed File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileName },
+      });
+      const fileId = fileData.response!.id!;
+
+      const folderTitle = "Autotest EmptyTrash Mixed Folder";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: folderTitle },
+      });
+      const folderId = folderData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: {
+          fileIds: [fileId],
+          folderIds: [folderId],
+          immediately: false,
+        },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.operations.emptyTrash();
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      const { data: trashAfter } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashAfter.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+      expect(
+        (trashAfter.response?.folders ?? []).some(
+          (f) => f.title === folderTitle,
+        ),
+      ).toBe(false);
+    },
+  );
+
+  test("PUT /api/2.0/files/fileops/emptytrash - Empty already empty trash returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.operations.emptyTrash();
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test(
+    "PUT /api/2.0/files/fileops/emptytrash - File deleted from room" +
+      " appears in personal trash and is removed by emptyTrash returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest EmptyTrash Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const fileName = "Autotest EmptyTrash Room File.docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: fileName },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data: trashBefore } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashBefore.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(true);
+
+      const { data, status } = await ownerApi.operations.emptyTrash();
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      const { data: trashAfter } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashAfter.response?.files ?? []).some((f) => f.title === fileName),
+      ).toBe(false);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/emptytrash - single=true returns array with" +
+      " operation of type Delete",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: "Autotest EmptyTrash Single.docx" },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await ownerApi.operations.emptyTrash({
+        single: true,
+      });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response![0].Operation).toBe(FileOperationType.Delete);
+
+      await waitForOperation(ownerApi.operations);
+
+      const { data: trashAfter } = await ownerApi.folders.getTrashFolder();
+      expect(
+        (trashAfter.response?.files ?? []).some(
+          (f) => f.title === "Autotest EmptyTrash Single.docx",
+        ),
+      ).toBe(false);
     },
   );
 });
