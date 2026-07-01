@@ -1306,6 +1306,522 @@ test.describe("API rooms methods", () => {
     });
   });
 
+  // PUT /files/rooms/:id/unarchive — unarchiveRoom.
+  // Moves a room from Archive back to the active Rooms list. The call is
+  // asynchronous: it returns a FileOperationWrapper (data.response is a
+  // FileOperationDto) and the state change is only guaranteed once the operation
+  // reported by getOperationStatuses is finished — hence waitForOperation after
+  // every successful call. Owner happy-path lists/metadata/pin coverage lives in
+  // the "PUT /files/rooms/:id/archive" block above; this block covers request
+  // body variants, id validation, the async contract, and integration cycles.
+  test.describe("PUT /files/rooms/:id/unarchive", () => {
+    type RoleApi = ReturnType<ApiSDK["forRole"]>;
+
+    async function createArchivedRoom(
+      api: RoleApi,
+      title: string,
+      roomType: RoomType = RoomType.CustomRoom,
+      extra: Record<string, unknown> = {},
+    ) {
+      const { data } = await api.rooms.createRoom({
+        createRoomRequestDto: { title, roomType, ...extra },
+      });
+      const roomId = data.response!.id!;
+      await api.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(api.operations);
+      return roomId;
+    }
+
+    async function isInActiveList(
+      api: { rooms: RoomsApi },
+      roomId: number,
+    ): Promise<boolean> {
+      const { data } = await api.rooms.getRoomsFolder({
+        searchArea: SearchArea.Active,
+      });
+      return data.response!.folders!.some((f) => (f as any).id === roomId);
+    }
+
+    async function isInArchiveList(
+      api: { rooms: RoomsApi },
+      roomId: number,
+    ): Promise<boolean> {
+      const { data } = await api.rooms.getRoomsFolder({
+        searchArea: SearchArea.Archive,
+      });
+      return data.response!.folders!.some((f) => (f as any).id === roomId);
+    }
+
+    test.describe("Request body variants", () => {
+      test("PUT /files/rooms/:id/unarchive - Works without a request body", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive No Body",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({ id: roomId });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(operation.error).toBe("");
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Works with empty body {}", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Empty Body",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: {},
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Works with deleteAfter: true", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive deleteAfter true",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: true },
+        });
+
+        // deleteAfter: true still restores the room. Unlike deleteAfter: false it
+        // enqueues no async operation (getOperationStatuses stays empty) — the
+        // room is moved back to Active synchronously, so poll the list directly
+        // instead of waitForOperation.
+        expect(status).toBe(200);
+        await expect(async () => {
+          expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unknown body fields are ignored", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Extra Fields",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false, bogus: "x", n: 1 } as any,
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Invalid deleteAfter type (string) returns 400", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Bad deleteAfter",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: "false" as any },
+        });
+
+        // Room must stay archived on a rejected request.
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(true);
+        expect(status).toBe(400);
+      });
+    });
+
+    test.describe("Async operation contract", () => {
+      test("PUT /files/rooms/:id/unarchive - Response is a FileOperationWrapper", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Wrapper",
+        );
+
+        const { data, status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(data.response).toBeDefined();
+        expect(data.response!.id).toBeDefined();
+        expect(typeof data.response!.progress).toBe("number");
+        expect(typeof data.response!.finished).toBe("boolean");
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Second call while the operation is running does not corrupt state", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Double Call",
+        );
+
+        const first = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        const second = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        // Neither call should 500; the room ends up active and consistent.
+        expect(first.status).toBe(200);
+        expect([200, 403]).toContain(second.status);
+        expect(operation.finished).toBe(true);
+        expect(operation.error).toBe("");
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unarchiving an already active room is a no-op (200)", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Repeat",
+        );
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        // Room is already active; a second unarchive must not error or re-archive it.
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Active (never archived) room returns 200 and stays active", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: created } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Unarchive Never Archived",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = created.response!.id!;
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+    });
+
+    test.describe("Invalid id validation", () => {
+      test("PUT /files/rooms/:id/unarchive - Non-existent room id returns 404", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { data } = await ownerApi.rooms.unarchiveRoom({
+          id: 999999999,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(data.statusCode).toBe(404);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Deleted room id returns 404", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: created } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Unarchive Deleted Room",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = created.response!.id!;
+
+        await ownerApi.rooms.deleteRoom({
+          id: roomId,
+          deleteRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(data.statusCode).toBe(404);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - id = 0 must not return 200", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: 0,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(status).not.toBe(200);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Negative id must not return 200", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: -1,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(status).not.toBe(200);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Missing id throws before the request is sent", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        await expect(
+          ownerApi.rooms.unarchiveRoom({
+            archiveRoomRequest: { deleteAfter: false },
+          } as any),
+        ).rejects.toThrow();
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Non-numeric id does not succeed", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: "abc" as any,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(status).not.toBe(200);
+      });
+    });
+
+    test.describe("Integration cycles", () => {
+      test("PUT /files/rooms/:id/unarchive - Room can be archived, unarchived, then archived again", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Re-archive",
+        );
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+
+        const { status } = await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unarchived room can be renamed again", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Rename",
+        );
+
+        // Rename is forbidden while archived (read-only), allowed once restored.
+        const archivedRename = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { title: "Should Fail While Archived" },
+        });
+        expect(archivedRename.status).toBe(403);
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data, status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { title: "Renamed After Unarchive" },
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.title).toBe("Renamed After Unarchive");
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unarchived room can be shared again", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: memberData } = await apiSdk.addMember("owner", "User");
+        const userId = memberData.response!.id!;
+
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Share",
+        );
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status } = await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access: FileShare.Editing }],
+            notify: false,
+          },
+        });
+
+        expect(status).toBe(200);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Room content (file and folder) survives archive → unarchive", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Unarchive Content Round-Trip",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        const { data: fileData } = await ownerApi.files.createFile({
+          folderId: roomId,
+          createFileJsonElement: { title: "Autotest File Round-Trip" },
+        });
+        const fileId = fileData.response!.id!;
+
+        const { data: folderData } = await ownerApi.folders.createFolder({
+          folderId: roomId,
+          createFolder: { title: "Autotest Folder Round-Trip" },
+        });
+        const folderId = folderData.response!.id!;
+
+        await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data: folderContent, status } =
+          await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+
+        expect(status).toBe(200);
+        const folderIds = (folderContent.response!.folders ?? []).map(
+          (f) => (f as any).id,
+        );
+        const fileIds = (folderContent.response!.files ?? []).map(
+          (f) => (f as any).id,
+        );
+        expect(folderIds).toContain(folderId);
+        expect(fileIds).toContain(fileId);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unarchived VDR room can start index export", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive VDR IndexExport",
+          RoomType.VirtualDataRoom,
+          { indexing: true },
+        );
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data, status } = await ownerApi.rooms.startRoomIndexExport({
+          id: roomId,
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.id).toBeDefined();
+        expect(data.response!.error).toBeFalsy();
+
+        await ownerApi.rooms.terminateRoomIndexExport();
+      });
+    });
+  });
+
   test("PUT /files/rooms/:id/pin and unpin", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: createData } = await ownerApi.rooms.createRoom({
