@@ -5257,3 +5257,440 @@ test.describe("DELETE /api/2.0/files/favorites - Remove favorite files and folde
     expect(data.response).toBe(true);
   });
 });
+
+test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () => {
+  test("PUT /api/2.0/files/fileops/duplicate - Duplicate file in My Documents returns 200 Operation Duplicate and duplicate appears in same folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const fileBase = "Autotest Dup Single File";
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: `${fileBase}.docx` },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response![0].Operation).toBe(FileOperationType.Duplicate);
+
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+
+    const { data: folderContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: myDocsFolderId,
+    });
+    const matchingFiles = (folderContent.response!.files ?? []).filter((f) =>
+      f.title?.includes(fileBase),
+    );
+    expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - Duplicate folder in My Documents returns 200 and duplicate folder appears in same location", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const folderBase = "Autotest Dup Single Folder";
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: folderBase },
+    });
+    const folderId = folderData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { folderIds: [folderId as any] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response![0].Operation).toBe(FileOperationType.Duplicate);
+
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+
+    const { data: folderContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: myDocsFolderId,
+    });
+    const matchingFolders = (folderContent.response!.folders ?? []).filter(
+      (f) => f.title?.includes(folderBase),
+    );
+    expect(matchingFolders.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - Duplicate multiple files at once all duplicates appear in same folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const base1 = "Autotest Dup Multi FileA";
+    const base2 = "Autotest Dup Multi FileB";
+    const { data: file1Data } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: `${base1}.docx` },
+    });
+    const { data: file2Data } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: `${base2}.docx` },
+    });
+    const fileId1 = file1Data.response!.id!;
+    const fileId2 = file2Data.response!.id!;
+
+    const { data, status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId1 as any, fileId2 as any] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response![0].Operation).toBe(FileOperationType.Duplicate);
+
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+
+    const { data: folderContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: myDocsFolderId,
+    });
+    const files = folderContent.response!.files ?? [];
+    expect(
+      files.filter((f) => f.title?.includes(base1)).length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      files.filter((f) => f.title?.includes(base2)).length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - Duplicate file in Custom Room returns 200 and duplicate appears in room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Dup Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileBase = "Autotest Dup Room File";
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: `${fileBase}.docx` },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response![0].Operation).toBe(FileOperationType.Duplicate);
+
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+
+    const { data: roomContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: roomId,
+    });
+    const matchingFiles = (roomContent.response!.files ?? []).filter((f) =>
+      f.title?.includes(fileBase),
+    );
+    expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - File with diacritical characters created and duplicated returns 200 and both appear in folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const fileBase = "Autotest Dup Üñó Résumé";
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: `${fileBase}.docx` },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: createdFile, status: createStatus } =
+      await ownerApi.files.getFileInfo({ fileId });
+    expect(createStatus).toBe(200);
+    expect(createdFile.response!.title).toContain("Üñó");
+
+    const { data, status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response![0].Operation).toBe(FileOperationType.Duplicate);
+
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+
+    const { data: folderContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: myDocsFolderId,
+    });
+    const matchingFiles = (folderContent.response!.files ?? []).filter((f) =>
+      f.title?.includes(fileBase),
+    );
+    expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - Empty fileIds array returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [] },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  // BUG XXXXX: duplicateBatchItems returns 500 instead of 404 for non-existent fileId
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/fileops/duplicate - Non-existent fileId returns 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.operations.duplicateBatchItems({
+        duplicateRequestDto: { fileIds: [999999999 as any] },
+      });
+
+      expect(status).toBe(404);
+    },
+  );
+
+  test("PUT /api/2.0/files/fileops/duplicate - File in archived room cannot be duplicated returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Dup Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Dup Archived File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - File in trash cannot be duplicated returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest Dup Trash File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  // BUG XXXXX: duplicateBatchItems returns 500 instead of 404 for non-existent folderId
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/fileops/duplicate - Non-existent folderId returns 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.operations.duplicateBatchItems({
+        duplicateRequestDto: { folderIds: [999999999 as any] },
+      });
+
+      expect(status).toBe(404);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/duplicate - Duplicate folder with nested file" +
+      " returns 200 and nested file appears in duplicate folder",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const folderBase = "Autotest Dup Nested Folder";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: folderBase },
+      });
+      const folderId = folderData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: "Autotest Dup Nested File.docx" },
+      });
+      const innerFileTitle = fileData.response!.title!;
+
+      const { data, status } = await ownerApi.operations.duplicateBatchItems({
+        duplicateRequestDto: { folderIds: [folderId as any] },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Duplicate);
+
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+      expect(operation.error).toBe("");
+
+      const { data: myDocsContent } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: myDocsFolderId,
+        });
+      const matchingFolders = (
+        myDocsContent.response!.folders as FolderDtoInteger[]
+      ).filter((f) => f.title?.includes(folderBase));
+      expect(matchingFolders.length).toBeGreaterThanOrEqual(2);
+
+      const duplicateFolder = matchingFolders.find((f) => f.id !== folderId)!;
+      const { data: dupContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: duplicateFolder.id!,
+      });
+      expect(
+        (dupContent.response!.files ?? []).some(
+          (f) => f.title === innerFileTitle,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/duplicate - Duplicate file and folder together" +
+      " returns 200 and both duplicates appear",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const fileBase = "Autotest Dup Mixed File";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: `${fileBase}.docx` },
+      });
+      const fileId = fileData.response!.id!;
+
+      const folderBase = "Autotest Dup Mixed Folder";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: folderBase },
+      });
+      const folderId = folderData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.duplicateBatchItems({
+        duplicateRequestDto: {
+          fileIds: [fileId as any],
+          folderIds: [folderId as any],
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Duplicate);
+
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+      expect(operation.error).toBe("");
+
+      const { data: myDocsContent } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: myDocsFolderId,
+        });
+      const matchingFiles = (myDocsContent.response!.files ?? []).filter((f) =>
+        f.title?.includes(fileBase),
+      );
+      const matchingFolders = (myDocsContent.response!.folders ?? []).filter(
+        (f) => f.title?.includes(folderBase),
+      );
+      expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+      expect(matchingFolders.length).toBeGreaterThanOrEqual(2);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/duplicate - Duplicate file in nested subfolder" +
+      " returns 200 and duplicate appears in same subfolder",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: subFolderData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest Dup Subfolder" },
+      });
+      const subFolderId = subFolderData.response!.id!;
+
+      const fileBase = "Autotest Dup Subfolder File";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: subFolderId,
+        createFileJsonElement: { title: `${fileBase}.docx` },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.duplicateBatchItems({
+        duplicateRequestDto: { fileIds: [fileId as any] },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Duplicate);
+
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+      expect(operation.error).toBe("");
+
+      const { data: subFolderContent } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: subFolderId,
+        });
+      const matchingFiles = (subFolderContent.response!.files ?? []).filter(
+        (f) => f.title?.includes(fileBase),
+      );
+      expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+    },
+  );
+});
