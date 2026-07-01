@@ -3021,3 +3021,306 @@ test.describe("DELETE /api/2.0/files/favorites - access control", () => {
     expect(titles).not.toContain("Autotest DelFav Guest File.docx");
   });
 });
+
+test.describe("PUT /api/2.0/files/fileops/duplicate - Permissions", () => {
+  test("PUT /api/2.0/files/fileops/duplicate - Anonymous user cannot duplicate returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest Dup Anon File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const anonConfig = new Configuration({
+      basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { status } = await anonOperations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - Owner duplicates own file returns 200 and duplicate appears in folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const fileBase = "Autotest Dup Owner File";
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: `${fileBase}.docx` },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+
+    const { data: folderContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: myDocsFolderId,
+    });
+    const matchingFiles = (folderContent.response!.files ?? []).filter((f) =>
+      f.title?.includes(fileBase),
+    );
+    expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - User with ContentCreator access can duplicate file in room returns 200 and duplicate appears", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Dup User ContentCreator Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileBase = "Autotest Dup User ContentCreator File";
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: `${fileBase}.docx` },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(userApi.operations);
+    expect(operation.finished).toBe(true);
+
+    const { data: roomContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: roomId,
+    });
+    const matchingFiles = (roomContent.response!.files ?? []).filter((f) =>
+      f.title?.includes(fileBase),
+    );
+    expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - User cannot duplicate file without access returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest Dup No Access File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - RoomAdmin can duplicate file in own room returns 200 and duplicate appears", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Dup RoomAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const fileBase = "Autotest Dup RoomAdmin File";
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: `${fileBase}.docx` },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { status } = await roomAdminApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(200);
+
+    const operation = await waitForOperation(roomAdminApi.operations);
+    expect(operation.finished).toBe(true);
+
+    const { data: roomContent } = await ownerApi.folders.getFolderByFolderId({
+      folderId: roomId,
+    });
+    const matchingFiles = (roomContent.response!.files ?? []).filter((f) =>
+      f.title?.includes(fileBase),
+    );
+    expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("PUT /api/2.0/files/fileops/duplicate - Guest with Read access cannot duplicate returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Dup Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Dup Guest File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await guestApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test(
+    "PUT /api/2.0/files/fileops/duplicate - User with Editing access cannot duplicate" +
+      " returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Dup Editing Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Dup Editing File.docx" },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Editing }],
+          notify: false,
+        },
+      });
+
+      const { status } = await userApi.operations.duplicateBatchItems({
+        duplicateRequestDto: { fileIds: [fileId as any] },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test("PUT /api/2.0/files/fileops/duplicate - DocSpaceAdmin can duplicate own file returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: myDocsData } = await adminApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const fileBase = "Autotest Dup DSAdmin File";
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: `${fileBase}.docx` },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await adminApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response![0].Operation).toBe(FileOperationType.Duplicate);
+
+    const operation = await waitForOperation(adminApi.operations);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+
+    const { data: myDocsContent } = await adminApi.folders.getFolderByFolderId({
+      folderId: myDocsFolderId,
+    });
+    const matchingFiles = (myDocsContent.response!.files ?? []).filter((f) =>
+      f.title?.includes(fileBase),
+    );
+    expect(matchingFiles.length).toBeGreaterThanOrEqual(2);
+  });
+});
