@@ -1343,56 +1343,55 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     expect((data as any).error.message).toBe("The required file was not found");
   });
 
-  test.fail(
-    "BUG 82178: PUT /files/file/:fileId/lock - Unlocking one of several locked files leaves the rest locked",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const fileIds: number[] = [];
+  test("BUG 82178: PUT /files/file/:fileId/lock - Unlocking one of several locked files leaves the rest locked", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const fileIds: number[] = [];
 
-      await test.step("create 3 files in My Documents", async () => {
-        for (let i = 1; i <= 3; i++) {
-          const { data } = await ownerApi.files.createFileInMyDocuments({
-            createFileJsonElement: { title: `Autotest Lock Multi File ${i}` },
-          });
-          fileIds.push(data.response!.id!);
-        }
-      });
+    await test.step("create 3 files in My Documents", async () => {
+      for (let i = 1; i <= 3; i++) {
+        const { data } = await ownerApi.files.createFileInMyDocuments({
+          createFileJsonElement: { title: `Autotest Lock Multi File ${i}` },
+        });
+        fileIds.push(data.response!.id!);
+      }
+    });
 
-      await test.step("lock all 3 files", async () => {
-        for (const fileId of fileIds) {
-          const { status } = await ownerApi.files.lockFile({
-            fileId,
-            lockFileParameters: { lockFile: true },
-          });
-          expect(status).toBe(200);
-        }
-      });
-
-      await test.step("unlock the second file", async () => {
+    await test.step("lock all 3 files", async () => {
+      for (const fileId of fileIds) {
         const { status } = await ownerApi.files.lockFile({
-          fileId: fileIds[1],
-          lockFileParameters: { lockFile: false },
+          fileId,
+          lockFileParameters: { lockFile: true },
         });
         expect(status).toBe(200);
+      }
+    });
+
+    await test.step("unlock the second file", async () => {
+      const { status } = await ownerApi.files.lockFile({
+        fileId: fileIds[1],
+        lockFileParameters: { lockFile: false },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("re-query each file and verify lock state is preserved", async () => {
+      const { data: info0 } = await ownerApi.files.getFileInfo({
+        fileId: fileIds[0],
+      });
+      const { data: info1 } = await ownerApi.files.getFileInfo({
+        fileId: fileIds[1],
+      });
+      const { data: info2 } = await ownerApi.files.getFileInfo({
+        fileId: fileIds[2],
       });
 
-      await test.step("re-query each file and verify lock state is preserved", async () => {
-        const { data: info0 } = await ownerApi.files.getFileInfo({
-          fileId: fileIds[0],
-        });
-        const { data: info1 } = await ownerApi.files.getFileInfo({
-          fileId: fileIds[1],
-        });
-        const { data: info2 } = await ownerApi.files.getFileInfo({
-          fileId: fileIds[2],
-        });
-
-        expect(info0.response?.locked).toBe(true);
-        expect(info1.response?.locked).toBeFalsy();
-        expect(info2.response?.locked).toBe(true);
-      });
-    },
-  );
+      expect(info0.response?.locked).toBe(true);
+      expect(info1.response?.locked).toBeFalsy();
+      expect(info2.response?.locked).toBe(true);
+    });
+  });
 });
 
 test.describe("PUT /files/:fileId/order - Set file order", () => {
