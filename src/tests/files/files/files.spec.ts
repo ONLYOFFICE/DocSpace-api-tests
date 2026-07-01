@@ -1343,7 +1343,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock/unlock file", () => {
     expect((data as any).error.message).toBe("The required file was not found");
   });
 
-  test.fail(
+  test(
     "BUG 82178: PUT /files/file/:fileId/lock - Unlocking one of several locked files leaves the rest locked",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
