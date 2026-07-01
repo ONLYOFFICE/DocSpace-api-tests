@@ -14269,30 +14269,29 @@ test.describe("GET /files/tags - getRoomTagsInfo", () => {
     expect(skipped).toEqual(fullList.slice(1));
   });
 
-  test.fail(
-    "BUG 81793: GET /files/tags - count and startIndex return the expected slice",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      for (const n of ["CSA", "CSB", "CSC", "CSD", "CSE"]) {
-        await ownerApi.rooms.createRoomTag({
-          createTagRequestDto: { name: n },
-        });
-      }
-
-      const { data: full } = await ownerApi.rooms.getRoomTagsInfo();
-      const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
-        count: 2,
-        startIndex: 2,
+  test("GET /files/tags - count and startIndex return the expected slice", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    for (const n of ["CSA", "CSB", "CSC", "CSD", "CSE"]) {
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: n },
       });
+    }
 
-      const fullList = full.response as unknown as string[];
-      const page = data.response as unknown as string[];
+    const { data: full } = await ownerApi.rooms.getRoomTagsInfo();
+    const { data, status } = await ownerApi.rooms.getRoomTagsInfo({
+      count: 2,
+      startIndex: 2,
+    });
 
-      expect(status).toBe(200);
-      expect(page.length).toBe(2);
-      expect(page).toEqual(fullList.slice(2, 4));
-    },
-  );
+    const fullList = full.response as unknown as string[];
+    const page = data.response as unknown as string[];
+
+    expect(status).toBe(200);
+    expect(page.length).toBe(2);
+    expect(page).toEqual(fullList.slice(2, 4));
+  });
 
   test("GET /files/tags - startIndex beyond total returns an empty array", async ({
     apiSdk,
@@ -14716,57 +14715,54 @@ test.describe("PUT /files/rooms/:id/tags - addRoomTags", () => {
     expect(tags.filter((t) => t === "DupTag").length).toBe(1);
   });
 
-  // Room IDs are globally unique, so the API should return 403 instead of 404.
-  // Currently API returns 500 Internal Server Error instead.
-  test.fail(
-    "BUG 81544: PUT /files/rooms/:id/tags - Non-existent room id returns 500 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await ownerApi.rooms.createRoomTag({
-        createTagRequestDto: { name: "GhostRoomTag" },
-      });
+  // A non-existent room id resolves to "record not found" -> 404.
+  test("PUT /files/rooms/:id/tags - Non-existent room id returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "GhostRoomTag" },
+    });
 
-      const { data } = await ownerApi.rooms.addRoomTags({
-        id: 999999999,
-        batchTagsRequestDto: { names: ["GhostRoomTag"] },
-      });
+    const { data } = await ownerApi.rooms.addRoomTags({
+      id: 999999999,
+      batchTagsRequestDto: { names: ["GhostRoomTag"] },
+    });
 
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    expect(data.statusCode).toBe(404);
+  });
 
-  // Currently API returns 500 Internal Server Error instead of 403 when the room has been deleted.
-  test.fail(
-    "BUG 81545: PUT /files/rooms/:id/tags - Adding tag to deleted room returns 500 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await ownerApi.rooms.createRoomTag({
-        createTagRequestDto: { name: "DeletedRoomTag" },
-      });
+  // A deleted room resolves to "record not found" -> 404.
+  test("PUT /files/rooms/:id/tags - Adding tag to deleted room returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "DeletedRoomTag" },
+    });
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room To Delete For Tag",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room To Delete For Tag",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      await ownerApi.rooms.deleteRoom({
-        id: roomId,
-        deleteRoomRequest: { deleteAfter: false },
-      });
-      const operation = await waitForOperation(ownerApi.operations);
-      expect(operation.finished).toBe(true);
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
 
-      const { data } = await ownerApi.rooms.addRoomTags({
-        id: roomId,
-        batchTagsRequestDto: { names: ["DeletedRoomTag"] },
-      });
+    const { data } = await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["DeletedRoomTag"] },
+    });
 
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    expect(data.statusCode).toBe(404);
+  });
 
   test("PUT /files/rooms/:id/tags - Empty names array is a no-op and returns 200", async ({
     apiSdk,
@@ -16105,48 +16101,46 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
 
   // ── Validation: room id ──
 
-  // Room IDs are globally unique, so the API should return 403 instead of 404/500.
-  // Mirrors BUG 81544 in addRoomTags.
-  test.fail(
-    "BUG 81544: DELETE /files/rooms/:id/tags - Non-existent room id returns 500 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.deleteRoomTags({
-        id: 999999999,
-        batchTagsRequestDto: { names: ["GhostTag"] },
-      });
-      expect(data.statusCode).toBe(403);
-    },
-  );
+  // A non-existent room id resolves to "record not found" -> 404.
+  // Mirrors addRoomTags.
+  test("DELETE /files/rooms/:id/tags - Non-existent room id returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data } = await ownerApi.rooms.deleteRoomTags({
+      id: 999999999,
+      batchTagsRequestDto: { names: ["GhostTag"] },
+    });
+    expect(data.statusCode).toBe(404);
+  });
 
-  // Mirrors BUG 81545 in addRoomTags — deleted room returns 500 instead of 403.
-  test.fail(
-    "BUG 81545: DELETE /files/rooms/:id/tags - Detaching tag from deleted room returns 500 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Detach From Deleted Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  // Mirrors addRoomTags — a deleted room resolves to "record not found" -> 404.
+  test("DELETE /files/rooms/:id/tags - Detaching tag from deleted room returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Detach From Deleted Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      await ownerApi.rooms.deleteRoom({
-        id: roomId,
-        deleteRoomRequest: { deleteAfter: false },
-      });
-      const operation = await waitForOperation(ownerApi.operations);
-      expect(operation.finished).toBe(true);
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
 
-      const { data } = await ownerApi.rooms.deleteRoomTags({
-        id: roomId,
-        batchTagsRequestDto: { names: ["NoTag"] },
-      });
+    const { data } = await ownerApi.rooms.deleteRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["NoTag"] },
+    });
 
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    expect(data.statusCode).toBe(404);
+  });
 
   test("DELETE /files/rooms/:id/tags - Detaching tag from archived room is forbidden (403)", async ({
     apiSdk,
