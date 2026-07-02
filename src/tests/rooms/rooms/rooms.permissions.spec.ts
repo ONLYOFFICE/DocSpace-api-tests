@@ -727,6 +727,297 @@ test.describe("PUT /files/rooms/:id/archive - access control", () => {
   });
 });
 
+// PUT /files/rooms/:id/unarchive — access control.
+// Mirrors the archive matrix: the room owner and any DocSpaceAdmin may restore a
+// room; a plain RoomAdmin/User/Guest who is not the owner cannot, even when
+// invited to the room with a low access level. The call is asynchronous, so
+// successful restores wait for the operation to finish.
+test.describe("PUT /files/rooms/:id/unarchive - access control", () => {
+  async function archive(api: { rooms: any; operations: any }, roomId: number) {
+    await api.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(api.operations);
+  }
+
+  test("Owner can unarchive their own room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room To Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+    await archive(ownerApi, roomId);
+
+    const { status } = await ownerApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+  });
+
+  test("DocSpaceAdmin can unarchive another owner's room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room For Admin Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+    await archive(ownerApi, roomId);
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { status } = await adminApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(adminApi.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    expect(operation.error).toBe("");
+  });
+
+  test("DocSpaceAdmin can unarchive their own room", async ({ apiSdk }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data: createData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Admin Own Room To Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+    await archive(adminApi, roomId);
+
+    const { status } = await adminApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(adminApi.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+  });
+
+  test("RoomAdmin not invited to the room cannot unarchive it", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room For RoomAdmin Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+    await archive(ownerApi, roomId);
+
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    const { status } = await roomAdminApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("User cannot unarchive owner's room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room For User Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+    await archive(ownerApi, roomId);
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { status } = await userApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Guest cannot unarchive owner's room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Owner Room For Guest Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+    await archive(ownerApi, roomId);
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { status } = await guestApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("User invited with Read access cannot unarchive the room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Read User Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    await archive(ownerApi, roomId);
+
+    const { status } = await userApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("User invited with Editing access cannot unarchive the room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Editing User Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: memberData.response!.id!, access: FileShare.Editing },
+        ],
+        notify: false,
+      },
+    });
+
+    await archive(ownerApi, roomId);
+
+    const { status } = await userApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Member removed from the room cannot unarchive it", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Removed Member Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    // Invite then revoke access (FileShare.None removes the member from the room).
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.None }],
+        notify: false,
+      },
+    });
+
+    await archive(ownerApi, roomId);
+
+    const { status } = await userApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("Unarchiving a room without authorization returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Anonymous Unarchive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+    await archive(ownerApi, roomId);
+
+    const { status } = await apiSdk.forAnonymous().rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
 // GET /files/rooms/:id/link — getRoomsPrimaryExternalLink.
 // The endpoint is link-management scoped: only the room owner, portal admins
 // (DocSpaceAdmin), or a member invited with link-management access (RoomManager /
@@ -4004,6 +4295,304 @@ test.describe("PUT /files/rooms/:id/pin - RoomAdmin invited to owner's room", ()
       });
 
       const { status } = await roomAdminApi.rooms.pinRoom({ id: roomId });
+
+      expect(status).toBe(200);
+    });
+  }
+});
+
+// unpin mirrors pin's access model: it is a per-user action gated by security.Pin,
+// which is true for every invited member regardless of access level. So any member
+// (Owner, DocSpaceAdmin, RoomAdmin, and User/Guest at any access) can unpin, while
+// non-members get 403, anonymous/terminated get 401. See [[pin_room_behavior]].
+test.describe("PUT /files/rooms/:id/unpin - access control", () => {
+  test("Owner can unpin own room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Unpin Owner",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    await ownerApi.rooms.pinRoom({ id: roomId });
+
+    const { status, data } = await ownerApi.rooms.unpinRoom({ id: roomId });
+
+    expect(status).toBe(200);
+    expect(data.response!.pinned).toBe(false);
+  });
+
+  test("DocSpaceAdmin can unpin own room", async ({ apiSdk }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data: roomData } = await adminApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Unpin Admin Own",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    await adminApi.rooms.pinRoom({ id: roomId });
+
+    const { status, data } = await adminApi.rooms.unpinRoom({ id: roomId });
+
+    expect(status).toBe(200);
+    expect(data.response!.pinned).toBe(false);
+  });
+
+  test("DocSpaceAdmin can unpin owner's room without being invited", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Unpin Owner Room For Admin",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    await adminApi.rooms.pinRoom({ id: roomId });
+    const { status } = await adminApi.rooms.unpinRoom({ id: roomId });
+
+    expect(status).toBe(200);
+  });
+
+  test("RoomAdmin invited with RoomManager access can unpin the room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Unpin RoomAdmin Manager",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: roomAdminApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: memberData.response!.id!, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+    await roomAdminApi.rooms.pinRoom({ id: roomId });
+
+    const { status } = await roomAdminApi.rooms.unpinRoom({ id: roomId });
+
+    expect(status).toBe(200);
+  });
+
+  test("User not invited to room cannot unpin it", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Unpin NonInvited User",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { status } = await userApi.rooms.unpinRoom({ id: roomId });
+
+    expect(status).toBe(403);
+  });
+
+  test("Guest not invited to room cannot unpin it", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Unpin NonInvited Guest",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { status } = await guestApi.rooms.unpinRoom({ id: roomId });
+
+    expect(status).toBe(403);
+  });
+
+  test("Anonymous cannot unpin a room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Unpin Anonymous",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    await ownerApi.rooms.pinRoom({ id: roomId });
+
+    const { status } = await apiSdk.forAnonymous().rooms.unpinRoom({
+      id: roomId,
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("Disabled (terminated) user cannot unpin a room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Unpin Terminated",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    // Invite and let the member pin first, then terminate - so the rejection is
+    // due to the disabled account, not lack of membership or an unpinned room.
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    await userApi.rooms.pinRoom({ id: roomId });
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.rooms.unpinRoom({ id: roomId });
+
+    expect(status).toBe(401);
+  });
+
+  test("Former member removed from the room cannot unpin it", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Unpin Removed Member",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: memberData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
+
+    // Invite, let the member pin, then revoke access.
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    await userApi.rooms.pinRoom({ id: roomId });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.None }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.rooms.unpinRoom({ id: roomId });
+
+    expect(status).toBe(403);
+  });
+});
+
+// Any invited member can unpin the room regardless of access level. RoomManager
+// access is rejected for User/Guest at invitation time, so that combination is
+// skipped - see [[user_guest_no_roommanager_access]].
+for (const userType of ["User", "Guest"] as const) {
+  test.describe(`PUT /files/rooms/:id/unpin - ${userType} invited to room`, () => {
+    for (const { label, access } of roomAccesses) {
+      if (access === FileShare.RoomManager) {
+        continue;
+      }
+
+      test(`Room access: ${label} - can unpin room`, async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: `Autotest Unpin Access ${userType} ${label}`,
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        const { api: memberApi, data: memberData } =
+          await apiSdk.addAuthenticatedMember("owner", userType);
+
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: memberData.response!.id!, access }],
+            notify: false,
+          },
+        });
+        await memberApi.rooms.pinRoom({ id: roomId });
+
+        const { status, data } = await memberApi.rooms.unpinRoom({
+          id: roomId,
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.pinned).toBe(false);
+      });
+    }
+  });
+}
+
+// RoomAdmin invited to another owner's room can unpin it at any access level.
+test.describe("PUT /files/rooms/:id/unpin - RoomAdmin invited to owner's room", () => {
+  for (const { label, access } of roomAccesses) {
+    test(`Room access: ${label} - can unpin room`, async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Unpin RoomAdmin Access ${label}`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: roomAdminApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
+      await roomAdminApi.rooms.pinRoom({ id: roomId });
+
+      const { status } = await roomAdminApi.rooms.unpinRoom({ id: roomId });
 
       expect(status).toBe(200);
     });
