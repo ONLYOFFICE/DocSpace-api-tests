@@ -5923,3 +5923,215 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
     },
   );
 });
+
+test.describe("GET /api/2.0/files/fileops - getOperationStatuses", () => {
+  test("GET /api/2.0/files/fileops - No active operations returns 200 and empty array", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBe(0);
+  });
+
+  test(
+    "GET /api/2.0/files/fileops - Non-existent operation id returns" +
+      " 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } = await ownerApi.operations.getOperationStatuses({
+        id: "00000000-0000-0000-0000-000000000000",
+      });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+});
+
+test.describe("GET /api/2.0/files/fileops/:operationType - getOperationStatusesByType", () => {
+  // Catches: bug where Delete type filter path is broken or server ignores type
+  test(
+    "GET /api/2.0/files/fileops/:operationType - operationType Delete" +
+      " with no active operations returns 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } =
+        await ownerApi.operations.getOperationStatusesByType({
+          operationType: FileOperationType.Delete,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: bug where Copy type filter path is broken
+  test(
+    "GET /api/2.0/files/fileops/:operationType - operationType Copy" +
+      " with no active operations returns 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } =
+        await ownerApi.operations.getOperationStatusesByType({
+          operationType: FileOperationType.Copy,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: bug where Move type filter path is broken
+  test(
+    "GET /api/2.0/files/fileops/:operationType - operationType Move" +
+      " with no active operations returns 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } =
+        await ownerApi.operations.getOperationStatusesByType({
+          operationType: FileOperationType.Move,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: bug where Duplicate type filter path is broken
+  test(
+    "GET /api/2.0/files/fileops/:operationType - operationType Duplicate" +
+      " with no active operations returns 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } =
+        await ownerApi.operations.getOperationStatusesByType({
+          operationType: FileOperationType.Duplicate,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: bug where Download type filter path is broken
+  test(
+    "GET /api/2.0/files/fileops/:operationType - operationType Download" +
+      " with no active operations returns 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } =
+        await ownerApi.operations.getOperationStatusesByType({
+          operationType: FileOperationType.Download,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: bug where MarkAsRead type filter path is broken
+  test(
+    "GET /api/2.0/files/fileops/:operationType - operationType MarkAsRead" +
+      " with no active operations returns 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } =
+        await ownerApi.operations.getOperationStatusesByType({
+          operationType: FileOperationType.MarkAsRead,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // BUG XXXXX: GET /api/2.0/files/fileops/:operationType - Convert (value=6) returns 400 instead of 200
+  // Catches: bug where Convert type filter path is broken
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/fileops/:operationType - operationType Convert" +
+      " with no active operations returns 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } =
+        await ownerApi.operations.getOperationStatusesByType({
+          operationType: FileOperationType.Convert,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // BUG XXXXX: GET /api/2.0/files/fileops/:operationType - Import (value=5) returns 400 instead of 200
+  // Catches: bug where Import type filter path is broken
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/fileops/:operationType - operationType Import" +
+      " with no active operations returns 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } =
+        await ownerApi.operations.getOperationStatusesByType({
+          operationType: FileOperationType.Import,
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: bug where combining type + id filter causes 500 or returns wrong data
+  test(
+    "GET /api/2.0/files/fileops/:operationType - Valid operationType" +
+      " with non-existent id returns 200 and empty array",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data, status } =
+        await ownerApi.operations.getOperationStatusesByType({
+          operationType: FileOperationType.Delete,
+          id: "9999999",
+        });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: server returning 500 instead of 400 for unknown enum value
+  test(
+    "GET /api/2.0/files/fileops/:operationType - Invalid operationType" +
+      " returns 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.operations.getOperationStatusesByType({
+        operationType: 99 as any,
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+});

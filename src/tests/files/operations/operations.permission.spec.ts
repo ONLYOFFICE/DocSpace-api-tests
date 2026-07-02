@@ -3584,3 +3584,347 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - Permissions", () => {
     },
   );
 });
+
+test.describe("GET /api/2.0/files/fileops - Permissions", () => {
+  test("GET /api/2.0/files/fileops - Anonymous user cannot see owner's operations", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest GetOps Anon.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+    });
+
+    const anonConfig = new Configuration({
+      basePath: apiSdk.tokenStore.portalBaseUrl,
+      baseOptions: {
+        headers: {
+          Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+        },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { data, status } = await anonOperations.getOperationStatuses();
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(0);
+  });
+
+  test("GET /api/2.0/files/fileops - Owner returns 200", async ({ apiSdk }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/fileops - Regular user returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "User");
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/fileops - DocSpaceAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/fileops - Guest returns 200", async ({ apiSdk }) => {
+    await apiSdk.addMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/fileops - User does not see operations of another user", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await apiSdk.addMember("owner", "User");
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest GetOps Isolation.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(0);
+  });
+
+  test("GET /api/2.0/files/fileops - RoomAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "RoomAdmin");
+
+    const { status } = await apiSdk
+      .forRole("roomAdmin")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test(
+    "GET /api/2.0/files/fileops - DocSpaceAdmin does not see operations" +
+      " of another user",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest GetOps DocSpaceAdmin Isolation.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .operations.getOperationStatuses();
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+});
+
+test.describe("GET /api/2.0/files/fileops/:operationType - Permissions", () => {
+  // Catches: endpoint exposed to anonymous users who could see active operations
+  test(
+    "GET /api/2.0/files/fileops/:operationType - Anonymous user" +
+      " cannot see owner's operations",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest GetOpsByType Anon.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+
+      const anonConfig = new Configuration({
+        basePath: apiSdk.tokenStore.portalBaseUrl,
+        baseOptions: {
+          headers: {
+            Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+          },
+        },
+      });
+      const anonOperations = new OperationsApi(
+        anonConfig,
+        undefined,
+        apiSdk.createAxiosInstance() as any,
+      );
+
+      const { data, status } = await anonOperations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: owner unexpectedly blocked from accessing own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - Owner returns 200", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: regular user incorrectly denied access to own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - Regular user returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "User");
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: DocSpaceAdmin incorrectly denied access to own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - DocSpaceAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: guest incorrectly denied access to own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - Guest returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: RoomAdmin incorrectly denied access to own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - RoomAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "RoomAdmin");
+
+    const { status } = await apiSdk
+      .forRole("roomAdmin")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: type filter breaking user isolation - user sees another user's operations
+  test(
+    "GET /api/2.0/files/fileops/:operationType - User does not see" +
+      " operations of another user",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addMember("owner", "User");
+
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest GetOpsByType User Isolation.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .operations.getOperationStatusesByType({
+          operationType: FileOperationType.Delete,
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: DocSpaceAdmin elevated privileges leaking into operation visibility by type
+  test(
+    "GET /api/2.0/files/fileops/:operationType - DocSpaceAdmin does" +
+      " not see operations of another user",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest GetOpsByType DocSpaceAdmin Isolation.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .operations.getOperationStatusesByType({
+          operationType: FileOperationType.Delete,
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+});
