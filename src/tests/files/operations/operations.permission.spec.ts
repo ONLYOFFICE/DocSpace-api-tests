@@ -4435,4 +4435,137 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems - Permissions", 
       expect(status).toBe(403);
     },
   );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - RoomAdmin can move file between two rooms" +
+      " where they are RoomManager returns 200",
+    async ({ apiSdk }) => {
+      // Catches: RoomAdmin denied move between rooms they manage
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: srcRoomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm RoomAdmin Src",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const srcFolderId = srcRoomData.response!.id!;
+
+      const { data: destRoomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm RoomAdmin Dest",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = destRoomData.response!.id!;
+
+      const { api: roomAdminApi, data: roomAdminData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminId = roomAdminData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: srcFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+          notify: false,
+        },
+      });
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+          notify: false,
+        },
+      });
+
+      const { data: rmMyDocsData } = await roomAdminApi.folders.getMyFolder();
+      const rmMyDocsFolderId = rmMyDocsData.response!.current!.id!;
+
+      const { data: fileData } = await roomAdminApi.files.createFile({
+        folderId: rmMyDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm RoomAdmin File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await roomAdminApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileId],
+          destFolderId: srcFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+      await waitForOperation(roomAdminApi.operations);
+
+      const { data, status } = await roomAdminApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Move);
+
+      const operation = await waitForOperation(roomAdminApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - User (ContentCreator in dest room)" +
+      " can move file from MyDocs to that room returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm CC Dest Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data: myDocsData } = await userApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await userApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm CC File.docx",
+        },
+      });
+
+      const { data, status } = await userApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Move);
+
+      const operation = await waitForOperation(userApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
 });

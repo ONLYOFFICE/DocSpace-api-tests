@@ -14,6 +14,31 @@ import { createOoForm } from "@/src/helpers/files";
 import config from "@/config";
 
 test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", () => {
+  test("POST /api/2.0/files/favorites - Add file returns 200 response true and file appears in getFavoritesFolder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest AddFav File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.addFavorites({
+      baseBatchRequestDto: { fileIds: [fileId] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+
+    const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+    const titles = (favData.response!.files ?? []).map((f) => f.title);
+    expect(titles).toContain("Autotest AddFav File.docx");
+  });
+
   test("POST /api/2.0/files/favorites - Add folder returns 200 response true and folder appears in getFavoritesFolder", async ({
     apiSdk,
   }) => {
@@ -7022,6 +7047,10 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const { data: destBefore } = await ownerApi.folders.getFolderByFolderId({
         folderId: destFolderId,
       });
+      const destTitlesAfterSetup = (destBefore.response?.files ?? []).map(
+        (f) => (f as FileDtoInteger).title,
+      );
+      expect(destTitlesAfterSetup).toContain(fileTitle);
       const existingFileId = (destBefore.response!.files![0] as FileDtoInteger)
         .id!;
 
@@ -7029,6 +7058,15 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
         folderId: myDocsFolderId,
         createFileJsonElement: { title: fileTitle },
       });
+
+      const { data: srcBeforeMove } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: myDocsFolderId,
+        });
+      const srcIdsBeforeMove = (srcBeforeMove.response?.files ?? []).map(
+        (f) => (f as FileDtoInteger).id,
+      );
+      expect(srcIdsBeforeMove).toContain(file2Data.response!.id!);
 
       const { status } = await ownerApi.operations.moveBatchItems({
         batchRequestDto: {
@@ -7048,6 +7086,14 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const destFiles = destAfter.response?.files ?? [];
       expect(destFiles).toHaveLength(1);
       expect((destFiles[0] as FileDtoInteger).id).toBe(existingFileId);
+
+      const { data: srcAfter } = await ownerApi.folders.getFolderByFolderId({
+        folderId: myDocsFolderId,
+      });
+      const srcFileIdsAfter = (srcAfter.response?.files ?? []).map(
+        (f) => (f as FileDtoInteger).id,
+      );
+      expect(srcFileIdsAfter).toContain(file2Data.response!.id!);
     },
   );
 
@@ -7722,6 +7768,98 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
     },
   );
 
+  // BUG XXXXX: Skip conflict ignored in TP room - file is moved to destination (renamed by Nextcloud) instead of staying in source
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/fileops/move - Move with Skip conflict to Third-party room" +
+      " when file exists - original unchanged, no duplicate",
+    async ({ apiSdk }) => {
+      // Catches: Skip conflict not respected in third-party room
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: tpData } =
+        await ownerApi.thirdPartyIntegration.saveThirdParty({
+          thirdPartyRequestDto: {
+            url: config.NEXTCLOUD_URL,
+            login: config.NEXTCLOUD_LOGIN,
+            password: config.NEXTCLOUD_PASSWORD,
+            customerTitle: "Autotest MoveBatch TP Skip",
+            providerKey: "Nextcloud",
+          },
+        });
+
+      const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
+        id: tpData.response!.id!,
+        createThirdPartyRoom: {
+          title: "Autotest MoveBatch TP Skip Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id! as unknown as number;
+
+      const fileTitle = "Autotest MoveBatch TP Skip Conflict.docx";
+      const { data: file1Data } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileTitle },
+      });
+      await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [file1Data.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Overwrite,
+          deleteAfter: false,
+        },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data: destAfterSetup } =
+        await ownerApi.folders.getFolderByFolderId({ folderId: destFolderId });
+      const destCountAfterSetup = (destAfterSetup.response?.files ?? []).length;
+
+      const { data: file2Data } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: { title: fileTitle },
+      });
+
+      const { data: srcBeforeMove } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: myDocsFolderId,
+        });
+      const srcIdsBeforeMove = (srcBeforeMove.response?.files ?? []).map(
+        (f) => (f as FileDtoInteger).id,
+      );
+      expect(srcIdsBeforeMove).toContain(file2Data.response!.id!);
+
+      const { status } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [file2Data.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      await waitForOperation(ownerApi.operations);
+
+      const { data: destAfterMove } =
+        await ownerApi.folders.getFolderByFolderId({ folderId: destFolderId });
+      const destFilesAfterMove = destAfterMove.response?.files ?? [];
+      expect(destFilesAfterMove).toHaveLength(destCountAfterSetup);
+
+      const { data: srcAfterSkip } = await ownerApi.folders.getFolderByFolderId(
+        {
+          folderId: myDocsFolderId,
+        },
+      );
+      const srcFileIdsAfterSkip = (srcAfterSkip.response?.files ?? []).map(
+        (f) => (f as FileDtoInteger).id,
+      );
+      expect(srcFileIdsAfterSkip).toContain(file2Data.response!.id!);
+    },
+  );
+
   test(
     "PUT /api/2.0/files/fileops/move - Move file from Third-party room (Nextcloud) to MyDocs" +
       " returns 200 and file appears in MyDocs",
@@ -7914,6 +8052,92 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const operation = await waitForOperation(ownerApi.operations);
       expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - Move .docx file from MyDocs to FillingFormsRoom" +
+      " returns 403",
+    async ({ apiSdk }) => {
+      // FillingFormsRoom only accepts form files; moving .docx is forbidden
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch FillingFormsRoom.docx",
+        },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch FillingFormsRoom Docx",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - Move form file from MyDocs to FillingFormsRoom" +
+      " returns 200 and file appears in destination",
+    async ({ apiSdk }) => {
+      // Catches: move rejected or form file missing when destination is FillingFormsRoom
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const formFileId = await createOoForm(ownerApi, myDocsFolderId);
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch FillingFormsRoom Form",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [formFileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Move);
+
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data: destContent } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      expect((destContent.response?.files ?? []).length).toBeGreaterThan(0);
+
+      const { data: srcAfter } = await ownerApi.folders.getFolderByFolderId({
+        folderId: myDocsFolderId,
+      });
+      const srcFileIds = (srcAfter.response?.files ?? []).map(
+        (f) => (f as FileDtoInteger).id,
+      );
+      expect(srcFileIds).not.toContain(formFileId);
     },
   );
 
@@ -8166,6 +8390,35 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const operation = await waitForOperation(ownerApi.operations);
       expect(operation.finished).toBe(true);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/fileops/move - non-existent fileId returns 403 instead of 400
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/fileops/move - Non-existent fileId" +
+      " returns 403 instead of 400",
+    async ({ apiSdk }) => {
+      // Catches: server returns unexpected status for invalid file ID
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch BadFile Dest",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { status } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [999999999],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(400);
     },
   );
 });
