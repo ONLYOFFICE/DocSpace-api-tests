@@ -3584,3 +3584,988 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - Permissions", () => {
     },
   );
 });
+
+test.describe("GET /api/2.0/files/fileops - Permissions", () => {
+  test("GET /api/2.0/files/fileops - Anonymous user cannot see owner's operations", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: { title: "Autotest GetOps Anon.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+    });
+
+    const anonConfig = new Configuration({
+      basePath: apiSdk.tokenStore.portalBaseUrl,
+      baseOptions: {
+        headers: {
+          Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+        },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { data, status } = await anonOperations.getOperationStatuses();
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(0);
+  });
+
+  test("GET /api/2.0/files/fileops - Owner returns 200", async ({ apiSdk }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/fileops - Regular user returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "User");
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/fileops - DocSpaceAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/fileops - Guest returns 200", async ({ apiSdk }) => {
+    await apiSdk.addMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/fileops - User does not see operations of another user", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await apiSdk.addMember("owner", "User");
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest GetOps Isolation.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(0);
+  });
+
+  test("GET /api/2.0/files/fileops - RoomAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "RoomAdmin");
+
+    const { status } = await apiSdk
+      .forRole("roomAdmin")
+      .operations.getOperationStatuses();
+
+    expect(status).toBe(200);
+  });
+
+  test(
+    "GET /api/2.0/files/fileops - DocSpaceAdmin does not see operations" +
+      " of another user",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest GetOps DocSpaceAdmin Isolation.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .operations.getOperationStatuses();
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+});
+
+test.describe("GET /api/2.0/files/fileops/:operationType - Permissions", () => {
+  // Catches: endpoint exposed to anonymous users who could see active operations
+  test(
+    "GET /api/2.0/files/fileops/:operationType - Anonymous user" +
+      " cannot see owner's operations",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest GetOpsByType Anon.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+
+      const anonConfig = new Configuration({
+        basePath: apiSdk.tokenStore.portalBaseUrl,
+        baseOptions: {
+          headers: {
+            Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+          },
+        },
+      });
+      const anonOperations = new OperationsApi(
+        anonConfig,
+        undefined,
+        apiSdk.createAxiosInstance() as any,
+      );
+
+      const { data, status } = await anonOperations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: owner unexpectedly blocked from accessing own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - Owner returns 200", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: regular user incorrectly denied access to own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - Regular user returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "User");
+
+    const { status } = await apiSdk
+      .forRole("user")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: DocSpaceAdmin incorrectly denied access to own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - DocSpaceAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: guest incorrectly denied access to own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - Guest returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "Guest");
+
+    const { status } = await apiSdk
+      .forRole("guest")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: RoomAdmin incorrectly denied access to own operation statuses by type
+  test("GET /api/2.0/files/fileops/:operationType - RoomAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addMember("owner", "RoomAdmin");
+
+    const { status } = await apiSdk
+      .forRole("roomAdmin")
+      .operations.getOperationStatusesByType({
+        operationType: FileOperationType.Delete,
+      });
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: type filter breaking user isolation - user sees another user's operations
+  test(
+    "GET /api/2.0/files/fileops/:operationType - User does not see" +
+      " operations of another user",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addMember("owner", "User");
+
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest GetOpsByType User Isolation.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .operations.getOperationStatusesByType({
+          operationType: FileOperationType.Delete,
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+
+  // Catches: DocSpaceAdmin elevated privileges leaking into operation visibility by type
+  test(
+    "GET /api/2.0/files/fileops/:operationType - DocSpaceAdmin does" +
+      " not see operations of another user",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await apiSdk.addMember("owner", "DocSpaceAdmin");
+
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest GetOpsByType DocSpaceAdmin Isolation.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await ownerApi.operations.deleteBatchItems({
+        deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { data, status } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .operations.getOperationStatusesByType({
+          operationType: FileOperationType.Delete,
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.length).toBe(0);
+    },
+  );
+});
+
+test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead Permissions", () => {
+  // Catches: anonymous user bypassing auth on a write endpoint
+  test("PUT /api/2.0/files/fileops/markasread - Anonymous returns 401", async ({
+    apiSdk,
+  }) => {
+    const anonConfig = new Configuration({
+      basePath: apiSdk.tokenStore.portalBaseUrl,
+      baseOptions: {
+        headers: {
+          Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+        },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { status } = await anonOperations.markAsRead();
+
+    expect(status).toBe(401);
+  });
+
+  // Catches: owner incorrectly denied access to mark as read
+  test("PUT /api/2.0/files/fileops/markasread - Owner returns 200", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").operations.markAsRead();
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: regular user incorrectly denied access to mark as read
+  test("PUT /api/2.0/files/fileops/markasread - User returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.operations.markAsRead();
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: DocSpaceAdmin incorrectly denied access to mark as read
+  test("PUT /api/2.0/files/fileops/markasread - DocSpaceAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: docSpaceAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status } = await docSpaceAdminApi.operations.markAsRead();
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: guest incorrectly denied access to mark as read
+  test("PUT /api/2.0/files/fileops/markasread - Guest returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.operations.markAsRead();
+
+    expect(status).toBe(200);
+  });
+
+  // Catches: RoomAdmin incorrectly denied access to mark as read
+  test("PUT /api/2.0/files/fileops/markasread - RoomAdmin returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { status } = await roomAdminApi.operations.markAsRead();
+
+    expect(status).toBe(200);
+  });
+});
+
+test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems - Permissions", () => {
+  test("PUT /api/2.0/files/fileops/move - Unauthenticated request returns 401", async ({
+    apiSdk,
+  }) => {
+    // Catches: unauthenticated access to move API not blocked
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest MoveBatch Perm Anon.docx",
+      },
+    });
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest MoveBatch Perm Anon Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const anonConfig = new Configuration({
+      basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { status } = await anonOperations.moveBatchItems({
+      batchRequestDto: {
+        fileIds: [fileData.response!.id!],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test(
+    "PUT /api/2.0/files/fileops/move - Owner can move file from MyDocs to room" +
+      " returns 200",
+    async ({ apiSdk }) => {
+      // Catches: owner incorrectly denied access to move own files
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm Owner.docx",
+        },
+      });
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Move);
+
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - DocSpaceAdmin can move file from MyDocs to room" +
+      " returns 200",
+    async ({ apiSdk }) => {
+      // Catches: DocSpaceAdmin incorrectly denied move permission
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data: adminMyDocsData } = await adminApi.folders.getMyFolder();
+      const adminMyDocsFolderId = adminMyDocsData.response!.current!.id!;
+
+      const { data: fileData } = await adminApi.files.createFile({
+        folderId: adminMyDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm Admin.docx",
+        },
+      });
+
+      const { data: roomData } = await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm Admin Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { data, status } = await adminApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Move);
+
+      const operation = await waitForOperation(adminApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - RoomAdmin can move file from own MyDocs" +
+      " to a room returns 200",
+    async ({ apiSdk }) => {
+      // Catches: RoomAdmin incorrectly denied move of own MyDocs files
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm RoomAdminMyDocs Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: roomAdminApi, data: roomAdminData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminId = roomAdminData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+          notify: false,
+        },
+      });
+
+      const { data: myDocsData } = await roomAdminApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await roomAdminApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm RoomAdminMyDocs File.docx",
+        },
+      });
+
+      const { data, status } = await roomAdminApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Move);
+
+      const operation = await waitForOperation(roomAdminApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - User without access to destination room" +
+      " cannot move file returns 403",
+    async ({ apiSdk }) => {
+      // Catches: user with no room access incorrectly allowed to move files there
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm NoAccess Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm NoAccess File.docx",
+        },
+      });
+
+      const { status } = await userApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test("PUT /api/2.0/files/fileops/move - Guest cannot move file to room returns 403", async ({
+    apiSdk,
+  }) => {
+    // Catches: guest incorrectly allowed to move files
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest MoveBatch Perm Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest MoveBatch Perm Guest File.docx",
+      },
+    });
+
+    const { status } = await guestApi.operations.moveBatchItems({
+      batchRequestDto: {
+        fileIds: [fileData.response!.id!],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: false,
+      },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test(
+    "PUT /api/2.0/files/fileops/move - User with Editing role in destination room" +
+      " cannot move file to that room returns 403",
+    async ({ apiSdk }) => {
+      // Catches: Editing role incorrectly treated as having create/upload permission
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm Editing Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Editing }],
+          notify: false,
+        },
+      });
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm Editing File.docx",
+        },
+      });
+
+      const { status } = await userApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - User with Review role in destination room" +
+      " cannot move file to that room returns 403",
+    async ({ apiSdk }) => {
+      // Catches: Review role incorrectly treated as having create/upload permission
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm Review Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.Review }],
+          notify: false,
+        },
+      });
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm Review File.docx",
+        },
+      });
+
+      const { status } = await userApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - ContentCreator cannot move file" +
+      " from room to MyDocs returns 403",
+    async ({ apiSdk }) => {
+      // Catches: ContentCreator incorrectly allowed to remove files from room
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm CC FromRoom",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const srcFolderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: srcFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: srcFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm CC FromRoom File.docx",
+        },
+      });
+
+      const { data: userMyDocsData } = await userApi.folders.getMyFolder();
+      const userMyDocsFolderId = userMyDocsData.response!.current!.id!;
+
+      const { status } = await userApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId: userMyDocsFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - RoomAdmin can move file between two rooms" +
+      " where they are RoomManager returns 200",
+    async ({ apiSdk }) => {
+      // Catches: RoomAdmin denied move between rooms they manage
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: srcRoomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm RoomAdmin Src",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const srcFolderId = srcRoomData.response!.id!;
+
+      const { data: destRoomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm RoomAdmin Dest",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = destRoomData.response!.id!;
+
+      const { api: roomAdminApi, data: roomAdminData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdminId = roomAdminData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: srcFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+          notify: false,
+        },
+      });
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+          notify: false,
+        },
+      });
+
+      const { data: rmMyDocsData } = await roomAdminApi.folders.getMyFolder();
+      const rmMyDocsFolderId = rmMyDocsData.response!.current!.id!;
+
+      const { data: fileData } = await roomAdminApi.files.createFile({
+        folderId: rmMyDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm RoomAdmin File.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      await roomAdminApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileId],
+          destFolderId: srcFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+      await waitForOperation(roomAdminApi.operations);
+
+      const { data, status } = await roomAdminApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Move);
+
+      const operation = await waitForOperation(roomAdminApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+
+  test(
+    "PUT /api/2.0/files/fileops/move - User (ContentCreator in dest room)" +
+      " can move file from MyDocs to that room returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Perm CC Dest Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: destFolderId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data: myDocsData } = await userApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await userApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Perm CC File.docx",
+        },
+      });
+
+      const { data, status } = await userApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [fileData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Move);
+
+      const operation = await waitForOperation(userApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
+});
