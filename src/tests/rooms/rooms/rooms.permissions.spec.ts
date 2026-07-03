@@ -249,6 +249,81 @@ test.describe("PUT /files/rooms/:id - access control", () => {
 
     expect(status).toBe(401);
   });
+
+  // An invited member can update the room only with RoomManager access.
+  // Read / Editing / ContentCreator are not enough (403).
+  for (const { label, access, expectedStatus } of [
+    { label: "Read", access: FileShare.Read, expectedStatus: 403 },
+    { label: "Editing", access: FileShare.Editing, expectedStatus: 403 },
+    {
+      label: "ContentCreator",
+      access: FileShare.ContentCreator,
+      expectedStatus: 403,
+    },
+    {
+      label: "RoomManager",
+      access: FileShare.RoomManager,
+      expectedStatus: 200,
+    },
+  ]) {
+    test(`RoomAdmin invited with ${label} access gets ${expectedStatus}`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: createData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Update RoomAdmin ${label}`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = createData.response!.id!;
+
+      const { api: roomAdminApi, data: memberData } =
+        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
+
+      const { status } = await roomAdminApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: `Updated by RoomAdmin ${label}` },
+      });
+
+      expect(status).toBe(expectedStatus);
+    });
+  }
+
+  test("Outsider cannot update owner's room and leaves it unchanged", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: createData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Isolation Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = createData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { title: "Hijacked" },
+    });
+    expect(status).toBe(403);
+
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(info.response!.title).toBe("Autotest Isolation Room");
+  });
 });
 
 // DELETE /files/rooms/:id works asynchronously:
