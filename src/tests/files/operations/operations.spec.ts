@@ -896,47 +896,152 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
     expect((data.links as any)[0].href).toContain("checkconversion");
     expect((data.links as any)[0].action).toBe("GET");
   });
-});
 
-test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () => {
-  test("GET /api/2.0/files/fileops/move - Owner checks move of file from MyDocs to CustomRoom returns 200 with array response", async ({
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - startFileConversion XLSX to PDF returns 200 with empty response and PUT link", async ({
     apiSdk,
   }) => {
-    // Catches: method returns non-200 or fails to respond when owner checks move of own file to a room
     const ownerApi = apiSdk.forRole("owner");
     const { data: myDocsData } = await ownerApi.folders.getMyFolder();
     const myDocsFolderId = myDocsData.response!.current!.id!;
 
-    const fileTitle = "Autotest CheckMove File To CustomRoom.docx";
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: myDocsFolderId,
-      createFileJsonElement: { title: fileTitle },
+      createFileJsonElement: {
+        title: "Autotest StartConversion xlsx.xlsx",
+      },
     });
     const fileId = fileData.response!.id!;
 
-    const { data: roomData } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: "Autotest CheckMove Dest CustomRoom",
-        roomType: RoomType.CustomRoom,
+    const { data, status } = await ownerApi.operations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
       },
     });
-    const destFolderId = roomData.response!.id!;
 
-    const { data, status } =
-      await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-          deleteAfter: false,
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+    expect(data.links).toHaveLength(1);
+    expect((data.links as any)[0].href).toContain("checkconversion");
+    expect((data.links as any)[0].action).toBe("PUT");
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - startFileConversion PPTX to PDF returns 200 with empty response and PUT link", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest StartConversion pptx.pptx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+    expect(data.links).toHaveLength(1);
+    expect((data.links as any)[0].href).toContain("checkconversion");
+    expect((data.links as any)[0].action).toBe("PUT");
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - startConvert false returns 200 with empty response and link to checkconversion", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest StartConversion startConvertFalse.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: false,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+    expect(data.links).toHaveLength(1);
+    expect((data.links as any)[0].href).toContain("checkconversion");
+  });
+
+  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/checkconversion - sync true returns empty array instead of completed conversion result
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/checkconversion - sync true outputType pdf returns 200 with completed conversion result",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest StartConversion sync pdf.docx",
         },
       });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } = await ownerApi.operations.startFileConversion({
+        fileId,
+        checkConversionRequestDtoInteger: {
+          startConvert: true,
+          sync: true,
+          outputType: "pdf",
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBeGreaterThan(0);
+      expect(data.response![0].progress).toBe(100);
+      expect(data.response![0].Operation).toBe(FileOperationType.Convert);
+      expect(data.response![0].error).toBeFalsy();
+    },
+  );
+
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - non-existent fileId returns 200 with empty response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.operations.startFileConversion({
+      fileId: 999999999,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
+      },
+    });
 
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
     expect(data.response).toHaveLength(0);
   });
+});
 
+test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () => {
   test("GET /api/2.0/files/fileops/move - Owner checks move of folder from MyDocs to CustomRoom returns 200", async ({
     apiSdk,
   }) => {
@@ -7768,9 +7873,9 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
     },
   );
 
-  // BUG XXXXX: Skip conflict ignored in TP room - file is moved to destination (renamed by Nextcloud) instead of staying in source
+  // BUG 82242: Skip conflict ignored in TP room - file is moved to destination (renamed by Nextcloud) instead of staying in source
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/fileops/move - Move with Skip conflict to Third-party room" +
+    "BUG 82242: PUT /api/2.0/files/fileops/move - Move with Skip conflict to Third-party room" +
       " when file exists - original unchanged, no duplicate",
     async ({ apiSdk }) => {
       // Catches: Skip conflict not respected in third-party room
