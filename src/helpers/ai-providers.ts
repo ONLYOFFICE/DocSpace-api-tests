@@ -12,10 +12,13 @@ export const onlyofficeAiProvider = {
 // Model ids that can be restricted via the payments/wallet "restricted models"
 // setting (used by portal payment tests, unrelated to provider management).
 export const restrictableAiModelIds = [
+  "claude-opus-4.8",
   "claude-sonnet-4.6",
-  "deepseek-v3.2",
-  "gemini-3-flash-preview",
+  "deepseek-v4-flash",
+  "deepseek-v4-pro",
   "gemini-3.1-pro-preview",
-  "gpt-5.2",
+  "gemini-3.5-flash",
   "gpt-5.4",
+  "gpt-5.5",
+  "qwen3.5-122b-a10b",
 ] as const;
