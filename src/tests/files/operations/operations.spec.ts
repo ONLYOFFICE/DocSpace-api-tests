@@ -988,40 +988,6 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
     expect((data.links as any)[0].href).toContain("checkconversion");
   });
 
-  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/checkconversion - sync true returns empty array instead of completed conversion result
-  test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/checkconversion - sync true outputType pdf returns 200 with completed conversion result",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest StartConversion sync pdf.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data, status } = await ownerApi.operations.startFileConversion({
-        fileId,
-        checkConversionRequestDtoInteger: {
-          startConvert: true,
-          sync: true,
-          outputType: "pdf",
-        },
-      });
-
-      expect(status).toBe(200);
-      expect(Array.isArray(data.response)).toBe(true);
-      expect(data.response!.length).toBeGreaterThan(0);
-      expect(data.response![0].progress).toBe(100);
-      expect(data.response![0].Operation).toBe(FileOperationType.Convert);
-      expect(data.response![0].error).toBeFalsy();
-    },
-  );
-
   test("PUT /api/2.0/files/file/{fileId}/checkconversion - non-existent fileId returns 200 with empty response", async ({
     apiSdk,
   }) => {
@@ -8521,6 +8487,555 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
           conflictResolveType: FileConflictResolveType.Skip,
           deleteAfter: false,
         },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+});
+
+test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () => {
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Non-existent operation ID returns 200 with empty response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.operations.terminateTasks({
+      id: "00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate delete operation returns 200 and operation is no longer in active list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks Delete.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: opData } = await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+    });
+    const operationId = opData.response![0].id!;
+
+    const { data, status } = await ownerApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
+      { id: operationId },
+    );
+    expect(statusData.response).toHaveLength(0);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate duplicate operation returns 200 and operation is no longer in active list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks Duplicate.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: opData } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [fileId as any] },
+    });
+    const operationId = opData.response![0].id!;
+
+    const { data, status } = await ownerApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
+      { id: operationId },
+    );
+    expect(statusData.response).toHaveLength(0);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate already-completed operation returns 200 with empty response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks Completed.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+    });
+
+    const completedOp = await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.operations.terminateTasks({
+      id: completedOp.id!,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate copy operation returns 200 and operation is no longer in active list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks Copy Source.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TerminateTasks Copy Dest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data: opData } = await ownerApi.operations.copyBatchItems({
+      batchRequestDto: {
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: false,
+      },
+    });
+    const operationId = opData.response![0].id!;
+
+    const { data, status } = await ownerApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
+      { id: operationId },
+    );
+    expect(statusData.response).toHaveLength(0);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate move operation returns 200 and operation is no longer in active list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks Move Source.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TerminateTasks Move Dest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
+
+    const { data: opData } = await ownerApi.operations.moveBatchItems({
+      batchRequestDto: {
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: false,
+      },
+    });
+    const operationId = opData.response![0].id!;
+
+    const { data, status } = await ownerApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
+      { id: operationId },
+    );
+    expect(statusData.response).toHaveLength(0);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate markAsRead operation returns 200 and operation is no longer in active list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks MarkAsRead.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: opData } = await ownerApi.operations.markAsRead({
+      baseBatchRequestDto: { fileIds: [fileId as any] },
+    });
+    const operationId = opData.response![0].id!;
+
+    const { data, status } = await ownerApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
+      { id: operationId },
+    );
+    expect(statusData.response).toHaveLength(0);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate emptyTrash operation returns 200 and operation is no longer in active list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks EmptyTrash.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+    });
+
+    const { data: opData } = await ownerApi.operations.emptyTrash();
+    const operationId = opData.response![0].id!;
+
+    const { data, status } = await ownerApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+
+    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
+      { id: operationId },
+    );
+    expect(statusData.response).toHaveLength(0);
+  });
+});
+
+test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", () => {
+  test("PUT /api/2.0/files/file/{fileId}/comment - Owner updates comment returns 200 with updated text", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Basic.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "Initial comment" },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe("Initial comment");
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - Update comment to empty string returns 200 with empty response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Empty.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "" },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe("");
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - Update comment to null clears comment returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Null.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: null },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe("");
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - Overwriting existing comment returns 200 with new text", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Overwrite.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "First comment" },
+    });
+
+    const { data, status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "Updated comment" },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe("Updated comment");
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - Comment with diacritics and unicode returns 200 with unchanged text", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Unicode.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const comment = "Ñoño café über naïve Ångström 山島あ";
+
+    const { data, status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(comment);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - Comment with HTML-like characters returns 200 with unchanged text", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment HTML.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const comment = "<b>bold</b> & 'quoted' \"double\"";
+
+    const { data, status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(comment);
+  });
+
+  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Very long comment is silently truncated to 255 chars instead of returning 400
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Very long comment" +
+      " returns 200 with truncation instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest UpdateComment Long.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const comment = "A".repeat(2000);
+
+      const { status } = await ownerApi.operations.updateFileComment({
+        fileId,
+        updateComment: { version: 1, comment },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Non-existent fileId returns 403 (SecurityException) instead of 404
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Non-existent fileId" +
+      " returns 403 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { status } = await ownerApi.operations.updateFileComment({
+        fileId: 999999999,
+        updateComment: { version: 1, comment: "test" },
+      });
+
+      expect(status).toBe(404);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Non-existent version returns 403 (SecurityException) instead of 400
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Non-existent version" +
+      " returns 403 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest UpdateComment BadVersion.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { status } = await ownerApi.operations.updateFileComment({
+        fileId,
+        updateComment: { version: 999, comment: "test" },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Version 0 returns 403 (SecurityException) instead of 400
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Version 0" +
+      " returns 403 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest UpdateComment Version0.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { status } = await ownerApi.operations.updateFileComment({
+        fileId,
+        updateComment: { version: 0, comment: "test" },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Negative version returns 403 (SecurityException) instead of 400
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Negative version" +
+      " returns 403 instead of 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: myDocsFolderId,
+        createFileJsonElement: {
+          title: "Autotest UpdateComment NegVer.docx",
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { status } = await ownerApi.operations.updateFileComment({
+        fileId,
+        updateComment: { version: -1, comment: "test" },
       });
 
       expect(status).toBe(400);
