@@ -56,6 +56,10 @@ import { OAuth2Api } from "@onlyoffice/docspace-api-sdk/dist/api/security/oauth2
 import { SecurityAccessToDevToolsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/security-access-to-dev-tools-api";
 import { FilesSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/files-settings-api";
 import { AuditTrailDataApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/audit-trail-data-api";
+import { SecurityBannersVisibilityApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/security-banners-visibility-api";
+import { CSPApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/cspapi";
+import { LoginHistoryApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/login-history-api";
+import { SMTPSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/smtpsettings-api";
 import { ActiveConnectionsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/active-connections-api";
 import { TFASettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/tfasettings-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
@@ -242,6 +246,14 @@ export class ApiSDK {
       ),
       filesSettings: new FilesSettingsApi(config, undefined, axiosInstance),
       auditTrail: new AuditTrailDataApi(config, undefined, axiosInstance),
+      securityBanners: new SecurityBannersVisibilityApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      csp: new CSPApi(config, undefined, axiosInstance),
+      loginHistory: new LoginHistoryApi(config, undefined, axiosInstance),
+      smtpSettings: new SMTPSettingsApi(config, undefined, axiosInstance),
     };
   }
 
@@ -327,6 +339,15 @@ export class ApiSDK {
         axiosInstance,
       ),
       auditTrail: new AuditTrailDataApi(config, undefined, axiosInstance),
+      securityBanners: new SecurityBannersVisibilityApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      csp: new CSPApi(config, undefined, axiosInstance),
+      loginHistory: new LoginHistoryApi(config, undefined, axiosInstance),
+      oauth2: new OAuth2Api(config, undefined, axiosInstance),
+      smtpSettings: new SMTPSettingsApi(config, undefined, axiosInstance),
     };
   }
 
