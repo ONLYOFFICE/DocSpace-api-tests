@@ -4790,3 +4790,648 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems - Permissions", 
     },
   );
 });
+
+test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks - Permissions", () => {
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Owner can terminate own operation returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks Perm Owner.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: opData } = await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+    });
+    const operationId = opData.response![0].id!;
+
+    const { status } = await ownerApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - DocSpace Admin can terminate own operation returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: myDocsData } = await adminApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks Perm Admin.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: opData } = await adminApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+    });
+    const operationId = opData.response![0].id!;
+
+    const { status } = await adminApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Regular user can terminate own operation returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: myDocsData } = await userApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await userApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks Perm User.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: opData } = await userApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+    });
+    const operationId = opData.response![0].id!;
+
+    const { status } = await userApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - User cannot terminate another user's operation returns 200 with empty response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest TerminateTasks Perm CrossUser.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: opData } = await ownerApi.operations.deleteBatchItems({
+      deleteBatchRequestDto: { fileIds: [fileId], immediately: true },
+    });
+    const operationId = opData.response![0].id!;
+
+    const { data, status } = await userApi.operations.terminateTasks({
+      id: operationId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Guest user returns 200 with empty response for non-existent operation", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.operations.terminateTasks({
+      id: "00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+
+  test("PUT /api/2.0/files/fileops/terminate/{id} - Unauthenticated user returns 200 with empty response", async ({
+    apiSdk,
+  }) => {
+    const anonConfig = new Configuration({
+      basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { data, status } = await anonOperations.terminateTasks({
+      id: "00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response).toHaveLength(0);
+  });
+});
+
+test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment - Permissions", () => {
+  test("PUT /api/2.0/files/file/{fileId}/comment - Owner updates comment on own file returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Perm Owner.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "Owner comment" },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - DocSpace Admin updates comment on own file returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data: myDocsData } = await adminApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Perm Admin.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await adminApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "Admin comment" },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - Regular user updates comment on own file returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data: myDocsData } = await userApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await userApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Perm User.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await userApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "User comment" },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - User with Editing access cannot update comment on another user's room file returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest UpdateComment Perm Editor Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Perm Editor File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "Editor comment" },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - User with Read access cannot update comment on room file returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest UpdateComment Perm Reader Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Perm Reader File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await userApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "Reader comment" },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - Guest with Read access cannot update comment on room file returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest UpdateComment Perm Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Perm Guest File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: guestApi, data: guestData } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { status } = await guestApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "Guest comment" },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - User cannot update comment on another user's file returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Perm NoAccess.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await userApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "Unauthorized" },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/comment - Unauthenticated user returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Perm Anon.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const anonConfig = new Configuration({
+      basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { status } = await anonOperations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment: "Anon" },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploadSession - Permissions", () => {
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Unauthenticated" +
+      " user returns 401",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm Anon Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm Anon.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const anonConfig = new Configuration({
+        basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+        baseOptions: {
+          headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+        },
+      });
+      const anonOperations = new OperationsApi(
+        anonConfig,
+        undefined,
+        apiSdk.createAxiosInstance() as any,
+      );
+
+      const { status } = await anonOperations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(401);
+    },
+  );
+
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Owner can abort" +
+      " own session returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm Owner.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const { status } = await ownerApi.operations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
+      " (ContentCreator) can abort own session returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm CC Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: folderId,
+        roomInvitationRequest: {
+          invitations: [
+            {
+              id: userData.response!.id!,
+              access: FileShare.ContentCreator,
+            },
+          ],
+          notify: false,
+        },
+      });
+
+      const { data: sessionData } =
+        await userApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm CC.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const { status } = await userApi.operations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+
+  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Any authenticated user can abort another user's session regardless of room access
+  test.fail(
+    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
+      " (ContentCreator) cannot abort another user's session returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm CrossUser Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: folderId,
+        roomInvitationRequest: {
+          invitations: [
+            {
+              id: userData.response!.id!,
+              access: FileShare.ContentCreator,
+            },
+          ],
+          notify: false,
+        },
+      });
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm CrossUser Owner.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const { status } = await userApi.operations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User without room access can abort another user's session (returns 200 and actually terminates the session)
+  test.fail(
+    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
+      " without room access cannot abort session returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm NoAccess Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm NoAccess Owner.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      await apiSdk.addAuthenticatedMember("owner", "User");
+      const userApi = apiSdk.forRole("user");
+
+      const { status } = await userApi.operations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+});
