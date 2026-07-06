@@ -721,6 +721,227 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Permissions", 
   });
 });
 
+test.describe("PUT /api/2.0/files/file/{fileId}/checkconversion - startFileConversion - Permissions", () => {
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - Owner can start conversion of own file returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest StartConversion Perm Owner.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await ownerApi.operations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
+      },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - DocSpace Admin can start conversion of own file returns 200", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data: myDocsData } = await adminApi.folders.getMyFolder();
+    const adminMyDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await adminApi.files.createFile({
+      folderId: adminMyDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest StartConversion Perm DocSpaceAdmin File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await adminApi.operations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
+      },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - Room Admin with Room Manager access can start conversion returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartConversion Perm RoomAdmin Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest StartConversion Perm RoomAdmin File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: roomAdminApi, data: roomAdminData } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { status } = await roomAdminApi.operations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
+      },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - User with ContentCreator access can start conversion of own file in room returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartConversion Perm ContentCreator Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await userApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest StartConversion Perm ContentCreator File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await userApi.operations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
+      },
+    });
+
+    expect(status).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - User without room access cannot start conversion returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest StartConversion Perm No Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest StartConversion Perm No Access File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.operations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
+      },
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("PUT /api/2.0/files/file/{fileId}/checkconversion - Unauthenticated user cannot start conversion returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest StartConversion Perm Anon File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const anonConfig = new Configuration({
+      basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
+
+    const { status } = await anonOperations.startFileConversion({
+      fileId,
+      checkConversionRequestDtoInteger: {
+        startConvert: true,
+        outputType: "pdf",
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems - Permissions", () => {
   test("GET /api/2.0/files/fileops/move - Unauthenticated user gets 401", async ({
     apiSdk,
