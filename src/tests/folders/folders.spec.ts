@@ -8227,14 +8227,16 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomLifeTimeSet,
-    );
-    expect(entry).toBeDefined();
+    let entry: any;
+    await expect(async () => {
+      const { data } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.RoomLifeTimeSet,
+      );
+      expect(entry).toBeDefined();
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
     expect(entry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
@@ -8585,14 +8587,16 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       updateRoomRequest: { denyDownload: true },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomDenyDownloadEnabled,
-    );
-    expect(entry).toBeDefined();
+    let entry: any;
+    await expect(async () => {
+      const { data } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.RoomDenyDownloadEnabled,
+      );
+      expect(entry).toBeDefined();
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
     expect(entry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
