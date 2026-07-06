@@ -4475,6 +4475,213 @@ test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFol
   );
 });
 
+test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploadSession", () => {
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Owner aborts" +
+      " active upload session returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession.docx",
+            fileSize: 1024,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const { status } = await ownerApi.operations.abortUploadSession({
+        sessionId,
+        folderId,
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Aborting session" +
+      " without upload does not create file in folder",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest AbortSession NoFile.docx";
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName,
+            fileSize: 1024,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const { status } = await ownerApi.operations.abortUploadSession({
+        sessionId,
+        folderId,
+      });
+      expect(status).toBe(200);
+
+      const { data: folderContent } =
+        await ownerApi.folders.getFolderByFolderId({ folderId });
+      const fileExists = (folderContent.response?.files ?? []).some(
+        (f) => f.title === fileName,
+      );
+      expect(fileExists).toBe(false);
+    },
+  );
+
+  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Non-existent sessionId returns 500 instead of 404
+  test.fail(
+    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Non-existent" +
+      " sessionId returns 500 instead of 404",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const { status } = await ownerApi.operations.abortUploadSession({
+        sessionId: "00000000-0000-0000-0000-000000000000",
+        folderId,
+      });
+
+      expect(status).toBe(404);
+    },
+  );
+
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Abort already" +
+      " finalized session returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileContent = Buffer.from("test content");
+      const fileName = "Autotest AbortSession Finalized.docx";
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName,
+            fileSize: fileContent.length,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const file = new File([fileContent], fileName, {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      await ownerApi.operations.uploadAsyncSession({
+        folderId,
+        sessionId,
+        chunkNumber: 1,
+        file,
+      });
+      await ownerApi.operations.finalizeSession({ folderId, sessionId });
+
+      const { status } = await ownerApi.operations.abortUploadSession({
+        sessionId,
+        folderId,
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+
+  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Aborting session after partial upload creates file in folder instead of cleaning up
+  test.fail(
+    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Aborting" +
+      " session after partial upload creates file instead of cleaning up",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const folderId = myDocsData.response!.current!.id!;
+
+      const fileName = "Autotest AbortSession Partial.docx";
+      const partialContent = Buffer.from("partial chunk");
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName,
+            fileSize: 1024,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const file = new File([partialContent], fileName, {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      await ownerApi.operations.uploadAsyncSession({
+        folderId,
+        sessionId,
+        chunkNumber: 1,
+        file,
+      });
+
+      const { status } = await ownerApi.operations.abortUploadSession({
+        sessionId,
+        folderId,
+      });
+
+      expect(status).toBe(200);
+
+      const { data: folderContent } =
+        await ownerApi.folders.getFolderByFolderId({ folderId });
+      const fileExists = (folderContent.response?.files ?? []).some(
+        (f) => f.title === fileName,
+      );
+      expect(fileExists).toBe(false);
+    },
+  );
+
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Abort session" +
+      " in a Custom Room returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession InRoom.docx",
+            fileSize: 1024,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const { status } = await ownerApi.operations.abortUploadSession({
+        sessionId,
+        folderId,
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+});
+
 test.describe("PUT /api/2.0/files/fileops/delete - deleteBatchItems", () => {
   test(
     "PUT /api/2.0/files/fileops/delete - Owner moves file to trash returns" +
@@ -8464,9 +8671,9 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
     },
   );
 
-  // BUG XXXXX: PUT /api/2.0/files/fileops/move - non-existent fileId returns 403 instead of 400
+  // BUG 82243: PUT /api/2.0/files/fileops/move - non-existent fileId returns 403 instead of 400
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/fileops/move - Non-existent fileId" +
+    "BUG 82243: PUT /api/2.0/files/fileops/move - Non-existent fileId" +
       " returns 403 instead of 400",
     async ({ apiSdk }) => {
       // Catches: server returns unexpected status for invalid file ID
@@ -8920,9 +9127,9 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
     expect(data.response).toBe(comment);
   });
 
-  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Very long comment is silently truncated to 255 chars instead of returning 400
+  // BUG 82266: PUT /api/2.0/files/file/{fileId}/comment - Very long comment is silently truncated to 255 chars instead of returning 400
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Very long comment" +
+    "BUG 82266: PUT /api/2.0/files/file/{fileId}/comment - Very long comment" +
       " returns 200 with truncation instead of 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -8948,9 +9155,9 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
     },
   );
 
-  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Non-existent fileId returns 403 (SecurityException) instead of 404
+  // BUG 82268: PUT /api/2.0/files/file/{fileId}/comment - Non-existent fileId returns 403 (SecurityException) instead of 404
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Non-existent fileId" +
+    "BUG 82268: PUT /api/2.0/files/file/{fileId}/comment - Non-existent fileId" +
       " returns 403 instead of 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -8964,9 +9171,9 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
     },
   );
 
-  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Non-existent version returns 403 (SecurityException) instead of 400
+  // BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Non-existent version returns 403 (SecurityException) instead of 400
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Non-existent version" +
+    "BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Non-existent version" +
       " returns 403 instead of 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -8990,9 +9197,9 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
     },
   );
 
-  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Version 0 returns 403 (SecurityException) instead of 400
+  // BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Version 0 returns 403 (SecurityException) instead of 400
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Version 0" +
+    "BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Version 0" +
       " returns 403 instead of 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -9016,9 +9223,9 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
     },
   );
 
-  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Negative version returns 403 (SecurityException) instead of 400
+  // BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Negative version returns 403 (SecurityException) instead of 400
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/comment - Negative version" +
+    "BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Negative version" +
       " returns 403 instead of 400",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");

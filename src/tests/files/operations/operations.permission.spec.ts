@@ -5219,3 +5219,219 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment - Pe
     expect(status).toBe(401);
   });
 });
+
+test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploadSession - Permissions", () => {
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Unauthenticated" +
+      " user returns 401",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm Anon Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm Anon.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const anonConfig = new Configuration({
+        basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+        baseOptions: {
+          headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+        },
+      });
+      const anonOperations = new OperationsApi(
+        anonConfig,
+        undefined,
+        apiSdk.createAxiosInstance() as any,
+      );
+
+      const { status } = await anonOperations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(401);
+    },
+  );
+
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Owner can abort" +
+      " own session returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm Owner Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm Owner.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const { status } = await ownerApi.operations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+
+  test(
+    "DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
+      " (ContentCreator) can abort own session returns 200",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm CC Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: folderId,
+        roomInvitationRequest: {
+          invitations: [
+            {
+              id: userData.response!.id!,
+              access: FileShare.ContentCreator,
+            },
+          ],
+          notify: false,
+        },
+      });
+
+      const { data: sessionData } =
+        await userApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm CC.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const { status } = await userApi.operations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+
+  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Any authenticated user can abort another user's session regardless of room access
+  test.fail(
+    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
+      " (ContentCreator) cannot abort another user's session returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm CrossUser Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: folderId,
+        roomInvitationRequest: {
+          invitations: [
+            {
+              id: userData.response!.id!,
+              access: FileShare.ContentCreator,
+            },
+          ],
+          notify: false,
+        },
+      });
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm CrossUser Owner.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      const { status } = await userApi.operations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User without room access can abort another user's session (returns 200 and actually terminates the session)
+  test.fail(
+    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
+      " without room access cannot abort session returns 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AbortSession Perm NoAccess Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const folderId = roomData.response!.id!;
+
+      const { data: sessionData } =
+        await ownerApi.operations.createUploadSessionInFolder({
+          folderId,
+          sessionRequest: {
+            fileName: "Autotest AbortSession Perm NoAccess Owner.docx",
+            fileSize: 256,
+            createNewIfExist: true,
+          },
+        });
+      const sessionId = sessionData.response!.id!;
+
+      await apiSdk.addAuthenticatedMember("owner", "User");
+      const userApi = apiSdk.forRole("user");
+
+      const { status } = await userApi.operations.abortUploadSession({
+        folderId,
+        sessionId,
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+});
