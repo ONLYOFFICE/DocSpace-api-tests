@@ -26,6 +26,10 @@ interface Config {
   TOGETHER_AI_API_KEY: string;
   EXA_API_KEY: string;
   GITHUB_MCP_ENDPOINT: string;
+  SMTP_HOST: string;
+  SMTP_PORT: number;
+  SMTP_HOST_LOGIN: string;
+  SMTP_HOST_PASSWORD: string;
 }
 
 const config: Config = {
@@ -62,6 +66,11 @@ const config: Config = {
   EXA_API_KEY: process.env.EXA_API_KEY ?? "EXA_API_KEY_NOT_CONFIGURED",
   GITHUB_MCP_ENDPOINT:
     process.env.GITHUB_MCP_ENDPOINT ?? "GITHUB_MCP_ENDPOINT_NOT_CONFIGURED",
+  SMTP_HOST: process.env.SMTP_HOST ?? "smtp.yandex.com",
+  SMTP_PORT: Number(process.env.SMTP_PORT ?? "587"),
+  SMTP_HOST_LOGIN: process.env.SMTP_HOST_LOGIN ?? "SMTP_HOST_LOGIN_NOT_CONFIGURED",
+  SMTP_HOST_PASSWORD:
+    process.env.SMTP_HOST_PASSWORD ?? "SMTP_HOST_PASSWORD_NOT_CONFIGURED",
 };
 
 export default config;
