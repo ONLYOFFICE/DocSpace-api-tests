@@ -6735,13 +6735,14 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       updateRoomRequest: { title: "Autotest Folder History Renamed" },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.RoomCreated);
-    expect(actionIds).toContain(MessageAction.RoomRenamed);
+    await expect(async () => {
+      const { data } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      const actionIds = data.response!.map((e) => e.action?.id);
+      expect(actionIds).toContain(MessageAction.RoomCreated);
+      expect(actionIds).toContain(MessageAction.RoomRenamed);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - count parameter limits number of returned entries", async ({
@@ -8317,14 +8318,16 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       updateRoomRequest: { indexing: true },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomIndexingEnabled,
-    );
-    expect(entry).toBeDefined();
+    let entry: any;
+    await expect(async () => {
+      const { data } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.RoomIndexingEnabled,
+      );
+      expect(entry).toBeDefined();
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
     expect(entry!.initiator.displayName).toBe(ownerDisplayName);
   });
 

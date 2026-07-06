@@ -1017,6 +1017,934 @@ test.describe("API rooms methods", () => {
     });
   });
 
+  // Comprehensive coverage of PUT /files/rooms/:id (updateRoom).
+  // Behaviors below were verified empirically against the live backend.
+  test.describe("PUT /files/rooms/:id - field coverage", () => {
+    async function mkRoom(
+      ownerApi: ReturnType<ApiSDK["forRole"]>,
+      title: string,
+      roomType: RoomType = RoomType.CustomRoom,
+    ) {
+      const { data } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: { title, roomType },
+      });
+      return data.response!.id!;
+    }
+
+    test("PUT /files/rooms/:id - Partial update keeps other fields", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: covers } = await ownerApi.rooms.getRoomCovers();
+      const coverId = covers.response![0].id!;
+      const roomId = await mkRoom(ownerApi, "Autotest Partial Base");
+
+      // Seed several fields, then update ONLY the title.
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: {
+          tags: ["AutotestPartialTag"],
+          color: "AABBCC",
+          cover: coverId,
+        },
+      });
+
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "Autotest Partial Updated" },
+      });
+      expect(status).toBe(200);
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.title).toBe("Autotest Partial Updated");
+      expect(info.response!.tags).toContain("AutotestPartialTag");
+      expect(info.response!.logo?.color).toBe("AABBCC");
+      expect(info.response!.logo?.cover?.id).toBe(coverId);
+    });
+
+    test("PUT /files/rooms/:id - Empty body is a no-op", async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Empty Body");
+
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: {},
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe("Autotest Empty Body");
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.title).toBe("Autotest Empty Body");
+    });
+
+    // Forbidden chars in the title are silently replaced with `_` (one per code
+    // unit — an emoji is a surrogate pair, so it becomes `__`). No 400.
+    for (const { raw, sanitized } of [
+      { raw: 'Room "Test"', sanitized: "Room _Test_" },
+      { raw: "Room <Test>", sanitized: "Room _Test_" },
+      { raw: "Room / Test", sanitized: "Room _ Test" },
+      { raw: "Room \\ Test", sanitized: "Room _ Test" },
+      { raw: "Party 🎉 Time", sanitized: "Party __ Time" },
+    ]) {
+      test(`PUT /files/rooms/:id - Title "${raw}" is sanitized to "${sanitized}"`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await mkRoom(ownerApi, "Autotest Sanitize Base");
+
+        const { data, status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { title: raw },
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.title).toBe(sanitized);
+
+        const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        expect(info.response!.title).toBe(sanitized);
+      });
+    }
+
+    test("PUT /files/rooms/:id - Single-char title is accepted", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Min Title Base");
+
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "A" },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe("A");
+    });
+
+    test("PUT /files/rooms/:id - Title at max length (170) is accepted", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Max Title Base");
+      const title = "L".repeat(170);
+
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(title);
+    });
+
+    test("PUT /files/rooms/:id - Title over max length (171) is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const original = "Autotest Overlong Base";
+      const roomId = await mkRoom(ownerApi, original);
+
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "L".repeat(171) },
+      });
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.title).toBe(original);
+      expect(status).toBe(400);
+    });
+
+    test("PUT /files/rooms/:id - Whitespace-only title is a no-op", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const original = "Autotest Whitespace Base";
+      const roomId = await mkRoom(ownerApi, original);
+
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "   " },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(original);
+    });
+
+    test("PUT /files/rooms/:id - Null title is a no-op", async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const original = "Autotest Null Title Base";
+      const roomId = await mkRoom(ownerApi, original);
+
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: null },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe(original);
+    });
+
+    test("PUT /files/rooms/:id - Tags: add, replace, clear, dedupe", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Tags Room");
+
+      async function tagsOf() {
+        const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        return (data.response!.tags ?? []) as string[];
+      }
+
+      await test.step("add single tag", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { tags: ["AutotestTagA"] },
+        });
+        expect(status).toBe(200);
+        expect(await tagsOf()).toEqual(["AutotestTagA"]);
+      });
+
+      await test.step("add multiple tags (order not guaranteed)", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { tags: ["AutotestTagB", "AutotestTagC"] },
+        });
+        expect(status).toBe(200);
+        expect(await tagsOf()).toEqual(
+          expect.arrayContaining(["AutotestTagB", "AutotestTagC"]),
+        );
+      });
+
+      await test.step("replace list", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { tags: ["AutotestTagD"] },
+        });
+        expect(status).toBe(200);
+        expect(await tagsOf()).toEqual(["AutotestTagD"]);
+      });
+
+      await test.step("clear via empty array", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { tags: [] },
+        });
+        expect(status).toBe(200);
+        expect(await tagsOf()).toEqual([]);
+      });
+
+      await test.step("duplicates are deduplicated", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { tags: ["AutotestDup", "AutotestDup"] },
+        });
+        expect(status).toBe(200);
+        expect(await tagsOf()).toEqual(["AutotestDup"]);
+      });
+    });
+
+    test("PUT /files/rooms/:id - Overlong tag is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Long Tag Room");
+
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { tags: ["T".repeat(300)] },
+      });
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.tags ?? []).toEqual([]);
+      expect(status).toBe(400);
+    });
+
+    // Tags are NOT sanitized the way titles are — forbidden chars are stored verbatim.
+    test("PUT /files/rooms/:id - Tag with forbidden chars is stored verbatim", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Tag Chars Room");
+      const tag = 'Bad<>/"\\';
+
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { tags: [tag] },
+      });
+
+      expect(status).toBe(200);
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.tags).toContain(tag);
+    });
+
+    test("PUT /files/rooms/:id - Color: set, replace, empty resets, null no-op", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Color Room");
+
+      async function colorOf() {
+        const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        return data.response!.logo?.color;
+      }
+
+      await test.step("set valid color", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { color: "FF5733" },
+        });
+        expect(status).toBe(200);
+        expect(await colorOf()).toBe("FF5733");
+      });
+
+      await test.step("replace color", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { color: "00AA00" },
+        });
+        expect(status).toBe(200);
+        expect(await colorOf()).toBe("00AA00");
+      });
+
+      await test.step("empty string resets to a new valid hex", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { color: "" },
+        });
+        expect(status).toBe(200);
+        const reset = await colorOf();
+        expect(reset).toMatch(/^[0-9A-Fa-f]{6}$/);
+        expect(reset).not.toBe("00AA00");
+      });
+
+      await test.step("null is a no-op", async () => {
+        const before = await colorOf();
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { color: null },
+        });
+        expect(status).toBe(200);
+        expect(await colorOf()).toBe(before);
+      });
+    });
+
+    test("PUT /files/rooms/:id - Color with leading '#' is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Color Hash Room");
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { color: "FF5733" },
+      });
+
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { color: "#FF5733" },
+      });
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.logo?.color).toBe("FF5733");
+      expect(status).toBe(400);
+    });
+
+    // The API validates SOME color formats (rejects "#FF5733" with 400) but
+    // still accepts clearly-invalid non-hex values, which is inconsistent.
+    for (const color of ["ZZZZZZ", "123"]) {
+      test.fail(
+        `PUT /files/rooms/:id - Invalid color "${color}" should return 400 (validation), but API accepts it (200)`,
+        async ({ apiSdk }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const roomId = await mkRoom(ownerApi, "Autotest Bad Color Room");
+
+          const { status } = await ownerApi.rooms.updateRoom({
+            id: roomId,
+            updateRoomRequest: { color },
+          });
+
+          expect(status).toBe(400);
+        },
+      );
+    }
+
+    test("PUT /files/rooms/:id - Cover: set, replace, empty clears, null no-op", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: covers } = await ownerApi.rooms.getRoomCovers();
+      const coverId = covers.response![0].id!;
+      const coverId2 = covers.response![1]!.id!;
+      const roomId = await mkRoom(ownerApi, "Autotest Cover Room");
+
+      async function coverOf() {
+        const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        return data.response!.logo?.cover?.id;
+      }
+
+      await test.step("set valid cover", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { cover: coverId },
+        });
+        expect(status).toBe(200);
+        expect(await coverOf()).toBe(coverId);
+      });
+
+      await test.step("replace cover", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { cover: coverId2 },
+        });
+        expect(status).toBe(200);
+        expect(await coverOf()).toBe(coverId2);
+      });
+
+      await test.step("empty string clears cover", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { cover: "" },
+        });
+        expect(status).toBe(200);
+        expect(await coverOf()).toBeUndefined();
+      });
+    });
+
+    test("PUT /files/rooms/:id - Invalid cover id is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: covers } = await ownerApi.rooms.getRoomCovers();
+      const coverId = covers.response![0].id!;
+      const roomId = await mkRoom(ownerApi, "Autotest Bad Cover Room");
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { cover: coverId },
+      });
+
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { cover: "does-not-exist" },
+      });
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.logo?.cover?.id).toBe(coverId);
+      expect(status).toBe(400);
+    });
+
+    test("PUT /files/rooms/:id - Toggle indexing off on VDR room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest VDR Index Off",
+        RoomType.VirtualDataRoom,
+      );
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { indexing: true },
+      });
+
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { indexing: false },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.indexing).toBe(false);
+    });
+
+    // The backend does not restrict `indexing` to VDR rooms — a CustomRoom accepts it.
+    test("PUT /files/rooms/:id - CustomRoom accepts indexing:true", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Custom Index");
+
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { indexing: true },
+      });
+
+      expect(status).toBe(200);
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.indexing).toBe(true);
+    });
+
+    test("PUT /files/rooms/:id - Toggle denyDownload on VDR room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest Deny Download",
+        RoomType.VirtualDataRoom,
+      );
+
+      const on = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { denyDownload: true },
+      });
+      expect(on.status).toBe(200);
+      expect(on.data.response!.denyDownload).toBe(true);
+
+      const off = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { denyDownload: false },
+      });
+      expect(off.status).toBe(200);
+      expect(off.data.response!.denyDownload).toBe(false);
+    });
+
+    test("PUT /files/rooms/:id - Watermark: change and disable on VDR", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest Watermark",
+        RoomType.VirtualDataRoom,
+      );
+
+      await test.step("enable then change watermark", async () => {
+        await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: {
+            watermark: {
+              enabled: true,
+              additions: 1,
+              text: "Conf",
+              rotate: 0,
+              imageScale: 100,
+            },
+          },
+        });
+
+        const { data, status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: {
+            watermark: {
+              enabled: true,
+              additions: 2,
+              text: "Secret",
+              rotate: 45,
+              imageScale: 50,
+            },
+          },
+        });
+        expect(status).toBe(200);
+
+        const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        expect(info.response!.watermark?.text).toBe("Secret");
+        expect(info.response!.watermark?.additions).toBe(2);
+        expect(info.response!.watermark?.rotate).toBe(45);
+        expect(data.response!.watermark?.text).toBe("Secret");
+      });
+
+      await test.step("disable watermark", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { watermark: { enabled: false } },
+        });
+        expect(status).toBe(200);
+
+        const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        expect(info.response!.watermark?.text).toBeUndefined();
+      });
+    });
+
+    test("PUT /files/rooms/:id - Lifetime: change, disable, reject negative", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest Lifetime",
+        RoomType.VirtualDataRoom,
+      );
+
+      await test.step("set then change lifetime", async () => {
+        await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: {
+            lifetime: {
+              deletePermanently: true,
+              period: 0,
+              value: 30,
+              enabled: true,
+            },
+          },
+        });
+
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: {
+            lifetime: {
+              deletePermanently: false,
+              period: 1,
+              value: 6,
+              enabled: true,
+            },
+          },
+        });
+        expect(status).toBe(200);
+
+        const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        expect(info.response!.lifetime?.value).toBe(6);
+        expect(info.response!.lifetime?.period).toBe(1);
+        expect(info.response!.lifetime?.deletePermanently).toBe(false);
+      });
+
+      await test.step("disable lifetime", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { lifetime: { enabled: false } },
+        });
+        expect(status).toBe(200);
+
+        const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        expect(info.response!.lifetime).toBeUndefined();
+      });
+
+      await test.step("negative lifetime value is rejected", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: {
+            lifetime: {
+              deletePermanently: true,
+              period: 0,
+              value: -5,
+              enabled: true,
+            },
+          },
+        });
+        expect(status).toBe(400);
+      });
+    });
+
+    test("PUT /files/rooms/:id - Form settings on FillingFormsRoom", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(
+        ownerApi,
+        "Autotest Form Settings",
+        RoomType.FillingFormsRoom,
+      );
+
+      async function formSettings() {
+        const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        return {
+          send: (data.response as any).sendFormToExternalDB as boolean,
+          xlsx: (data.response as any).saveFormAsXLSX as boolean,
+        };
+      }
+
+      await test.step("enable both", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: {
+            sendFormToExternalDB: true,
+            saveFormAsXLSX: true,
+          },
+        });
+        expect(status).toBe(200);
+        expect(await formSettings()).toEqual({ send: true, xlsx: true });
+      });
+
+      await test.step("disable one (partial)", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { saveFormAsXLSX: false },
+        });
+        expect(status).toBe(200);
+        expect(await formSettings()).toEqual({ send: true, xlsx: false });
+      });
+
+      await test.step("disable both", async () => {
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: {
+            sendFormToExternalDB: false,
+            saveFormAsXLSX: false,
+          },
+        });
+        expect(status).toBe(200);
+        expect(await formSettings()).toEqual({ send: false, xlsx: false });
+      });
+    });
+
+    // chatSettings is not configurable on a plain CustomRoom via updateRoom.
+    test("PUT /files/rooms/:id - chatSettings on CustomRoom is rejected", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Chat Settings");
+
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: {
+          chatSettings: {
+            providerId: -1,
+            modelId: "gpt-5.5",
+            prompt: "Hi",
+            internal: true,
+          },
+        },
+      });
+
+      expect(status).toBe(400);
+    });
+
+    test("PUT /files/rooms/:id - Update multiple fields in one request", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: covers } = await ownerApi.rooms.getRoomCovers();
+      const coverId = covers.response![0].id!;
+      const roomId = await mkRoom(ownerApi, "Autotest Multi Field");
+
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: {
+          title: "Autotest Multi Field Updated",
+          tags: ["AutotestMultiTag"],
+          color: "123ABC",
+          cover: coverId,
+          denyDownload: true,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe("Autotest Multi Field Updated");
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.title).toBe("Autotest Multi Field Updated");
+      expect(info.response!.tags).toContain("AutotestMultiTag");
+      expect(info.response!.logo?.color).toBe("123ABC");
+      expect(info.response!.logo?.cover?.id).toBe(coverId);
+      expect(info.response!.denyDownload).toBe(true);
+    });
+
+    test("PUT /files/rooms/:id - Re-applying the same values is idempotent", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Idempotent");
+      const body = {
+        title: "Autotest Idempotent Final",
+        tags: ["AutotestIdemTag"],
+        color: "ABCDEF",
+      };
+
+      const first = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: body,
+      });
+      const second = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: body,
+      });
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.title).toBe("Autotest Idempotent Final");
+      expect(info.response!.tags).toEqual(["AutotestIdemTag"]);
+      expect(info.response!.logo?.color).toBe("ABCDEF");
+    });
+
+    test("PUT /files/rooms/:id - Sequential updates: last write wins", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Sequential");
+
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "Autotest Sequential First" },
+      });
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "Autotest Sequential Second" },
+      });
+      expect(status).toBe(200);
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.title).toBe("Autotest Sequential Second");
+    });
+
+    test("PUT /files/rooms/:id - Successful response matches FolderIntegerWrapper shape", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Shape");
+
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "Autotest Shape Updated" },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response).toBeDefined();
+      expect(data.response!.id).toBe(roomId);
+      expect(data.response!.title).toBe("Autotest Shape Updated");
+    });
+
+    test("PUT /files/rooms/:id - Update does not reset members, pin, owner", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Side Effects");
+
+      const { data: memberData } = await apiSdk.addMember("owner", "User");
+      const memberId = memberData.response!.id!;
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+      await ownerApi.rooms.pinRoom({ id: roomId });
+
+      const { data: before } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      const ownerId = before.response!.createdBy?.id;
+
+      await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "Autotest Side Effects Updated" },
+      });
+
+      const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect(info.response!.id).toBe(roomId);
+      expect(info.response!.pinned).toBe(true);
+      expect(info.response!.createdBy?.id).toBe(ownerId);
+
+      const { data: security } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      const memberIds = security.response!.map((m) => m.sharedToUser?.id);
+      expect(memberIds).toContain(memberId);
+    });
+
+    test("PUT /files/rooms/:id - id=0 returns 403", async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: 0,
+        updateRoomRequest: { title: "x" },
+      });
+      expect(status).toBe(403);
+    });
+
+    test("PUT /files/rooms/:id - id=-1 returns 403", async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: -1,
+        updateRoomRequest: { title: "x" },
+      });
+      expect(status).toBe(403);
+    });
+
+    test("PUT /files/rooms/:id - Non-numeric id returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: "abc" as unknown as number,
+        updateRoomRequest: { title: "x" },
+      });
+      expect(status).toBe(404);
+    });
+
+    test("PUT /files/rooms/:id - Float id returns 404", async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: 1.5 as unknown as number,
+        updateRoomRequest: { title: "x" },
+      });
+      expect(status).toBe(404);
+    });
+
+    test("PUT /files/rooms/:id - Null id throws at SDK level", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await expect(
+        ownerApi.rooms.updateRoom({
+          id: null as unknown as number,
+          updateRoomRequest: { title: "x" },
+        }),
+      ).rejects.toThrow(/Required parameter id/);
+    });
+
+    test("PUT /files/rooms/:id - Updating a deleted room does not resurrect it", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const roomId = await mkRoom(ownerApi, "Autotest Deleted Room");
+      await ownerApi.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
+
+      const { status } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "Resurrect" },
+      });
+      expect(status).toBe(403);
+
+      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+      const ids = (list.response!.folders as any[]).map((f) => f.id);
+      expect(ids).not.toContain(roomId);
+    });
+
+    // Wrong-typed fields are rejected with 400 and leave the room unchanged.
+    for (const { name, body } of [
+      { name: "title (number)", body: { title: 123 } },
+      { name: "tags (string)", body: { tags: "notarray" } },
+      { name: "color (number)", body: { color: 123 } },
+      { name: "denyDownload (string)", body: { denyDownload: "yes" } },
+      { name: "indexing (string)", body: { indexing: "no" } },
+    ]) {
+      test(`PUT /files/rooms/:id - Wrong type for ${name} returns 400`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const original = "Autotest Wrong Type Base";
+        const roomId = await mkRoom(ownerApi, original);
+
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: body as any,
+        });
+
+        const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        expect(info.response!.title).toBe(original);
+        expect(status).toBe(400);
+      });
+    }
+
+    // Undocumented parameters should be rejected (see the `share` param, BUG 81582),
+    // but the API silently ignores them and applies the known fields.
+    test.fail(
+      "PUT /files/rooms/:id - Unknown field should be rejected (400) but is silently ignored (200)",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await mkRoom(ownerApi, "Autotest Unknown Field");
+
+        const { status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { title: "ok", totallyBogus: 123 } as any,
+        });
+
+        expect(status).toBe(400);
+      },
+    );
+  });
+
   test.describe("PUT /files/rooms/:id/archive", () => {
     test("PUT /files/rooms/:id/archive - Owner archives own room: status, lists, full unarchive cycle", async ({
       apiSdk,
@@ -1303,6 +2231,522 @@ test.describe("API rooms methods", () => {
       });
 
       expect(status).toBe(400);
+    });
+  });
+
+  // PUT /files/rooms/:id/unarchive — unarchiveRoom.
+  // Moves a room from Archive back to the active Rooms list. The call is
+  // asynchronous: it returns a FileOperationWrapper (data.response is a
+  // FileOperationDto) and the state change is only guaranteed once the operation
+  // reported by getOperationStatuses is finished — hence waitForOperation after
+  // every successful call. Owner happy-path lists/metadata/pin coverage lives in
+  // the "PUT /files/rooms/:id/archive" block above; this block covers request
+  // body variants, id validation, the async contract, and integration cycles.
+  test.describe("PUT /files/rooms/:id/unarchive", () => {
+    type RoleApi = ReturnType<ApiSDK["forRole"]>;
+
+    async function createArchivedRoom(
+      api: RoleApi,
+      title: string,
+      roomType: RoomType = RoomType.CustomRoom,
+      extra: Record<string, unknown> = {},
+    ) {
+      const { data } = await api.rooms.createRoom({
+        createRoomRequestDto: { title, roomType, ...extra },
+      });
+      const roomId = data.response!.id!;
+      await api.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(api.operations);
+      return roomId;
+    }
+
+    async function isInActiveList(
+      api: { rooms: RoomsApi },
+      roomId: number,
+    ): Promise<boolean> {
+      const { data } = await api.rooms.getRoomsFolder({
+        searchArea: SearchArea.Active,
+      });
+      return data.response!.folders!.some((f) => (f as any).id === roomId);
+    }
+
+    async function isInArchiveList(
+      api: { rooms: RoomsApi },
+      roomId: number,
+    ): Promise<boolean> {
+      const { data } = await api.rooms.getRoomsFolder({
+        searchArea: SearchArea.Archive,
+      });
+      return data.response!.folders!.some((f) => (f as any).id === roomId);
+    }
+
+    test.describe("Request body variants", () => {
+      test("PUT /files/rooms/:id/unarchive - Works without a request body", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive No Body",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({ id: roomId });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(operation.error).toBe("");
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Works with empty body {}", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Empty Body",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: {},
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Works with deleteAfter: true", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive deleteAfter true",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: true },
+        });
+
+        // deleteAfter: true still restores the room. Unlike deleteAfter: false it
+        // enqueues no async operation (getOperationStatuses stays empty) — the
+        // room is moved back to Active synchronously, so poll the list directly
+        // instead of waitForOperation.
+        expect(status).toBe(200);
+        await expect(async () => {
+          expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unknown body fields are ignored", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Extra Fields",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false, bogus: "x", n: 1 } as any,
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Invalid deleteAfter type (string) returns 400", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Bad deleteAfter",
+        );
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: "false" as any },
+        });
+
+        // Room must stay archived on a rejected request.
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(true);
+        expect(status).toBe(400);
+      });
+    });
+
+    test.describe("Async operation contract", () => {
+      test("PUT /files/rooms/:id/unarchive - Response is a FileOperationWrapper", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Wrapper",
+        );
+
+        const { data, status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(data.response).toBeDefined();
+        expect(data.response!.id).toBeDefined();
+        expect(typeof data.response!.progress).toBe("number");
+        expect(typeof data.response!.finished).toBe("boolean");
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Second call while the operation is running does not corrupt state", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Double Call",
+        );
+
+        const first = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        const second = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        // Neither call should 500; the room ends up active and consistent.
+        expect(first.status).toBe(200);
+        expect([200, 403]).toContain(second.status);
+        expect(operation.finished).toBe(true);
+        expect(operation.error).toBe("");
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unarchiving an already active room is a no-op (200)", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Repeat",
+        );
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        // Room is already active; a second unarchive must not error or re-archive it.
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Active (never archived) room returns 200 and stays active", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: created } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Unarchive Never Archived",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = created.response!.id!;
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(false);
+      });
+    });
+
+    test.describe("Invalid id validation", () => {
+      test("PUT /files/rooms/:id/unarchive - Non-existent room id returns 404", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { data } = await ownerApi.rooms.unarchiveRoom({
+          id: 999999999,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(data.statusCode).toBe(404);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Deleted room id returns 404", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: created } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Unarchive Deleted Room",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = created.response!.id!;
+
+        await ownerApi.rooms.deleteRoom({
+          id: roomId,
+          deleteRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data } = await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(data.statusCode).toBe(404);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - id = 0 must not return 200", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: 0,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(status).not.toBe(200);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Negative id must not return 200", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: -1,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(status).not.toBe(200);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Missing id throws before the request is sent", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        await expect(
+          ownerApi.rooms.unarchiveRoom({
+            archiveRoomRequest: { deleteAfter: false },
+          } as any),
+        ).rejects.toThrow();
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Non-numeric id does not succeed", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        const { status } = await ownerApi.rooms.unarchiveRoom({
+          id: "abc" as any,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        expect(status).not.toBe(200);
+      });
+    });
+
+    test.describe("Integration cycles", () => {
+      test("PUT /files/rooms/:id/unarchive - Room can be archived, unarchived, then archived again", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Re-archive",
+        );
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(true);
+
+        const { status } = await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        const operation = await waitForOperation(ownerApi.operations);
+
+        expect(status).toBe(200);
+        expect(operation.finished).toBe(true);
+        expect(await isInArchiveList(ownerApi, roomId)).toBe(true);
+        expect(await isInActiveList(ownerApi, roomId)).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unarchived room can be renamed again", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Rename",
+        );
+
+        // Rename is forbidden while archived (read-only), allowed once restored.
+        const archivedRename = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { title: "Should Fail While Archived" },
+        });
+        expect(archivedRename.status).toBe(403);
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data, status } = await ownerApi.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { title: "Renamed After Unarchive" },
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.title).toBe("Renamed After Unarchive");
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unarchived room can be shared again", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: memberData } = await apiSdk.addMember("owner", "User");
+        const userId = memberData.response!.id!;
+
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive Share",
+        );
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { status } = await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access: FileShare.Editing }],
+            notify: false,
+          },
+        });
+
+        expect(status).toBe(200);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Room content (file and folder) survives archive → unarchive", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Unarchive Content Round-Trip",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+
+        const { data: fileData } = await ownerApi.files.createFile({
+          folderId: roomId,
+          createFileJsonElement: { title: "Autotest File Round-Trip" },
+        });
+        const fileId = fileData.response!.id!;
+
+        const { data: folderData } = await ownerApi.folders.createFolder({
+          folderId: roomId,
+          createFolder: { title: "Autotest Folder Round-Trip" },
+        });
+        const folderId = folderData.response!.id!;
+
+        await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data: folderContent, status } =
+          await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
+
+        expect(status).toBe(200);
+        const folderIds = (folderContent.response!.folders ?? []).map(
+          (f) => (f as any).id,
+        );
+        const fileIds = (folderContent.response!.files ?? []).map(
+          (f) => (f as any).id,
+        );
+        expect(folderIds).toContain(folderId);
+        expect(fileIds).toContain(fileId);
+      });
+
+      test("PUT /files/rooms/:id/unarchive - Unarchived VDR room can start index export", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createArchivedRoom(
+          ownerApi,
+          "Autotest Unarchive VDR IndexExport",
+          RoomType.VirtualDataRoom,
+          { indexing: true },
+        );
+
+        await ownerApi.rooms.unarchiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data, status } = await ownerApi.rooms.startRoomIndexExport({
+          id: roomId,
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.id).toBeDefined();
+        expect(data.response!.error).toBeFalsy();
+
+        await ownerApi.rooms.terminateRoomIndexExport();
+      });
     });
   });
 
@@ -2089,6 +3533,437 @@ test.describe("API rooms methods", () => {
         expect(status).toBe(200);
         expect(data.response!.pinned).toBe(true);
         await expectPinnedOnTop(ownerApi, aiRoomId);
+      });
+
+      test("PUT /files/rooms/:id/pin - AI rooms have their own 10-room pin limit", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+
+        // AI rooms are pinned in a bucket separate from regular rooms, but that
+        // bucket is itself capped at 10 - the 11th AI room must be rejected.
+        const aiPinned: number[] = [];
+        for (let i = 0; i < 10; i++) {
+          const id = await createRoom(
+            ownerApi,
+            `Autotest AI Pin Cap ${i}`,
+            RoomType.AiRoom,
+          );
+          const { status } = await ownerApi.rooms.pinRoom({ id });
+          expect(status).toBe(200);
+          aiPinned.push(id);
+        }
+
+        const eleventh = await createRoom(
+          ownerApi,
+          "Autotest AI Pin Cap 11",
+          RoomType.AiRoom,
+        );
+        const { status } = await ownerApi.rooms.pinRoom({ id: eleventh });
+
+        // Side-effect first: the 11th AI room is NOT pinned.
+        const { row } = await findRoomRow(ownerApi, eleventh);
+        expect(row.pinned).toBe(false);
+
+        expect(status).toBe(403);
+      });
+    });
+  });
+
+  // unpin is the inverse of pin and, like pin, is a PER-USER action gated by
+  // security.Pin (see memory pin_room_behavior). The pin suite above already covers
+  // the shared happy paths (unpin returns a room to the unpinned group, per-user
+  // isolation, pin-after-unpin, concurrent pin/unpin). The cases below fill the
+  // unpin-specific gaps: response contract, invalid ids, deleted/archived rooms,
+  // room types, the pin-limit slot being freed, membership side-effects and
+  // idempotency sequences.
+  test.describe("PUT /files/rooms/:id/unpin", () => {
+    async function createRoom(
+      api: { rooms: RoomsApi },
+      title: string,
+      roomType: RoomType = RoomType.CustomRoom,
+    ) {
+      const { data } = await api.rooms.createRoom({
+        createRoomRequestDto: { title, roomType },
+      });
+      return data.response!.id!;
+    }
+
+    async function findRoomRow(api: { rooms: RoomsApi }, roomId: number) {
+      const { data } = await api.rooms.getRoomsFolder({});
+      const folders = data.response!.folders!;
+      const matches = folders.filter((f) => (f as any).id === roomId);
+      const row = matches[0] as any;
+      return {
+        folders,
+        row,
+        count: matches.length,
+        index: row ? folders.indexOf(row) : -1,
+      };
+    }
+
+    test.describe("Contract / basic response", () => {
+      test("PUT /files/rooms/:id/unpin - Owner unpins a pinned room", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Unpin Contract");
+        await ownerApi.rooms.pinRoom({ id: roomId });
+
+        const { data, status } = await ownerApi.rooms.unpinRoom({ id: roomId });
+
+        expect(status).toBe(200);
+        expect(data.statusCode).toBe(200);
+        expect(data.response).toBeDefined();
+        expect(data.response!.id).toBe(roomId);
+        expect(data.response!.pinned).toBe(false);
+
+        // The effect is visible in the list too: still present, now unpinned.
+        const { row, count } = await findRoomRow(ownerApi, roomId);
+        expect(count).toBe(1);
+        expect(row.pinned).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unpin - Response has FolderIntegerWrapper shape", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Unpin Shape");
+        await ownerApi.rooms.pinRoom({ id: roomId });
+
+        const { data } = await ownerApi.rooms.unpinRoom({ id: roomId });
+
+        expect(data.status).toBeDefined();
+        expect(data.statusCode).toBe(200);
+        expect(data.response).toBeDefined();
+        expect(data.response!.id).toBe(roomId);
+        expect(data.response!.title).toBe("Autotest Unpin Shape");
+        expect(data.response!.roomType).toBe(RoomType.CustomRoom);
+        expect(typeof data.response!.pinned).toBe("boolean");
+      });
+
+      test("PUT /files/rooms/:id/unpin - No request body is required", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Unpin No Body");
+        await ownerApi.rooms.pinRoom({ id: roomId });
+
+        // Only the path id is passed - no body.
+        const { status, data } = await ownerApi.rooms.unpinRoom({ id: roomId });
+
+        expect(status).toBe(200);
+        expect(data.response!.pinned).toBe(false);
+      });
+    });
+
+    test.describe("Functional behavior", () => {
+      test("PUT /files/rooms/:id/unpin - Unpinned room returns to its natural sort position", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const marker = `Unpin${apiSdk.faker.generateString(8)}`;
+        const a = await createRoom(ownerApi, `${marker} AAA`);
+        await createRoom(ownerApi, `${marker} MMM`);
+        const z = await createRoom(ownerApi, `${marker} ZZZ`);
+
+        // Pinning floats Z to the top; unpinning must drop it back to its
+        // alphabetical position (last of the three) under title-ascending sort.
+        await ownerApi.rooms.pinRoom({ id: z });
+        await ownerApi.rooms.unpinRoom({ id: z });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({
+          filterValue: marker,
+          sortBy: "title",
+          sortOrder: SortOrder.Ascending,
+        });
+        const folders = data.response!.folders!;
+        const ids = folders.map((f) => (f as any).id);
+        const zRow = folders.find((f) => (f as any).id === z) as any;
+
+        expect(zRow.pinned).toBe(false);
+        expect(ids.indexOf(a)).toBeLessThan(ids.indexOf(z));
+      });
+
+      test("PUT /files/rooms/:id/unpin - Unpinning a room does not remove it from the list", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Unpin Stays");
+
+        await ownerApi.rooms.pinRoom({ id: roomId });
+        await ownerApi.rooms.unpinRoom({ id: roomId });
+
+        const { row, count } = await findRoomRow(ownerApi, roomId);
+        // Still present (exactly once) and now flagged unpinned - not removed.
+        expect(count).toBe(1);
+        expect(row.pinned).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unpin - Unpinning is idempotent", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Unpin Idempotent");
+
+        await ownerApi.rooms.pinRoom({ id: roomId });
+        const first = await ownerApi.rooms.unpinRoom({ id: roomId });
+        const second = await ownerApi.rooms.unpinRoom({ id: roomId });
+
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const occurrences = data.response!.folders!.filter(
+          (f) => (f as any).id === roomId,
+        );
+        expect(occurrences.length).toBe(1);
+        expect((occurrences[0] as any).pinned).toBe(false);
+      });
+
+      test("PUT /files/rooms/:id/unpin - pin/unpin/unpin/pin/unpin leaves the room unpinned", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Unpin Sequence");
+
+        await ownerApi.rooms.pinRoom({ id: roomId });
+        await ownerApi.rooms.unpinRoom({ id: roomId });
+        const midUnpin = await ownerApi.rooms.unpinRoom({ id: roomId });
+        await ownerApi.rooms.pinRoom({ id: roomId });
+        const finalUnpin = await ownerApi.rooms.unpinRoom({ id: roomId });
+
+        expect(midUnpin.status).toBe(200);
+        expect(finalUnpin.status).toBe(200);
+
+        // The toggling never corrupts state: the room is present once and unpinned.
+        const { row, count } = await findRoomRow(ownerApi, roomId);
+        expect(count).toBe(1);
+        expect(row.pinned).toBe(false);
+      });
+    });
+
+    test.describe("Room types", () => {
+      for (const { name, roomType } of [
+        { name: "CustomRoom", roomType: RoomType.CustomRoom },
+        { name: "PublicRoom", roomType: RoomType.PublicRoom },
+        { name: "FillingFormsRoom", roomType: RoomType.FillingFormsRoom },
+        { name: "EditingRoom", roomType: RoomType.EditingRoom },
+        { name: "VirtualDataRoom", roomType: RoomType.VirtualDataRoom },
+      ] as const) {
+        test(`PUT /files/rooms/:id/unpin - Can unpin a ${name}`, async ({
+          apiSdk,
+        }) => {
+          const ownerApi = apiSdk.forRole("owner");
+          const roomId = await createRoom(
+            ownerApi,
+            `Autotest Unpin ${name}`,
+            roomType,
+          );
+
+          await ownerApi.rooms.pinRoom({ id: roomId });
+          const { status, data } = await ownerApi.rooms.unpinRoom({
+            id: roomId,
+          });
+
+          expect(status).toBe(200);
+          expect(data.response!.pinned).toBe(false);
+
+          const { row } = await findRoomRow(ownerApi, roomId);
+          expect(row.pinned).toBe(false);
+        });
+      }
+    });
+
+    test.describe("Pin limit interaction", () => {
+      test("PUT /files/rooms/:id/unpin - Unpinning frees a slot in the 10-room pin limit", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const pinned: number[] = [];
+        for (let i = 0; i < 10; i++) {
+          const id = await createRoom(ownerApi, `Autotest Unpin Slot ${i}`);
+          const { status } = await ownerApi.rooms.pinRoom({ id });
+          expect(status).toBe(200);
+          pinned.push(id);
+        }
+
+        // An 11th room cannot be pinned while the limit is full.
+        const extra = await createRoom(ownerApi, "Autotest Unpin Slot Extra");
+        const blocked = await ownerApi.rooms.pinRoom({ id: extra });
+        expect(blocked.status).toBe(403);
+
+        // Unpin one -> a slot frees up -> the extra room now pins.
+        await ownerApi.rooms.unpinRoom({ id: pinned[0] });
+        const freed = await ownerApi.rooms.pinRoom({ id: extra });
+        expect(freed.status).toBe(200);
+        expect(freed.data.response!.pinned).toBe(true);
+
+        // Exactly 10 remain pinned: the original set minus pinned[0], plus extra.
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const pinnedNow = data
+          .response!.folders!.filter((f) => (f as any).pinned)
+          .map((f) => (f as any).id);
+        expect(pinnedNow.length).toBe(10);
+        expect(pinnedNow).toContain(extra);
+        expect(pinnedNow).not.toContain(pinned[0]);
+      });
+
+      // Regression for BUG 80757 (fixed): after reaching the 10-room limit, unpinning
+      // one and pinning a fresh room (back to 10) used to silently reset the whole
+      // pinned set. All 10 must survive the swap.
+      test("BUG 80757: PUT /files/rooms/:id/unpin - swapping a pinned room at the limit must not reset all pins", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const pinned: number[] = [];
+        for (let i = 0; i < 10; i++) {
+          const id = await createRoom(ownerApi, `Autotest Unpin Reset ${i}`);
+          await ownerApi.rooms.pinRoom({ id });
+          pinned.push(id);
+        }
+
+        await ownerApi.rooms.unpinRoom({ id: pinned[0] });
+        const fresh = await createRoom(ownerApi, "Autotest Unpin Reset Fresh");
+        await ownerApi.rooms.pinRoom({ id: fresh });
+
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const pinnedNow = data
+          .response!.folders!.filter((f) => (f as any).pinned)
+          .map((f) => (f as any).id);
+        expect(pinnedNow.length).toBe(10);
+        expect(pinnedNow).toContain(fresh);
+      });
+    });
+
+    test.describe("No side effects", () => {
+      test("PUT /files/rooms/:id/unpin - Unpin does not delete the room or change members/roles", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(
+          ownerApi,
+          "Autotest Unpin NoSideEffect",
+        );
+        const { data: memberData } = await apiSdk.addMember("owner", "User");
+        const userId = memberData.response!.id!;
+        await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access: FileShare.Editing }],
+            notify: false,
+          },
+        });
+
+        const membersBefore = (
+          await ownerApi.rooms.getRoomSecurityInfo({ id: roomId })
+        ).data.response!.map((m) => ({
+          id: m.sharedToUser?.id,
+          access: m.access,
+        }));
+
+        await ownerApi.rooms.pinRoom({ id: roomId });
+        const { status } = await ownerApi.rooms.unpinRoom({ id: roomId });
+        expect(status).toBe(200);
+
+        // Room still exists...
+        const info = await ownerApi.rooms.getRoomInfo({ id: roomId });
+        expect(info.status).toBe(200);
+        expect((info.data.response as any).id).toBe(roomId);
+
+        // ...and its members/roles are untouched.
+        const membersAfter = (
+          await ownerApi.rooms.getRoomSecurityInfo({ id: roomId })
+        ).data.response!.map((m) => ({
+          id: m.sharedToUser?.id,
+          access: m.access,
+        }));
+        expect(membersAfter).toEqual(membersBefore);
+      });
+    });
+
+    test.describe("Invalid id validation", () => {
+      // As with pin, a non-existent numeric id should be a 400 validation error but
+      // the API returns 403 "The required folder was not found". Marked test.fail
+      // until fixed; a 400 will report an unexpected pass. TODO: add bug number.
+      for (const id of [0, -1, 999999999]) {
+        test.fail(
+          `PUT /files/rooms/:id/unpin - id=${id} should return 400 (validation), but API returns 403`,
+          async ({ apiSdk }) => {
+            const ownerApi = apiSdk.forRole("owner");
+            const { status } = await ownerApi.rooms.unpinRoom({ id });
+
+            expect(status).toBe(400);
+          },
+        );
+      }
+
+      test('PUT /files/rooms/:id/unpin - non-numeric id "abc" returns 404', async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { status } = await ownerApi.rooms.unpinRoom({
+          id: "abc" as unknown as number,
+        });
+
+        expect(status).toBe(404);
+      });
+
+      test("PUT /files/rooms/:id/unpin - id=null throws at SDK level", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        await expect(
+          ownerApi.rooms.unpinRoom({ id: null as unknown as number }),
+        ).rejects.toThrow(/Required parameter id/);
+      });
+
+      test("PUT /files/rooms/:id/unpin - id=undefined throws at SDK level", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        await expect(
+          ownerApi.rooms.unpinRoom({ id: undefined as unknown as number }),
+        ).rejects.toThrow(/Required parameter id/);
+      });
+    });
+
+    test.describe("Deleted / archived rooms", () => {
+      test("PUT /files/rooms/:id/unpin - Cannot unpin a deleted room", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Unpin Deleted");
+        await ownerApi.rooms.pinRoom({ id: roomId });
+
+        await ownerApi.rooms.deleteRoom({
+          id: roomId,
+          deleteRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        // Mirrors pin: the room is gone, so the action is rejected with 403.
+        const { status } = await ownerApi.rooms.unpinRoom({ id: roomId });
+        expect(status).toBe(403);
+      });
+
+      test("PUT /files/rooms/:id/unpin - Cannot unpin an archived room", async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const roomId = await createRoom(ownerApi, "Autotest Unpin Archived");
+        await ownerApi.rooms.pinRoom({ id: roomId });
+
+        await ownerApi.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        // Mirrors pin (archived rooms reject pin/unpin with 403). Assert status
+        // only - the message may differ from pin's "You can't pin a room".
+        const { status } = await ownerApi.rooms.unpinRoom({ id: roomId });
+        expect(status).toBe(403);
       });
     });
   });
