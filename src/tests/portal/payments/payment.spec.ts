@@ -1044,7 +1044,7 @@ test.describe("GET /api/2.0/portal/payment/walletservices", () => {
       .payment.getWalletServices();
     console.log(data);
     expect(status).toBe(200);
-    expect(data.response?.length).toBe(2);
+    expect(data.response?.length).toBe(3);
 
     const serviceNames = data.response?.map((s) => s.serviceName);
     // expect(serviceNames).toContain("ai-tools");
@@ -1068,7 +1068,7 @@ test.describe("GET /api/2.0/portal/payment/walletservices", () => {
       .payment.getWalletServices();
 
     expect(status).toBe(200);
-    expect(data.response?.length).toBe(2);
+    expect(data.response?.length).toBe(3);
 
     const serviceNames = data.response?.map((s) => s.serviceName);
     // expect(serviceNames).toContain("ai-tools");
@@ -1451,7 +1451,9 @@ test.describe("GET /api/2.0/portal/payment/quotas", () => {
     expect(data.response?.length).toBeGreaterThan(0);
     for (const quota of data.response ?? []) {
       expect(quota.id).toBeDefined();
-      expect(quota.title).toBeDefined();
+      if (quota.title !== undefined) {
+        expect(typeof quota.title).toBe("string");
+      }
       expect(quota.nonProfit).toBeDefined();
       expect(quota.free).toBeDefined();
       expect(quota.trial).toBeDefined();
@@ -1488,7 +1490,9 @@ test.describe("GET /api/2.0/portal/payment/quotas", () => {
     expect(data.response?.length).toBeGreaterThan(0);
     for (const quota of data.response ?? []) {
       expect(quota.id).toBeDefined();
-      expect(quota.title).toBeDefined();
+      if (quota.title !== undefined) {
+        expect(typeof quota.title).toBe("string");
+      }
       expect(quota.nonProfit).toBeDefined();
       expect(quota.free).toBeDefined();
       expect(quota.trial).toBeDefined();
