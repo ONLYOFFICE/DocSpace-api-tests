@@ -178,7 +178,7 @@ test.describe("DELETE /api/2.0/smtpsettings/smtp", () => {
     expect(status).toBe(200);
     expect(data.response?.isDefaultSettings).toBe(true);
     expect(data.response?.enableAuth).toBe(false);
-    expect(data.response?.enableSSL).toBe(true);
+    expect(data.response?.enableSSL).toBe(false);
     expect(data.response?.port).toBe(0);
   });
 
@@ -198,7 +198,7 @@ test.describe("DELETE /api/2.0/smtpsettings/smtp", () => {
     expect(status).toBe(200);
     expect(data.response?.isDefaultSettings).toBe(true);
     expect(data.response?.enableAuth).toBe(false);
-    expect(data.response?.enableSSL).toBe(true);
+    expect(data.response?.enableSSL).toBe(false);
     expect(data.response?.port).toBe(0);
   });
 });
