@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { restrictableAiModelIds } from "@/src/helpers/ai-providers";
+import { enableWalletService } from "@/src/helpers/wallet-services";
 
 // Security tests based on white-hat report:
 // backUrl parameter in PUT /api/2.0/portal/payment/url has no length or domain validation.
@@ -2003,9 +2004,7 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
       });
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 
   test("PUT /api/2.0/portal/payment/ai-model/restrictions - User cannot set restricted AI models", async ({
@@ -2020,9 +2019,7 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
       });
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 
   test("PUT /api/2.0/portal/payment/ai-model/restrictions - Guest cannot set restricted AI models", async ({
@@ -2037,9 +2034,7 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
       });
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 
   test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin cannot deactivate Owner's ONLYOFFICE AI restrictions", async ({
@@ -2063,9 +2058,7 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
       });
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 });
 
@@ -2082,7 +2075,16 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions - permissions",
 
   test("GET /api/2.0/portal/payment/ai-model/restrictions - RoomAdmin cannot get restricted AI models", async ({
     apiSdk,
+    paymentsApi,
   }) => {
+    await paymentsApi.makeWalletTopUp();
+    await enableWalletService(apiSdk.forRole("owner").payment, "aiTools");
+    await apiSdk.forRole("owner").payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set(restrictableAiModelIds),
+      },
+    });
+
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
     const { data, status } = await apiSdk
@@ -2090,14 +2092,21 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions - permissions",
       .payment.getRestrictedAiModels();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 
   test("GET /api/2.0/portal/payment/ai-model/restrictions - User cannot get restricted AI models", async ({
     apiSdk,
+    paymentsApi,
   }) => {
+    await paymentsApi.makeWalletTopUp();
+    await enableWalletService(apiSdk.forRole("owner").payment, "aiTools");
+    await apiSdk.forRole("owner").payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set(restrictableAiModelIds),
+      },
+    });
+
     await apiSdk.addAuthenticatedMember("owner", "User");
 
     const { data, status } = await apiSdk
@@ -2105,14 +2114,21 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions - permissions",
       .payment.getRestrictedAiModels();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 
   test("GET /api/2.0/portal/payment/ai-model/restrictions - Guest cannot get restricted AI models", async ({
     apiSdk,
+    paymentsApi,
   }) => {
+    await paymentsApi.makeWalletTopUp();
+    await enableWalletService(apiSdk.forRole("owner").payment, "aiTools");
+    await apiSdk.forRole("owner").payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set(restrictableAiModelIds),
+      },
+    });
+
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
     const { data, status } = await apiSdk
@@ -2120,9 +2136,7 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions - permissions",
       .payment.getRestrictedAiModels();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 });
 
@@ -2296,9 +2310,7 @@ test.describe("GET /api/2.0/portal/payment/ai-prices - permissions", () => {
       .payment.getAiPrices();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 
   test("GET /api/2.0/portal/payment/ai-prices - User cannot get AI prices", async ({
@@ -2309,9 +2321,7 @@ test.describe("GET /api/2.0/portal/payment/ai-prices - permissions", () => {
     const { data, status } = await apiSdk.forRole("user").payment.getAiPrices();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 
   test("GET /api/2.0/portal/payment/ai-prices - Guest cannot get AI prices", async ({
@@ -2324,8 +2334,6 @@ test.describe("GET /api/2.0/portal/payment/ai-prices - permissions", () => {
       .payment.getAiPrices();
 
     expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe(
-      "Tariff service or AI gateway is not configured",
-    );
+    expect((data as any)?.error?.message).toBe("Access denied");
   });
 });
