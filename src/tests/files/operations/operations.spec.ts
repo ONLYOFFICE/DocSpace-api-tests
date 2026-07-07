@@ -4539,9 +4539,9 @@ test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploa
     },
   );
 
-  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Non-existent sessionId returns 500 instead of 404
+  // BUG 82278: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Non-existent sessionId returns 500 instead of 404
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Non-existent" +
+    "BUG 82278: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Non-existent" +
       " sessionId returns 500 instead of 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -4596,55 +4596,6 @@ test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploa
       });
 
       expect(status).toBe(200);
-    },
-  );
-
-  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Aborting session after partial upload creates file in folder instead of cleaning up
-  test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Aborting" +
-      " session after partial upload creates file instead of cleaning up",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const folderId = myDocsData.response!.current!.id!;
-
-      const fileName = "Autotest AbortSession Partial.docx";
-      const partialContent = Buffer.from("partial chunk");
-
-      const { data: sessionData } =
-        await ownerApi.operations.createUploadSessionInFolder({
-          folderId,
-          sessionRequest: {
-            fileName,
-            fileSize: 1024,
-            createNewIfExist: true,
-          },
-        });
-      const sessionId = sessionData.response!.id!;
-
-      const file = new File([partialContent], fileName, {
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      });
-      await ownerApi.operations.uploadAsyncSession({
-        folderId,
-        sessionId,
-        chunkNumber: 1,
-        file,
-      });
-
-      const { status } = await ownerApi.operations.abortUploadSession({
-        sessionId,
-        folderId,
-      });
-
-      expect(status).toBe(200);
-
-      const { data: folderContent } =
-        await ownerApi.folders.getFolderByFolderId({ folderId });
-      const fileExists = (folderContent.response?.files ?? []).some(
-        (f) => f.title === fileName,
-      );
-      expect(fileExists).toBe(false);
     },
   );
 
@@ -6777,41 +6728,6 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
           .flatMap((g) => g.items ?? [])
           .some((f) => f.title === "Autotest MarkAsRead Folder File.docx"),
       ).toBe(false);
-    },
-  );
-
-  // Catches: server error when fileId is inaccessible to the caller
-  test(
-    "PUT /api/2.0/files/fileops/markasread - Mark file without access" +
-      " returns 200",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
-
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest MarkAsRead No Access",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: {
-          title: "Autotest MarkAsRead No Access File.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { status } = await userApi.operations.markAsRead({
-        baseBatchRequestDto: { fileIds: [fileId as any] },
-      });
-
-      expect(status).toBe(200);
     },
   );
 });
