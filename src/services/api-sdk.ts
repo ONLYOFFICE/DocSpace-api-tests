@@ -351,6 +351,7 @@ export class ApiSDK {
       oauth2: new OAuth2Api(config, undefined, axiosInstance),
       smtpSettings: new SMTPSettingsApi(config, undefined, axiosInstance),
       roomQuota: new QuotaApi(config, undefined, axiosInstance),
+      filesSettings: new FilesSettingsApi(config, undefined, axiosInstance),
     };
   }
 

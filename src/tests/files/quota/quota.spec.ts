@@ -134,9 +134,9 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     expect((data.response as any)[0].quotaLimit).toBe(0);
   });
 
-  // BUG XXXXX: PUT /api/2.0/files/rooms/roomquota - Returns 200 instead of 403 when room quota feature is disabled
+  // BUG 82293: PUT /api/2.0/files/rooms/roomquota - Returns 200 instead of 403 when room quota feature is disabled
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/rooms/roomquota - Owner cannot set quota when room quota feature is disabled",
+    "BUG 82293: PUT /api/2.0/files/rooms/roomquota - Owner cannot set quota when room quota feature is disabled",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
 
@@ -449,9 +449,9 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     expect((data.response as any[]).length).toBe(0);
   });
 
-  // BUG XXXXX: PUT /api/2.0/files/rooms/resetquota - Returns 200 instead of 403 when room quota feature is disabled
+  // BUG 82293: PUT /api/2.0/files/rooms/resetquota - Returns 200 instead of 403 when room quota feature is disabled
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/rooms/resetquota - Owner cannot reset quota when room quota feature is disabled",
+    "BUG 82293: PUT /api/2.0/files/rooms/resetquota - Owner cannot reset quota when room quota feature is disabled",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
 
