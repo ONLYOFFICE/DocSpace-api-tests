@@ -538,7 +538,532 @@ test.describe("PUT /api/2.0/files/settings/autocleanup - Update trash bin auto-c
   });
 });
 
-test.describe("PUT /api/2.0/files/settings/defaulttemplate - permissions", () => {
+test.describe("GET /api/2.0/files/settings/autocleanup - Get trash bin auto-clearing setting - Permissions", () => {
+  test("GET /api/2.0/files/settings/autocleanup - Unauthenticated user cannot read auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.getAutomaticallyCleanUp();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/files/settings/autocleanup - Owner can read auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getAutomaticallyCleanUp();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.isAutoCleanUp).toBe("boolean");
+  });
+
+  test("GET /api/2.0/files/settings/autocleanup - DocSpaceAdmin can read own auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.getAutomaticallyCleanUp();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.isAutoCleanUp).toBe("boolean");
+  });
+
+  test("GET /api/2.0/files/settings/autocleanup - RoomAdmin can read own auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.getAutomaticallyCleanUp();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.isAutoCleanUp).toBe("boolean");
+  });
+
+  test("GET /api/2.0/files/settings/autocleanup - User can read own auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.getAutomaticallyCleanUp();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.isAutoCleanUp).toBe("boolean");
+  });
+
+  test("GET /api/2.0/files/settings/autocleanup - Guest can read own auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.getAutomaticallyCleanUp();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.isAutoCleanUp).toBe("boolean");
+  });
+
+  test("GET /api/2.0/files/settings/autocleanup - Terminated user cannot read auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.getAutomaticallyCleanUp();
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/storeoriginal - Change the ability to upload original formats - Permissions", () => {
+  test("PUT /api/2.0/files/storeoriginal - Unauthenticated user cannot change store original setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().filesSettings.storeOriginal({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/storeoriginal - Owner can change store original setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.storeOriginal({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/storeoriginal - DocSpaceAdmin can change own store original setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.storeOriginal({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/storeoriginal - RoomAdmin can change own store original setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.storeOriginal({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/storeoriginal - User can change own store original setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.storeOriginal({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/storeoriginal - Guest can change own store original setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.storeOriginal({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/storeoriginal - Terminated user cannot change store original setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.storeOriginal({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/storeforcesave - Change the ability to store forcesaved file versions - Permissions", () => {
+  test("PUT /api/2.0/files/storeforcesave - Unauthenticated user cannot change store forcesave setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.storeForcesave();
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/storeforcesave - Owner can change store forcesave setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.storeForcesave();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/storeforcesave - DocSpaceAdmin can change own store forcesave setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.storeForcesave();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/storeforcesave - RoomAdmin can change own store forcesave setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.storeForcesave();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/storeforcesave - User can change own store forcesave setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.storeForcesave();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/storeforcesave - Guest can change own store forcesave setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.storeForcesave();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/storeforcesave - Terminated user cannot change store forcesave setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.storeForcesave();
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/settings/openeditorinsametab - Open document in the same browser tab - Permissions", () => {
+  test("PUT /api/2.0/files/settings/openeditorinsametab - Unauthenticated user cannot change open-in-same-tab setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.setOpenEditorInSameTab({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/settings/openeditorinsametab - Owner can change open-in-same-tab setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.setOpenEditorInSameTab({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/openeditorinsametab - DocSpaceAdmin can change own open-in-same-tab setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.setOpenEditorInSameTab({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/openeditorinsametab - RoomAdmin can change own open-in-same-tab setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.setOpenEditorInSameTab({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/openeditorinsametab - User can change own open-in-same-tab setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.setOpenEditorInSameTab({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/openeditorinsametab - Guest can change own open-in-same-tab setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.setOpenEditorInSameTab({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/openeditorinsametab - Terminated user cannot change open-in-same-tab setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.setOpenEditorInSameTab({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/keepnewfilename - Ask a new file name on creation - Permissions", () => {
+  test("PUT /api/2.0/files/keepnewfilename - Unauthenticated user cannot change keep-new-file-name setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.keepNewFileName({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/keepnewfilename - Owner can change keep-new-file-name setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.keepNewFileName({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/keepnewfilename - DocSpaceAdmin can change own keep-new-file-name setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.keepNewFileName({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/keepnewfilename - RoomAdmin can change own keep-new-file-name setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.keepNewFileName({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/keepnewfilename - User can change own keep-new-file-name setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.keepNewFileName({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/keepnewfilename - Guest can change own keep-new-file-name setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.keepNewFileName({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/keepnewfilename - Terminated user cannot change keep-new-file-name setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.keepNewFileName({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/settings/defaulttemplate - Permissions", () => {
   test("BUG 81953: PUT /api/2.0/files/settings/defaulttemplate - DocSpaceAdmin cannot set Owner's file as default template", async ({
     apiSdk,
   }) => {
