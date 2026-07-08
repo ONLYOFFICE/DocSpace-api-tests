@@ -15833,6 +15833,634 @@ test.describe("PUT /files/tags - Update tag", () => {
       "The value cannot be an empty string. (Parameter 'newName')",
     );
   });
+
+  // ── Global rename: one tag shared by several rooms ──
+
+  test("PUT /files/tags - Renaming a tag updates it in every room it is attached to", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Global Old" },
+    });
+
+    const { data: room1 } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Global Room 1",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const { data: room2 } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Global Room 2",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const room1Id = room1.response!.id!;
+    const room2Id = room2.response!.id!;
+
+    await ownerApi.rooms.addRoomTags({
+      id: room1Id,
+      batchTagsRequestDto: { names: ["Autotest Global Old"] },
+    });
+    await ownerApi.rooms.addRoomTags({
+      id: room2Id,
+      batchTagsRequestDto: { names: ["Autotest Global Old"] },
+    });
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Global Old",
+        newName: "Autotest Global New",
+      },
+    });
+    expect(status).toBe(200);
+
+    const { data: info1 } = await ownerApi.rooms.getRoomInfo({ id: room1Id });
+    const { data: info2 } = await ownerApi.rooms.getRoomInfo({ id: room2Id });
+    const tags1 = (info1 as any).response?.tags as string[];
+    const tags2 = (info2 as any).response?.tags as string[];
+
+    expect(tags1).toContain("Autotest Global New");
+    expect(tags1).not.toContain("Autotest Global Old");
+    expect(tags2).toContain("Autotest Global New");
+    expect(tags2).not.toContain("Autotest Global Old");
+
+    // Not two separate tags: catalog holds only the new name, once
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = catalog.response as unknown as string[];
+    expect(tags).toContain("Autotest Global New");
+    expect(tags).not.toContain("Autotest Global Old");
+    expect(tags.filter((t) => t === "Autotest Global New").length).toBe(1);
+  });
+
+  // ── Body / field validation ──
+
+  test("PUT /files/tags - Empty oldName returns 400", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "",
+        newName: "Autotest Empty Old Name New",
+      },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("PUT /files/tags - Missing oldName returns 400", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        newName: "Autotest Missing Old Name",
+      } as any,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("PUT /files/tags - Missing newName returns 400", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Missing New Name" },
+    });
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Missing New Name",
+      } as any,
+    });
+
+    expect(status).toBe(400);
+
+    // Side effect: old tag is untouched
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(catalog.response as unknown as string[]).toContain(
+      "Autotest Missing New Name",
+    );
+  });
+
+  test("PUT /files/tags - Empty request body returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.rooms.updateRoomTag({});
+
+    expect(status).toBe(400);
+  });
+
+  test("PUT /files/tags - null oldName returns 400", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: null,
+        newName: "Autotest Null Old Name New",
+      },
+    });
+
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBeDefined();
+  });
+
+  test("PUT /files/tags - null newName returns 400", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Null New Name" },
+    });
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Null New Name",
+        newName: null,
+      },
+    });
+
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBeDefined();
+
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(catalog.response as unknown as string[]).toContain(
+      "Autotest Null New Name",
+    );
+  });
+
+  test("PUT /files/tags - Both oldName and newName null returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: null,
+        newName: null,
+      },
+    });
+
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBeDefined();
+  });
+
+  // ── Whitespace handling ──
+
+  // BUG XXXXX: an empty newName is rejected with 400, but a whitespace-only
+  // newName is accepted with 200 — validation should treat it the same as empty.
+  test.fail(
+    "BUG XXXXX: PUT /files/tags - Whitespace-only newName should return 400 but is accepted (200)",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "Autotest Whitespace New" },
+      });
+
+      const { status } = await ownerApi.rooms.updateRoomTag({
+        updateTagRequestDto: {
+          oldName: "Autotest Whitespace New",
+          newName: "   ",
+        },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  // The API does NOT trim newName — surrounding spaces are stored verbatim.
+  test("PUT /files/tags - newName with surrounding spaces is stored verbatim (not trimmed)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Trim Source" },
+    });
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Trim Source",
+        newName: "  Autotest Trimmed Tag  ",
+      },
+    });
+    expect(status).toBe(200);
+
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = catalog.response as unknown as string[];
+    expect(tags).toContain("  Autotest Trimmed Tag  ");
+    expect(tags).not.toContain("Autotest Trimmed Tag");
+  });
+
+  // oldName is matched exactly — it is not trimmed, so a padded oldName does
+  // not match the stored tag and the rename fails with 404.
+  test("PUT /files/tags - oldName with surrounding spaces does not match and returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Old Trim Match" },
+    });
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "  Autotest Old Trim Match  ",
+        newName: "Autotest Old Trim Match Renamed",
+      },
+    });
+    expect(status).toBe(404);
+
+    // Original tag is untouched
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = catalog.response as unknown as string[];
+    expect(tags).toContain("Autotest Old Trim Match");
+    expect(tags).not.toContain("Autotest Old Trim Match Renamed");
+  });
+
+  // ── Case sensitivity ──
+
+  // Tags are case-insensitive: renaming a tag to a case-variant of ITSELF
+  // collides with the existing tag and is rejected as a duplicate.
+  test("PUT /files/tags - Renaming a tag to a different letter case returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Case Old" },
+    });
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Case Old",
+        newName: "autotest case old",
+      },
+    });
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toContain("already exists");
+
+    // Original casing is preserved
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(catalog.response as unknown as string[]).toContain(
+      "Autotest Case Old",
+    );
+  });
+
+  test("PUT /files/tags - Renaming to a case-variant of an existing tag returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest CaseConflict Tag" },
+    });
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest CaseConflict Source" },
+    });
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest CaseConflict Source",
+        newName: "autotest caseconflict tag",
+      },
+    });
+
+    // Tags are case-insensitive — this collides with the existing tag
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toContain("already exists");
+  });
+
+  // ── Special characters / Unicode ──
+
+  test("PUT /files/tags - newName with Cyrillic characters is stored verbatim", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Cyrillic Source" },
+    });
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Cyrillic Source",
+        newName: "Автотест Тег Кириллица",
+      },
+    });
+    expect(status).toBe(200);
+    expect(data.response as unknown as string).toBe("Автотест Тег Кириллица");
+
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(catalog.response as unknown as string[]).toContain(
+      "Автотест Тег Кириллица",
+    );
+  });
+
+  // BUG XXXXX: emoji in newName crashes the API with 500. Cyrillic and other
+  // Unicode are accepted (see the Cyrillic test), so emoji should be too.
+  test.fail(
+    "BUG XXXXX: PUT /files/tags - newName with emoji should return 200 but returns 500",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      await ownerApi.rooms.createRoomTag({
+        createTagRequestDto: { name: "Autotest Emoji Source" },
+      });
+
+      const { status } = await ownerApi.rooms.updateRoomTag({
+        updateTagRequestDto: {
+          oldName: "Autotest Emoji Source",
+          newName: "Autotest Emoji 🚀🔥",
+        },
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+
+  test("PUT /files/tags - newName with dashes, underscores and dots", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Punct Source" },
+    });
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Punct Source",
+        newName: "Autotest-Punct_Tag.v2",
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response as unknown as string).toBe("Autotest-Punct_Tag.v2");
+  });
+
+  test("PUT /files/tags - newName with quotes", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Quotes Source" },
+    });
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Quotes Source",
+        newName: 'Autotest "Quoted" Tag',
+      },
+    });
+
+    expect(status).toBe(200);
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(catalog.response as unknown as string[]).toContain(
+      data.response as unknown as string,
+    );
+  });
+
+  test("PUT /files/tags - newName with HTML/script-like string does not break the API", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest XSS Source" },
+    });
+
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest XSS Source",
+        newName: "<script>alert(1)</script>",
+      },
+    });
+
+    // API must not 500; capture whatever the sanitized/stored value is
+    expect(status).toBe(200);
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(catalog.response as unknown as string[]).toContain(
+      data.response as unknown as string,
+    );
+    expect(catalog.response as unknown as string[]).not.toContain(
+      "Autotest XSS Source",
+    );
+  });
+
+  // ── Length limits ──
+
+  test("PUT /files/tags - Very long newName", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Long Source" },
+    });
+
+    const longName = "A".repeat(1000);
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Long Source",
+        newName: longName,
+      },
+    });
+
+    // Must not be a server error regardless of whether the limit is enforced
+    expect(status).not.toBe(500);
+  });
+
+  // ── Chained / repeated renames ──
+
+  test("PUT /files/tags - Chained rename A -> B -> C leaves only C", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Chain A" },
+    });
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Chain Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: { names: ["Autotest Chain A"] },
+    });
+
+    const first = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Chain A",
+        newName: "Autotest Chain B",
+      },
+    });
+    expect(first.status).toBe(200);
+
+    const second = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Chain B",
+        newName: "Autotest Chain C",
+      },
+    });
+    expect(second.status).toBe(200);
+
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = catalog.response as unknown as string[];
+    expect(tags).toContain("Autotest Chain C");
+    expect(tags).not.toContain("Autotest Chain A");
+    expect(tags).not.toContain("Autotest Chain B");
+
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect((info as any).response?.tags as string[]).toContain(
+      "Autotest Chain C",
+    );
+  });
+
+  test("PUT /files/tags - Repeating the same rename returns 404 the second time", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Idempotent Old" },
+    });
+
+    const first = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Idempotent Old",
+        newName: "Autotest Idempotent New",
+      },
+    });
+    expect(first.status).toBe(200);
+
+    const second = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Idempotent Old",
+        newName: "Autotest Idempotent New",
+      },
+    });
+    expect(second.status).toBe(404);
+
+    // No duplicate was created
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = catalog.response as unknown as string[];
+    expect(tags.filter((t) => t === "Autotest Idempotent New").length).toBe(1);
+  });
+
+  // ── No side effects on failed rename ──
+
+  test("PUT /files/tags - Failed rename (conflict) leaves both tags intact", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest SideEffect Source" },
+    });
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest SideEffect Target" },
+    });
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest SideEffect Source",
+        newName: "Autotest SideEffect Target",
+      },
+    });
+    expect(status).toBe(400);
+
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = catalog.response as unknown as string[];
+    expect(tags).toContain("Autotest SideEffect Source");
+    expect(tags).toContain("Autotest SideEffect Target");
+  });
+
+  test("PUT /files/tags - Failed rename of a non-existent tag does not create it", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Ghost Old 424242",
+        newName: "Autotest Ghost New 424242",
+      },
+    });
+    expect(status).toBe(404);
+
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = catalog.response as unknown as string[];
+    expect(tags).not.toContain("Autotest Ghost New 424242");
+    expect(tags).not.toContain("Autotest Ghost Old 424242");
+  });
+
+  // ── Selective rename among several tags on a room ──
+
+  test("PUT /files/tags - Renaming one tag on a multi-tag room leaves the others unchanged", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest MultiTag Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    await ownerApi.rooms.addRoomTags({
+      id: roomId,
+      batchTagsRequestDto: {
+        names: ["Autotest Multi A", "Autotest Multi B", "Autotest Multi C"],
+      },
+    });
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Multi B",
+        newName: "Autotest Multi B Renamed",
+      },
+    });
+    expect(status).toBe(200);
+
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    const tags = (info as any).response?.tags as string[];
+    expect(tags).toContain("Autotest Multi A");
+    expect(tags).toContain("Autotest Multi B Renamed");
+    expect(tags).toContain("Autotest Multi C");
+    expect(tags).not.toContain("Autotest Multi B");
+  });
+
+  // ── Tag not attached to any room ──
+
+  test("PUT /files/tags - Renaming a tag that is not attached to any room succeeds", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Unused Old" },
+    });
+
+    const { status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Unused Old",
+        newName: "Autotest Unused New",
+      },
+    });
+    expect(status).toBe(200);
+
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    const tags = catalog.response as unknown as string[];
+    expect(tags).toContain("Autotest Unused New");
+    expect(tags).not.toContain("Autotest Unused Old");
+  });
 });
 
 test.describe("GET /files/tags - getRoomTagsInfo", () => {
