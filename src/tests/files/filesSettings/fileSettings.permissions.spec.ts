@@ -1,5 +1,237 @@
 import { expect } from "@playwright/test";
-import { test } from "@/src/fixtures/index";
+import { test } from "@/src/fixtures";
+import { EmployeeStatus } from "@onlyoffice/docspace-api-sdk";
+
+test.describe("PUT /api/2.0/files/thirdparty - Change third-party settings access - Permissions", () => {
+  test("PUT /api/2.0/files/thirdparty - Unauthenticated user cannot change third-party access", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.changeAccessToThirdparty({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/thirdparty - DocSpaceAdmin can enable third-party access", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeAccessToThirdparty({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/thirdparty - DocSpaceAdmin can disable third-party access", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeAccessToThirdparty({
+        settingsRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/thirdparty - RoomAdmin cannot change third-party access", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.changeAccessToThirdparty({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/thirdparty - User cannot change third-party access", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.changeAccessToThirdparty({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/thirdparty - Guest cannot change third-party access", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.changeAccessToThirdparty({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  // BUG XXXXX: PUT /api/2.0/files/thirdparty - Deleted user token remains valid, returns 200 instead of 401
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/thirdparty - Deleted DocSpaceAdmin cannot change third-party access",
+    async ({ apiSdk }) => {
+      const { api: adminApi, data: adminData } =
+        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const adminId = adminData.response!.id!;
+
+      await apiSdk.forRole("owner").profiles.deleteMember({ userid: adminId });
+
+      const { status } = await adminApi.filesSettings.changeAccessToThirdparty({
+        settingsRequestDto: { set: true },
+      });
+
+      expect(status).toBe(401);
+    },
+  );
+
+  test("PUT /api/2.0/files/thirdparty - Terminated DocSpaceAdmin cannot change third-party access", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [adminId], resendAll: false },
+    });
+
+    const { status } = await adminApi.filesSettings.changeAccessToThirdparty({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/settings/autocleanup - Update trash bin auto-clearing setting - Permissions", () => {
+  test("PUT /api/2.0/files/settings/autocleanup - Unauthenticated user cannot update auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.changeAutomaticallyCleanUp({
+        autoCleanupRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/settings/autocleanup - DocSpaceAdmin can update auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeAutomaticallyCleanUp({
+        autoCleanupRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.isAutoCleanUp).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/autocleanup - RoomAdmin can update own auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.changeAutomaticallyCleanUp({
+        autoCleanupRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.isAutoCleanUp).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/autocleanup - User can update own auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.changeAutomaticallyCleanUp({
+        autoCleanupRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.isAutoCleanUp).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/autocleanup - Guest can update own auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.changeAutomaticallyCleanUp({
+        autoCleanupRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.isAutoCleanUp).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/autocleanup - Terminated user cannot update auto-cleanup setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.changeAutomaticallyCleanUp({
+      autoCleanupRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
 
 test.describe("PUT /api/2.0/files/settings/defaulttemplate - permissions", () => {
   test("BUG 81953: PUT /api/2.0/files/settings/defaulttemplate - DocSpaceAdmin cannot set Owner's file as default template", async ({
