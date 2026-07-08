@@ -159,6 +159,346 @@ test.describe("PUT /api/2.0/files/thirdparty - Change third-party settings acces
   });
 });
 
+test.describe("PUT /api/2.0/files/forcesave - Change the forcesaving ability", () => {
+  test("PUT /api/2.0/files/forcesave - Owner calls forcesave and receives boolean response", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.forcesave();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/forcesave - State is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: toggleData } = await ownerApi.filesSettings.forcesave();
+    const newState = toggleData.response;
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.forcesave).toBe(newState);
+  });
+});
+
+test.describe("PUT /api/2.0/files/displayfileextension - Display file extension", () => {
+  test("PUT /api/2.0/files/displayfileextension - Owner enables file extension display", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.displayFileExtension({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/displayfileextension - Owner disables file extension display", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.displayFileExtension({
+        settingsRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/displayfileextension - Owner toggles file extension display on and off", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("Enable file extension display", async () => {
+      const { data, status } =
+        await ownerApi.filesSettings.displayFileExtension({
+          settingsRequestDto: { set: true },
+        });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    await test.step("Disable file extension display", async () => {
+      const { data, status } =
+        await ownerApi.filesSettings.displayFileExtension({
+          settingsRequestDto: { set: false },
+        });
+      expect(status).toBe(200);
+      expect(data.response).toBe(false);
+    });
+  });
+
+  test("PUT /api/2.0/files/displayfileextension - Enabling when already enabled is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.displayFileExtension({
+      settingsRequestDto: { set: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.displayFileExtension({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/displayfileextension - Disabling when already disabled is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.displayFileExtension({
+      settingsRequestDto: { set: false },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.displayFileExtension({
+      settingsRequestDto: { set: false },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/displayfileextension - Owner sends request without body", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.displayFileExtension({});
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/displayfileextension - Enabled state is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.displayFileExtension({
+      settingsRequestDto: { set: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.displayFileExtension).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/displayfileextension - Disabled state is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.displayFileExtension({
+      settingsRequestDto: { set: false },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.displayFileExtension).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/displayfileextension - Setting is isolated per user", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const ownerApi = apiSdk.forRole("owner");
+    const userApi = apiSdk.forRole("user");
+
+    await ownerApi.filesSettings.displayFileExtension({
+      settingsRequestDto: { set: false },
+    });
+    await userApi.filesSettings.displayFileExtension({
+      settingsRequestDto: { set: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.displayFileExtension).toBe(false);
+  });
+});
+
+test.describe("PUT /api/2.0/files/displayrecent - Display the Recent folder", () => {
+  test("PUT /api/2.0/files/displayrecent - Owner enables Recent folder display", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.displayRecent({ displayRequestDto: { set: true } });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/displayrecent - Owner disables Recent folder display", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.displayRecent({ displayRequestDto: { set: false } });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/displayrecent - Owner toggles Recent folder display on and off", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("Enable Recent folder display", async () => {
+      const { data, status } = await ownerApi.filesSettings.displayRecent({
+        displayRequestDto: { set: true },
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    await test.step("Disable Recent folder display", async () => {
+      const { data, status } = await ownerApi.filesSettings.displayRecent({
+        displayRequestDto: { set: false },
+      });
+      expect(status).toBe(200);
+      expect(data.response).toBe(false);
+    });
+  });
+
+  test("PUT /api/2.0/files/displayrecent - Enabling when already enabled is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.displayRecent({
+      displayRequestDto: { set: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.displayRecent({
+      displayRequestDto: { set: true },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/displayrecent - Disabling when already disabled is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.displayRecent({
+      displayRequestDto: { set: false },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.displayRecent({
+      displayRequestDto: { set: false },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/displayrecent - Owner sends request without body", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.displayRecent({});
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/displayrecent - Enabled state is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.displayRecent({
+      displayRequestDto: { set: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.recentSection).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/displayrecent - Disabled state is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.displayRecent({
+      displayRequestDto: { set: false },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.recentSection).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/displayrecent - Setting is isolated per user", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const ownerApi = apiSdk.forRole("owner");
+    const userApi = apiSdk.forRole("user");
+
+    await ownerApi.filesSettings.displayRecent({
+      displayRequestDto: { set: false },
+    });
+    await userApi.filesSettings.displayRecent({
+      displayRequestDto: { set: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.recentSection).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/displayrecent - getRecentFolder is accessible when Recent folder is enabled", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.displayRecent({
+      displayRequestDto: { set: true },
+    });
+
+    const { status } = await ownerApi.folders.getRecentFolder();
+
+    expect(status).toBe(200);
+  });
+});
+
 test.describe("PUT /api/2.0/files/settings/autocleanup - Update trash bin auto-clearing setting", () => {
   test("PUT /api/2.0/files/settings/autocleanup - Owner enables auto-cleanup with OneWeek gap", async ({
     apiSdk,
