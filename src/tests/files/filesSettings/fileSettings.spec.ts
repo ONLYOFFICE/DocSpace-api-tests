@@ -1368,3 +1368,68 @@ test.describe("PUT /api/2.0/files/keepnewfilename - Ask a new file name on creat
     expect(data.response?.keepNewFileName).toBe(false);
   });
 });
+
+test.describe("GET /api/2.0/files/docservice - Get the document service URL", () => {
+  test("GET /api/2.0/files/docservice - Owner returns 200 with document service URL data", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+    expect(typeof data.response?.isDefault).toBe("boolean");
+    expect(typeof data.response?.docServiceSslVerification).toBe("boolean");
+  });
+
+  test("GET /api/2.0/files/docservice - docServiceUrl is a non-null string", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+    expect(data.response?.docServiceUrl).not.toBe("");
+  });
+
+  test("GET /api/2.0/files/docservice - docServiceUrlApi is a non-null string", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(typeof data.response?.docServiceUrlApi).toBe("string");
+    expect(data.response?.docServiceUrlApi).not.toBe("");
+  });
+
+  test("GET /api/2.0/files/docservice - With version=true returns non-null version string", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getDocServiceUrl({ version: true });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response?.version).not.toBeNull();
+    expect(typeof data.response?.version).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - With version=false returns 200", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getDocServiceUrl({ version: false });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+});
