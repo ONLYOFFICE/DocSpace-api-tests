@@ -1063,6 +1063,103 @@ test.describe("PUT /api/2.0/files/keepnewfilename - Ask a new file name on creat
   });
 });
 
+test.describe("GET /api/2.0/files/docservice - Get the document service URL - Permissions", () => {
+  test("GET /api/2.0/files/docservice - Unauthenticated user cannot get document service URL", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/files/docservice - Owner can get document service URL", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - DocSpaceAdmin can get document service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - RoomAdmin can get document service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - User can get document service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - Guest can get document service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - Terminated user cannot get document service URL", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(401);
+  });
+});
+
 test.describe("PUT /api/2.0/files/settings/defaulttemplate - Permissions", () => {
   test("BUG 81953: PUT /api/2.0/files/settings/defaulttemplate - DocSpaceAdmin cannot set Owner's file as default template", async ({
     apiSdk,
