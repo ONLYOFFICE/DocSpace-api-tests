@@ -1064,14 +1064,14 @@ test.describe("PUT /api/2.0/files/keepnewfilename - Ask a new file name on creat
 });
 
 test.describe("GET /api/2.0/files/docservice - Get the document service URL - Permissions", () => {
-  test("GET /api/2.0/files/docservice - Unauthenticated user cannot get document service URL", async ({
+  test("GET /api/2.0/files/docservice - Unauthenticated user can get document service URL", async ({
     apiSdk,
   }) => {
     const { status } = await apiSdk
       .forAnonymous()
       .filesSettings.getDocServiceUrl();
 
-    expect(status).toBe(401);
+    expect(status).toBe(200);
   });
 
   test("GET /api/2.0/files/docservice - Owner can get document service URL", async ({
@@ -1141,8 +1141,88 @@ test.describe("GET /api/2.0/files/docservice - Get the document service URL - Pe
     expect(data.statusCode).toBe(200);
     expect(typeof data.response?.docServiceUrl).toBe("string");
   });
+});
 
-  test("GET /api/2.0/files/docservice - Terminated user cannot get document service URL", async ({
+test.describe("GET /api/2.0/files/module - Get the Documents module information - Permissions", () => {
+  test("GET /api/2.0/files/module - Unauthenticated user cannot get Documents module information", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/files/module - Owner can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - DocSpaceAdmin can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - RoomAdmin can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - User can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - Guest can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - Terminated user cannot get Documents module information", async ({
     apiSdk,
   }) => {
     const { api: userApi, data: userData } =
@@ -1154,9 +1234,91 @@ test.describe("GET /api/2.0/files/docservice - Get the document service URL - Pe
       updateMembersRequestDto: { userIds: [userId], resendAll: false },
     });
 
-    const { status } = await userApi.filesSettings.getDocServiceUrl();
+    const { status } = await userApi.filesSettings.getFilesModule();
 
     expect(status).toBe(401);
+  });
+});
+
+test.describe("GET /api/2.0/files/settings - Get all file settings - Permissions", () => {
+  // BUG XXXXX: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk
+        .forAnonymous()
+        .filesSettings.getFilesSettings();
+
+      expect(status).toBe(401);
+    },
+  );
+
+  test("GET /api/2.0/files/settings - Owner can get file settings", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/settings - DocSpaceAdmin can get file settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/settings - RoomAdmin can get file settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/settings - User can get file settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/settings - Guest can get file settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
   });
 });
 

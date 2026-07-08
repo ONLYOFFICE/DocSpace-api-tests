@@ -1379,7 +1379,6 @@ test.describe("GET /api/2.0/files/docservice - Get the document service URL", ()
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
-    expect(data.response).toBeDefined();
     expect(typeof data.response?.isDefault).toBe("boolean");
     expect(typeof data.response?.docServiceSslVerification).toBe("boolean");
   });
@@ -1417,7 +1416,6 @@ test.describe("GET /api/2.0/files/docservice - Get the document service URL", ()
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
-    expect(data.response?.version).not.toBeNull();
     expect(typeof data.response?.version).toBe("string");
   });
 
@@ -1431,5 +1429,164 @@ test.describe("GET /api/2.0/files/docservice - Get the document service URL", ()
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
+  });
+});
+
+test.describe("GET /api/2.0/files/module - Get the Documents module information", () => {
+  test("GET /api/2.0/files/module - Owner returns 200 with module data", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/module - id is a non-empty string", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(typeof data.response?.id).toBe("string");
+    expect(data.response?.id).not.toBe("");
+  });
+
+  test("GET /api/2.0/files/module - title is a non-empty string", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+    expect(data.response?.title).not.toBe("");
+  });
+
+  test("GET /api/2.0/files/module - link is a non-empty string", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(typeof data.response?.link).toBe("string");
+    expect(data.response?.link).not.toBe("");
+  });
+
+  test("GET /api/2.0/files/module - isPrimary is a boolean", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(typeof data.response?.isPrimary).toBe("boolean");
+  });
+});
+
+test.describe("GET /api/2.0/files/settings - Get all file settings", () => {
+  test("GET /api/2.0/files/settings - Owner returns 200 with FilesSettingsDto", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/settings - extsWebEdited is a non-empty array", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response?.extsWebEdited)).toBe(true);
+    expect(data.response?.extsWebEdited?.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/files/settings - extsWebEdited contains .docx", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.extsWebEdited).toContain(".docx");
+  });
+
+  test("GET /api/2.0/files/settings - extsDocument contains .docx", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.extsDocument).toContain(".docx");
+  });
+
+  test("GET /api/2.0/files/settings - extsSpreadsheet contains .xlsx", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.extsSpreadsheet).toContain(".xlsx");
+  });
+
+  test("GET /api/2.0/files/settings - extsPresentation contains .pptx", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.extsPresentation).toContain(".pptx");
+  });
+
+  test("GET /api/2.0/files/settings - boolean settings fields are booleans", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(typeof data.response?.forcesave).toBe("boolean");
+    expect(typeof data.response?.storeForcesave).toBe("boolean");
+    expect(typeof data.response?.storeOriginalFiles).toBe("boolean");
+    expect(typeof data.response?.keepNewFileName).toBe("boolean");
+    expect(typeof data.response?.displayFileExtension).toBe("boolean");
+    expect(typeof data.response?.openEditorInSameTab).toBe("boolean");
+  });
+
+  test("GET /api/2.0/files/settings - maxUploadThreadCount and chunkUploadSize are positive numbers", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.maxUploadThreadCount).toBeGreaterThan(0);
+    expect(data.response?.chunkUploadSize).toBeGreaterThan(0);
   });
 });
