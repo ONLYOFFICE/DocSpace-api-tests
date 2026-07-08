@@ -67,6 +67,7 @@ import { BannersVisibilityApi } from "@onlyoffice/docspace-api-sdk/dist/api/sett
 import { CookiesApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/cookies-api";
 import { IPRestrictionsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/iprestrictions-api";
 import { NotificationsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/notifications-api";
+import { OwnerApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/owner-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-settings-api";
 import { QuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/quota-api";
@@ -274,6 +275,7 @@ export class ApiSDK {
       cookies: new CookiesApi(config, undefined, axiosInstance),
       ipRestrictions: new IPRestrictionsApi(config, undefined, axiosInstance),
       notifications: new NotificationsApi(config, undefined, axiosInstance),
+      owner: new OwnerApi(config, undefined, axiosInstance),
     };
   }
 
@@ -388,6 +390,7 @@ export class ApiSDK {
       ),
       roomQuota: new QuotaApi(config, undefined, axiosInstance),
       filesSettings: new FilesSettingsApi(config, undefined, axiosInstance),
+      owner: new OwnerApi(config, undefined, axiosInstance),
     };
   }
 
