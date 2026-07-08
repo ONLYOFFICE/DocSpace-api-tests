@@ -152,7 +152,8 @@ test.describe("GET /api/2.0/settings/ai-access - Get tenant AI access settings",
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.commonSettings.getTenantAiAccessSettings();
+    const { data, status } =
+      await adminApi.commonSettings.getTenantAiAccessSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -167,7 +168,8 @@ test.describe("GET /api/2.0/settings/ai-access - Get tenant AI access settings",
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.commonSettings.getTenantAiAccessSettings();
+    const { data, status } =
+      await roomAdminApi.commonSettings.getTenantAiAccessSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -182,7 +184,8 @@ test.describe("GET /api/2.0/settings/ai-access - Get tenant AI access settings",
       "User",
     );
 
-    const { data, status } = await userApi.commonSettings.getTenantAiAccessSettings();
+    const { data, status } =
+      await userApi.commonSettings.getTenantAiAccessSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -197,7 +200,8 @@ test.describe("GET /api/2.0/settings/ai-access - Get tenant AI access settings",
       "Guest",
     );
 
-    const { data, status } = await guestApi.commonSettings.getTenantAiAccessSettings();
+    const { data, status } =
+      await guestApi.commonSettings.getTenantAiAccessSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -241,7 +245,8 @@ test.describe("GET /api/2.0/settings/socket - Get socket settings", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.commonSettings.getSocketSettings();
+    const { data, status } =
+      await roomAdminApi.commonSettings.getSocketSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -359,22 +364,24 @@ test.describe("DELETE /api/2.0/settings/colortheme - Delete portal color theme",
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data: created } = await ownerApi.commonSettings.savePortalColorTheme({
-      customColorThemesSettingsRequestsDto: {
-        theme: {
-          name: "Theme To Delete",
-          main: { accent: "#0F4071", buttons: "#5299E0" },
-          text: { accent: "#FFFFFF", buttons: "#FFFFFF" },
+    const { data: created } =
+      await ownerApi.commonSettings.savePortalColorTheme({
+        customColorThemesSettingsRequestsDto: {
+          theme: {
+            name: "Theme To Delete",
+            main: { accent: "#0F4071", buttons: "#5299E0" },
+            text: { accent: "#FFFFFF", buttons: "#FFFFFF" },
+          },
         },
-      },
-    });
+      });
 
     const themeId = Math.max(...created.response!.themes!.map((t) => t.id!));
     const countBefore = created.response!.themes!.length;
 
-    const { data, status } = await ownerApi.commonSettings.deletePortalColorTheme({
-      id: themeId,
-    });
+    const { data, status } =
+      await ownerApi.commonSettings.deletePortalColorTheme({
+        id: themeId,
+      });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -392,21 +399,23 @@ test.describe("DELETE /api/2.0/settings/colortheme - Delete portal color theme",
       "DocSpaceAdmin",
     );
 
-    const { data: created } = await ownerApi.commonSettings.savePortalColorTheme({
-      customColorThemesSettingsRequestsDto: {
-        theme: {
-          name: "Theme To Delete",
-          main: { accent: "#333333", buttons: "#666666" },
-          text: { accent: "#FFFFFF", buttons: "#FFFFFF" },
+    const { data: created } =
+      await ownerApi.commonSettings.savePortalColorTheme({
+        customColorThemesSettingsRequestsDto: {
+          theme: {
+            name: "Theme To Delete",
+            main: { accent: "#333333", buttons: "#666666" },
+            text: { accent: "#FFFFFF", buttons: "#FFFFFF" },
+          },
         },
-      },
-    });
+      });
 
     const themeId = Math.max(...created.response!.themes!.map((t) => t.id!));
 
-    const { data, status } = await adminApi.commonSettings.deletePortalColorTheme({
-      id: themeId,
-    });
+    const { data, status } =
+      await adminApi.commonSettings.deletePortalColorTheme({
+        id: themeId,
+      });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -439,7 +448,8 @@ test.describe("GET /api/2.0/settings/colortheme - Get portal color theme", () =>
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.commonSettings.getPortalColorTheme();
+    const { data, status } =
+      await adminApi.commonSettings.getPortalColorTheme();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -457,7 +467,8 @@ test.describe("GET /api/2.0/settings/colortheme - Get portal color theme", () =>
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.commonSettings.getPortalColorTheme();
+    const { data, status } =
+      await roomAdminApi.commonSettings.getPortalColorTheme();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -489,7 +500,8 @@ test.describe("GET /api/2.0/settings/colortheme - Get portal color theme", () =>
       "Guest",
     );
 
-    const { data, status } = await guestApi.commonSettings.getPortalColorTheme();
+    const { data, status } =
+      await guestApi.commonSettings.getPortalColorTheme();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);

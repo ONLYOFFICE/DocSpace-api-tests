@@ -76,11 +76,9 @@ test.describe("PUT /api/2.0/settings/owner - access control", () => {
   test("PUT /api/2.0/settings/owner - Anonymous cannot update portal owner", async ({
     apiSdk,
   }) => {
-    const { status } = await apiSdk
-      .forAnonymous()
-      .owner.updatePortalOwner({
-        ownerIdSettingsRequestDto: { ownerId: "some-id" },
-      });
+    const { status } = await apiSdk.forAnonymous().owner.updatePortalOwner({
+      ownerIdSettingsRequestDto: { ownerId: "some-id" },
+    });
 
     expect(status).toBe(401);
   });
@@ -104,11 +102,9 @@ test.describe("PUT /api/2.0/settings/owner - access control", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { status } = await apiSdk
-      .forRole("user")
-      .owner.updatePortalOwner({
-        ownerIdSettingsRequestDto: { ownerId: "some-id" },
-      });
+    const { status } = await apiSdk.forRole("user").owner.updatePortalOwner({
+      ownerIdSettingsRequestDto: { ownerId: "some-id" },
+    });
 
     expect(status).toBe(403);
   });
@@ -118,11 +114,9 @@ test.describe("PUT /api/2.0/settings/owner - access control", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { status } = await apiSdk
-      .forRole("guest")
-      .owner.updatePortalOwner({
-        ownerIdSettingsRequestDto: { ownerId: "some-id" },
-      });
+    const { status } = await apiSdk.forRole("guest").owner.updatePortalOwner({
+      ownerIdSettingsRequestDto: { ownerId: "some-id" },
+    });
 
     expect(status).toBe(403);
   });

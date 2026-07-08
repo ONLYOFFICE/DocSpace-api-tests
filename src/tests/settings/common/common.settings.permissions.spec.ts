@@ -62,7 +62,8 @@ test.describe("DELETE /api/2.0/settings/colortheme - access control", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.commonSettings.deletePortalColorTheme({ id: 1 });
+    const { data, status } =
+      await roomAdminApi.commonSettings.deletePortalColorTheme({ id: 1 });
 
     expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
@@ -76,7 +77,8 @@ test.describe("DELETE /api/2.0/settings/colortheme - access control", () => {
       "User",
     );
 
-    const { data, status } = await userApi.commonSettings.deletePortalColorTheme({ id: 1 });
+    const { data, status } =
+      await userApi.commonSettings.deletePortalColorTheme({ id: 1 });
 
     expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
@@ -90,7 +92,8 @@ test.describe("DELETE /api/2.0/settings/colortheme - access control", () => {
       "Guest",
     );
 
-    const { data, status } = await guestApi.commonSettings.deletePortalColorTheme({ id: 1 });
+    const { data, status } =
+      await guestApi.commonSettings.deletePortalColorTheme({ id: 1 });
 
     expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
@@ -117,7 +120,10 @@ test.describe("PUT /api/2.0/settings/colortheme - access control", () => {
       .forAnonymous()
       .commonSettings.savePortalColorTheme({
         customColorThemesSettingsRequestsDto: {
-          theme: { name: "Theme", main: { accent: "#000000", buttons: "#000000" } },
+          theme: {
+            name: "Theme",
+            main: { accent: "#000000", buttons: "#000000" },
+          },
         },
       });
 
@@ -132,11 +138,15 @@ test.describe("PUT /api/2.0/settings/colortheme - access control", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.commonSettings.savePortalColorTheme({
-      customColorThemesSettingsRequestsDto: {
-        theme: { name: "Theme", main: { accent: "#000000", buttons: "#000000" } },
-      },
-    });
+    const { data, status } =
+      await roomAdminApi.commonSettings.savePortalColorTheme({
+        customColorThemesSettingsRequestsDto: {
+          theme: {
+            name: "Theme",
+            main: { accent: "#000000", buttons: "#000000" },
+          },
+        },
+      });
 
     expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
@@ -152,7 +162,10 @@ test.describe("PUT /api/2.0/settings/colortheme - access control", () => {
 
     const { data, status } = await userApi.commonSettings.savePortalColorTheme({
       customColorThemesSettingsRequestsDto: {
-        theme: { name: "Theme", main: { accent: "#000000", buttons: "#000000" } },
+        theme: {
+          name: "Theme",
+          main: { accent: "#000000", buttons: "#000000" },
+        },
       },
     });
 
@@ -168,11 +181,16 @@ test.describe("PUT /api/2.0/settings/colortheme - access control", () => {
       "Guest",
     );
 
-    const { data, status } = await guestApi.commonSettings.savePortalColorTheme({
-      customColorThemesSettingsRequestsDto: {
-        theme: { name: "Theme", main: { accent: "#000000", buttons: "#000000" } },
+    const { data, status } = await guestApi.commonSettings.savePortalColorTheme(
+      {
+        customColorThemesSettingsRequestsDto: {
+          theme: {
+            name: "Theme",
+            main: { accent: "#000000", buttons: "#000000" },
+          },
+        },
       },
-    });
+    );
 
     expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
@@ -198,7 +216,8 @@ test.describe("GET /api/2.0/settings/payment - access control", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.commonSettings.getPaymentSettings();
+    const { data, status } =
+      await roomAdminApi.commonSettings.getPaymentSettings();
 
     expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
@@ -256,11 +275,12 @@ test.describe("POST /api/2.0/settings/deeplink - access control", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.commonSettings.configureDeepLink({
-      deepLinkConfigurationRequestsDto: {
-        deepLinkSettings: { handlingMode: 1 },
-      },
-    });
+    const { data, status } =
+      await roomAdminApi.commonSettings.configureDeepLink({
+        deepLinkConfigurationRequestsDto: {
+          deepLinkSettings: { handlingMode: 1 },
+        },
+      });
 
     expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);

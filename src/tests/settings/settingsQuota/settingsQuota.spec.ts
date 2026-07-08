@@ -39,7 +39,6 @@ test.describe("GET /api/2.0/settings/userquotasettings - get user quota settings
       ),
     ).toBe(true);
   });
-
 });
 
 test.describe("POST /api/2.0/settings/aiagentquotasettings - Owner saves AI agent quota settings", () => {
