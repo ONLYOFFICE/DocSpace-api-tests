@@ -69,6 +69,7 @@ import { IPRestrictionsApi } from "@onlyoffice/docspace-api-sdk/dist/api/setting
 import { NotificationsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/notifications-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-settings-api";
+import { QuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/quota-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -250,6 +251,7 @@ export class ApiSDK {
         axiosInstance,
       ),
       filesSettings: new FilesSettingsApi(config, undefined, axiosInstance),
+      roomQuota: new QuotaApi(config, undefined, axiosInstance),
       auditTrail: new AuditTrailDataApi(config, undefined, axiosInstance),
       securityBanners: new SecurityBannersVisibilityApi(
         config,
@@ -364,6 +366,8 @@ export class ApiSDK {
       ipRestrictions: new IPRestrictionsApi(config, undefined, axiosInstance),
       notifications: new NotificationsApi(config, undefined, axiosInstance),
       settingsAuthorization: new SettingsAuthorizationApi(config, undefined, axiosInstance),
+      roomQuota: new QuotaApi(config, undefined, axiosInstance),
+      filesSettings: new FilesSettingsApi(config, undefined, axiosInstance),
     };
   }
 

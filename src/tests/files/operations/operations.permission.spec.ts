@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test } from "@/src/fixtures/index";
+import { test } from "@/src/fixtures";
 import {
   CheckDestFolderResult,
   Configuration,
@@ -11,8 +11,8 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
-test.describe("PUT /files/fileops/copy - Permissions", () => {
-  test("BUG 65580: PUT /files/fileops/copy - User cannot copy a room", async ({
+test.describe("PUT /api/2.0/files/fileops/copy - Permissions", () => {
+  test("BUG 65580: PUT /api/2.0/files/fileops/copy - User cannot copy a room", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -45,8 +45,8 @@ test.describe("PUT /files/fileops/copy - Permissions", () => {
   });
 });
 
-test.describe("PUT /files/fileops/move - Permissions", () => {
-  test("BUG 65580: PUT /files/fileops/move - User cannot move a room", async ({
+test.describe("PUT /api/2.0/files/fileops/move - Permissions", () => {
+  test("BUG 65580: PUT /api/2.0/files/fileops/move - User cannot move a room", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -4238,6 +4238,38 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead Permissions", 
 
     expect(status).toBe(200);
   });
+
+  test("PUT /api/2.0/files/fileops/markasread - User without room access returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest MarkAsRead No Access",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest MarkAsRead No Access File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await userApi.operations.markAsRead({
+      baseBatchRequestDto: { fileIds: [fileId as any] },
+    });
+
+    expect(status).toBe(200);
+  });
 });
 
 test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems - Permissions", () => {
@@ -5348,9 +5380,9 @@ test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploa
     },
   );
 
-  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Any authenticated user can abort another user's session regardless of room access
+  // BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Any authenticated user can abort another user's session regardless of room access
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
+    "BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
       " (ContentCreator) cannot abort another user's session returns 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -5398,9 +5430,9 @@ test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploa
     },
   );
 
-  // BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User without room access can abort another user's session (returns 200 and actually terminates the session)
+  // BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User without room access can abort another user's session (returns 200 and actually terminates the session)
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
+    "BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
       " without room access cannot abort session returns 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
