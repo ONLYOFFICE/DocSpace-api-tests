@@ -316,7 +316,8 @@ test.describe("GET /api/2.0/settings/notification/rooms - Owner gets rooms notif
       },
     });
 
-    const { data, status } = await ownerApi.notifications.getRoomsNotificationSettings();
+    const { data, status } =
+      await ownerApi.notifications.getRoomsNotificationSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -330,7 +331,8 @@ test.describe("GET /api/2.0/settings/notification/rooms - DocSpaceAdmin gets roo
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: memberData, api: adminApi } = await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const { data: memberData, api: adminApi } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const adminId = memberData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -356,7 +358,8 @@ test.describe("GET /api/2.0/settings/notification/rooms - DocSpaceAdmin gets roo
       },
     });
 
-    const { data, status } = await adminApi.notifications.getRoomsNotificationSettings();
+    const { data, status } =
+      await adminApi.notifications.getRoomsNotificationSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -370,7 +373,8 @@ test.describe("GET /api/2.0/settings/notification/rooms - RoomAdmin gets rooms n
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: memberData, api: roomAdminApi } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const { data: memberData, api: roomAdminApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const memberId = memberData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -396,7 +400,8 @@ test.describe("GET /api/2.0/settings/notification/rooms - RoomAdmin gets rooms n
       },
     });
 
-    const { data, status } = await roomAdminApi.notifications.getRoomsNotificationSettings();
+    const { data, status } =
+      await roomAdminApi.notifications.getRoomsNotificationSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -410,7 +415,8 @@ test.describe("GET /api/2.0/settings/notification/rooms - User gets rooms notifi
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: memberData, api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
     const memberId = memberData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -436,7 +442,8 @@ test.describe("GET /api/2.0/settings/notification/rooms - User gets rooms notifi
       },
     });
 
-    const { data, status } = await userApi.notifications.getRoomsNotificationSettings();
+    const { data, status } =
+      await userApi.notifications.getRoomsNotificationSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -450,7 +457,8 @@ test.describe("GET /api/2.0/settings/notification/rooms - Guest gets rooms notif
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data: memberData, api: guestApi } = await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const { data: memberData, api: guestApi } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
     const memberId = memberData.response!.id!;
 
     const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -476,7 +484,8 @@ test.describe("GET /api/2.0/settings/notification/rooms - Guest gets rooms notif
       },
     });
 
-    const { data, status } = await guestApi.notifications.getRoomsNotificationSettings();
+    const { data, status } =
+      await guestApi.notifications.getRoomsNotificationSettings();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -496,7 +505,8 @@ test.describe("GET /api/2.0/settings/notification/{type} - Owner gets notificati
         notificationSettingsRequestsDto: { type, isEnabled: true },
       });
 
-      const { data, status } = await ownerApi.notifications.getNotificationSettings({ type });
+      const { data, status } =
+        await ownerApi.notifications.getNotificationSettings({ type });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -519,7 +529,8 @@ test.describe("GET /api/2.0/settings/notification/{type} - DocSpaceAdmin gets no
         notificationSettingsRequestsDto: { type, isEnabled: true },
       });
 
-      const { data, status } = await docSpaceAdminApi.notifications.getNotificationSettings({ type });
+      const { data, status } =
+        await docSpaceAdminApi.notifications.getNotificationSettings({ type });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -534,13 +545,17 @@ test.describe("GET /api/2.0/settings/notification/{type} - RoomAdmin gets notifi
     test(`GET /api/2.0/settings/notification/{type} - RoomAdmin gets notification settings type ${type}`, async ({
       apiSdk,
     }) => {
-      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
 
       await roomAdminApi.notifications.setNotificationSettings({
         notificationSettingsRequestsDto: { type, isEnabled: true },
       });
 
-      const { data, status } = await roomAdminApi.notifications.getNotificationSettings({ type });
+      const { data, status } =
+        await roomAdminApi.notifications.getNotificationSettings({ type });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -555,13 +570,17 @@ test.describe("GET /api/2.0/settings/notification/{type} - User gets notificatio
     test(`GET /api/2.0/settings/notification/{type} - User gets notification settings type ${type}`, async ({
       apiSdk,
     }) => {
-      const { api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
 
       await userApi.notifications.setNotificationSettings({
         notificationSettingsRequestsDto: { type, isEnabled: true },
       });
 
-      const { data, status } = await userApi.notifications.getNotificationSettings({ type });
+      const { data, status } =
+        await userApi.notifications.getNotificationSettings({ type });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -576,13 +595,17 @@ test.describe("GET /api/2.0/settings/notification/{type} - Guest gets notificati
     test(`GET /api/2.0/settings/notification/{type} - Guest gets notification settings type ${type}`, async ({
       apiSdk,
     }) => {
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember("owner", "Guest");
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
 
       await guestApi.notifications.setNotificationSettings({
         notificationSettingsRequestsDto: { type, isEnabled: true },
       });
 
-      const { data, status } = await guestApi.notifications.getNotificationSettings({ type });
+      const { data, status } =
+        await guestApi.notifications.getNotificationSettings({ type });
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
@@ -632,9 +655,13 @@ test.describe("GET /api/2.0/settings/notification/channels - RoomAdmin gets noti
   test("GET /api/2.0/settings/notification/channels - RoomAdmin gets notification channels", async ({
     apiSdk,
   }) => {
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
 
-    const { data, status } = await roomAdminApi.notifications.getNotificationChannels();
+    const { data, status } =
+      await roomAdminApi.notifications.getNotificationChannels();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -649,9 +676,13 @@ test.describe("GET /api/2.0/settings/notification/channels - User gets notificat
   test("GET /api/2.0/settings/notification/channels - User gets notification channels", async ({
     apiSdk,
   }) => {
-    const { api: userApi } = await apiSdk.addAuthenticatedMember("owner", "User");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
 
-    const { data, status } = await userApi.notifications.getNotificationChannels();
+    const { data, status } =
+      await userApi.notifications.getNotificationChannels();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -666,9 +697,13 @@ test.describe("GET /api/2.0/settings/notification/channels - Guest gets notifica
   test("GET /api/2.0/settings/notification/channels - Guest gets notification channels", async ({
     apiSdk,
   }) => {
-    const { api: guestApi } = await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
 
-    const { data, status } = await guestApi.notifications.getNotificationChannels();
+    const { data, status } =
+      await guestApi.notifications.getNotificationChannels();
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);

@@ -1,6 +1,9 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { s3AuthServiceDto, invalidMysqlSettings } from "@/src/helpers/auth-services";
+import {
+  s3AuthServiceDto,
+  invalidMysqlSettings,
+} from "@/src/helpers/auth-services";
 
 // TODO: add tests for other auth services (Box, Dropbox, Google Drive, OneDrive, etc.)
 
@@ -40,7 +43,6 @@ test.describe("POST /api/2.0/settings/authservice/externaldb/test", () => {
   });
 });
 
-
 test.describe("GET /api/2.0/settings/authservice", () => {
   test("GET /api/2.0/settings/authservice - Owner gets auth services after saving S3 keys", async ({
     apiSdk,
@@ -66,7 +68,14 @@ test.describe("GET /api/2.0/settings/authservice", () => {
     expect(typeof service.paid).toBe("boolean");
 
     const serviceNames = data.response!.map((s) => s.name);
-    for (const name of ["s3", "dropbox", "box", "google", "googlecloud", "telegram"]) {
+    for (const name of [
+      "s3",
+      "dropbox",
+      "box",
+      "google",
+      "googlecloud",
+      "telegram",
+    ]) {
       expect(serviceNames).toContain(name);
     }
 
@@ -94,7 +103,14 @@ test.describe("GET /api/2.0/settings/authservice", () => {
     expect(data.response!.length).toBeGreaterThan(0);
 
     const serviceNames = data.response!.map((s) => s.name);
-    for (const name of ["s3", "dropbox", "box", "google", "googlecloud", "telegram"]) {
+    for (const name of [
+      "s3",
+      "dropbox",
+      "box",
+      "google",
+      "googlecloud",
+      "telegram",
+    ]) {
       expect(serviceNames).toContain(name);
     }
 

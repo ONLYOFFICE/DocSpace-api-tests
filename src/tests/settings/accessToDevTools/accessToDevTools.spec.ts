@@ -11,7 +11,9 @@ test.describe("GET /api/2.0/settings/devtoolsaccess", () => {
 
     expect(status).toBe(200);
     expect(typeof data.response?.limitedAccessForUsers).toBe("boolean");
-    expect(new Date(data.response?.lastModified as string).getTime()).not.toBeNaN();
+    expect(
+      new Date(data.response?.lastModified as string).getTime(),
+    ).not.toBeNaN();
   });
 
   test("GET /api/2.0/settings/devtoolsaccess - DocSpaceAdmin gets dev tools access settings", async ({
@@ -25,7 +27,9 @@ test.describe("GET /api/2.0/settings/devtoolsaccess", () => {
 
     expect(status).toBe(200);
     expect(typeof data.response?.limitedAccessForUsers).toBe("boolean");
-    expect(new Date(data.response?.lastModified as string).getTime()).not.toBeNaN();
+    expect(
+      new Date(data.response?.lastModified as string).getTime(),
+    ).not.toBeNaN();
   });
 
   test("GET /api/2.0/settings/devtoolsaccess - Owner sees limitedAccessForUsers true when restriction is enabled", async ({

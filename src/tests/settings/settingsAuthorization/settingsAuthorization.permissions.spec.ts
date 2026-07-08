@@ -1,6 +1,9 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { s3AuthServiceDto, invalidMysqlSettings } from "@/src/helpers/auth-services";
+import {
+  s3AuthServiceDto,
+  invalidMysqlSettings,
+} from "@/src/helpers/auth-services";
 
 test.describe("GET /api/2.0/settings/authservice - permissions", () => {
   test("GET /api/2.0/settings/authservice - Anonymous cannot get auth services", async ({
