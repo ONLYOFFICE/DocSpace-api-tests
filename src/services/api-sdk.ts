@@ -62,6 +62,11 @@ import { LoginHistoryApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/
 import { SMTPSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/smtpsettings-api";
 import { ActiveConnectionsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/active-connections-api";
 import { TFASettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/tfasettings-api";
+import { AccessToDevToolsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/access-to-dev-tools-api";
+import { BannersVisibilityApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/banners-visibility-api";
+import { CookiesApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/cookies-api";
+import { IPRestrictionsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/iprestrictions-api";
+import { NotificationsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/notifications-api";
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-settings-api";
 import { QuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/quota-api";
@@ -256,6 +261,19 @@ export class ApiSDK {
       csp: new CSPApi(config, undefined, axiosInstance),
       loginHistory: new LoginHistoryApi(config, undefined, axiosInstance),
       smtpSettings: new SMTPSettingsApi(config, undefined, axiosInstance),
+      accessToDevTools: new AccessToDevToolsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      bannersVisibility: new BannersVisibilityApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      cookies: new CookiesApi(config, undefined, axiosInstance),
+      ipRestrictions: new IPRestrictionsApi(config, undefined, axiosInstance),
+      notifications: new NotificationsApi(config, undefined, axiosInstance),
     };
   }
 
@@ -350,6 +368,24 @@ export class ApiSDK {
       loginHistory: new LoginHistoryApi(config, undefined, axiosInstance),
       oauth2: new OAuth2Api(config, undefined, axiosInstance),
       smtpSettings: new SMTPSettingsApi(config, undefined, axiosInstance),
+      accessToDevTools: new AccessToDevToolsApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      bannersVisibility: new BannersVisibilityApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
+      cookies: new CookiesApi(config, undefined, axiosInstance),
+      ipRestrictions: new IPRestrictionsApi(config, undefined, axiosInstance),
+      notifications: new NotificationsApi(config, undefined, axiosInstance),
+      settingsAuthorization: new SettingsAuthorizationApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
       roomQuota: new QuotaApi(config, undefined, axiosInstance),
       filesSettings: new FilesSettingsApi(config, undefined, axiosInstance),
     };
