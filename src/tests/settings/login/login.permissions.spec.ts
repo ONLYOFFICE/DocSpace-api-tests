@@ -141,6 +141,68 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - access control", (
   });
 });
 
+test.describe("PUT /api/2.0/settings/security/loginsettings - validation", () => {
+  test("PUT /api/2.0/settings/security/loginsettings - attemptCount exceeds 4-digit UI limit", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .loginSettings.updateLoginSettings({
+        loginSettingsRequestDto: {
+          attemptCount: 99999,
+          blockTime: 60,
+          checkPeriod: 60,
+        },
+      });
+
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+    expect((data.response as any).errors.AttemptCount[0]).toBe(
+      "The field AttemptCount must be between 1 and 9999.",
+    );
+  });
+
+  test("PUT /api/2.0/settings/security/loginsettings - blockTime exceeds 4-digit UI limit", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .loginSettings.updateLoginSettings({
+        loginSettingsRequestDto: {
+          attemptCount: 5,
+          blockTime: 99999,
+          checkPeriod: 60,
+        },
+      });
+
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+    expect((data.response as any).errors.BlockTime[0]).toBe(
+      "The field BlockTime must be between 1 and 9999.",
+    );
+  });
+
+  test("PUT /api/2.0/settings/security/loginsettings - checkPeriod exceeds 4-digit UI limit", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .loginSettings.updateLoginSettings({
+        loginSettingsRequestDto: {
+          attemptCount: 5,
+          blockTime: 60,
+          checkPeriod: 99999,
+        },
+      });
+
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+    expect((data.response as any).errors.CheckPeriod[0]).toBe(
+      "The field CheckPeriod must be between 1 and 9999.",
+    );
+  });
+});
+
 test.describe("DELETE /api/2.0/settings/security/loginsettings - access control", () => {
   test("DELETE /api/2.0/settings/security/loginsettings - Restore default login settings without authorization", async ({
     apiSdk,

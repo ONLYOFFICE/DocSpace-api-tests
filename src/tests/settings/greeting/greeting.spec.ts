@@ -32,6 +32,48 @@ test.describe("GET /api/2.0/settings/greetingsettings - Get greeting settings", 
     expect(typeof (data.response as unknown as string)).toBe("string");
     expect(data.response as unknown as string).toBeTruthy();
   });
+
+  test("GET /api/2.0/settings/greetingsettings - RoomAdmin gets greeting settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .greetingSettings.getGreetingSettings();
+
+    expect(status).toBe(200);
+    expect(typeof (data.response as unknown as string)).toBe("string");
+    expect(data.response as unknown as string).toBeTruthy();
+  });
+
+  test("GET /api/2.0/settings/greetingsettings - User gets greeting settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .greetingSettings.getGreetingSettings();
+
+    expect(status).toBe(200);
+    expect(typeof (data.response as unknown as string)).toBe("string");
+    expect(data.response as unknown as string).toBeTruthy();
+  });
+
+  test("GET /api/2.0/settings/greetingsettings - Guest gets greeting settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .greetingSettings.getGreetingSettings();
+
+    expect(status).toBe(200);
+    expect(typeof (data.response as unknown as string)).toBe("string");
+    expect(data.response as unknown as string).toBeTruthy();
+  });
 });
 
 test.describe("GET /api/2.0/settings/greetingsettings/isdefault - Check if greeting settings are default", () => {
