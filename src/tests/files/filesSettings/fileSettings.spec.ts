@@ -1590,3 +1590,321 @@ test.describe("GET /api/2.0/files/settings - Get all file settings", () => {
     expect(data.response?.chunkUploadSize).toBeGreaterThan(0);
   });
 });
+
+test.describe("PUT /api/2.0/files/hideconfirmcanceloperation - Hide confirmation dialog when canceling an operation", () => {
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Owner hides the cancel operation confirmation dialog", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Owner shows the cancel operation confirmation dialog", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Owner toggles the setting on and off", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("Hide the dialog", async () => {
+      const { data, status } =
+        await ownerApi.filesSettings.hideConfirmCancelOperation({
+          settingsRequestDto: { set: true },
+        });
+      expect(status).toBe(200);
+      expect(data.response).toBe(true);
+    });
+
+    await test.step("Show the dialog", async () => {
+      const { data, status } =
+        await ownerApi.filesSettings.hideConfirmCancelOperation({
+          settingsRequestDto: { set: false },
+        });
+      expect(status).toBe(200);
+      expect(data.response).toBe(false);
+    });
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Hiding when already hidden is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.hideConfirmCancelOperation({
+      settingsRequestDto: { set: true },
+    });
+
+    const { data, status } =
+      await ownerApi.filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Showing when already shown is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.hideConfirmCancelOperation({
+      settingsRequestDto: { set: false },
+    });
+
+    const { data, status } =
+      await ownerApi.filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Owner sends request without body", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmCancelOperation({});
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Hidden state is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.hideConfirmCancelOperation({
+      settingsRequestDto: { set: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.hideConfirmCancelOperation).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Shown state is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.hideConfirmCancelOperation({
+      settingsRequestDto: { set: false },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.hideConfirmCancelOperation).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Setting is isolated per user", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const ownerApi = apiSdk.forRole("owner");
+    const userApi = apiSdk.forRole("user");
+
+    await ownerApi.filesSettings.hideConfirmCancelOperation({
+      settingsRequestDto: { set: false },
+    });
+    await userApi.filesSettings.hideConfirmCancelOperation({
+      settingsRequestDto: { set: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.hideConfirmCancelOperation).toBe(false);
+  });
+});
+
+test.describe("PUT /api/2.0/files/hideconfirmconvert - Hide confirmation dialog when converting", () => {
+  test("PUT /api/2.0/files/hideconfirmconvert - Owner calls with save: true and receives boolean response", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Owner calls with save: false and receives boolean response", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - save: true state is reflected in getFilesSettings hideConfirmConvertSave", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.hideConfirmConvertSave).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - save: false state is reflected in getFilesSettings hideConfirmConvertOpen", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: false },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.hideConfirmConvertOpen).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - save: true and save: false are independent settings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: saveData } = await ownerApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: true },
+    });
+    const saveState = saveData.response;
+
+    const { data: openData } = await ownerApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: false },
+    });
+    const openState = openData.response;
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.hideConfirmConvertSave).toBe(saveState);
+    expect(data.response?.hideConfirmConvertOpen).toBe(openState);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Repeated call with save: true is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: true },
+    });
+
+    const { data: first } = await ownerApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: true },
+    });
+    const stateAfterFirst = first.response;
+
+    const { data: second, status } =
+      await ownerApi.filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(second.response).toBe(stateAfterFirst);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Repeated call with save: false is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: false },
+    });
+
+    const { data: first } = await ownerApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: false },
+    });
+    const stateAfterFirst = first.response;
+
+    const { data: second, status } =
+      await ownerApi.filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: false },
+      });
+
+    expect(status).toBe(200);
+    expect(second.response).toBe(stateAfterFirst);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Owner sends request without body", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmConvert({});
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response).toBe("boolean");
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Setting is isolated per user", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const ownerApi = apiSdk.forRole("owner");
+    const userApi = apiSdk.forRole("user");
+
+    const { data: ownerData } = await ownerApi.filesSettings.hideConfirmConvert(
+      {
+        hideConfirmConvertRequestDto: { save: true },
+      },
+    );
+    const ownerState = ownerData.response;
+
+    await userApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.hideConfirmConvertSave).toBe(ownerState);
+  });
+});

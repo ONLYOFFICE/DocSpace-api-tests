@@ -1241,9 +1241,9 @@ test.describe("GET /api/2.0/files/module - Get the Documents module information 
 });
 
 test.describe("GET /api/2.0/files/settings - Get all file settings - Permissions", () => {
-  // BUG XXXXX: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings
+  // BUG 82323: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings",
+    "BUG 82323: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forAnonymous()
@@ -1348,5 +1348,227 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - Permissions", () =>
     expect((data as any).error?.message).toBe(
       "You don't have enough permission to perform the operation",
     );
+  });
+});
+
+test.describe("PUT /api/2.0/files/hideconfirmcanceloperation - Hide confirmation dialog when canceling an operation - Permissions", () => {
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Unauthenticated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Owner can change the setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - DocSpaceAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - RoomAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - User can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Guest can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Terminated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.hideConfirmCancelOperation({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/hideconfirmconvert - Hide confirmation dialog when converting - Permissions", () => {
+  test("PUT /api/2.0/files/hideconfirmconvert - Unauthenticated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Owner can change the setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - DocSpaceAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - RoomAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - User can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Guest can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Terminated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: true },
+    });
+
+    expect(status).toBe(401);
   });
 });
