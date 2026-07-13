@@ -128,3 +128,27 @@ test.describe("POST /api/2.0/settings/greetingsettings/restore - access control"
     expect((data as any).error.message).toBe("Access denied");
   });
 });
+
+test.describe("GET /api/2.0/settings/greetingsettings - permissions", () => {
+  test("GET /api/2.0/settings/greetingsettings - Anonymous cannot get greeting settings", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .greetingSettings.getGreetingSettings();
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("GET /api/2.0/settings/greetingsettings/isdefault - permissions", () => {
+  test("GET /api/2.0/settings/greetingsettings/isdefault - Anonymous cannot check default greeting settings", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .greetingSettings.getIsDefaultGreetingSettings();
+
+    expect(status).toBe(401);
+  });
+});

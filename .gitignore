@@ -1,7 +1,8 @@
 node_modules/
 playwright-report/
 test-output/
-.claude/
+.claude/*
+!.claude/commands/
 
 .env
 .vscode/
