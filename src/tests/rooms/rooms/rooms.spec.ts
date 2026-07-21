@@ -1352,7 +1352,7 @@ test.describe("API rooms methods", () => {
     // still accepts clearly-invalid non-hex values, which is inconsistent.
     for (const color of ["ZZZZZZ", "123"]) {
       test.fail(
-        `PUT /files/rooms/:id - Invalid color "${color}" should return 400 (validation), but API accepts it (200)`,
+        `BUG 82364: PUT /files/rooms/:id - Invalid color "${color}" should return 400 (validation), but API accepts it (200)`,
         async ({ apiSdk }) => {
           const ownerApi = apiSdk.forRole("owner");
           const roomId = await mkRoom(ownerApi, "Autotest Bad Color Room");
@@ -1930,7 +1930,7 @@ test.describe("API rooms methods", () => {
     // Undocumented parameters should be rejected (see the `share` param, BUG 81582),
     // but the API silently ignores them and applies the known fields.
     test.fail(
-      "PUT /files/rooms/:id - Unknown field should be rejected (400) but is silently ignored (200)",
+      "BUG 82365: PUT /files/rooms/:id - Unknown field should be rejected (400) but is silently ignored (200)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const roomId = await mkRoom(ownerApi, "Autotest Unknown Field");
@@ -3888,7 +3888,7 @@ test.describe("API rooms methods", () => {
       // until fixed; a 400 will report an unexpected pass. TODO: add bug number.
       for (const id of [0, -1, 999999999]) {
         test.fail(
-          `PUT /files/rooms/:id/unpin - id=${id} should return 400 (validation), but API returns 403`,
+          `BUG 82366: PUT /files/rooms/:id/unpin - id=${id} should return 400 (validation), but API returns 403`,
           async ({ apiSdk }) => {
             const ownerApi = apiSdk.forRole("owner");
             const { status } = await ownerApi.rooms.unpinRoom({ id });
@@ -10752,7 +10752,7 @@ test.describe("API rooms methods", () => {
     // An out-of-range enum in the body should be a 400 Bad Request, but the API
     // currently returns 403. Marked test.fail until the validation is fixed.
     test.fail(
-      "BUG XXXXX: PUT /files/rooms/:id/links - Invalid linkType should be rejected with 400 (API returns 403)",
+      "BUG 82370: PUT /files/rooms/:id/links - Invalid linkType should be rejected with 400 (API returns 403)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const roomId = await mkRoom(ownerApi, "Autotest setLink Bad LinkType");
@@ -10769,7 +10769,7 @@ test.describe("API rooms methods", () => {
     );
 
     test.fail(
-      "BUG XXXXX: PUT /files/rooms/:id/links - Invalid access should be rejected with 400 (API returns 403)",
+      "BUG 82371: PUT /files/rooms/:id/links - Invalid access should be rejected with 400 (API returns 403)",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const roomId = await mkRoom(ownerApi, "Autotest setLink Bad Access");
@@ -14021,7 +14021,7 @@ test.describe("API rooms methods", () => {
     // the test reports an unexpected pass, signaling test.fail can be removed.
     for (const id of [0, -1]) {
       test.fail(
-        `POST /files/rooms/:id/indexexport - id=${id} should return 400 (validation), but API returns 404`,
+        `BUG 82368: POST /files/rooms/:id/indexexport - id=${id} should return 400 (validation), but API returns 404`,
         async ({ apiSdk }) => {
           const ownerApi = apiSdk.forRole("owner");
           const { status } = await ownerApi.rooms.startRoomIndexExport({ id });
@@ -14091,7 +14091,7 @@ test.describe("API rooms methods", () => {
     // fixed; when the API starts rejecting it the test reports an unexpected
     // pass, signaling test.fail can be removed.
     test.fail(
-      "POST /files/rooms/:id/indexexport - archived room should be forbidden (403), but API returns 200",
+      "BUG 82369: POST /files/rooms/:id/indexexport - archived room should be forbidden (403), but API returns 200",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { data: roomData } = await ownerApi.rooms.createRoom({
@@ -16012,7 +16012,7 @@ test.describe("PUT /files/tags - Update tag", () => {
   // BUG XXXXX: an empty newName is rejected with 400, but a whitespace-only
   // newName is accepted with 200 — validation should treat it the same as empty.
   test.fail(
-    "BUG XXXXX: PUT /files/tags - Whitespace-only newName should return 400 but is accepted (200)",
+    "BUG 82372: PUT /files/tags - Whitespace-only newName should return 400 but is accepted (200)",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -16163,7 +16163,7 @@ test.describe("PUT /files/tags - Update tag", () => {
   // BUG XXXXX: emoji in newName crashes the API with 500. Cyrillic and other
   // Unicode are accepted (see the Cyrillic test), so emoji should be too.
   test.fail(
-    "BUG XXXXX: PUT /files/tags - newName with emoji should return 200 but returns 500",
+    "BUG 82374: PUT /files/tags - newName with emoji should return 200 but returns 500",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
