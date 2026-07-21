@@ -2,14 +2,13 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { WebhookTrigger } from "@onlyoffice/docspace-api-sdk";
 
-// The backend validates the webhook URL by sending a HEAD request and requires
-// an HTTP 200 response, so the target must be a real, reachable URL. example.com
-// answers 200 to HEAD and ignores the query string used here for uniqueness.
+// NOTE: the backend validates the webhook URL by sending a HEAD request and
+// requires an HTTP 200 response, so the target must be a real, reachable URL.
 const webhookUri = (apiSdk: { faker: { generateString(n: number): string } }) =>
   `https://example.com/?id=${apiSdk.faker.generateString(10)}`;
 
-// The backend rejects webhooks without a secret ("Value cannot be null.
-// (Parameter 'secret')"), so a secretKey is always required on create/update.
+// NOTE: secretKey is required by the backend on create/update even though the
+// SDK type marks it optional; omitting it returns 400.
 const webhookDto = (apiSdk: {
   faker: { generateString(n: number): string };
 }) => ({
@@ -36,9 +35,7 @@ test.describe("POST /api/2.0/settings/webhook - Create a webhook", () => {
     expect(data.response?.name).toBe(dto.name);
     expect(data.response?.uri).toBe(dto.uri);
     expect(data.response?.enabled).toBe(true);
-    // The secret must never be echoed back in the response.
     expect((data.response as any)?.secretKey).toBeUndefined();
-    // The response carries author/audit metadata.
     expect(data.response?.createdBy?.id).toBeDefined();
     expect(data.response?.createdOn).toBeDefined();
   });
@@ -111,7 +108,6 @@ test.describe("PUT /api/2.0/settings/webhook - Update a webhook", () => {
     expect(data.response?.id).toBe(id);
     expect(data.response?.name).toBe(updated.name);
     expect(data.response?.uri).toBe(updated.uri);
-    // Updating stamps modification audit metadata.
     expect(data.response?.modifiedOn).toBeDefined();
   });
 });
@@ -134,7 +130,6 @@ test.describe("PUT /api/2.0/settings/webhook/enable - Enable a webhook", () => {
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
-    // Only the enabled flag changes; identity and config are preserved.
     expect(data.response?.id).toBe(id);
     expect(data.response?.name).toBe(dto.name);
     expect(data.response?.uri).toBe(dto.uri);

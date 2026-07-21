@@ -1,9 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 
-// Webhooks are managed per-user: every authenticated member (owner, DocSpace
-// admin, room admin, user) can create and list their own webhooks. Guests are
-// forbidden, and anonymous requests are unauthorized.
 const webhookDto = (apiSdk: {
   faker: { generateString(n: number): string };
 }) => ({
@@ -130,7 +127,6 @@ test.describe("GET /api/2.0/settings/webhooks/log - permissions", () => {
 });
 
 test.describe("GET /api/2.0/settings/webhook/triggers - permissions", () => {
-  // Unlike the other endpoints, the triggers list is available to guests too.
   test("GET /api/2.0/settings/webhook/triggers - Guest can get webhook triggers", async ({
     apiSdk,
   }) => {
@@ -140,5 +136,53 @@ test.describe("GET /api/2.0/settings/webhook/triggers - permissions", () => {
 
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
+  });
+});
+
+test.describe("Webhook ownership - a non-admin cannot modify another user's webhook", () => {
+  test("PUT /api/2.0/settings/webhook/enable - User A cannot enable/disable User B's webhook", async ({
+    apiSdk,
+  }) => {
+    const a = await apiSdk.addMember("owner", "User");
+    const b = await apiSdk.addMember("owner", "User");
+    const apiA = await apiSdk.authenticateMember(a.userData, "User");
+    const apiB = await apiSdk.authenticateMember(b.userData, "User");
+
+    const dtoB = webhookDto(apiSdk);
+    const { data: created } = await apiB.webhooks.createWebhook(dtoB);
+    const id = created.response!.id!;
+
+    const { data, status } = await apiA.webhooks.enableWebhook({
+      updateWebhooksConfigRequestsDto: {
+        id,
+        ...dtoB.createWebhooksConfigRequestsDto,
+        enabled: false,
+      },
+    });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/settings/webhook/{id} - User A cannot remove User B's webhook", async ({
+    apiSdk,
+  }) => {
+    const a = await apiSdk.addMember("owner", "User");
+    const b = await apiSdk.addMember("owner", "User");
+    const apiA = await apiSdk.authenticateMember(a.userData, "User");
+    const apiB = await apiSdk.authenticateMember(b.userData, "User");
+
+    const { data: created } = await apiB.webhooks.createWebhook(
+      webhookDto(apiSdk),
+    );
+    const id = created.response!.id!;
+
+    const { data, status } = await apiA.webhooks.removeWebhook({ id });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+
+    const { data: listB } = await apiB.webhooks.getTenantWebhooks();
+    expect(listB.response?.some((w) => w.configs?.id === id)).toBe(true);
   });
 });
