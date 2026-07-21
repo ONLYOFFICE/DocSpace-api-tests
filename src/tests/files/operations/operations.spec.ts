@@ -1641,34 +1641,33 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
   });
 
   // BUG 81881: GET /api/2.0/files/fileops/move - non-existent destFolderId returns 403 instead of 404
-  test.fail(
-    "BUG 81881: GET /api/2.0/files/fileops/move - Non-existent destFolderId returns 404",
-    async ({ apiSdk }) => {
-      // Catches: non-existent destFolderId returns 403 (Access denied) instead of 404 (Not found);
-      // misleads callers into thinking it is a permissions issue rather than a missing resource
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 81881: GET /api/2.0/files/fileops/move - Non-existent destFolderId returns 404", async ({
+    apiSdk,
+  }) => {
+    // Catches: non-existent destFolderId returns 403 (Access denied) instead of 404 (Not found);
+    // misleads callers into thinking it is a permissions issue rather than a missing resource
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest CheckMove NonExist Dest.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckMove NonExist Dest.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId: 999999999,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
-      });
+    const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
+      inDto: {
+        fileIds: [fileId],
+        destFolderId: 999999999,
+        conflictResolveType: FileConflictResolveType.Skip,
+      },
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   // BUG 81882: GET /api/2.0/files/fileops/move - missing destFolderId returns 403 instead of 400
   test.fail(
