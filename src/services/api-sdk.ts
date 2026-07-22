@@ -9,7 +9,7 @@ import {
   RoomsApi,
   OperationsApi,
   SharingApi,
-  ProfilesApi,
+  PeopleProfilesApi,
   PasswordApi,
   UserStatusApi,
   PeopleQuotaApi,
@@ -132,7 +132,7 @@ export class ApiSDK {
       files: new FilesApi(config, undefined, axiosInstance),
       folders: new FoldersApi(config, undefined, axiosInstance),
       rooms: new RoomsApi(config, undefined, axiosInstance),
-      profiles: new ProfilesApi(config, undefined, axiosInstance),
+      profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
     };
   }
 
@@ -176,7 +176,7 @@ export class ApiSDK {
       groupSearch: new GroupSearchApi(config, undefined, axiosInstance),
       operations: new OperationsApi(config, undefined, axiosInstance),
       sharing: new SharingApi(config, undefined, axiosInstance),
-      profiles: new ProfilesApi(config, undefined, axiosInstance),
+      profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
       password: new PasswordApi(config, undefined, axiosInstance),
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
@@ -299,7 +299,7 @@ export class ApiSDK {
       groupApi: new GroupApi(config, undefined, axiosInstance),
       groupSearch: new GroupSearchApi(config, undefined, axiosInstance),
       sharing: new SharingApi(config, undefined, axiosInstance),
-      profiles: new ProfilesApi(config, undefined, axiosInstance),
+      profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
       password: new PasswordApi(config, undefined, axiosInstance),
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
