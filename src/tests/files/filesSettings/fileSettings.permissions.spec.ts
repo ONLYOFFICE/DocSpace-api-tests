@@ -2177,3 +2177,147 @@ test.describe("PUT /api/2.0/files/changedeleteconfrim - Confirm the file deletio
     expect(status).toBe(401);
   });
 });
+
+test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive download format - Permissions", () => {
+  test("PUT /api/2.0/files/settings/downloadtargz - Unauthenticated user cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Owner can enable tar.gz format", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Owner can disable tar.gz format", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - DocSpaceAdmin can enable tar.gz format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - DocSpaceAdmin can disable tar.gz format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - RoomAdmin cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - User cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Guest cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Terminated DocSpaceAdmin cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [adminId], resendAll: false },
+    });
+
+    const { status } = await adminApi.filesSettings.changeDownloadZipFromBody({
+      displayRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
