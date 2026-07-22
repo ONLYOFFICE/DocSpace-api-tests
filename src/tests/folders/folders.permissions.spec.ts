@@ -1704,7 +1704,7 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
 
     expect(status).toBe(200);
     const ownerTitles = data.response!.map((s) => s.current?.title);
-    expect(ownerTitles).toContain("My documents");
+    expect(ownerTitles).toContain("Files");
     expect(ownerTitles).toContain("Rooms");
     expect(ownerTitles).toContain("Trash");
   });
@@ -1721,12 +1721,12 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
 
     expect(status).toBe(200);
     const userTitles = data.response!.map((s) => s.current?.title);
-    expect(userTitles).toContain("My documents");
+    expect(userTitles).toContain("Files");
     expect(userTitles).toContain("Rooms");
     expect(userTitles).toContain("Trash");
   });
 
-  test("GET /api/2.0/files/@root - Guest gets 200 and does not see My documents", async ({
+  test("GET /api/2.0/files/@root - Guest gets 200 and does not see Files section", async ({
     apiSdk,
   }) => {
     const { api: guestApi } = await apiSdk.addAuthenticatedMember(
@@ -1738,7 +1738,7 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
 
     expect(status).toBe(200);
     const guestTitles = data.response!.map((s) => s.current?.title);
-    expect(guestTitles).not.toContain("My documents");
+    expect(guestTitles).not.toContain("Files");
     expect(guestTitles).toContain("Rooms");
     expect(guestTitles).toContain("Trash");
   });
@@ -1755,7 +1755,7 @@ test.describe("GET /api/2.0/files/@root - access control", () => {
 
     expect(status).toBe(200);
     const adminTitles = data.response!.map((s) => s.current?.title);
-    expect(adminTitles).toContain("My documents");
+    expect(adminTitles).toContain("Files");
     expect(adminTitles).toContain("Rooms");
     expect(adminTitles).toContain("Trash");
   });

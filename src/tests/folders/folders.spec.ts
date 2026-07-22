@@ -1722,9 +1722,9 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     const { data, status } = await ownerApi.folders.getRootFolders({});
 
     expect(status).toBe(200);
-    expect(data.response!.length).toBe(8);
+    expect(data.response!.length).toBe(9);
     const titles = data.response!.map((s) => s.current?.title);
-    expect(titles).toContain("My documents");
+    expect(titles).toContain("Files");
     expect(titles).toContain("Rooms");
     expect(titles).toContain("Trash");
     expect(titles).toContain("Favorites");
@@ -1732,6 +1732,7 @@ test.describe("GET /api/2.0/files/@root - Get root folders", () => {
     expect(titles).toContain("Archive");
     expect(titles).toContain("Shared with me");
     expect(titles).toContain("AI agents");
+    expect(titles).toContain("Forms");
   });
 
   test("GET /api/2.0/files/@root - Each section has current with id, files, folders, total", async ({
@@ -2156,7 +2157,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () =
     expect(last.title).toBe("Autotest Room As Path Target");
   });
 
-  test("GET /api/2.0/files/folder/:folderId/path - Folder in My Documents path includes My documents", async ({
+  test("GET /api/2.0/files/folder/:folderId/path - Folder in My Documents path includes Files section", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -2175,8 +2176,8 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - Get folder path", () =
     expect(Array.isArray(data.response)).toBe(true);
     const titles = data.response!.map((e) => e.title);
     expect(titles).toContain("Autotest Folder MyDocs Path Check");
-    expect(titles).toContain("My documents");
-    const myDocsIndex = titles.indexOf("My documents");
+    expect(titles).toContain("Files");
+    const myDocsIndex = titles.indexOf("Files");
     const folderIndex = titles.indexOf("Autotest Folder MyDocs Path Check");
     expect(myDocsIndex).toBeLessThan(folderIndex);
   });
@@ -9496,7 +9497,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     expect(status).toBe(200);
     expect(data.response!.myDocumentsUsedSpace).toBeDefined();
     // Catches: if section title is renamed or localisation key is broken
-    expect(data.response!.myDocumentsUsedSpace!.title).toBe("My documents");
+    expect(data.response!.myDocumentsUsedSpace!.title).toBe("Files");
     expect(typeof data.response!.myDocumentsUsedSpace!.usedSpace).toBe(
       "number",
     );
