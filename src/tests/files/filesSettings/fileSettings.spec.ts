@@ -2683,3 +2683,164 @@ test.describe("PUT /api/2.0/files/changedeleteconfrim - Confirm the file deletio
     expect(data.response?.confirmDelete).toBe(false);
   });
 });
+
+test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive download format", () => {
+  test("PUT /api/2.0/files/settings/downloadtargz - Owner enables tar.gz archive format", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } =
+      await ownerApi.filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+
+    const { data: settings } = await ownerApi.filesSettings.getFilesSettings();
+    expect(settings.response?.downloadTarGz).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Owner disables tar.gz archive format (uses zip)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } =
+      await ownerApi.filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+
+    const { data: settings } = await ownerApi.filesSettings.getFilesSettings();
+    expect(settings.response?.downloadTarGz).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Owner toggles archive format on and off", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("Enable tar.gz format", async () => {
+      await ownerApi.filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+      const { data } = await ownerApi.filesSettings.getFilesSettings();
+      expect(data.response?.downloadTarGz).toBe(true);
+    });
+
+    await test.step("Disable tar.gz format (revert to zip)", async () => {
+      await ownerApi.filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: false },
+      });
+      const { data } = await ownerApi.filesSettings.getFilesSettings();
+      expect(data.response?.downloadTarGz).toBe(false);
+    });
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Enabling when already enabled is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDownloadZipFromBody({
+      displayRequestDto: { set: true },
+    });
+
+    const { data, status } =
+      await ownerApi.filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+
+    const { data: settings } = await ownerApi.filesSettings.getFilesSettings();
+    expect(settings.response?.downloadTarGz).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Disabling when already disabled is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDownloadZipFromBody({
+      displayRequestDto: { set: false },
+    });
+
+    const { data, status } =
+      await ownerApi.filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+
+    const { data: settings } = await ownerApi.filesSettings.getFilesSettings();
+    expect(settings.response?.downloadTarGz).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Owner sends request without body", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDownloadZipFromBody({});
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Enabled state is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDownloadZipFromBody({
+      displayRequestDto: { set: true },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.downloadTarGz).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Disabled state is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDownloadZipFromBody({
+      displayRequestDto: { set: false },
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.downloadTarGz).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Setting change by Owner is visible to DocSpaceAdmin", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDownloadZipFromBody({
+      displayRequestDto: { set: true },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.response?.downloadTarGz).toBe(true);
+  });
+});
