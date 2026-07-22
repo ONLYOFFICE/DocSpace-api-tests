@@ -9,7 +9,7 @@ import {
   RoomsApi,
   OperationsApi,
   SharingApi,
-  ProfilesApi,
+  PeopleProfilesApi,
   PasswordApi,
   UserStatusApi,
   PeopleQuotaApi,
@@ -62,6 +62,7 @@ import { LoginHistoryApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/
 import { SMTPSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/smtpsettings-api";
 import { ActiveConnectionsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/active-connections-api";
 import { TFASettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/tfasettings-api";
+import { WebhooksApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/webhooks-api";
 import { AccessToDevToolsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/access-to-dev-tools-api";
 import { BannersVisibilityApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/banners-visibility-api";
 import { CookiesApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/cookies-api";
@@ -131,7 +132,7 @@ export class ApiSDK {
       files: new FilesApi(config, undefined, axiosInstance),
       folders: new FoldersApi(config, undefined, axiosInstance),
       rooms: new RoomsApi(config, undefined, axiosInstance),
-      profiles: new ProfilesApi(config, undefined, axiosInstance),
+      profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
     };
   }
 
@@ -175,7 +176,7 @@ export class ApiSDK {
       groupSearch: new GroupSearchApi(config, undefined, axiosInstance),
       operations: new OperationsApi(config, undefined, axiosInstance),
       sharing: new SharingApi(config, undefined, axiosInstance),
-      profiles: new ProfilesApi(config, undefined, axiosInstance),
+      profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
       password: new PasswordApi(config, undefined, axiosInstance),
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
@@ -231,6 +232,7 @@ export class ApiSDK {
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
       authentication: new AuthenticationApi(config, undefined, axiosInstance),
       tfaSettings: new TFASettingsApi(config, undefined, axiosInstance),
+      webhooks: new WebhooksApi(config, undefined, axiosInstance),
       capabilities: new CapabilitiesApi(config, undefined, axiosInstance),
       migration: new MigrationApi(config, undefined, axiosInstance),
       scopeManagement: new ScopeManagementApi(config, undefined, axiosInstance),
@@ -297,7 +299,7 @@ export class ApiSDK {
       groupApi: new GroupApi(config, undefined, axiosInstance),
       groupSearch: new GroupSearchApi(config, undefined, axiosInstance),
       sharing: new SharingApi(config, undefined, axiosInstance),
-      profiles: new ProfilesApi(config, undefined, axiosInstance),
+      profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
       password: new PasswordApi(config, undefined, axiosInstance),
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
@@ -391,6 +393,7 @@ export class ApiSDK {
       roomQuota: new QuotaApi(config, undefined, axiosInstance),
       filesSettings: new FilesSettingsApi(config, undefined, axiosInstance),
       owner: new OwnerApi(config, undefined, axiosInstance),
+      webhooks: new WebhooksApi(config, undefined, axiosInstance),
     };
   }
 

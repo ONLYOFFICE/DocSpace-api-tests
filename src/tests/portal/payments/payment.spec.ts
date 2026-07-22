@@ -350,7 +350,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
     const { data, status } =
       await ownerApi.payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "ai-tools",
+          serviceName: ["ai-tools"],
           credit: true,
           debit: true,
         },
@@ -374,7 +374,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
     const { data, status } =
       await ownerApi.payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "backup",
+          serviceName: ["backup"],
           credit: true,
           debit: true,
         },
@@ -404,7 +404,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
     const { data, status } =
       await ownerApi.payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "disk-storage-1-hour",
+          serviceName: ["disk-storage-1-hour"],
           credit: true,
           debit: true,
         },
@@ -432,7 +432,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
       .forRole("docSpaceAdmin")
       .payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "ai-tools",
+          serviceName: ["ai-tools"],
           credit: true,
           debit: true,
         },
@@ -458,7 +458,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
       .forRole("docSpaceAdmin")
       .payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "backup",
+          serviceName: ["backup"],
           credit: true,
           debit: true,
         },
@@ -490,7 +490,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
       .forRole("docSpaceAdmin")
       .payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "disk-storage-1-hour",
+          serviceName: ["disk-storage-1-hour"],
           credit: true,
           debit: true,
         },
@@ -516,7 +516,7 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
     await enableWalletService(ownerApi.payment, "aiTools");
     await ownerApi.payment.createCustomerOperationsReport({
       customerOperationsReportRequestDto: {
-        serviceName: "ai-tools",
+        serviceName: ["ai-tools"],
         credit: true,
         debit: true,
       },
@@ -552,7 +552,7 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
     const docSpaceAdminApi = apiSdk.forRole("docSpaceAdmin");
     await docSpaceAdminApi.payment.createCustomerOperationsReport({
       customerOperationsReportRequestDto: {
-        serviceName: "ai-tools",
+        serviceName: ["ai-tools"],
         credit: true,
         debit: true,
       },
@@ -610,11 +610,11 @@ test.describe("GET /api/2.0/portal/payment/ai-prices", () => {
     expect(data.response?.embedding?.[0].alias).toBeDefined();
     expect(data.response?.embedding?.[0].provider).toBeDefined();
     expect(data.response?.embedding?.[0].price.prompt).toBeDefined();
-    expect((data.response?.webSearch as any)?.length).toBeGreaterThan(0);
-    expect((data.response?.webSearch as any)?.[0].id).toBeDefined();
-    expect((data.response?.webSearch as any)?.[0].alias).toBeDefined();
-    expect((data.response?.webSearch as any)?.[0].provider).toBeDefined();
-    expect((data.response?.webSearch as any)?.[0].price).toBeDefined();
+    expect((data.response?.search as any)?.length).toBeGreaterThan(0);
+    expect((data.response?.search as any)?.[0].id).toBeDefined();
+    expect((data.response?.search as any)?.[0].alias).toBeDefined();
+    expect((data.response?.search as any)?.[0].provider).toBeDefined();
+    expect((data.response?.search as any)?.[0].price).toBeDefined();
     expect(data.response?.currency?.code).toBe("USD");
     expect(data.response?.currency?.symbol).toBe("$");
   });
@@ -655,11 +655,11 @@ test.describe("GET /api/2.0/portal/payment/ai-prices", () => {
     expect(data.response?.embedding?.[0].alias).toBeDefined();
     expect(data.response?.embedding?.[0].provider).toBeDefined();
     expect(data.response?.embedding?.[0].price.prompt).toBeDefined();
-    expect((data.response?.webSearch as any)?.length).toBeGreaterThan(0);
-    expect((data.response?.webSearch as any)?.[0].id).toBeDefined();
-    expect((data.response?.webSearch as any)?.[0].alias).toBeDefined();
-    expect((data.response?.webSearch as any)?.[0].provider).toBeDefined();
-    expect((data.response?.webSearch as any)?.[0].price).toBeDefined();
+    expect((data.response?.search as any)?.length).toBeGreaterThan(0);
+    expect((data.response?.search as any)?.[0].id).toBeDefined();
+    expect((data.response?.search as any)?.[0].alias).toBeDefined();
+    expect((data.response?.search as any)?.[0].provider).toBeDefined();
+    expect((data.response?.search as any)?.[0].price).toBeDefined();
     expect(data.response?.currency?.code).toBe("USD");
     expect(data.response?.currency?.symbol).toBe("$");
   });
@@ -994,7 +994,7 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
     const { status } = await ownerApi.payment.getCustomerOperations({
       offset: 0,
       limit: 25,
-      serviceName: "disk-storage-1-hour",
+      serviceName: ["disk-storage-1-hour"],
       startDate: startDate.toISOString().slice(0, 19),
       endDate: endDate.toISOString().slice(0, 19),
       credit: true,
@@ -1602,7 +1602,7 @@ test.describe("DELETE /api/2.0/portal/payment/customer/operationsreport", () => 
 
     await apiSdk.forRole("owner").payment.createCustomerOperationsReport({
       customerOperationsReportRequestDto: {
-        serviceName: "ai-tools",
+        serviceName: ["ai-tools"],
         credit: true,
         debit: true,
       },
@@ -1626,7 +1626,7 @@ test.describe("DELETE /api/2.0/portal/payment/customer/operationsreport", () => 
       .forRole("docSpaceAdmin")
       .payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "ai-tools",
+          serviceName: ["ai-tools"],
           credit: true,
           debit: true,
         },
@@ -1648,7 +1648,7 @@ test.describe("DELETE /api/2.0/portal/payment/customer/operationsreport", () => 
 
     await apiSdk.forRole("owner").payment.createCustomerOperationsReport({
       customerOperationsReportRequestDto: {
-        serviceName: "ai-tools",
+        serviceName: ["ai-tools"],
         credit: true,
         debit: true,
       },
