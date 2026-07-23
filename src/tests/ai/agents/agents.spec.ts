@@ -32,9 +32,10 @@ test.describe("POST /ai/agents - Create AI agent", () => {
     expect(status).toBe(200);
     expect(data.response?.title).toBe("Autotest Agent");
     expect(data.response?.roomType).toBe(RoomType.AiRoom);
-    expect(data.response?.chatSettings?.modelId).toBe(
-      onlyofficeAiProvider.defaultModel,
-    );
+    expect(
+      (data.response?.chatSettings as { modelId?: string } | undefined)
+        ?.modelId,
+    ).toBe(onlyofficeAiProvider.defaultModel);
     expect(data.response?.chatSettings?.prompt).toBe(
       "You are a test assistant",
     );
@@ -68,9 +69,10 @@ test.describe("POST /ai/agents - DocSpace Admin creates AI agent", () => {
     expect(status).toBe(200);
     expect(data.response?.title).toBe("Autotest Agent");
     expect(data.response?.roomType).toBe(RoomType.AiRoom);
-    expect(data.response?.chatSettings?.modelId).toBe(
-      onlyofficeAiProvider.defaultModel,
-    );
+    expect(
+      (data.response?.chatSettings as { modelId?: string } | undefined)
+        ?.modelId,
+    ).toBe(onlyofficeAiProvider.defaultModel);
     expect(data.response?.chatSettings?.prompt).toBe(
       "You are a test assistant",
     );
@@ -106,9 +108,10 @@ test.describe("POST /ai/agents - Room Admin creates AI agent", () => {
     expect(status).toBe(200);
     expect(data.response?.title).toBe("Autotest Agent");
     expect(data.response?.roomType).toBe(RoomType.AiRoom);
-    expect(data.response?.chatSettings?.modelId).toBe(
-      onlyofficeAiProvider.defaultModel,
-    );
+    expect(
+      (data.response?.chatSettings as { modelId?: string } | undefined)
+        ?.modelId,
+    ).toBe(onlyofficeAiProvider.defaultModel);
     expect(data.response?.chatSettings?.prompt).toBe(
       "You are a test assistant",
     );
@@ -1576,9 +1579,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent", () => {
     expect(data.response?.title).toBe("Updated Agent");
     expect(data.response?.tags).toContain("updated-tag");
     expect(data.response?.tags).not.toContain("original-tag");
-    expect(data.response?.chatSettings?.modelId).toBe(
-      onlyofficeAiProvider.defaultModel,
-    );
+    expect(
+      (data.response?.chatSettings as { modelId?: string } | undefined)
+        ?.modelId,
+    ).toBe(onlyofficeAiProvider.defaultModel);
     expect(data.response?.chatSettings?.prompt).toBe("Updated prompt");
   });
 
@@ -1623,9 +1627,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent", () => {
     expect(data.response?.title).toBe("Updated Agent");
     expect(data.response?.tags).toContain("updated-tag");
     expect(data.response?.tags).not.toContain("original-tag");
-    expect(data.response?.chatSettings?.modelId).toBe(
-      onlyofficeAiProvider.defaultModel,
-    );
+    expect(
+      (data.response?.chatSettings as { modelId?: string } | undefined)
+        ?.modelId,
+    ).toBe(onlyofficeAiProvider.defaultModel);
     expect(data.response?.chatSettings?.prompt).toBe("Updated prompt");
   });
 
@@ -1670,9 +1675,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent", () => {
     expect(data.response?.title).toBe("Updated Agent");
     expect(data.response?.tags).toContain("updated-tag");
     expect(data.response?.tags).not.toContain("original-tag");
-    expect(data.response?.chatSettings?.modelId).toBe(
-      onlyofficeAiProvider.defaultModel,
-    );
+    expect(
+      (data.response?.chatSettings as { modelId?: string } | undefined)
+        ?.modelId,
+    ).toBe(onlyofficeAiProvider.defaultModel);
     expect(data.response?.chatSettings?.prompt).toBe("Updated prompt");
   });
 });

@@ -5,7 +5,12 @@
 // enableAiGateway() from wallet-services.
 export const onlyofficeAiProvider = {
   providerId: -1,
-  defaultModel: "gpt-5.5",
+  // The gateway's model catalog (GET /api/2.0/ai/chats/models) changed: gpt-5.5
+  // was dropped and inference now returns 400 "unknown model" for it. Use a
+  // currently-offered model that supports tool calling (needed by the MCP /
+  // agent tool tests). Available as of 2026-07-23: claude-opus-4.8,
+  // gemini-3.5-flash, deepseek-v4-pro, deepseek-v4-flash, qwen3.5-122b-a10b.
+  defaultModel: "claude-opus-4.8",
   providerTitle: "ONLYOFFICE AI",
 } as const;
 
