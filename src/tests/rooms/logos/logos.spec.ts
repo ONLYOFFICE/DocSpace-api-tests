@@ -1,7 +1,23 @@
 ﻿import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
-import { createTestImageBuffer } from "@/src/utils/test-image";
+import {
+  createTestImageBuffer,
+  createOpaquePng,
+  createTransparentPng,
+  createGrayscalePng,
+  createPng,
+  createPngWithText,
+  createDecompressionBombPng,
+  createCorruptPng,
+  createGifBuffer,
+  createJpegBuffer,
+  createWebpBuffer,
+  createSvgBuffer,
+  createRandomBinaryBuffer,
+  createPolyglotPng,
+} from "@/src/utils/test-image";
+import { createPrivateRoom } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
@@ -28,6 +44,510 @@ test.describe("POST /api/2.0/files/logos - Upload room logo image", () => {
     expect(result.data.response.data).toBeDefined();
     expect(typeof result.data.response.data).toBe("string");
     expect(result.data.response.data.length).toBeGreaterThan(0);
+  });
+});
+
+test.describe("POST /api/2.0/files/logos - upload behavior", () => {
+  test("POST /api/2.0/files/logos - Two sequential uploads return different tmpFiles", async ({
+    apiSdk,
+  }) => {
+    const first = await apiSdk.uploadRoomLogo("owner", createTestImageBuffer());
+    const second = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(first.data.response.success).toBe(true);
+    expect(second.data.response.success).toBe(true);
+    expect(first.data.response.data).not.toBe(second.data.response.data);
+  });
+
+  test("POST /api/2.0/files/logos - Re-upload after a logo was set returns a new tmpFile", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Reupload After Set",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const first = await apiSdk.uploadRoomLogo("owner", createTestImageBuffer());
+    const firstTmp = first.data.response.data as string;
+    const { status: setStatus } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile: firstTmp, x: 0, y: 0, width: 1, height: 1 },
+    });
+    expect(setStatus).toBe(200);
+
+    const second = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    expect(second.status).toBe(200);
+    expect(second.data.response.success).toBe(true);
+    expect(second.data.response.data).not.toBe(firstTmp);
+  });
+
+  test("POST /api/2.0/files/logos - Upload alone does not change any room's logo", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Upload Is Isolated",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: before } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(before.response!.logo?.original).toBeFalsy();
+
+    await apiSdk.uploadRoomLogo("owner", createTestImageBuffer());
+
+    const { data: after } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(after.response!.logo?.original).toBeFalsy();
+  });
+
+  test("POST /api/2.0/files/logos - success field is a boolean", async ({
+    apiSdk,
+  }) => {
+    const { data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    expect(typeof data.response.success).toBe("boolean");
+  });
+
+  test("POST /api/2.0/files/logos - tmpFile is a non-empty, non-whitespace string", async ({
+    apiSdk,
+  }) => {
+    const { data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    const tmpFile = data.response.data;
+    expect(typeof tmpFile).toBe("string");
+    expect(tmpFile.trim()).not.toBe("");
+  });
+
+  test("POST /api/2.0/files/logos - tmpFile does not expose an absolute server path", async ({
+    apiSdk,
+  }) => {
+    const { data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    const tmpFile = String(data.response.data);
+    expect(tmpFile).not.toMatch(/^[a-zA-Z]:\\/); // C:\...
+    expect(tmpFile).not.toMatch(/^\/home\//);
+    expect(tmpFile).not.toMatch(/^\/var\//);
+    expect(tmpFile).not.toMatch(/^\/tmp\//);
+  });
+});
+
+test.describe("POST /api/2.0/files/logos - image content", () => {
+  test("POST /api/2.0/files/logos - Minimal 1x1 PNG is accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - PNG with transparency is accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTransparentPng(),
+    );
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - Opaque PNG (no alpha) is accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createOpaquePng(),
+    );
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - Grayscale PNG is accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createGrayscalePng(),
+    );
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - Medium 512x512 PNG is accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createPng(512, 512),
+    );
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - Large 4000x4000 PNG is accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createPng(4000, 4000),
+    );
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  // Upload stores bytes without decoding, so a decompression bomb is not
+  // detonated here; it just returns 200. (Decode-time protection, if any,
+  // would belong to createRoomLogo.)
+  test("POST /api/2.0/files/logos - Decompression-bomb PNG is stored without 500", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createDecompressionBombPng(),
+    );
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - PNG with tEXt metadata is accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createPngWithText("Comment", "hello metadata"),
+    );
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - PNG with suspicious metadata strings is handled safely", async ({
+    apiSdk,
+  }) => {
+    const payload = "<script>alert(1)</script> '; DROP TABLE rooms;--";
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createPngWithText("Comment", payload),
+    );
+    // Metadata must not leak into the tmpFile path
+    expect(String(data.response.data)).not.toContain("<script>");
+    expect(String(data.response.data)).not.toContain("DROP TABLE");
+    expect(status).toBe(200);
+  });
+
+  test("POST /api/2.0/files/logos - PNG with a large metadata block is accepted", async ({
+    apiSdk,
+  }) => {
+    const big = "x".repeat(2 * 1024 * 1024);
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createPngWithText("Comment", big),
+    );
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - Polyglot PNG with appended HTML is handled safely", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createPolyglotPng(),
+    );
+    expect(String(data.response.data)).not.toContain("<script>");
+    expect(status).toBe(200);
+  });
+});
+
+// The upload endpoint performs NO content validation: it stores whatever is
+// posted and returns 200 + success regardless of the bytes. Image validation
+// is (partially, and buggily — see BUG 81679) deferred to createRoomLogo.
+// These tests document the desired contract (reject non-PNG with 400) and are
+// marked test.fail until the upload endpoint validates content.
+test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png", () => {
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - Plain text declared as PNG is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogo(
+        "owner",
+        Buffer.from("this is not an image", "utf-8"),
+      );
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - JPEG declared as PNG is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogo(
+        "owner",
+        createJpegBuffer(),
+      );
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - GIF declared as PNG is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogo(
+        "owner",
+        createGifBuffer(),
+      );
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - WebP declared as PNG is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogo(
+        "owner",
+        createWebpBuffer(),
+      );
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - SVG declared as PNG is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogo(
+        "owner",
+        createSvgBuffer(),
+      );
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - Corrupt PNG is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogo(
+        "owner",
+        createCorruptPng(),
+      );
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - Random binary declared as PNG is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogo(
+        "owner",
+        createRandomBinaryBuffer(),
+      );
+      expect(status).toBe(400);
+    },
+  );
+});
+
+test.describe("POST /api/2.0/files/logos - multipart contract", () => {
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - Request with no body is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+        omitBody: true,
+      });
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - Multipart without a file field is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+        fields: { image: "not-a-file" },
+      });
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - file field sent as a plain string is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+        stringFileValue: "just-a-string",
+      });
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - Empty file (0 bytes) is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+        files: [{ buffer: Buffer.alloc(0) }],
+      });
+      expect(status).toBe(400);
+    },
+  );
+
+  test("POST /api/2.0/files/logos - Corrupt multipart boundary is rejected with 400", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+      rawBody: "------brokenboundary\r\nnot a real multipart body\r\n",
+      contentType: "multipart/form-data; boundary=----brokenboundary",
+    });
+    expect(status).toBe(400);
+  });
+
+  test("POST /api/2.0/files/logos - Multiple file fields are accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogoRaw("owner", {
+      files: [
+        { buffer: createTestImageBuffer(), filename: "a.png" },
+        { buffer: createTestImageBuffer(), filename: "b.png" },
+      ],
+    });
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - Extra unknown fields alongside a valid file are accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogoRaw("owner", {
+      files: [{ buffer: createTestImageBuffer() }],
+      fields: { unexpected: "value", another: "42" },
+    });
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test("POST /api/2.0/files/logos - octet-stream MIME with a valid PNG is accepted", async ({
+    apiSdk,
+  }) => {
+    const { status, data } = await apiSdk.uploadRoomLogoRaw("owner", {
+      files: [
+        {
+          buffer: createTestImageBuffer(),
+          mimeType: "application/octet-stream",
+        },
+      ],
+    });
+    expect(status).toBe(200);
+    expect(data.response.success).toBe(true);
+  });
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/logos - JSON Content-Type body is rejected",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+        rawBody: JSON.stringify({ file: "x" }),
+        contentType: "application/json",
+      });
+      expect(status).toBe(400);
+    },
+  );
+});
+
+test.describe("POST /api/2.0/files/logos - HTTP method contract", () => {
+  // Wrong-method requests should return 405; GET currently returns 404.
+  test.fail(
+    "BUG XXXXX: GET /api/2.0/files/logos - Rejected with 405",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+        method: "GET",
+        omitBody: true,
+      });
+      expect(status).toBe(405);
+    },
+  );
+
+  test("PUT /api/2.0/files/logos - Rejected with 405", async ({ apiSdk }) => {
+    const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+      method: "PUT",
+      files: [{ buffer: createTestImageBuffer() }],
+    });
+    expect(status).toBe(405);
+  });
+
+  test("DELETE /api/2.0/files/logos - Rejected with 405", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+      method: "DELETE",
+      omitBody: true,
+    });
+    expect(status).toBe(405);
+  });
+});
+
+test.describe("POST /api/2.0/files/logos - concurrency", () => {
+  test("POST /api/2.0/files/logos - Many sequential uploads all succeed with unique tmpFiles", async ({
+    apiSdk,
+  }) => {
+    const tmpFiles = new Set<string>();
+    for (let i = 0; i < 12; i++) {
+      const { status, data } = await apiSdk.uploadRoomLogo(
+        "owner",
+        createTestImageBuffer(),
+      );
+      expect(status).toBe(200);
+      expect(data.response.success).toBe(true);
+      tmpFiles.add(data.response.data as string);
+    }
+    expect(tmpFiles.size).toBe(12);
+  });
+
+  test("POST /api/2.0/files/logos - Parallel uploads of the same image get unique tmpFiles", async ({
+    apiSdk,
+  }) => {
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        apiSdk.uploadRoomLogo("owner", createTestImageBuffer()),
+      ),
+    );
+
+    const tmpFiles = new Set<string>();
+    for (const { status, data } of results) {
+      expect(status).toBe(200);
+      tmpFiles.add(data.response.data as string);
+    }
+    expect(tmpFiles.size).toBe(results.length);
+  });
+
+  test("POST /api/2.0/files/logos - Parallel uploads of different images do not mix up responses", async ({
+    apiSdk,
+  }) => {
+    const sizes = [1, 2, 3, 4, 5, 6];
+    const results = await Promise.all(
+      sizes.map((s) => apiSdk.uploadRoomLogo("owner", createPng(s, s))),
+    );
+
+    const tmpFiles = new Set<string>();
+    for (const { status, data } of results) {
+      expect(status).toBe(200);
+      expect(data.response.success).toBe(true);
+      tmpFiles.add(data.response.data as string);
+    }
+    expect(tmpFiles.size).toBe(sizes.length);
   });
 });
 
@@ -59,6 +579,34 @@ test.describe("POST /files/rooms/:id/logo - Create room logo", () => {
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
     expect(data.response!.id).toBe(roomId);
+    expect(data.response!.logo?.original).toBeTruthy();
+  });
+
+  test("POST /files/rooms/:id/logo - Owner creates logo for a private room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await createPrivateRoom(apiSdk, "owner", {
+      title: "Autotest Logo Private Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = roomData.response!.id!;
+
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
+    expect(uploadResult.data.response.success).toBe(true);
+    const tmpFile = uploadResult.data.response.data as string;
+
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(roomId);
+    expect(data.response!.private).toBe(true);
     expect(data.response!.logo?.original).toBeTruthy();
   });
 

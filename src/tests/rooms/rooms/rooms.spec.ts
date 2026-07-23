@@ -9,12 +9,17 @@ import {
   RoomDataLifetimePeriod,
   EmployeeStatus,
   SortOrder,
-  SubjectFilter,
   UserInvitation,
   RoomLinkRequest,
 } from "@onlyoffice/docspace-api-sdk";
 import type { ApiSDK } from "@/src/services/api-sdk";
-import { createAllRoomTypes } from "@/src/helpers/rooms";
+import {
+  createAllRoomTypes,
+  createPrivateRoom,
+  ensureEncryptionKeys,
+  privateSupportedRoomTypes,
+  privateUnsupportedRoomTypes,
+} from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
@@ -178,6 +183,78 @@ test.describe("API rooms methods", () => {
         ids.push(data.response!.id!);
       }
       expect(new Set(ids).size).toBe(ids.length);
+    });
+  });
+
+  test.describe("POST /files/rooms - Private rooms", () => {
+    for (const { label, roomType } of privateSupportedRoomTypes) {
+      test(`POST /files/rooms - Owner creates a private ${label} room`, async ({
+        apiSdk,
+      }) => {
+        const { data, status } = await createPrivateRoom(apiSdk, "owner", {
+          title: `Autotest Private ${label}`,
+          roomType,
+        });
+
+        expect(status).toBe(200);
+        expect(data.response!.private).toBe(true);
+        expect(data.response!.roomType).toBe(roomType);
+      });
+    }
+
+    test("POST /files/rooms - Private flag persists in getRoomInfo", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await createPrivateRoom(apiSdk, "owner", {
+        title: "Autotest Private Persist",
+        roomType: RoomType.CustomRoom,
+      });
+      const roomId = created.response!.id!;
+
+      const { data: info, status } = await ownerApi.rooms.getRoomInfo({
+        id: roomId,
+      });
+
+      expect(status).toBe(200);
+      expect(info.response!.private).toBe(true);
+    });
+
+    for (const { label, roomType } of privateUnsupportedRoomTypes) {
+      test(`POST /files/rooms - Private ${label} room is rejected (link-based room)`, async ({
+        apiSdk,
+      }) => {
+        // Public and FillingForms rooms auto-create external links, which are
+        // incompatible with the private/encrypted flag.
+        await ensureEncryptionKeys(apiSdk, "owner");
+        const { status } = await apiSdk.forRole("owner").rooms.createRoom({
+          createRoomRequestDto: {
+            title: `Autotest Private ${label}`,
+            roomType,
+            private: true,
+          },
+        });
+
+        expect(status).toBe(403);
+      });
+    }
+
+    test("POST /files/rooms - private:true without encryption keys is rejected", async ({
+      apiSdk,
+    }) => {
+      // A private room needs the caller's encryption keys to exist first.
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Private No Keys",
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+
+      expect(status).toBe(403);
+      expect(
+        (data as { error?: { message?: string } }).error?.message,
+      ).toContain("encryption key");
     });
   });
 
@@ -20426,7 +20503,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
   });
 
   test.describe("subject filters", () => {
-    test("GET /files/rooms - subjectId + subjectFilter=Owner returns rooms owned by subject", async ({
+    test("GET /files/rooms - subjectOwnerId returns rooms owned by subject", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -20448,8 +20525,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
       });
 
       const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        subjectId: adminId,
-        subjectFilter: SubjectFilter.Owner,
+        subjectOwnerId: adminId,
       });
 
       expect(status).toBe(200);
@@ -20458,7 +20534,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
       expect(ids).not.toContain(ownerRoom.response!.id);
     });
 
-    test("GET /files/rooms - subjectId + subjectFilter=Member returns rooms where subject is participant", async ({
+    test("GET /files/rooms - subjectId returns rooms where subject is participant", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -20489,7 +20565,6 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
 
       const { data, status } = await ownerApi.rooms.getRoomsFolder({
         subjectId: userId,
-        subjectFilter: SubjectFilter.Member,
       });
 
       expect(status).toBe(200);
@@ -20520,8 +20595,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
       });
 
       const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        subjectId: adminId,
-        subjectFilter: SubjectFilter.Owner,
+        subjectOwnerId: adminId,
         excludeSubject: true,
       });
 
@@ -20543,8 +20617,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
       });
 
       const { data, status } = await ownerApi.rooms.getRoomsFolder({
-        subjectId: "11111111-1111-1111-1111-111111111111",
-        subjectFilter: SubjectFilter.Owner,
+        subjectOwnerId: "11111111-1111-1111-1111-111111111111",
       });
 
       expect(status).toBe(200);
