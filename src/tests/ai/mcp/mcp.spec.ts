@@ -3285,7 +3285,7 @@ test.describe("MCP Servers - Endpoint SSRF protection", () => {
 
   for (const { name, url } of forbiddenSpecialUrls) {
     const knownBug = mcpSsrfKnownVulnerable.has(name);
-    const title = `${knownBug ? "BUG XXXXX: " : ""}POST /api/2.0/ai/servers - Owner: internal/special endpoint is rejected and not persisted: ${name}`;
+    const title = `${knownBug ? "BUG 82512: " : ""}POST /api/2.0/ai/servers - Owner: internal/special endpoint is rejected and not persisted: ${name}`;
 
     test(title, async ({ apiSdk }) => {
       if (knownBug) {
