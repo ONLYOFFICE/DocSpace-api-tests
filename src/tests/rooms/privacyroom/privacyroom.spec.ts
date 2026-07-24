@@ -177,7 +177,7 @@ test.describe("API privacyroom methods", () => {
       // 200 empty result. Remove test.fail once the server bug is fixed.
       test.fail(
         true,
-        "BUG XXXXX: getUserKeysByFilter returns 400 (ArgumentNullException) when the user has no keys",
+        "BUG 82523: getUserKeysByFilter returns 400 (ArgumentNullException) when the user has no keys",
       );
 
       const { status } = await apiSdk
