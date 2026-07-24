@@ -288,7 +288,7 @@ test.describe("POST /api/2.0/files/logos - image content", () => {
 // marked test.fail until the upload endpoint validates content.
 test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png", () => {
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - Plain text declared as PNG is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - Plain text declared as PNG is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogo(
         "owner",
@@ -299,7 +299,7 @@ test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - JPEG declared as PNG is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - JPEG declared as PNG is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogo(
         "owner",
@@ -310,7 +310,7 @@ test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - GIF declared as PNG is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - GIF declared as PNG is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogo(
         "owner",
@@ -321,7 +321,7 @@ test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - WebP declared as PNG is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - WebP declared as PNG is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogo(
         "owner",
@@ -332,7 +332,7 @@ test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - SVG declared as PNG is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - SVG declared as PNG is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogo(
         "owner",
@@ -343,7 +343,7 @@ test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - Corrupt PNG is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - Corrupt PNG is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogo(
         "owner",
@@ -354,7 +354,7 @@ test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - Random binary declared as PNG is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - Random binary declared as PNG is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogo(
         "owner",
@@ -367,7 +367,7 @@ test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png
 
 test.describe("POST /api/2.0/files/logos - multipart contract", () => {
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - Request with no body is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - Request with no body is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
         omitBody: true,
@@ -377,7 +377,7 @@ test.describe("POST /api/2.0/files/logos - multipart contract", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - Multipart without a file field is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - Multipart without a file field is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
         fields: { image: "not-a-file" },
@@ -387,7 +387,7 @@ test.describe("POST /api/2.0/files/logos - multipart contract", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - file field sent as a plain string is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - file field sent as a plain string is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
         stringFileValue: "just-a-string",
@@ -397,7 +397,7 @@ test.describe("POST /api/2.0/files/logos - multipart contract", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - Empty file (0 bytes) is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - Empty file (0 bytes) is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
         files: [{ buffer: Buffer.alloc(0) }],
@@ -456,7 +456,7 @@ test.describe("POST /api/2.0/files/logos - multipart contract", () => {
   });
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/logos - JSON Content-Type body is rejected",
+    "BUG 82518: POST /api/2.0/files/logos - JSON Content-Type body is rejected",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
         rawBody: JSON.stringify({ file: "x" }),
@@ -470,7 +470,7 @@ test.describe("POST /api/2.0/files/logos - multipart contract", () => {
 test.describe("POST /api/2.0/files/logos - HTTP method contract", () => {
   // Wrong-method requests should return 405; GET currently returns 404.
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/logos - Rejected with 405",
+    "BUG 82519: GET /api/2.0/files/logos - Rejected with 405",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
         method: "GET",
