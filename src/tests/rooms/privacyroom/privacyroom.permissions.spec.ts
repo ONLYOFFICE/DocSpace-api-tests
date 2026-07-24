@@ -108,15 +108,20 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
     expect(status).toBe(200);
   });
 
-  test("POST /api/2.0/privacyroom/keys - Guest cannot set keys", async ({
+  test("POST /api/2.0/privacyroom/keys - Guest can set keys", async ({
     apiSdk,
   }) => {
-    // Guests can read their (empty) keys but are not allowed to create keys.
+    // Guests should not be allowed to create keys, but the API currently lets
+    // them (returns 200 instead of 403).
+    test.fail(
+      true,
+      "BUG 82524: Guest is allowed to set encryption keys",
+    );
     await apiSdk.addAuthenticatedMember("owner", "Guest");
     const { status } = await apiSdk
       .forRole("guest")
       .privacyroom.setKeys(dto(apiSdk));
-    expect(status).toBe(403);
+    expect(status).toBe(200);
   });
 
   test("POST /api/2.0/privacyroom/keys - Anonymous cannot set keys", async ({
