@@ -1670,33 +1670,32 @@ test.describe("GET /api/2.0/files/fileops/move - checkMoveOrCopyBatchItems", () 
   });
 
   // BUG 81882: GET /api/2.0/files/fileops/move - missing destFolderId returns 403 instead of 400
-  test.fail(
-    "BUG 81882: GET /api/2.0/files/fileops/move - No destFolderId specified returns 400",
-    async ({ apiSdk }) => {
-      // Catches: omitting required destFolderId field returns 403 instead of 400,
-      // hiding a client-side input error behind an access-denied response
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 81882: GET /api/2.0/files/fileops/move - No destFolderId specified returns 400", async ({
+    apiSdk,
+  }) => {
+    // Catches: omitting required destFolderId field returns 403 instead of 400,
+    // hiding a client-side input error behind an access-denied response
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest CheckMove NoDestFolder.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckMove NoDestFolder.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
-        inDto: {
-          fileIds: [fileId],
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
-      });
+    const { status } = await ownerApi.operations.checkMoveOrCopyBatchItems({
+      inDto: {
+        fileIds: [fileId],
+        conflictResolveType: FileConflictResolveType.Skip,
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestFolder", () => {
@@ -3360,9 +3359,9 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
   );
 
   // BUG 82204: Non-existent fileId returns 403 (SecurityException "Access denied") instead of 404
-  test.fail(
+  test(
     "BUG 82204: PUT /api/2.0/files/fileops/copy - Non-existent fileId" +
-      " returns 403 instead of 404",
+      " returns 404",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -8587,9 +8586,9 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
   );
 
   // BUG 82243: PUT /api/2.0/files/fileops/move - non-existent fileId returns 403 instead of 400
-  test.fail(
+  test(
     "BUG 82243: PUT /api/2.0/files/fileops/move - Non-existent fileId" +
-      " returns 403 instead of 400",
+      " returns 404",
     async ({ apiSdk }) => {
       // Catches: server returns unexpected status for invalid file ID
       const ownerApi = apiSdk.forRole("owner");
@@ -8611,7 +8610,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
         },
       });
 
-      expect(status).toBe(400);
+      expect(status).toBe(404);
     },
   );
 });
