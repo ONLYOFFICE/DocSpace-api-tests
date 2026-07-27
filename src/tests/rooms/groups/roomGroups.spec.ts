@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
-import { createAllRoomTypes } from "@/src/helpers/rooms";
+import { createAllRoomTypes, createPrivateRoom } from "@/src/helpers/rooms";
 
 test.describe("API room groups methods", () => {
   test.describe("POST /files/group", () => {
@@ -49,6 +49,29 @@ test.describe("API room groups methods", () => {
       });
 
       expect(status).toBe(403);
+    });
+
+    test("POST /files/group - Owner creates a room group with a private room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await createPrivateRoom(apiSdk, "owner", {
+        title: "Autotest Private Group Room",
+        roomType: RoomType.CustomRoom,
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data, status } = await ownerApi.groups.addRoomGroup({
+        roomGroupRequestDto: {
+          name: "Autotest Private Group",
+          icon: "star",
+          rooms: [roomId],
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.name).toBe("Autotest Private Group");
+      expect(data.response!.totalRooms).toBe(1);
     });
 
     test("BUG 80921: POST /files/group - Owner creates a room group with invalid icon value", async ({

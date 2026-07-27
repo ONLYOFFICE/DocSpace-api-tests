@@ -10,7 +10,7 @@ import {
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
-import { roomAccesses } from "@/src/helpers/rooms";
+import { roomAccesses, createPrivateRoom } from "@/src/helpers/rooms";
 import type { ApiSDK } from "@/src/services/api-sdk";
 
 test.describe("POST /files/rooms - access control", () => {
@@ -105,6 +105,64 @@ test.describe("POST /files/rooms - access control", () => {
       },
     });
 
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("POST /files/rooms - private room access control", () => {
+  test("Owner can create a private room", async ({ apiSdk }) => {
+    const { status } = await createPrivateRoom(apiSdk, "owner", {
+      title: "Autotest Private Room",
+      roomType: RoomType.CustomRoom,
+    });
+    expect(status).toBe(200);
+  });
+
+  test("DocSpaceAdmin can create a private room", async ({ apiSdk }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const { status } = await createPrivateRoom(apiSdk, "docSpaceAdmin", {
+      title: "Autotest Private Room",
+      roomType: RoomType.CustomRoom,
+    });
+    expect(status).toBe(200);
+  });
+
+  test("RoomAdmin can create a private room", async ({ apiSdk }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const { status } = await createPrivateRoom(apiSdk, "roomAdmin", {
+      title: "Autotest Private Room",
+      roomType: RoomType.CustomRoom,
+    });
+    expect(status).toBe(200);
+  });
+
+  test("User cannot create a private room", async ({ apiSdk }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    // A user may set their own keys but still cannot create rooms.
+    const { status } = await createPrivateRoom(apiSdk, "user", {
+      title: "Autotest Private Room",
+      roomType: RoomType.CustomRoom,
+    });
+    expect(status).toBe(403);
+  });
+
+  test("Guest cannot create a private room", async ({ apiSdk }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const { status } = await createPrivateRoom(apiSdk, "guest", {
+      title: "Autotest Private Room",
+      roomType: RoomType.CustomRoom,
+    });
+    expect(status).toBe(403);
+  });
+
+  test("Unauthenticated request returns 401", async ({ apiSdk }) => {
+    const { status } = await apiSdk.forAnonymous().rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Private Anonymous",
+        roomType: RoomType.CustomRoom,
+        private: true,
+      },
+    });
     expect(status).toBe(401);
   });
 });

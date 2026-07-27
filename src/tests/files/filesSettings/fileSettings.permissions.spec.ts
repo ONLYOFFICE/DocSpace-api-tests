@@ -1063,6 +1063,376 @@ test.describe("PUT /api/2.0/files/keepnewfilename - Ask a new file name on creat
   });
 });
 
+test.describe("GET /api/2.0/files/docservice - Get the document service URL - Permissions", () => {
+  test("GET /api/2.0/files/docservice - Unauthenticated user can get document service URL", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+  });
+
+  test("GET /api/2.0/files/docservice - Owner can get document service URL", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - DocSpaceAdmin can get document service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - RoomAdmin can get document service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - User can get document service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("GET /api/2.0/files/docservice - Guest can get document service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.getDocServiceUrl();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+});
+
+test.describe("PUT /api/2.0/files/docservice - Check the document service URL - Permissions", () => {
+  test("PUT /api/2.0/files/docservice - Unauthenticated user cannot check doc service URL", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.checkDocServiceUrl({
+        checkDocServiceUrlRequestDto: { docServiceUrl: null },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/docservice - Owner can check doc service URL", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: current } = await ownerApi.filesSettings.getDocServiceUrl();
+    const currentUrl = current.response?.docServiceUrl ?? "";
+
+    const { data, status } = await ownerApi.filesSettings.checkDocServiceUrl({
+      checkDocServiceUrlRequestDto: { docServiceUrl: currentUrl },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("PUT /api/2.0/files/docservice - DocSpaceAdmin can check doc service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+    const { data: current } = await adminApi.filesSettings.getDocServiceUrl();
+    const currentUrl = current.response?.docServiceUrl ?? "";
+
+    const { data, status } = await adminApi.filesSettings.checkDocServiceUrl({
+      checkDocServiceUrlRequestDto: { docServiceUrl: currentUrl },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.docServiceUrl).toBe("string");
+  });
+
+  test("PUT /api/2.0/files/docservice - RoomAdmin cannot check doc service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.checkDocServiceUrl({
+        checkDocServiceUrlRequestDto: { docServiceUrl: null },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/files/docservice - User cannot check doc service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.checkDocServiceUrl({
+        checkDocServiceUrlRequestDto: { docServiceUrl: null },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/files/docservice - Guest cannot check doc service URL", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.checkDocServiceUrl({
+        checkDocServiceUrlRequestDto: { docServiceUrl: null },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
+  });
+
+  test("PUT /api/2.0/files/docservice - Terminated DocSpaceAdmin cannot check doc service URL", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [adminId], resendAll: false },
+    });
+
+    const { status } = await adminApi.filesSettings.checkDocServiceUrl({
+      checkDocServiceUrlRequestDto: { docServiceUrl: null },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("GET /api/2.0/files/module - Get the Documents module information - Permissions", () => {
+  test("GET /api/2.0/files/module - Unauthenticated user cannot get Documents module information", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/files/module - Owner can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - DocSpaceAdmin can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - RoomAdmin can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - User can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - Guest can get Documents module information", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.getFilesModule();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(typeof data.response?.title).toBe("string");
+  });
+
+  test("GET /api/2.0/files/module - Terminated user cannot get Documents module information", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.getFilesModule();
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("GET /api/2.0/files/settings - Get all file settings - Permissions", () => {
+  // BUG 82323: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings
+  test.fail(
+    "BUG 82323: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk
+        .forAnonymous()
+        .filesSettings.getFilesSettings();
+
+      expect(status).toBe(401);
+    },
+  );
+
+  test("GET /api/2.0/files/settings - Owner can get file settings", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/settings - DocSpaceAdmin can get file settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/settings - RoomAdmin can get file settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/settings - User can get file settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("GET /api/2.0/files/settings - Guest can get file settings", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+});
+
 test.describe("PUT /api/2.0/files/settings/defaulttemplate - Permissions", () => {
   test("BUG 81953: PUT /api/2.0/files/settings/defaulttemplate - DocSpaceAdmin cannot set Owner's file as default template", async ({
     apiSdk,
@@ -1089,5 +1459,865 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - Permissions", () =>
     expect((data as any).error?.message).toBe(
       "You don't have enough permission to perform the operation",
     );
+  });
+});
+
+test.describe("PUT /api/2.0/files/hideconfirmcanceloperation - Hide confirmation dialog when canceling an operation - Permissions", () => {
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Unauthenticated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Owner can change the setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - DocSpaceAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - RoomAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - User can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Guest can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.hideConfirmCancelOperation({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmcanceloperation - Terminated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.hideConfirmCancelOperation({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/hideconfirmconvert - Hide confirmation dialog when converting - Permissions", () => {
+  test("PUT /api/2.0/files/hideconfirmconvert - Unauthenticated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Owner can change the setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - DocSpaceAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - RoomAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - User can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Guest can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.hideConfirmConvert({
+        hideConfirmConvertRequestDto: { save: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmconvert - Terminated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.hideConfirmConvert({
+      hideConfirmConvertRequestDto: { save: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/hideconfirmroomlifetime - Hide confirmation dialog about room file lifetime - Permissions", () => {
+  test("PUT /api/2.0/files/hideconfirmroomlifetime - Unauthenticated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.hideConfirmRoomLifetime({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmroomlifetime - Owner can change the setting", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.hideConfirmRoomLifetime({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmroomlifetime - DocSpaceAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.hideConfirmRoomLifetime({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmroomlifetime - RoomAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.hideConfirmRoomLifetime({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmroomlifetime - User can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.hideConfirmRoomLifetime({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmroomlifetime - Guest can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.hideConfirmRoomLifetime({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/hideconfirmroomlifetime - Terminated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.hideConfirmRoomLifetime({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/settings/external - Change the external sharing ability - Permissions", () => {
+  test("PUT /api/2.0/files/settings/external - Unauthenticated user cannot change external sharing", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().filesSettings.externalShare({
+      displayRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/settings/external - Owner can enable external sharing", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.externalShare({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/external - Owner can disable external sharing", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.externalShare({
+        displayRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/settings/external - DocSpaceAdmin can enable external sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.externalShare({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/external - DocSpaceAdmin can disable external sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.externalShare({
+        displayRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/settings/external - RoomAdmin cannot change external sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.externalShare({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/external - User cannot change external sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.externalShare({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/external - Guest cannot change external sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.externalShare({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/external - Terminated DocSpaceAdmin cannot change external sharing", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [adminId], resendAll: false },
+    });
+
+    const { status } = await adminApi.filesSettings.externalShare({
+      displayRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/settings/externalsocialmedia - Change the external sharing ability on social networks - Permissions", () => {
+  test("PUT /api/2.0/files/settings/externalsocialmedia - Unauthenticated user cannot change social media sharing", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.externalShareSocialMedia({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/settings/externalsocialmedia - Owner can enable social media sharing", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.externalShareSocialMedia({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/externalsocialmedia - DocSpaceAdmin can enable social media sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.externalShareSocialMedia({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/settings/externalsocialmedia - RoomAdmin cannot change social media sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.externalShareSocialMedia({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/externalsocialmedia - User cannot change social media sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.externalShareSocialMedia({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/externalsocialmedia - Guest cannot change social media sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.externalShareSocialMedia({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/externalsocialmedia - DocSpaceAdmin can disable social media sharing", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.externalShareSocialMedia({
+        displayRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/settings/externalsocialmedia - Terminated DocSpaceAdmin cannot change social media sharing", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [adminId], resendAll: false },
+    });
+
+    const { status } = await adminApi.filesSettings.externalShareSocialMedia({
+      displayRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/changedeleteconfrim - Confirm the file deletion - Permissions", () => {
+  test("PUT /api/2.0/files/changedeleteconfrim - Unauthenticated user cannot change delete confirmation setting", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.changeDeleteConfirm({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/changedeleteconfrim - Owner can enable delete confirmation", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDeleteConfirm({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/changedeleteconfrim - DocSpaceAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeDeleteConfirm({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/changedeleteconfrim - RoomAdmin can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.changeDeleteConfirm({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/changedeleteconfrim - User can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.changeDeleteConfirm({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/changedeleteconfrim - Guest can change own setting", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.changeDeleteConfirm({
+        settingsRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("PUT /api/2.0/files/changedeleteconfrim - Terminated user cannot change the setting", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    const { status } = await userApi.filesSettings.changeDeleteConfirm({
+      settingsRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive download format - Permissions", () => {
+  test("PUT /api/2.0/files/settings/downloadtargz - Unauthenticated user cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Owner can enable tar.gz format", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Owner can disable tar.gz format", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - DocSpaceAdmin can enable tar.gz format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - DocSpaceAdmin can disable tar.gz format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: false },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - RoomAdmin cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - User cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Guest cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "You don't have enough permission to perform the operation",
+    );
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Terminated DocSpaceAdmin cannot change archive format", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [adminId], resendAll: false },
+    });
+
+    const { status } = await adminApi.filesSettings.changeDownloadZipFromBody({
+      displayRequestDto: { set: true },
+    });
+
+    expect(status).toBe(401);
   });
 });

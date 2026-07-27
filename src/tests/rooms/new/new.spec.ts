@@ -8,6 +8,7 @@ import {
   type RoomNewItemsDto,
   type NewItemsDtoRoomNewItemsDto,
 } from "@onlyoffice/docspace-api-sdk";
+import { createPrivateRoom } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 // --- Single-room shape: GET /files/rooms/:id/news (getNewRoomItems) ---
@@ -66,6 +67,25 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Contract", () => {
         title: "Autotest News Empty Room",
         roomType: RoomType.CustomRoom,
       },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.getNewRoomItems({
+      id: roomId,
+    });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(flattenNewItems(data.response)).toEqual([]);
+  });
+
+  test("GET /files/rooms/:id/news - Owner gets 200 and empty array for an empty private room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await createPrivateRoom(apiSdk, "owner", {
+      title: "Autotest News Empty Private Room",
+      roomType: RoomType.CustomRoom,
     });
     const roomId = roomData.response!.id!;
 

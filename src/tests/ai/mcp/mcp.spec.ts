@@ -10,6 +10,13 @@ import {
   ToolExecutionDecision,
 } from "@onlyoffice/docspace-api-sdk";
 import { parseSseEvents } from "@/src/helpers/parse-sse-events";
+import {
+  unsafeSchemeUrls,
+  nonResolvingAttackerUrls,
+  forbiddenSpecialUrls,
+  expectMcpEndpointRejected,
+  ATTACKER_HOST,
+} from "@/src/helpers/ssrf-payloads";
 
 const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
 
@@ -3041,13 +3048,17 @@ test.describe("MCP Servers - Built-in DocSpace Server - Result Storage upload", 
 
     await enableAiGateway(paymentsApi, api.payment);
 
-    const { data: agentData } = await api.agents.createAgent({
-      createAgentRequestDto: {
+    // Create the AI room via the Files rooms endpoint (same pattern as the
+    // other Built-in DocSpace Server tests). The AgentsApi endpoints live
+    // under /internal/ai/integration/* which the portal gateway does not
+    // route, so agents.createAgent is unreachable here.
+    const { data: agentData } = await api.rooms.createRoom({
+      createRoomRequestDto: {
         title: `mcp-upload-rs-${Date.now()}`,
         color: "FF5733",
         cover: "layers",
         tags: ["autotest"],
-        attachDefaultTools: true,
+        roomType: RoomType.AiRoom,
         chatSettings: {
           providerId: onlyofficeAiProvider.providerId,
           modelId: onlyofficeAiProvider.defaultModel,
@@ -3056,6 +3067,32 @@ test.describe("MCP Servers - Built-in DocSpace Server - Result Storage upload", 
       },
     });
     const agentRoomId = agentData.response!.id!;
+
+    // createRoom stores only the prompt from chatSettings and does NOT register
+    // the AI provider with the chat subsystem (startNewChat would 404 "Provider
+    // not found"). Setting chatSettings again via updateRoom wires up the
+    // provider/model so the chat can run.
+    await api.rooms.updateRoom({
+      id: agentRoomId,
+      updateRoomRequest: {
+        chatSettings: {
+          providerId: onlyofficeAiProvider.providerId,
+          modelId: onlyofficeAiProvider.defaultModel,
+          prompt: "You are a helpful assistant.",
+        },
+      },
+    });
+
+    // attachDefaultTools has no equivalent on createRoom — attach the built-in
+    // DocSpace MCP server (which provides upload_file) to the room explicitly.
+    const { data: available } = await api.mcp.getAvailableServers();
+    const builtInServerId = available.response!.find(
+      (s) => s.serverType === ServerType.DocSpace,
+    )!.id!;
+    await api.mcp.addRoomServers({
+      roomId: agentRoomId,
+      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    });
 
     const agentParentId = (agentData.response as any).parentId;
     const { data: parentContent } = await api.folders.getFolderByFolderId({
@@ -3133,3 +3170,156 @@ test.describe("MCP Servers - Built-in DocSpace Server - Result Storage upload", 
     expect(files.length).toBeGreaterThan(0);
   });
 });
+
+// Security regression for the MCP endpoint SSRF surface:
+//   POST /api/2.0/ai/servers        (addServer    — endpoint/headers)
+//   PUT  /api/2.0/ai/servers/{id}   (updateServer — endpoint/headers)
+//
+// Unlike the provider endpoints (refused up front by the gateway guard), MCP
+// registration is the LIVE egress surface: addServer/updateServer actively
+// connect to the supplied endpoint (McpService.ThrowIfNotConnectAsync) with NO
+// pre-connection egress guard, then persist the config only if the connection
+// succeeds.
+//
+// VERIFIED (2026-07-23): a forbidden endpoint currently returns 400 "The URL
+// path specified is invalid" — but that 400 is a CONNECTION FAILURE, not a local
+// rejection (the same 400 is returned for a loopback host with nothing listening
+// and for a non-resolving host). So a forbidden host that IS reachable would be
+// contacted. Proving "no connection was attempted" therefore requires the
+// isolated canary env (see the fixme block below). What these runnable tests
+// pin at the API-contract level is: a forbidden endpoint yields a client error
+// and NO persisted server. They stay valid after a proper egress guard is added
+// (still a client error, but rejected before connect).
+//
+// SAFE-TO-RUN payloads only target non-resolving `.invalid` hosts or non-http(s)
+// schemes, so no real internal address is ever contacted from shared infra.
+test.describe("MCP Servers - Endpoint SSRF protection", () => {
+  for (const { name, url } of [
+    ...nonResolvingAttackerUrls,
+    ...unsafeSchemeUrls,
+  ]) {
+    test(`POST /api/2.0/ai/servers - Owner: forbidden endpoint is rejected and not persisted: ${name}`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const serverName = `ssrf${Date.now()}${Math.abs(hashName(name))}`;
+
+      const { status } = await ownerApi.mcp.addServer({
+        addMcpServerRequestBody: {
+          name: serverName,
+          description: "SSRF security test",
+          endpoint: url,
+          headers: { Authorization: "Bearer sk-security-test" },
+        },
+      });
+
+      // Side-effect check before the status assertion: no partial record left.
+      const { data: list } = await ownerApi.mcp.getServers();
+      expect(list.response?.some((s) => s.name === serverName)).toBe(false);
+
+      expectMcpEndpointRejected(status);
+    });
+  }
+
+  // updateServer atomicity: a failed endpoint change must not overwrite the
+  // stored endpoint. Requires a real, connectable server to update, so it is
+  // gated on MCP_API_KEY exactly like the other functional MCP tests.
+  test("PUT /api/2.0/ai/servers/:id - a forbidden endpoint does not partially update the server", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const mcpApiKey = process.env.MCP_API_KEY;
+    if (!mcpApiKey) {
+      throw new Error("MCP_API_KEY is not defined in environment variables");
+    }
+
+    const api = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, api.payment);
+
+    const { data: created } = await api.mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-ssrf-upd-${Date.now()}`,
+        description: "GitHub Copilot MCP server",
+        endpoint: GITHUB_MCP_ENDPOINT,
+        headers: { Authorization: `Bearer ${mcpApiKey}` },
+      },
+    });
+    const serverId = created.response!.id!;
+
+    const { status } = await api.mcp.updateServer({
+      id: serverId,
+      updateServerRequestBody: {
+        endpoint: `http://${ATTACKER_HOST}:9999/mcp`,
+      },
+    });
+
+    // The stored endpoint must be unchanged after a failed update. The full
+    // config (with `endpoint`) is only exposed by getServers, not getServer.
+    const { data: after } = await api.mcp.getServers();
+    const stored = after.response?.find((s) => s.id === serverId);
+    expect(stored?.endpoint).toBe(GITHUB_MCP_ENDPOINT);
+
+    expectMcpEndpointRejected(status);
+  });
+
+  // ------------------------------------------------------------------------
+  // Internal / special-address cases. WARNING: these endpoints DO open a
+  // connection, so running them contacts real loopback / private / link-local /
+  // metadata targets from the onlyoffice-ai container. Run them ONLY against the
+  // isolated local stand with controlled canary / internal mock services — never
+  // against shared or production infrastructure. At the API-contract level they
+  // assert the endpoint is rejected and nothing is persisted; proving that a
+  // FIXED build makes NO outbound connection additionally requires reading the
+  // canary logs.
+  // ------------------------------------------------------------------------
+  // These endpoints are NOT blocked in the current build: addServer actually
+  // connects to them and persists the server (the SSRF egress bug firing).
+  // Marked test.fail until the egress guard lands; when it does they will
+  // "unexpectedly pass" — remove them from this set and keep as passing tests.
+  const mcpSsrfKnownVulnerable = new Set([
+    "ecs metadata",
+    "private 10.x",
+    "private 172.16.x",
+    "private 192.168.x",
+  ]);
+
+  for (const { name, url } of forbiddenSpecialUrls) {
+    const knownBug = mcpSsrfKnownVulnerable.has(name);
+    const title = `${knownBug ? "BUG 82512: " : ""}POST /api/2.0/ai/servers - Owner: internal/special endpoint is rejected and not persisted: ${name}`;
+
+    test(title, async ({ apiSdk }) => {
+      if (knownBug) {
+        test.fail();
+      }
+
+      const ownerApi = apiSdk.forRole("owner");
+      const serverName = `ssrf${Date.now()}${Math.abs(hashName(name))}`;
+
+      const { status } = await ownerApi.mcp.addServer({
+        addMcpServerRequestBody: {
+          name: serverName,
+          description: "SSRF security test",
+          endpoint: url,
+          headers: { Authorization: "Bearer sk-security-test" },
+        },
+      });
+
+      // Side-effect check before the status assertion: no partial record left.
+      const { data: list } = await ownerApi.mcp.getServers();
+      expect(list.response?.some((s) => s.name === serverName)).toBe(false);
+
+      expectMcpEndpointRejected(status);
+    });
+  }
+});
+
+// Small deterministic hash so parameterized names produce unique server names
+// without Date.now() collisions inside a single millisecond.
+function hashName(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
+    h |= 0;
+  }
+  return h;
+}

@@ -149,7 +149,7 @@ npm run lint
 
 ## Example: writing a new functional test
 
-**Task:** "Напиши тест: owner обновляет title комнаты"
+**Task:** "Write a test: owner updates a room title"
 
 1. Open `src/tests/rooms/rooms.spec.ts`
 2. Add inside the relevant `test.describe` block:
@@ -178,7 +178,7 @@ test("PUT /files/rooms/:id - Owner updates room title", async ({ apiSdk }) => {
 
 ## Example: writing a permission test
 
-**Task:** "Напиши тест: guest не может создать комнату"
+**Task:** "Write a test: guest cannot create a room"
 
 ```ts
 test("POST /files/rooms - Guest cannot create a room", async ({ apiSdk }) => {
