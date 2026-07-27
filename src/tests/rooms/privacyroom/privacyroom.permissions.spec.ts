@@ -112,7 +112,7 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: setKeys returns 200 on create instead of 201 Created",
+      "BUG 82546: setKeys returns 200 on create instead of 201 Created",
     );
     const owner = apiSdk.forRole("owner");
     const { status } = await owner.privacyroom.setKeys(dto(apiSdk));
@@ -125,7 +125,7 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: setKeys returns 200 on create instead of 201 Created",
+      "BUG 82546: setKeys returns 200 on create instead of 201 Created",
     );
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const admin = apiSdk.forRole("docSpaceAdmin");
@@ -139,7 +139,7 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: setKeys returns 200 on create instead of 201 Created",
+      "BUG 82546: setKeys returns 200 on create instead of 201 Created",
     );
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdmin = apiSdk.forRole("roomAdmin");
@@ -153,7 +153,7 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: setKeys returns 200 on create instead of 201 Created",
+      "BUG 82546: setKeys returns 200 on create instead of 201 Created",
     );
     await apiSdk.addAuthenticatedMember("owner", "User");
     const user = apiSdk.forRole("user");
@@ -265,7 +265,7 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: deleteKeys returns 200 on a successful delete instead of 204 No Content",
+      "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
     );
     const owner = apiSdk.forRole("owner");
     await owner.privacyroom.setKeys(dto(apiSdk));
@@ -279,7 +279,7 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: deleteKeys returns 200 on a successful delete instead of 204 No Content",
+      "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
     );
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const admin = apiSdk.forRole("docSpaceAdmin");
@@ -294,7 +294,7 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: deleteKeys returns 200 on a successful delete instead of 204 No Content",
+      "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
     );
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdmin = apiSdk.forRole("roomAdmin");
@@ -311,7 +311,7 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: deleteKeys returns 200 on a successful delete instead of 204 No Content",
+      "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
     );
     await apiSdk.addAuthenticatedMember("owner", "User");
     const user = apiSdk.forRole("user");
@@ -495,7 +495,7 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     // test.fail once membership is enforced for admins too.
     test.fail(
       true,
-      "BUG XXXXX: DocSpaceAdmin non-member gets 200 from getUserKeysForRoom and the room owner's E2E public key leaks (a regular non-member correctly gets 403)",
+      "BUG 82540: DocSpaceAdmin non-member gets 200 from getUserKeysForRoom and the room owner's E2E public key leaks (a regular non-member correctly gets 403)",
     );
     const { roomId, ownerPk } = await createPrivateRoomAsOwner(apiSdk);
 

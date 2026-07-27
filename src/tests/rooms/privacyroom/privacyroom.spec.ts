@@ -24,10 +24,10 @@ import {
  *    id that already exists is a 200 no-op (it does NOT update the stored key).
  *    Use replaceKey to change an existing key.
  *  - Expected REST contract (currently violated -> the affected tests are
- *    test.fail with a BUG XXXXX placeholder): POST create should be 201, a POST
- *    with a duplicate id should be 409, a successful DELETE should be 204, and a
- *    DELETE of a missing key should be 404. The API returns 200 (or a silent
- *    no-op) for all of these today.
+ *    test.fail): POST create should be 201 (BUG 82546), a POST with a duplicate
+ *    id should be 409 (BUG 82544), a successful DELETE should be 204 (BUG 82551),
+ *    and a DELETE of a missing key should be 404 (BUG 82552). The API returns 200
+ *    (or a silent no-op) for all of these today.
  *  - replaceKey updates the key whose id matches (in place, leaving the others
  *    untouched); with no matching id it is a 200 no-op that creates nothing.
  *  - deleteKeys removes only the key with the given id.
@@ -130,7 +130,7 @@ test.describe("API privacyroom methods", () => {
       // expected failure.
       test.fail(
         true,
-        "BUG XXXXX: setKeys returns 200 on create instead of 201 Created",
+        "BUG 82546: setKeys returns 200 on create instead of 201 Created",
       );
       const { data, status } = await apiSdk
         .forRole("owner")
@@ -167,7 +167,7 @@ test.describe("API privacyroom methods", () => {
       // 200. Data assertions run first, only the status drives the failure.
       test.fail(
         true,
-        "BUG XXXXX: setKeys returns 200 on create instead of 201 Created",
+        "BUG 82546: setKeys returns 200 on create instead of 201 Created",
       );
       const { data, status } = await owner.privacyroom.setKeys({
         encryptionKeyRequestDto: {
@@ -223,7 +223,7 @@ test.describe("API privacyroom methods", () => {
       // so that side-effect check passes; only the status drives the failure.
       test.fail(
         true,
-        "BUG XXXXX: setKeys with an already-existing id returns a silent 200 no-op instead of 409 Conflict",
+        "BUG 82544: setKeys with an already-existing id returns a silent 200 no-op instead of 409 Conflict",
       );
       const owner = apiSdk.forRole("owner");
       const id = "33333333-3333-3333-3333-333333333333";
@@ -260,7 +260,7 @@ test.describe("API privacyroom methods", () => {
       // Actual: the endpoint returns 200 and stores a key with an empty publicKey.
       test.fail(
         true,
-        "BUG XXXXX: setKeys accepts an empty publicKey (200) and stores an invalid key",
+        "BUG 82554: setKeys accepts an empty publicKey (200) and stores an invalid key",
       );
       const owner = apiSdk.forRole("owner");
 
@@ -279,7 +279,7 @@ test.describe("API privacyroom methods", () => {
     }) => {
       test.fail(
         true,
-        "BUG XXXXX: setKeys accepts a whitespace-only publicKey (200) and stores an invalid key",
+        "BUG 82554: setKeys accepts a whitespace-only publicKey (200) and stores an invalid key",
       );
       const owner = apiSdk.forRole("owner");
 
@@ -340,7 +340,7 @@ test.describe("API privacyroom methods", () => {
       }) => {
         test.fail(
           true,
-          "BUG XXXXX: setKeys performs no input validation — invalid/absent key data returns 200 and stores a key instead of 400",
+          "BUG 82554: setKeys performs no input validation — invalid/absent key data returns 200 and stores a key instead of 400",
         );
         const owner = apiSdk.forRole("owner");
         const { status } = await owner.privacyroom.setKeys(params);
@@ -440,7 +440,7 @@ test.describe("API privacyroom methods", () => {
       // Actual: the endpoint returns 200 and does nothing (no key created).
       test.fail(
         true,
-        "BUG XXXXX: replaceKey with no existing key returns a silent 200 no-op instead of 404/400",
+        "BUG 82545: replaceKey with no existing key returns a silent 200 no-op instead of 404/400",
       );
       const owner = apiSdk.forRole("owner");
 
@@ -599,7 +599,7 @@ test.describe("API privacyroom methods", () => {
       // behavior and keep test.fail until keys carry a matchable type.
       test.fail(
         true,
-        "BUG XXXXX: getUserKeysByFilter type filter never matches — keys expose no type and it cannot be set",
+        "BUG 82549: getUserKeysByFilter type filter never matches — keys expose no type and it cannot be set",
       );
       const owner = apiSdk.forRole("owner");
       const publicKey = "pk-" + apiSdk.faker.generateString(16);
@@ -627,7 +627,7 @@ test.describe("API privacyroom methods", () => {
       // carry a matchable version.
       test.fail(
         true,
-        "BUG XXXXX: getUserKeysByFilter version filter never matches — keys expose no version and it cannot be set",
+        "BUG 82549: getUserKeysByFilter version filter never matches — keys expose no version and it cannot be set",
       );
       const owner = apiSdk.forRole("owner");
       const publicKey = "pk-" + apiSdk.faker.generateString(16);
@@ -654,7 +654,7 @@ test.describe("API privacyroom methods", () => {
       // parameter is dead. Remove test.fail once version participates in the filter.
       test.fail(
         true,
-        "BUG XXXXX: getUserKeysByFilter ignores `version` — id + any version still returns the key instead of applying AND",
+        "BUG 82549: getUserKeysByFilter ignores `version` — id + any version still returns the key instead of applying AND",
       );
       const owner = apiSdk.forRole("owner");
 
@@ -703,7 +703,7 @@ test.describe("API privacyroom methods", () => {
       // collation defect rather than intended behavior.
       test.fail(
         true,
-        "BUG XXXXX: publicKey filter matches case-insensitively (should be exact/case-sensitive)",
+        "BUG 82550: publicKey filter matches case-insensitively (should be exact/case-sensitive)",
       );
       const owner = apiSdk.forRole("owner");
       const publicKey = "AbCdEf-" + apiSdk.faker.generateString(16);
@@ -805,7 +805,7 @@ test.describe("API privacyroom methods", () => {
       // case-insensitively (likely the same DB collation defect).
       test.fail(
         true,
-        "BUG XXXXX: privateKeyEnc filter matches case-insensitively (should be exact/case-sensitive)",
+        "BUG 82550: privateKeyEnc filter matches case-insensitively (should be exact/case-sensitive)",
       );
       const owner = apiSdk.forRole("owner");
       const privateKeyEnc = "XyZ123-" + apiSdk.faker.generateString(16);
@@ -923,7 +923,7 @@ test.describe("API privacyroom methods", () => {
       // participate in the filter.
       test.fail(
         true,
-        "BUG XXXXX: getUserKeysByFilter ignores type/version — a non-matching type/version does not exclude a key matched by id+publicKey+privateKeyEnc",
+        "BUG 82549: getUserKeysByFilter ignores type/version — a non-matching type/version does not exclude a key matched by id+publicKey+privateKeyEnc",
       );
       const owner = apiSdk.forRole("owner");
       const publicKey = "pk-" + apiSdk.faker.generateString(16);
@@ -975,7 +975,7 @@ test.describe("API privacyroom methods", () => {
       // against the parameter being dropped only for certain field combinations.
       test.fail(
         true,
-        "BUG XXXXX: getUserKeysByFilter ignores `version` — publicKey + any version still returns the key instead of applying AND",
+        "BUG 82549: getUserKeysByFilter ignores `version` — publicKey + any version still returns the key instead of applying AND",
       );
       const owner = apiSdk.forRole("owner");
       const publicKey = "pk-" + apiSdk.faker.generateString(16);
@@ -1055,7 +1055,7 @@ test.describe("API privacyroom methods", () => {
       // returns 200. The key is verified gone first, only the status fails.
       test.fail(
         true,
-        "BUG XXXXX: deleteKeys returns 200 on a successful delete instead of 204 No Content",
+        "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
       );
       const { status } = await owner.privacyroom.deleteKeys({
         id: ZERO_GUID,
@@ -1076,7 +1076,7 @@ test.describe("API privacyroom methods", () => {
       // key is reported as 404.
       test.fail(
         true,
-        "BUG XXXXX: deleteKeys returns 200 for a valid but non-existent key id instead of 404 Not Found",
+        "BUG 82552: deleteKeys returns 200 for a valid but non-existent key id instead of 404 Not Found",
       );
       const { status } = await apiSdk
         .forRole("owner")
@@ -1095,7 +1095,7 @@ test.describe("API privacyroom methods", () => {
       // two endpoints agree on 400.
       test.fail(
         true,
-        "BUG XXXXX: deleteKeys returns 404 for a malformed id instead of 400 (getUserKeysByFilter returns 400 for the same input)",
+        "BUG 82553: deleteKeys returns 404 for a malformed id instead of 400 (getUserKeysByFilter returns 400 for the same input)",
       );
       const { status } = await apiSdk
         .forRole("owner")
@@ -1128,7 +1128,7 @@ test.describe("API privacyroom methods", () => {
       // missing key as 404.
       test.fail(
         true,
-        "BUG XXXXX: re-deleting an already-deleted key returns 200 instead of 404 Not Found",
+        "BUG 82552: re-deleting an already-deleted key returns 200 instead of 404 Not Found",
       );
       const owner = apiSdk.forRole("owner");
 
@@ -1170,7 +1170,7 @@ test.describe("API privacyroom methods", () => {
       // 200. The isolation side-effect is verified first, only the status fails.
       test.fail(
         true,
-        "BUG XXXXX: deleteKeys returns 200 on a successful delete instead of 204 No Content",
+        "BUG 82551: deleteKeys returns 200 on a successful delete instead of 204 No Content",
       );
       const { status } = await owner.privacyroom.deleteKeys({ id: idB });
 
@@ -1223,7 +1223,7 @@ test.describe("API privacyroom methods", () => {
       // contract. Remove test.fail once it returns a proper client error.
       test.fail(
         true,
-        'BUG XXXXX: getUserKeysForRoom on a non-private room leaks a 415 NotSupportedException ("Specified method is not supported.") instead of a clean 400',
+        'BUG 82543: getUserKeysForRoom on a non-private room leaks a 415 NotSupportedException ("Specified method is not supported.") instead of a clean 400',
       );
       const owner = apiSdk.forRole("owner");
       const { data: room } = await owner.rooms.createRoom({
