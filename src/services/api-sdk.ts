@@ -9,7 +9,7 @@ import {
   RoomsApi,
   OperationsApi,
   SharingApi,
-  ProfilesApi,
+  PeopleProfilesApi,
   PasswordApi,
   UserStatusApi,
   PeopleQuotaApi,
@@ -62,6 +62,7 @@ import { LoginHistoryApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/
 import { SMTPSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/smtpsettings-api";
 import { ActiveConnectionsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/active-connections-api";
 import { TFASettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/tfasettings-api";
+import { WebhooksApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/webhooks-api";
 import { AccessToDevToolsApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/access-to-dev-tools-api";
 import { BannersVisibilityApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/banners-visibility-api";
 import { CookiesApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/cookies-api";
@@ -71,6 +72,7 @@ import { OwnerApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/owner-a
 import { PortalQuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-quota-api";
 import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-settings-api";
 import { QuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/quota-api";
+import { PrivacyroomApi } from "@onlyoffice/docspace-api-sdk/dist/api/privacyroom/privacyroom-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -131,7 +133,7 @@ export class ApiSDK {
       files: new FilesApi(config, undefined, axiosInstance),
       folders: new FoldersApi(config, undefined, axiosInstance),
       rooms: new RoomsApi(config, undefined, axiosInstance),
-      profiles: new ProfilesApi(config, undefined, axiosInstance),
+      profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
     };
   }
 
@@ -175,7 +177,7 @@ export class ApiSDK {
       groupSearch: new GroupSearchApi(config, undefined, axiosInstance),
       operations: new OperationsApi(config, undefined, axiosInstance),
       sharing: new SharingApi(config, undefined, axiosInstance),
-      profiles: new ProfilesApi(config, undefined, axiosInstance),
+      profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
       password: new PasswordApi(config, undefined, axiosInstance),
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
@@ -231,6 +233,7 @@ export class ApiSDK {
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
       authentication: new AuthenticationApi(config, undefined, axiosInstance),
       tfaSettings: new TFASettingsApi(config, undefined, axiosInstance),
+      webhooks: new WebhooksApi(config, undefined, axiosInstance),
       capabilities: new CapabilitiesApi(config, undefined, axiosInstance),
       migration: new MigrationApi(config, undefined, axiosInstance),
       scopeManagement: new ScopeManagementApi(config, undefined, axiosInstance),
@@ -276,6 +279,7 @@ export class ApiSDK {
       ipRestrictions: new IPRestrictionsApi(config, undefined, axiosInstance),
       notifications: new NotificationsApi(config, undefined, axiosInstance),
       owner: new OwnerApi(config, undefined, axiosInstance),
+      privacyroom: new PrivacyroomApi(config, undefined, axiosInstance),
     };
   }
 
@@ -297,7 +301,7 @@ export class ApiSDK {
       groupApi: new GroupApi(config, undefined, axiosInstance),
       groupSearch: new GroupSearchApi(config, undefined, axiosInstance),
       sharing: new SharingApi(config, undefined, axiosInstance),
-      profiles: new ProfilesApi(config, undefined, axiosInstance),
+      profiles: new PeopleProfilesApi(config, undefined, axiosInstance),
       password: new PasswordApi(config, undefined, axiosInstance),
       userStatus: new UserStatusApi(config, undefined, axiosInstance),
       peopleQuota: new PeopleQuotaApi(config, undefined, axiosInstance),
@@ -391,6 +395,8 @@ export class ApiSDK {
       roomQuota: new QuotaApi(config, undefined, axiosInstance),
       filesSettings: new FilesSettingsApi(config, undefined, axiosInstance),
       owner: new OwnerApi(config, undefined, axiosInstance),
+      webhooks: new WebhooksApi(config, undefined, axiosInstance),
+      privacyroom: new PrivacyroomApi(config, undefined, axiosInstance),
     };
   }
 
@@ -546,6 +552,84 @@ export class ApiSDK {
     return { data: response.data, status: response.status };
   }
 
+  /**
+   * Low-level POST /api/2.0/files/logos with full control over the request
+   * shape: HTTP method, multipart field/file names, MIME types, extra fields,
+   * multiple files, raw bodies and Content-Type. Used for the multipart /
+   * content-type / method contract tests that the typed helper cannot express.
+   * Pass role = null for an anonymous (no Authorization header) request.
+   */
+  async uploadRoomLogoRaw(
+    role: Role | null,
+    options?: {
+      method?: string;
+      files?: Array<{
+        fieldName?: string;
+        filename?: string;
+        mimeType?: string;
+        buffer: Buffer;
+      }>;
+      fields?: Record<string, string>;
+      stringFileValue?: string;
+      rawBody?: string | Buffer;
+      contentType?: string;
+      omitBody?: boolean;
+    },
+  ): Promise<{ data: any; status: number }> {
+    const url = `${this.tokenStore.portalBaseUrl}/api/2.0/files/logos`;
+    const headers: Record<string, string> = {
+      Origin: `http://${this.tokenStore.newTenantDomain}`,
+      Cookie: "",
+    };
+    if (role) {
+      headers["Authorization"] = `Bearer ${this.tokenStore.getToken(role)}`;
+    }
+
+    const fetchOptions: {
+      method: string;
+      headers: Record<string, string>;
+      multipart?: FormData;
+      data?: string | Buffer;
+    } = { method: options?.method ?? "POST", headers };
+
+    if (options?.omitBody) {
+      // send no body at all
+    } else if (options?.rawBody !== undefined) {
+      if (options.contentType) headers["Content-Type"] = options.contentType;
+      fetchOptions.data = options.rawBody;
+    } else {
+      const formData = new FormData();
+      for (const [key, value] of Object.entries(options?.fields ?? {})) {
+        formData.append(key, value);
+      }
+      if (options?.stringFileValue !== undefined) {
+        formData.append("file", options.stringFileValue);
+      }
+      for (const file of options?.files ?? []) {
+        formData.append(
+          file.fieldName ?? "file",
+          new Blob([new Uint8Array(file.buffer)], {
+            type: file.mimeType ?? "image/png",
+          }),
+          file.filename ?? "logo.png",
+        );
+      }
+      fetchOptions.multipart = formData;
+    }
+
+    const response = await this.request.fetch(
+      url,
+      fetchOptions as Parameters<APIRequestContext["fetch"]>[1],
+    );
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      data = await response.text();
+    }
+    return { data: data as any, status: response.status() };
+  }
+
   async uploadMemberPhoto(
     role: Role,
     userId: string,
@@ -584,5 +668,66 @@ export class ApiSDK {
       { headers },
     );
     return { data: response.data, status: response.status };
+  }
+
+  /**
+   * Low-level call to the OpenAI-compatible proxy endpoint
+   * `GET|POST|PUT|DELETE /api/2.0/ai/openai/{providerId}/v1/{path}`.
+   *
+   * This endpoint is not in the typed SDK, and SSRF regression testing needs the
+   * `{path}` segment forwarded verbatim (absolute URLs, mixed-case schemes,
+   * encoded slashes, userinfo, IP literals) without the SDK normalizing it away.
+   * So we build the URL string by hand and fetch it raw.
+   *
+   * Pass role = null for an anonymous (no Authorization header) request.
+   * `rawQuery` is appended after the path verbatim (no re-encoding).
+   */
+  async aiOpenAiProxyRaw(
+    role: Role | null,
+    providerId: number | string,
+    path: string,
+    options?: {
+      method?: string;
+      rawQuery?: string;
+      body?: unknown;
+      contentType?: string;
+    },
+  ): Promise<{ status: number; text: string; data: unknown }> {
+    const method = options?.method ?? "GET";
+    let url = `${this.tokenStore.portalBaseUrl}/api/2.0/ai/openai/${providerId}/v1/${path}`;
+    if (options?.rawQuery) {
+      url += `?${options.rawQuery}`;
+    }
+
+    const headers: Record<string, string> = {
+      Origin: `http://${this.tokenStore.newTenantDomain}`,
+    };
+    if (role) {
+      headers["Authorization"] = `Bearer ${this.tokenStore.getToken(role)}`;
+    }
+
+    const fetchOptions: {
+      method: string;
+      headers: Record<string, string>;
+      data?: string;
+    } = { method, headers };
+
+    if (options?.body !== undefined) {
+      headers["Content-Type"] = options.contentType ?? "application/json";
+      fetchOptions.data =
+        typeof options.body === "string"
+          ? options.body
+          : JSON.stringify(options.body);
+    }
+
+    const response = await this.request.fetch(url, fetchOptions);
+    const text = await response.text();
+    let data: unknown = text;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // non-JSON (e.g. a proxied plain-text canary response) — keep raw text
+    }
+    return { status: response.status(), text, data };
   }
 }
