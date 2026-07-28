@@ -132,7 +132,7 @@ test.describe("API room groups permissions", () => {
     // rooms, here on the access-denied path.
     for (const role of gatedRoles) {
       test.fail(
-        `BUG XXXXX: ${role} - create rejected for an inaccessible room still leaves a group (partial create)`,
+        `BUG 82598: ${role} - create rejected for an inaccessible room still leaves a group (partial create)`,
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, `Gate ${role} Room`);
@@ -256,7 +256,7 @@ test.describe("API room groups permissions", () => {
       "Guest",
     ] as const) {
       test.fail(
-        `BUG XXXXX: ${role} deleting the owner's group should be 403, not a 200 no-op`,
+        `BUG 82597: ${role} deleting the owner's group should be 403, not a 200 no-op`,
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, `DelIso ${role} Room`);

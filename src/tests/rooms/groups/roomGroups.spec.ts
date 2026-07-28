@@ -237,7 +237,7 @@ test.describe("API room groups methods", () => {
       // Contract: leading/trailing spaces in the name must be trimmed. The
       // server currently stores the name verbatim (no trim), so this is a bug.
       test.fail(
-        "BUG XXXXX: POST /files/group - leading/trailing spaces in the name should be trimmed, but are stored verbatim",
+        "BUG 82573: POST /files/group - leading/trailing spaces in the name should be trimmed, but are stored verbatim",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, "Trim Room");
@@ -328,7 +328,7 @@ test.describe("API room groups methods", () => {
       });
 
       test.fail(
-        "BUG XXXXX: POST /files/group - missing required rooms field should be a 400 body-validation error, not 403",
+        "BUG 82575: POST /files/group - missing required rooms field should be a 400 body-validation error, not 403",
         async ({ apiSdk }) => {
           const { status } = await roomGroupRaw(apiSdk, {
             path: "",
@@ -374,7 +374,7 @@ test.describe("API room groups methods", () => {
       // the type is otherwise enforced), not routed into room-lookup/business
       // paths that surface 403.
       test.fail(
-        "BUG XXXXX: POST /files/group - numeric-string room id should be a 400 type error, not coerced (currently 403 not-found)",
+        "BUG 82575: POST /files/group - numeric-string room id should be a 400 type error, not coerced (currently 403 not-found)",
         async ({ apiSdk }) => {
           const { status } = await roomGroupRaw(apiSdk, {
             path: "",
@@ -385,7 +385,7 @@ test.describe("API room groups methods", () => {
       );
 
       test.fail(
-        "BUG XXXXX: POST /files/group - null room element should be a 400 type error, not silently dropped (currently 403)",
+        "BUG 82575: POST /files/group - null room element should be a 400 type error, not silently dropped (currently 403)",
         async ({ apiSdk }) => {
           const { status } = await roomGroupRaw(apiSdk, {
             path: "",
@@ -396,7 +396,7 @@ test.describe("API room groups methods", () => {
       );
 
       test.fail(
-        "BUG XXXXX: POST /files/group - fractional room id returns 500 instead of 400",
+        "BUG 82576: POST /files/group - fractional room id returns 500 instead of 400",
         async ({ apiSdk }) => {
           const { status } = await roomGroupRaw(apiSdk, {
             path: "",
@@ -410,7 +410,7 @@ test.describe("API room groups methods", () => {
       // even reports "The required folder was not found") but currently returns
       // 403. It must not be a 500 either.
       test.fail(
-        "BUG XXXXX: POST /files/group - non-existent room id should return 404, not 403",
+        "BUG 82577: POST /files/group - non-existent room id should return 404, not 403",
         async ({ apiSdk }) => {
           const { status } = await roomGroupRaw(apiSdk, {
             path: "",
@@ -429,7 +429,7 @@ test.describe("API room groups methods", () => {
       ];
       for (const [label, id] of invalidValueIds) {
         test.fail(
-          `BUG XXXXX: POST /files/group - ${label} room id should be a 400 invalid-value error, not 403`,
+          `BUG 82575: POST /files/group - ${label} room id should be a 400 invalid-value error, not 403`,
           async ({ apiSdk }) => {
             const { status } = await roomGroupRaw(apiSdk, {
               path: "",
@@ -440,35 +440,31 @@ test.describe("API room groups methods", () => {
         );
       }
 
-      test.fail(
-        "BUG XXXXX: POST /files/group - mixed valid+non-existent rooms is not atomic (partial create)",
-        async ({ apiSdk }) => {
-          const owner = apiSdk.forRole("owner");
-          const validId = await createRoomId(owner.rooms, "Atomic Valid");
+      // Confirmed contract: the create is intentionally NOT atomic. The
+      // response reports the non-existent room (403), but the group is still
+      // created from the rooms that could be resolved.
+      test("POST /files/group - mixed valid+non-existent rooms: refused with 403 but the group is still created (non-atomic by design)", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const validId = await createRoomId(owner.rooms, "Atomic Valid");
 
-          const { status } = await roomGroupRaw(apiSdk, {
-            path: "",
-            body: {
-              name: "Atomic Create",
-              icon: "star",
-              rooms: [validId, 999999],
-            },
-          });
+        const { status } = await roomGroupRaw(apiSdk, {
+          path: "",
+          body: {
+            name: "Atomic Create",
+            icon: "star",
+            rooms: [validId, 999999],
+          },
+        });
 
-          // Full expected contract: the whole request is rejected AND nothing
-          // is created. The rejection code is the interim 403 (its exact value
-          // is contested — see bugs [8]/[10]); the atomicity guarantee is the
-          // primary point.
-          const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
-          expect(list.response!.map((g) => g.name)).not.toContain(
-            "Atomic Create",
-          );
-          expect(status).toBe(403);
-        },
-      );
+        const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
+        expect(list.response!.map((g) => g.name)).toContain("Atomic Create");
+        expect(status).toBe(403);
+      });
 
       test.fail(
-        "BUG XXXXX: POST /files/group - duplicate room ids cause 500 instead of dedup",
+        "BUG 82587: POST /files/group - duplicate room ids cause 500 instead of dedup",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, "Dup Room");
@@ -973,7 +969,7 @@ test.describe("API room groups methods", () => {
       // rejects `name: null` with 400. Until the team confirms this PATCH-like
       // null tolerance is intentional, we assert the DTO-consistent 400.
       test.fail(
-        "BUG XXXXX: PUT /files/group/:id - groupName: null is accepted as a no-op (200) but should be 400 like create",
+        "BUG 82590: PUT /files/group/:id - groupName: null is accepted as a no-op (200) but should be 400 like create",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, "NullName Room");
@@ -1018,7 +1014,7 @@ test.describe("API room groups methods", () => {
       });
 
       test.fail(
-        "BUG XXXXX: PUT /files/group/:id - empty name is accepted (200) but should be rejected (400)",
+        "BUG 82590: PUT /files/group/:id - empty name is accepted (200) but should be rejected (400)",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, "EmptyName Room");
@@ -1043,7 +1039,7 @@ test.describe("API room groups methods", () => {
       );
 
       test.fail(
-        "BUG XXXXX: PUT /files/group/:id - whitespace-only name is accepted (200) but should be rejected (400)",
+        "BUG 82590: PUT /files/group/:id - whitespace-only name is accepted (200) but should be rejected (400)",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, "SpaceName Room");
@@ -1125,7 +1121,7 @@ test.describe("API room groups methods", () => {
       // `rooms: null` with 400. Passing null here is currently a silent 200
       // no-op — assert the DTO-consistent 400 until confirmed intentional.
       test.fail(
-        "BUG XXXXX: PUT /files/group/:id - roomsToAdd: null is accepted as a no-op (200) but should be 400 like create",
+        "BUG 82591: PUT /files/group/:id - roomsToAdd: null is accepted as a no-op (200) but should be 400 like create",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, "NullAdd");
@@ -1171,7 +1167,7 @@ test.describe("API room groups methods", () => {
       });
 
       test.fail(
-        "BUG XXXXX: PUT /files/group/:id - adding a non-existent room should return 404, not 403",
+        "BUG 82592: PUT /files/group/:id - adding a non-existent room should return 404, not 403",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, "AddMissing404");
@@ -1189,36 +1185,35 @@ test.describe("API room groups methods", () => {
         },
       );
 
+      // Confirmed contract: the update is intentionally NOT atomic, same as
+      // create. The response reports the non-existent room (403), but the
+      // rooms that could be resolved are still added.
+      test("PUT /files/group/:id - adding valid+non-existent rooms: refused with 403 but the valid room is still added (non-atomic by design)", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const seed = await createRoomId(owner.rooms, "AtomicSeed");
+        const valid = await createRoomId(owner.rooms, "AtomicValidAdd");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "Atomic Add Group",
+          rooms: [seed],
+        });
+
+        const { status } = await roomGroupRaw(apiSdk, {
+          method: "PUT",
+          path: `/${id}`,
+          body: { roomsToAdd: [valid, 999999] },
+        });
+
+        const { data } = await owner.groups.getRoomGroupInfo({ id });
+        expect(data.response!.rooms!.map((r) => r.title)).toContain(
+          "AtomicValidAdd",
+        );
+        expect(status).toBe(403);
+      });
+
       test.fail(
-        "BUG XXXXX: PUT /files/group/:id - adding valid+non-existent rooms is not atomic (valid room gets added)",
-        async ({ apiSdk }) => {
-          const owner = apiSdk.forRole("owner");
-          const seed = await createRoomId(owner.rooms, "AtomicSeed");
-          const valid = await createRoomId(owner.rooms, "AtomicValidAdd");
-          const { id } = await createRoomGroup(owner.groups, {
-            name: "Atomic Add Group",
-            rooms: [seed],
-          });
-
-          const { status } = await roomGroupRaw(apiSdk, {
-            method: "PUT",
-            path: `/${id}`,
-            body: { roomsToAdd: [valid, 999999] },
-          });
-
-          // Full expected contract: request rejected AND nothing partially
-          // added. Rejection code is the interim 403 (exact value contested,
-          // see bug [10]); the atomicity guarantee is the primary point.
-          const { data } = await owner.groups.getRoomGroupInfo({ id });
-          expect(data.response!.rooms!.map((r) => r.title)).not.toContain(
-            "AtomicValidAdd",
-          );
-          expect(status).toBe(403);
-        },
-      );
-
-      test.fail(
-        "BUG XXXXX: PUT /files/group/:id - duplicate room ids in roomsToAdd cause 500 instead of dedup",
+        "BUG 82594: PUT /files/group/:id - duplicate room ids in roomsToAdd cause 500 instead of dedup",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const seed = await createRoomId(owner.rooms, "DupAddSeed");
@@ -1280,7 +1275,7 @@ test.describe("API room groups methods", () => {
       });
 
       test.fail(
-        "BUG XXXXX: PUT /files/group/:id - removing a non-existent room should return 404, not 403",
+        "BUG 82595: PUT /files/group/:id - removing a non-existent room should return 404, not 403",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, "RemoveMissing");
@@ -1718,31 +1713,30 @@ test.describe("API room groups methods", () => {
         });
       }
 
-      test.fail(
-        "BUG XXXXX: POST /files/group/:id/icon - empty-string icon is accepted (200) and wipes the icon, should be 400",
-        async ({ apiSdk }) => {
-          const owner = apiSdk.forRole("owner");
-          const roomId = await createRoomId(owner.rooms, "EmptyIcon");
-          const { id } = await createRoomGroup(owner.groups, {
-            name: "EmptyIcon Group",
-            icon: "heart",
-            rooms: [roomId],
-          });
+      // Confirmed contract: unlike every other invalid icon value above, an
+      // empty string is the accepted way to CLEAR the icon — 200 and the
+      // stored icon is wiped (`icon: null` stays a no-op, see above).
+      test("POST /files/group/:id/icon - empty-string icon is accepted (200) and clears the icon", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const roomId = await createRoomId(owner.rooms, "EmptyIcon");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "EmptyIcon Group",
+          icon: "heart",
+          rooms: [roomId],
+        });
 
-          const { status } = await roomGroupRaw(apiSdk, {
-            method: "POST",
-            path: `/${id}/icon`,
-            body: { icon: "" },
-          });
+        const { status } = await roomGroupRaw(apiSdk, {
+          method: "POST",
+          path: `/${id}/icon`,
+          body: { icon: "" },
+        });
+        expect(status).toBe(200);
 
-          // The more important half of the bug is data corruption: an empty
-          // icon must NOT wipe the existing one. Assert the icon is untouched
-          // first (currently it is wiped), then the rejected status.
-          const after = await owner.groups.getRoomGroupInfo({ id });
-          expect(after.data.response!.icon?.id).toBe("heart");
-          expect(status).toBe(400);
-        },
-      );
+        const after = await owner.groups.getRoomGroupInfo({ id });
+        expect(after.data.response!.icon?.id).toBeUndefined();
+      });
 
       test("POST /files/group/:id/icon - missing body returns 415", async ({
         apiSdk,
@@ -1954,7 +1948,7 @@ test.describe("API room groups methods", () => {
 
     test.describe("idempotency and bad ids", () => {
       test.fail(
-        "BUG XXXXX: DELETE /files/group/:id - repeating the delete should return 404 on the already-deleted group, not 200",
+        "BUG 82596: DELETE /files/group/:id - repeating the delete should return 404 on the already-deleted group, not 200",
         async ({ apiSdk }) => {
           const owner = apiSdk.forRole("owner");
           const roomId = await createRoomId(owner.rooms, "Repeat Del");
@@ -1979,7 +1973,7 @@ test.describe("API room groups methods", () => {
       const missingIds = ["0", "-1", "999999"];
       for (const id of missingIds) {
         test.fail(
-          `BUG XXXXX: DELETE /files/group/${id} - non-existent id should return 404, not 200`,
+          `BUG 82596: DELETE /files/group/${id} - non-existent id should return 404, not 200`,
           async ({ apiSdk }) => {
             const { status } = await roomGroupRaw(apiSdk, {
               method: "DELETE",
@@ -2191,7 +2185,7 @@ test.describe("API room groups methods", () => {
     // membership. The API currently keeps the archived room in the group
     // (totalRooms stays 1 after archive), so the archive step is a bug.
     test.fail(
-      "BUG XXXXX: archiving the only room should empty the group (0), unarchiving should restore it (1)",
+      "BUG 82601: archiving the only room should empty the group (0), unarchiving should restore it (1)",
       async ({ apiSdk }) => {
         const owner = apiSdk.forRole("owner");
         const roomId = await createRoomId(owner.rooms, "Archive Member");
