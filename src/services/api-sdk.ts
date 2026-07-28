@@ -397,6 +397,7 @@ export class ApiSDK {
       owner: new OwnerApi(config, undefined, axiosInstance),
       webhooks: new WebhooksApi(config, undefined, axiosInstance),
       privacyroom: new PrivacyroomApi(config, undefined, axiosInstance),
+      tfaSettings: new TFASettingsApi(config, undefined, axiosInstance),
     };
   }
 
