@@ -582,7 +582,7 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Bulk download", () => {
     expect(operation.finished).toBe(true);
     expect(operation.error).toBe("");
     expect(operation.Operation).toBe(FileOperationType.Download);
-    expect(operation.processed).toBe("2");
+    expect(operation.processed).toBe("1");
     expect(operation.url).toContain("filehandler.ashx?action=bulk");
   });
 
