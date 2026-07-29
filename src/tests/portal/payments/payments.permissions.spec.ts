@@ -790,7 +790,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport - permissi
       .forAnonymous()
       .payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "ai-tools",
+          serviceName: ["ai-tools"],
           credit: true,
           debit: true,
         },
@@ -810,7 +810,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport - permissi
       .forRole("roomAdmin")
       .payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "ai-tools",
+          serviceName: ["ai-tools"],
           credit: true,
           debit: true,
         },
@@ -831,7 +831,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport - permissi
       .forRole("user")
       .payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "ai-tools",
+          serviceName: ["ai-tools"],
           credit: true,
           debit: true,
         },
@@ -852,7 +852,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport - permissi
       .forRole("guest")
       .payment.createCustomerOperationsReport({
         customerOperationsReportRequestDto: {
-          serviceName: "ai-tools",
+          serviceName: ["ai-tools"],
           credit: true,
           debit: true,
         },

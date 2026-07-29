@@ -3,6 +3,7 @@ import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import config from "@/config";
 import { FileShare, RoomType, ServerType } from "@onlyoffice/docspace-api-sdk";
+import { ATTACKER_HOST } from "@/src/helpers/ssrf-payloads";
 
 const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
 const forbiddenRoles = ["RoomAdmin", "User", "Guest"] as const;
@@ -37,6 +38,50 @@ test.describe("MCP Servers - Permissions", () => {
         description: "GitHub Copilot MCP server",
         endpoint: GITHUB_MCP_ENDPOINT,
         headers: { Authorization: "Bearer token" },
+      },
+    });
+
+    expect(status).toBe(401);
+  });
+});
+
+// The MCP endpoint SSRF egress guard must also hold for non-admin callers: the
+// role check must run BEFORE any connection to the supplied endpoint. Here a
+// non-admin registering an attacker endpoint gets 403 (not the 400 that a
+// connection attempt would produce), proving the authorization gate precedes
+// egress. The endpoint uses a non-resolving `.invalid` host so nothing is
+// contacted regardless. (Confirming the canary saw no request needs the
+// isolated canary env — see the fixme block in mcp.spec.ts.)
+test.describe("MCP Servers - Endpoint SSRF protection Permissions", () => {
+  for (const role of forbiddenRoles) {
+    test(`POST /api/2.0/ai/servers - ${role} cannot trigger an outbound request to an attacker endpoint`, async ({
+      apiSdk,
+    }) => {
+      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+
+      const { data, status } = await api.mcp.addServer({
+        addMcpServerRequestBody: {
+          name: `mcp-ssrf-${role}-${Date.now()}`,
+          description: "SSRF security test",
+          endpoint: `http://${ATTACKER_HOST}:9999/mcp`,
+          headers: { Authorization: "Bearer sk-security-test" },
+        },
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  }
+
+  test("POST /api/2.0/ai/servers - Anonymous gets 401 before any connect to an attacker endpoint", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().mcp.addServer({
+      addMcpServerRequestBody: {
+        name: `mcp-ssrf-anon-${Date.now()}`,
+        description: "SSRF security test",
+        endpoint: `http://${ATTACKER_HOST}:9999/mcp`,
+        headers: { Authorization: "Bearer sk-security-test" },
       },
     });
 

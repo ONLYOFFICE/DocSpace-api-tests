@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { createPrivateRoom } from "@/src/helpers/rooms";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
@@ -909,6 +910,30 @@ test.describe("PUT /files/rooms/:id/cover - Change room cover", () => {
       expect(data.response!.logo?.color).toBe("FF5733");
     });
   }
+
+  test("PUT /files/rooms/:id/cover - Works for a private room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { data: roomData } = await createPrivateRoom(apiSdk, "owner", {
+      title: "Autotest Cover Private Room",
+      roomType: RoomType.CustomRoom,
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.private).toBe(true);
+    expect(data.response!.logo?.cover?.id).toBe(coverId);
+    expect(data.response!.logo?.color).toBe("FF5733");
+  });
 
   test("PUT /files/rooms/:id/cover - Lowercase hex color is accepted", async ({
     apiSdk,
