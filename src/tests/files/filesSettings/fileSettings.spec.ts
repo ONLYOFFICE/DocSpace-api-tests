@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { DateToAutoCleanUp } from "@onlyoffice/docspace-api-sdk";
+import { DateToAutoCleanUp, FileShare } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
 
 test.describe("PUT /api/2.0/files/thirdparty - Change third-party settings access", () => {
@@ -2842,5 +2842,244 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
 
     expect(status).toBe(200);
     expect(data.response?.downloadTarGz).toBe(true);
+  });
+});
+
+test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the default access rights", () => {
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Owner sets multiple access rights", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } =
+      await ownerApi.filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.ReadWrite, FileShare.Read],
+      });
+
+    const validFileShareValues = Object.values(FileShare) as number[];
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+    const rights = data.response as unknown as number[];
+    rights.forEach((r) => expect(validFileShareValues).toContain(r));
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Owner sets a single access right", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } =
+      await ownerApi.filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.Read],
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBe(1);
+    const rights = data.response as unknown as number[];
+    expect(rights[0]).toBe(FileShare.Read);
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Owner sets all access rights", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const allRights = [
+      FileShare.None,
+      FileShare.ReadWrite,
+      FileShare.Read,
+      FileShare.Restrict,
+      FileShare.Varies,
+      FileShare.Review,
+      FileShare.Comment,
+      FileShare.FillForms,
+      FileShare.CustomFilter,
+      FileShare.RoomManager,
+      FileShare.Editing,
+      FileShare.ContentCreator,
+    ];
+
+    const { data, status } =
+      await ownerApi.filesSettings.changeDefaultAccessRights({
+        requestBody: allRights,
+      });
+
+    const validFileShareValues = Object.values(FileShare) as number[];
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+    const rights = data.response as unknown as number[];
+    rights.forEach((r) => expect(validFileShareValues).toContain(r));
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Owner sends empty array", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [],
+      });
+
+    const validFileShareValues = Object.values(FileShare) as number[];
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const rights = data.response as unknown as number[];
+    rights.forEach((r) => expect(validFileShareValues).toContain(r));
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Owner sends request without body", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDefaultAccessRights({});
+
+    expect(status).toBe(400);
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Setting new rights replaces previous rights", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.ReadWrite, FileShare.Read, FileShare.Review],
+    });
+
+    const { data, status } =
+      await ownerApi.filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.Comment],
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBe(1);
+    const rights = data.response as unknown as number[];
+    expect(rights[0]).toBe(FileShare.Comment);
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - DocSpaceAdmin can change default access rights", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.ReadWrite, FileShare.Read],
+      });
+
+    const validFileShareValues = Object.values(FileShare) as number[];
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const rights = data.response as unknown as number[];
+    rights.forEach((r) => expect(validFileShareValues).toContain(r));
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Sending the same rights twice is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Read],
+    });
+
+    const { data, status } =
+      await ownerApi.filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.Read],
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBe(1);
+    const rights = data.response as unknown as number[];
+    expect(rights[0]).toBe(FileShare.Read);
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Duplicate values in array are handled", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.Read, FileShare.Read],
+      });
+
+    const validFileShareValues = Object.values(FileShare) as number[];
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    const rights = data.response as unknown as number[];
+    rights.forEach((r) => expect(validFileShareValues).toContain(r));
+  });
+
+  // BUG XXXXX: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 200 instead of 400
+  test.fail(
+    "BUG XXXXX: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 200 instead of 400",
+    async ({ apiSdk }) => {
+      const { status } = await apiSdk
+        .forRole("owner")
+        .filesSettings.changeDefaultAccessRights({
+          requestBody: [999 as FileShare],
+        });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Change is reflected in getFilesSettings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Read],
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    const rights = data.response?.defaultSharingAccessRights as unknown as
+      | number[]
+      | null
+      | undefined;
+    expect(Array.isArray(rights)).toBe(true);
+    expect(rights).toContain(FileShare.Read);
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Setting is isolated per user", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const ownerApi = apiSdk.forRole("owner");
+    const userApi = apiSdk.forRole("user");
+
+    await ownerApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Read],
+    });
+    await userApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.ReadWrite],
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    const rights = data.response?.defaultSharingAccessRights as unknown as
+      | number[]
+      | null
+      | undefined;
+    expect(Array.isArray(rights)).toBe(true);
+    expect(rights).toContain(FileShare.Read);
+    expect(rights).not.toContain(FileShare.ReadWrite);
   });
 });
