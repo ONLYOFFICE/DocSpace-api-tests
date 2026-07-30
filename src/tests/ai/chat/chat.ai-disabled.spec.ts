@@ -1,198 +1,166 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { ToolExecutionDecision } from "@onlyoffice/docspace-api-sdk";
+import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 
-const fakeRoomId = 999999999;
-const fakeChatId = "00000000-0000-0000-0000-000000000000";
+// The chat surface moved from `/ai/rooms/{roomId}/chats` (404) to
+// `/ai/threads/*` + `/ai/ai/send-with-stream`. See the route map in
+// src/helpers/ai-agent-chat.ts.
+
+const fakeAgentId = 999999999;
+const fakeThreadId = "019f0000-0000-7000-8000-000000000000";
 
 test.describe("AI Chat - AI Disabled", () => {
-  test("POST /api/2.0/ai/rooms/:roomId/chats - returns 403 when AI access is disabled", async ({
+  test("GET /api/2.0/ai/threads/list - returns 403 when AI access is disabled", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.chat.startNewChat({
-      roomId: fakeRoomId,
-      startNewChatBody: { message: "test" },
+    const { status } = await aiChat.listThreads("owner", fakeAgentId);
+
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/ai/threads/create - returns 403 when AI access is disabled", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    await ownerApi.commonSettings.setTenantAiAccessSettings({
+      tenantAiAccessSettingsDto: { enabled: false },
+    });
+
+    const { status } = await aiChat.createThread("owner", {
+      title: "Autotest thread",
+      profileId,
+      agentId: fakeAgentId,
     });
 
     expect(status).toBe(403);
   });
 
-  test("POST /api/2.0/ai/chats/:chatId/messages - returns 403 when AI access is disabled", async ({
+  test("GET /api/2.0/ai/threads/get-by-id - returns 403 when AI access is disabled", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.chat.continueChat({
-      chatId: fakeChatId,
-      continueChatBody: { message: "test" },
-    });
+    const { status } = await aiChat.getThread("owner", fakeThreadId);
 
     expect(status).toBe(403);
   });
 
-  test("GET /api/2.0/ai/rooms/:roomId/chats - returns 403 when AI access is disabled", async ({
+  test("GET /api/2.0/ai/threads/read-messages - returns 403 when AI access is disabled", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.chat.getChats({ roomId: fakeRoomId });
+    const { status } = await aiChat.readMessages("owner", fakeThreadId);
 
     expect(status).toBe(403);
   });
 
-  test("GET /api/2.0/ai/chats/:chatId - returns 403 when AI access is disabled", async ({
+  test("PUT /api/2.0/ai/threads/rename - returns 403 when AI access is disabled", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.chat.getChat({ chatId: fakeChatId });
+    const { status } = await aiChat.renameThread(
+      "owner",
+      fakeThreadId,
+      "Renamed",
+    );
 
     expect(status).toBe(403);
   });
 
-  test("GET /api/2.0/ai/chats/:chatId/messages - returns 403 when AI access is disabled", async ({
+  test("DELETE /api/2.0/ai/threads/delete - returns 403 when AI access is disabled", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.chat.getMessages({ chatId: fakeChatId });
+    const { status } = await aiChat.deleteThread("owner", fakeThreadId);
 
     expect(status).toBe(403);
   });
 
-  test("GET /api/2.0/ai/chats/models - returns 403 when AI access is disabled", async ({
+  test("DELETE /api/2.0/ai/threads/clear-messages - returns 403 when AI access is disabled", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.chat.getChatModels();
+    const { status } = await aiChat.clearThreadMessages("owner", fakeThreadId);
 
     expect(status).toBe(403);
   });
 
-  test("GET /api/2.0/ai/rooms/:roomId/chats/settings - returns 403 when AI access is disabled", async ({
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - still answers 200 when AI access is disabled", async ({
     apiSdk,
   }) => {
+    // Every other thread route is gated by the portal AI switch; the send
+    // endpoint is not, so inference stays reachable after AI is turned off.
     const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.chat.getUserChatsSettings({
-      roomId: fakeRoomId,
+    const { status } = await aiChat.sendMessage("owner", {
+      threadId: fakeThreadId,
+      profileId,
+      agentId: fakeAgentId,
+      message: "Hello",
     });
 
+    test.fail();
     expect(status).toBe(403);
   });
 
-  test("PUT /api/2.0/ai/rooms/:roomId/chats/settings - returns 403 when AI access is disabled", async ({
+  test("GET /api/2.0/ai/profiles/list - returns 403 when AI access is disabled", async ({
     apiSdk,
   }) => {
+    // Replaces the removed GET /ai/chats/models.
     const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.chat.setUserChatsSettings({
-      roomId: fakeRoomId,
-      setUserChatSettingsRequestBody: { webSearchEnabled: false },
-    });
+    const profiles = await aiChat.listProfiles("owner");
 
-    expect(status).toBe(403);
-  });
-
-  test("PUT /api/2.0/ai/chats/:chatId - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await ownerApi.chat.renameChat({
-      chatId: fakeChatId,
-      renameChatBody: { name: "Renamed Chat" },
-    });
-
-    expect(status).toBe(403);
-  });
-
-  test("DELETE /api/2.0/ai/chats/:chatId - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await ownerApi.chat.deleteChat({ chatId: fakeChatId });
-
-    expect(status).toBe(403);
-  });
-
-  test("POST /api/2.0/ai/chats/:chatId/export - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await ownerApi.chat.exportChat({
-      chatId: fakeChatId,
-      exportChatRequestBody: { folderId: fakeRoomId, title: null },
-    });
-
-    expect(status).toBe(403);
-  });
-
-  test("POST /api/2.0/ai/chats/:chatId/permission - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await ownerApi.chat.providePermission({
-      callId: fakeChatId,
-      toolDecisionRequestBody: {
-        decision: ToolExecutionDecision.Allow,
-      },
-    });
-
-    expect(status).toBe(403);
+    expect(profiles).toEqual([]);
   });
 });

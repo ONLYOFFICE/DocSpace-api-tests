@@ -1,7 +1,7 @@
 import { test } from "@/src/fixtures";
 import { expect } from "@playwright/test";
-import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
+import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 import { FileShare, FolderType } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("Vectorization - startTask", () => {
@@ -13,20 +13,13 @@ test.describe("Vectorization - startTask", () => {
 
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Vectorization Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest", "vectorization"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Vectorization Agent",
+      tags: ["autotest", "vectorization"],
+      profileId,
     });
-    const agentId = agentData.response!.id!;
 
     const { data: foldersData } = await ownerApi.folders.getFolders({
       folderId: agentId,
@@ -64,20 +57,13 @@ test.describe("Vectorization - startTask", () => {
 
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Vectorization Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest", "vectorization"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Vectorization Agent",
+      tags: ["autotest", "vectorization"],
+      profileId,
     });
-    const agentId = agentData.response!.id!;
 
     const { data: adminMemberData, userData: adminUserData } =
       await apiSdk.addMember("owner", "DocSpaceAdmin");
@@ -133,20 +119,13 @@ test.describe("Vectorization - startTask", () => {
 
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Vectorization Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest", "vectorization"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Vectorization Agent",
+      tags: ["autotest", "vectorization"],
+      profileId,
     });
-    const agentId = agentData.response!.id!;
 
     const { data: raMemberData, userData: raUserData } = await apiSdk.addMember(
       "owner",

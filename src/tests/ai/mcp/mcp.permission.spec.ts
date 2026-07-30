@@ -1,1961 +1,474 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
+import { FileShare } from "@onlyoffice/docspace-api-sdk";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
-import config from "@/config";
-import { FileShare, RoomType, ServerType } from "@onlyoffice/docspace-api-sdk";
+import { AiAgentChat, AgentRole } from "@/src/helpers/ai-agent-chat";
+import { AiTools } from "@/src/helpers/ai-tools";
 import { ATTACKER_HOST } from "@/src/helpers/ssrf-payloads";
+import { ApiSDK, UserType } from "@/src/services/api-sdk";
 
-const GITHUB_MCP_ENDPOINT = config.GITHUB_MCP_ENDPOINT;
-const forbiddenRoles = ["RoomAdmin", "User", "Guest"] as const;
+// Access matrix measured on an agent the member has been invited to:
+//
+//                        owner  DSAdmin  RoomAdmin  User  Guest  anon
+//   list-system-tools      200    200      200      200    200   401
+//   list-custom-servers    200    200      200      200    403   401
+//   add / remove server    200    200      403      403    403   401
+//   set-disabled           200    200      200      200    403   401
+//
+// So managing MCP servers is admin-only, while toggling individual tools is
+// open to any non-guest member.
+//
+// Validation is mostly soft: bad input comes back as HTTP 200 with
+// `{success:false, error:{field, message}}`. Only a missing `config` on add is
+// a real 400.
 
-test.describe("MCP Servers - Permissions", () => {
-  for (const role of forbiddenRoles) {
-    test(`POST /api/2.0/ai/servers - ${role} cannot register a custom MCP server`, async ({
+const SERVER_CONFIG = { url: "https://mcp.example.invalid/sse" };
+
+const MEMBER_ROLES: Array<{ type: UserType; role: AgentRole }> = [
+  { type: "DocSpaceAdmin", role: "docSpaceAdmin" },
+  { type: "RoomAdmin", role: "roomAdmin" },
+  { type: "User", role: "user" },
+  { type: "Guest", role: "guest" },
+];
+
+async function agentWithMember(apiSdk: ApiSDK, type: UserType) {
+  const ownerApi = apiSdk.forRole("owner");
+  const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+  const profileId = await aiChat.defaultProfileId("owner");
+  const agentId = await aiChat.createAgentId("owner", {
+    title: "MCP Agent",
+    profileId,
+  });
+
+  const { data: memberData } = await apiSdk.addAuthenticatedMember(
+    "owner",
+    type,
+  );
+
+  await ownerApi.rooms.setRoomSecurity({
+    id: agentId,
+    roomInvitationRequest: {
+      invitations: [
+        {
+          id: memberData.response!.id!,
+          access: type === "Guest" ? FileShare.Read : FileShare.ContentCreator,
+        },
+      ],
+      notify: false,
+    },
+  });
+
+  return agentId;
+}
+
+test.describe("MCP - Server management permissions", () => {
+  for (const { type, role } of MEMBER_ROLES) {
+    test(`POST /api/2.0/ai/tools/add-custom-server - ${role} in the agent`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
-      const { data, status } = await api.mcp.addServer({
-        addMcpServerRequestBody: {
-          name: `mcp-basic-${Date.now()}`,
-          description: "GitHub Copilot MCP server",
-          endpoint: GITHUB_MCP_ENDPOINT,
-          headers: { Authorization: "Bearer token" },
+      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+      const agentId = await agentWithMember(apiSdk, type);
+
+      const { data, status } = await aiTools.addCustomServer(role, {
+        name: `${role}-server`,
+        config: SERVER_CONFIG,
+        agentId,
+      });
+
+      if (role === "docSpaceAdmin") {
+        expect(status).toBe(200);
+        expect(data?.success).toBe(true);
+      } else {
+        // Nothing was registered.
+        await apiSdk.authenticateOwner();
+        const { data: list } = await aiTools.listCustomServers(
+          "owner",
+          agentId,
+        );
+        expect(Object.keys(list)).not.toContain(`${role}-server`);
+
+        expect(status).toBe(403);
+      }
+    });
+
+    test(`DELETE /api/2.0/ai/tools/remove-custom-server - ${role} in the agent`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "MCP Agent",
+        profileId,
+      });
+      await aiTools.addCustomServer("owner", {
+        name: "owners-server",
+        config: SERVER_CONFIG,
+        agentId,
+      });
+
+      const { data: memberData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        type,
+      );
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentId,
+        roomInvitationRequest: {
+          invitations: [
+            {
+              id: memberData.response!.id!,
+              access:
+                type === "Guest" ? FileShare.Read : FileShare.ContentCreator,
+            },
+          ],
+          notify: false,
         },
       });
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    });
-  }
-
-  test("POST /api/2.0/ai/servers - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-basic-${Date.now()}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: "Bearer token" },
-      },
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-// The MCP endpoint SSRF egress guard must also hold for non-admin callers: the
-// role check must run BEFORE any connection to the supplied endpoint. Here a
-// non-admin registering an attacker endpoint gets 403 (not the 400 that a
-// connection attempt would produce), proving the authorization gate precedes
-// egress. The endpoint uses a non-resolving `.invalid` host so nothing is
-// contacted regardless. (Confirming the canary saw no request needs the
-// isolated canary env — see the fixme block in mcp.spec.ts.)
-test.describe("MCP Servers - Endpoint SSRF protection Permissions", () => {
-  for (const role of forbiddenRoles) {
-    test(`POST /api/2.0/ai/servers - ${role} cannot trigger an outbound request to an attacker endpoint`, async ({
-      apiSdk,
-    }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { data, status } = await api.mcp.addServer({
-        addMcpServerRequestBody: {
-          name: `mcp-ssrf-${role}-${Date.now()}`,
-          description: "SSRF security test",
-          endpoint: `http://${ATTACKER_HOST}:9999/mcp`,
-          headers: { Authorization: "Bearer sk-security-test" },
-        },
+      const { status } = await aiTools.removeCustomServer(role, {
+        name: "owners-server",
+        agentId,
       });
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
+      await apiSdk.authenticateOwner();
+      const { data: list } = await aiTools.listCustomServers("owner", agentId);
+
+      if (role === "docSpaceAdmin") {
+        expect(Object.keys(list)).not.toContain("owners-server");
+        expect(status).toBe(200);
+      } else {
+        expect(Object.keys(list)).toContain("owners-server");
+        expect(status).toBe(403);
+      }
     });
   }
-
-  test("POST /api/2.0/ai/servers - Anonymous gets 401 before any connect to an attacker endpoint", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-ssrf-anon-${Date.now()}`,
-        description: "SSRF security test",
-        endpoint: `http://${ATTACKER_HOST}:9999/mcp`,
-        headers: { Authorization: "Bearer sk-security-test" },
-      },
-    });
-
-    expect(status).toBe(401);
-  });
 });
 
-test.describe("MCP Servers - Name Validation", () => {
-  const invalidNames: Array<{ label: string; name: string | null }> = [
-    { label: "empty string", name: "" },
-    { label: "null", name: null },
-    { label: "spaces", name: "my server" },
-    { label: "dot", name: "my.server" },
-    { label: "at sign", name: "my@server" },
-    { label: "Cyrillic letters", name: "мой-сервер" },
-  ];
-
-  for (const { label, name } of invalidNames) {
-    test(`POST /api/2.0/ai/servers - returns 400 when name is ${label}`, async ({
+test.describe("MCP - Tool toggling permissions", () => {
+  for (const { type, role } of MEMBER_ROLES) {
+    test(`PUT /api/2.0/ai/tools/set-disabled - ${role} in the agent`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
-      const { status } = await apiSdk.forRole("owner").mcp.addServer({
-        addMcpServerRequestBody: {
-          name,
-          description: "GitHub Copilot MCP server",
-          endpoint: GITHUB_MCP_ENDPOINT,
-          headers: { Authorization: "Bearer token" },
-        },
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+      const agentId = await agentWithMember(apiSdk, type);
+
+      const { data, status } = await aiTools.setDisabledTools(role, {
+        serverType: "docspace",
+        toolNames: ["delete_file"],
+        agentId,
       });
 
-      expect(status).toBe(400);
+      if (role === "guest") {
+        expect(status).toBe(403);
+      } else {
+        expect(status).toBe(200);
+        expect(data?.success).toBe(true);
+      }
+    });
+
+    test(`GET /api/2.0/ai/tools/list-custom-servers - ${role} in the agent`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+      const agentId = await agentWithMember(apiSdk, type);
+
+      const { status } = await aiTools.listCustomServers(role, agentId);
+
+      expect(status).toBe(role === "guest" ? 403 : 200);
+    });
+
+    test(`GET /api/2.0/ai/tools/list-system-tools - ${role} reads the catalogue`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+      await apiSdk.addAuthenticatedMember("owner", type);
+
+      const { data, status } = await aiTools.listSystemTools(role);
+
+      expect(status).toBe(200);
+      expect((data?.docspace ?? []).length).toBeGreaterThan(0);
     });
   }
-
-  test("POST /api/2.0/ai/servers - returns 400 when name exceeds 128 characters", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.addServer({
-      addMcpServerRequestBody: {
-        name: "a".repeat(129),
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: "Bearer token" },
-      },
-    });
-
-    expect(status).toBe(400);
-  });
-
-  test("BUG 81107: POST /api/2.0/ai/servers - accepts name with 128 characters", async ({
-    apiSdk,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const { status } = await apiSdk.forRole("owner").mcp.addServer({
-      addMcpServerRequestBody: {
-        name: "a".repeat(128),
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-
-    expect(status).toBe(200);
-  });
-
-  test("POST /api/2.0/ai/servers - returns 400 when name is already taken", async ({
-    apiSdk,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const ownerApi = apiSdk.forRole("owner");
-    const serverName = `mcp-dup-${Date.now()}`;
-
-    await ownerApi.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: serverName,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-
-    const { status } = await ownerApi.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: serverName,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-
-    expect(status).toBe(400);
-  });
 });
 
-test.describe("MCP Servers - Endpoint Validation", () => {
-  const invalidEndpoints: Array<{ label: string; endpoint: string | null }> = [
-    { label: "empty string", endpoint: "" },
-    { label: "null", endpoint: null },
-    { label: "plain text without scheme", endpoint: "not-a-url" },
-    { label: "missing scheme", endpoint: "api.githubcopilot.com/mcp" },
-    { label: "ftp scheme", endpoint: "ftp://api.githubcopilot.com/mcp" },
-  ];
-
-  for (const { label, endpoint } of invalidEndpoints) {
-    test(`POST /api/2.0/ai/servers - returns 400 when endpoint is ${label}`, async ({
+test.describe("MCP - Anonymous access", () => {
+  for (const [label, call] of [
+    [
+      "list-system-tools",
+      (tools: AiTools) => tools.listSystemTools("anonymous"),
+    ],
+    [
+      "list-custom-servers",
+      (tools: AiTools) => tools.listCustomServers("anonymous"),
+    ],
+    [
+      "add-custom-server",
+      (tools: AiTools) =>
+        tools.addCustomServer("anonymous", {
+          name: "anon-server",
+          config: SERVER_CONFIG,
+        }),
+    ],
+  ] as Array<
+    [string, (tools: AiTools) => Promise<{ status: number; error?: string }>]
+  >) {
+    test(`GET|POST /api/2.0/ai/tools/${label} - Anonymous gets 401`, async ({
       apiSdk,
+      paymentsApi,
     }) => {
-      const { status } = await apiSdk.forRole("owner").mcp.addServer({
-        addMcpServerRequestBody: {
-          name: `mcp-url-${Date.now()}`,
-          description: "GitHub Copilot MCP server",
-          endpoint,
-          headers: { Authorization: "Bearer token" },
-        },
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+
+      const { status, error } = await call(aiTools);
+
+      expect(error).toBe("Unauthorized");
+      expect(status).toBe(401);
+    });
+  }
+});
+
+test.describe("MCP - Custom server validation", () => {
+  for (const { name, body, message } of [
+    {
+      name: "an empty name",
+      body: { name: "", config: SERVER_CONFIG },
+      message: "Server name is required",
+    },
+    {
+      name: "a missing name",
+      body: { config: SERVER_CONFIG },
+      message: "Server name is required",
+    },
+  ]) {
+    test(`POST /api/2.0/ai/tools/add-custom-server - rejects ${name}`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "MCP Agent",
+        profileId,
       });
 
-      expect(status).toBe(400);
-    });
-  }
-
-  test("POST /api/2.0/ai/servers - returns 400 when Authorization header contains invalid token", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-key-${Date.now()}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: "Bearer invalid-token" },
-      },
-    });
-
-    expect(status).toBe(400);
-  });
-});
-
-const fakeServerId = "00000000-0000-0000-0000-000000000000";
-const fakeRoomId = 999999999;
-
-test.describe("MCP Servers - Delete Permissions", () => {
-  for (const role of forbiddenRoles) {
-    test(`DELETE /api/2.0/ai/servers - ${role} cannot delete a MCP server`, async ({
-      apiSdk,
-    }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { data, status } = await api.mcp.deleteServer({
-        deleteServersRequestBody: {
-          servers: new Set([fakeServerId]),
-        },
+      const { data, status } = await aiTools.addCustomServer("owner", {
+        ...body,
+        agentId,
       });
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    });
-  }
-
-  test("DELETE /api/2.0/ai/servers - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.deleteServer({
-      deleteServersRequestBody: {
-        servers: new Set([fakeServerId]),
-      },
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("MCP Servers - Update Permissions", () => {
-  for (const role of forbiddenRoles) {
-    test(`PUT /api/2.0/ai/servers/:id - ${role} cannot update a custom MCP server`, async ({
-      apiSdk,
-    }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { data, status } = await api.mcp.updateServer({
-        id: fakeServerId,
-        updateServerRequestBody: {
-          name: `mcp-renamed-${Date.now()}`,
-        },
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    });
-  }
-
-  test("PUT /api/2.0/ai/servers/:id - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.updateServer({
-      id: fakeServerId,
-      updateServerRequestBody: {
-        name: `mcp-renamed-${Date.now()}`,
-      },
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("MCP Servers - Get List Permissions", () => {
-  for (const role of forbiddenRoles) {
-    test(`GET /api/2.0/ai/servers - ${role} cannot get list of MCP servers`, async ({
-      apiSdk,
-    }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { data, status } = await api.mcp.getServers();
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    });
-  }
-
-  test("GET /api/2.0/ai/servers - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.getServers();
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("MCP Servers - Get Available Permissions", () => {
-  for (const role of ["RoomAdmin", "User"] as const) {
-    test(`GET /api/2.0/ai/servers/available - ${role} can get available MCP servers`, async ({
-      apiSdk,
-    }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { status } = await api.mcp.getAvailableServers();
-
+      // Soft failure: HTTP 200 with success:false.
+      expect(data?.success).toBe(false);
+      expect(data?.error?.field).toBe("name");
+      expect(data?.error?.message).toBe(message);
       expect(status).toBe(200);
     });
   }
 
-  test("BUG 81140: GET /api/2.0/ai/servers/available - Guest cannot get available MCP servers", async ({
-    apiSdk,
-  }) => {
-    const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
-
-    const { data, status } = await api.mcp.getAvailableServers();
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-
-  test("GET /api/2.0/ai/servers/available - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.getAvailableServers();
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("MCP Servers - Get Permissions", () => {
-  for (const role of forbiddenRoles) {
-    test(`GET /api/2.0/ai/servers/:id - ${role} cannot get a MCP server by id`, async ({
-      apiSdk,
-    }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { data, status } = await api.mcp.getServer({ id: fakeServerId });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    });
-  }
-
-  test("GET /api/2.0/ai/servers/:id - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk
-      .forAnonymous()
-      .mcp.getServer({ id: fakeServerId });
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("MCP Servers - DocSpaceAdmin Access", () => {
-  test("BUG 81107: POST /api/2.0/ai/servers - DocSpaceAdmin registers a custom MCP server", async ({
+  test("POST /api/2.0/ai/tools/add-custom-server - a missing config is a hard 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
     const ownerApi = apiSdk.forRole("owner");
-
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { api } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "MCP Agent",
+      profileId,
+    });
+
+    const { status, error } = await aiTools.addCustomServer("owner", {
+      name: "no-config",
+      agentId,
+    });
+
+    expect(error).toBe(
+      'No config provided and no portal-level server named "no-config"',
     );
-
-    const { status } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-admin-${Date.now()}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-
-    expect(status).toBe(200);
-  });
-
-  test("BUG 81107: GET /api/2.0/ai/servers - DocSpaceAdmin gets list of MCP servers", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { api } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-
-    await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-admin-${Date.now()}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-
-    const { status } = await api.mcp.getServers();
-
-    expect(status).toBe(200);
-  });
-
-  test("BUG 81107: PUT /api/2.0/ai/servers/:id - DocSpaceAdmin updates MCP server name", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { api } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-admin-${Date.now()}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    const newName = `mcp-admin-renamed-${Date.now()}`;
-    const { status } = await api.mcp.updateServer({
-      id: serverId,
-      updateServerRequestBody: { name: newName },
-    });
-
-    expect(status).toBe(200);
-  });
-
-  test("BUG 81107: PUT /api/2.0/ai/servers/:id - DocSpaceAdmin updates MCP server description", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { api } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-admin-${Date.now()}`,
-        description: "Original description",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    const { status } = await api.mcp.updateServer({
-      id: serverId,
-      updateServerRequestBody: { description: "Updated description" },
-    });
-
-    expect(status).toBe(200);
-  });
-
-  test("BUG 81107: GET /api/2.0/ai/servers/:id - DocSpaceAdmin gets MCP server by id", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { api } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-
-    const serverName = `mcp-admin-get-${Date.now()}`;
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: serverName,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    const { data, status } = await api.mcp.getServer({ id: serverId });
-
-    expect(status).toBe(200);
-    expect(data.response).toBeDefined();
-
-    const server = data.response!;
-    expect(server.id).toBe(serverId);
-    expect(server.name).toBe(serverName);
-    expect(server.serverType).toBeDefined();
-    expect(server.enabled).toBeDefined();
-  });
-
-  test("BUG 81107: PUT /api/2.0/ai/servers/:id/status - DocSpaceAdmin can change MCP server status", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { api } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-admin-status-${Date.now()}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    const { status } = await api.mcp.setServerStatus({
-      id: serverId,
-      setServerStatusRequestBody: { enabled: false },
-    });
-
-    expect(status).toBe(200);
-  });
-
-  test("BUG 81107: GET /api/2.0/ai/servers/available - DocSpaceAdmin gets available MCP servers", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { api } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-
-    const ts = Date.now();
-
-    const { data: created1 } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-avail-enabled-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const enabledServerId = created1.response!.id!;
-
-    const { data: created2 } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-avail-disabled-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const disabledServerId = created2.response!.id!;
-
-    await api.mcp.setServerStatus({
-      id: disabledServerId,
-      setServerStatusRequestBody: { enabled: false },
-    });
-
-    const { data, status } = await api.mcp.getAvailableServers();
-
-    expect(status).toBe(200);
-    expect(data.response).toBeDefined();
-
-    const ids = data.response!.map((s) => s.id);
-    expect(ids).toContain(enabledServerId);
-    expect(ids).not.toContain(disabledServerId);
-  });
-});
-
-test.describe("MCP Servers - Set Status Permissions", () => {
-  for (const role of forbiddenRoles) {
-    test(`PUT /api/2.0/ai/servers/:id/status - ${role} cannot change MCP server status`, async ({
-      apiSdk,
-    }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { data, status } = await api.mcp.setServerStatus({
-        id: fakeServerId,
-        setServerStatusRequestBody: { enabled: false },
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    });
-  }
-
-  test("PUT /api/2.0/ai/servers/:id/status - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.setServerStatus({
-      id: fakeServerId,
-      setServerStatusRequestBody: { enabled: false },
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("MCP Servers - Delete Edge Cases", () => {
-  test("DELETE /api/2.0/ai/servers - Owner gets 204 when deleting a non-existent server", async ({
-    apiSdk,
-  }) => {
-    const { data, status } = await apiSdk.forRole("owner").mcp.deleteServer({
-      deleteServersRequestBody: {
-        servers: new Set([fakeServerId]),
-      },
-    });
-
-    expect(status).toBe(204);
-    expect(data).toBeFalsy();
-  });
-
-  test("DELETE /api/2.0/ai/servers - Owner gets 204 when deleting an already deleted server", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-redel-${Date.now()}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    await api.mcp.deleteServer({
-      deleteServersRequestBody: {
-        servers: new Set([serverId]),
-      },
-    });
-
-    const { data, status } = await api.mcp.deleteServer({
-      deleteServersRequestBody: {
-        servers: new Set([serverId]),
-      },
-    });
-
-    expect(status).toBe(204);
-    expect(data).toBeFalsy();
-  });
-});
-
-test.describe("MCP Servers - Delete Room Servers Validation", () => {
-  test("DELETE /api/2.0/ai/rooms/:roomId/servers - error when roomId does not exist", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.deleteRoomServers({
-      roomId: fakeRoomId,
-      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
-    });
-
-    expect(status).toBe(404);
-  });
-
-  test("DELETE /api/2.0/ai/rooms/:roomId/servers - error when servers is null", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.deleteRoomServers({
-      roomId: fakeRoomId,
-      deleteRoomServersRequestBody: { servers: null },
-    });
-
     expect(status).toBe(400);
   });
 
-  test("DELETE /api/2.0/ai/rooms/:roomId/servers - error when servers is empty set", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.deleteRoomServers({
-      roomId: fakeRoomId,
-      deleteRoomServersRequestBody: { servers: new Set([]) },
-    });
-
-    expect(status).toBe(404);
-  });
-
-  test("DELETE /api/2.0/ai/rooms/:roomId/servers - returns 204 when server id does not exist", async ({
-    apiSdk,
-  }) => {
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-room-val-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data, status } = await api.mcp.deleteRoomServers({
-      roomId,
-      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
-    });
-
-    expect(status).toBe(204);
-    expect(data).toBeFalsy();
-  });
-
-  test("DELETE /api/2.0/ai/rooms/:roomId/servers - returns 204 when server exists but is not linked to room", async ({
+  test("POST /api/2.0/ai/tools/add-custom-server - rejects a duplicate name", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-room-notlinked-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-notlinked-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    const { data, status } = await api.mcp.deleteRoomServers({
-      roomId,
-      deleteRoomServersRequestBody: { servers: new Set([serverId]) },
-    });
-
-    expect(status).toBe(204);
-    expect(data).toBeFalsy();
-  });
-
-  test("DELETE /api/2.0/ai/rooms/:roomId/servers - mixed valid and invalid server ids returns 204", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-room-mixed-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-mixed-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const linkedServerId = created.response!.id!;
-
-    await api.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([linkedServerId]) },
-    });
-
-    const { data, status } = await api.mcp.deleteRoomServers({
-      roomId,
-      deleteRoomServersRequestBody: {
-        servers: new Set([linkedServerId, fakeServerId]),
-      },
-    });
-
-    expect(status).toBe(204);
-    expect(data).toBeFalsy();
-
-    const { data: roomServers, status: getRoomStatus } =
-      await api.mcp.getRoomServers({ roomId });
-    expect(getRoomStatus).toBe(200);
-    expect(roomServers.response!.map((s) => s.id)).not.toContain(
-      linkedServerId,
-    );
-  });
-});
-
-const forbiddenRolesForRoomServers = ["RoomAdmin", "User", "Guest"] as const;
-
-test.describe("MCP Servers - Delete Room Servers Permissions", () => {
-  test("DELETE /api/2.0/ai/rooms/:roomId/servers - Owner can delete room servers", async ({
-    apiSdk,
-  }) => {
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-room-ownerperm-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data, status } = await api.mcp.deleteRoomServers({
-      roomId,
-      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
-    });
-
-    expect(status).toBe(204);
-    expect(data).toBeFalsy();
-  });
-
-  test("DELETE /api/2.0/ai/rooms/:roomId/servers - DocSpaceAdmin can delete room servers", async ({
-    apiSdk,
-  }) => {
-    const { api } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-    const ts = Date.now();
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-room-adminperm-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data, status } = await api.mcp.deleteRoomServers({
-      roomId,
-      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
-    });
-
-    expect(status).toBe(204);
-    expect(data).toBeFalsy();
-  });
-
-  for (const role of forbiddenRolesForRoomServers) {
-    test(`DELETE /api/2.0/ai/rooms/:roomId/servers - ${role} cannot delete room servers`, async ({
-      apiSdk,
-    }) => {
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { status } = await api.mcp.deleteRoomServers({
-        roomId: fakeRoomId,
-        deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
-      });
-
-      expect(status).toBe(404);
-    });
-  }
-
-  test("DELETE /api/2.0/ai/rooms/:roomId/servers - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.deleteRoomServers({
-      roomId: fakeRoomId,
-      deleteRoomServersRequestBody: { servers: new Set([fakeServerId]) },
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("MCP Servers - Get Room Servers Permissions", () => {
-  test("GET /api/2.0/ai/rooms/:roomId/servers - Owner can get room servers", async ({
-    apiSdk,
-  }) => {
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-room-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { status } = await api.mcp.getRoomServers({ roomId });
-
-    expect(status).toBe(200);
-  });
-
-  test("GET /api/2.0/ai/rooms/:roomId/servers - DocSpaceAdmin can get room servers", async ({
-    apiSdk,
-  }) => {
-    const { api } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-    const ts = Date.now();
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-room-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { status } = await api.mcp.getRoomServers({ roomId });
-
-    expect(status).toBe(200);
-  });
-
-  const forbiddenRolesForGetRoomServers = [
-    "RoomAdmin",
-    "User",
-    "Guest",
-  ] as const;
-
-  for (const role of forbiddenRolesForGetRoomServers) {
-    test(`GET /api/2.0/ai/rooms/:roomId/servers - ${role} cannot get room servers`, async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const ts = Date.now();
-
-      const { data: room } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `mcp-room-${ts}`,
-          roomType: RoomType.AiRoom,
-        },
-      });
-      const roomId = room.response!.id!;
-
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-      const { status } = await api.mcp.getRoomServers({ roomId });
-
-      expect(status).toBe(403);
-    });
-  }
-
-  test("GET /api/2.0/ai/rooms/:roomId/servers - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.getRoomServers({
-      roomId: fakeRoomId,
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("MCP Servers - Get Room Servers Validation", () => {
-  test("GET /api/2.0/ai/rooms/:roomId/servers - error when roomId does not exist", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.getRoomServers({
-      roomId: fakeRoomId,
-    });
-
-    expect(status).toBe(404);
-  });
-
-  test("GET /api/2.0/ai/rooms/:roomId/servers - error when roomId has invalid format", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.getRoomServers({
-      roomId: "invalid-id" as any,
-    });
-
-    expect(status).toBe(400);
-  });
-});
-
-test.describe("MCP Servers - Get Tools Permissions", () => {
-  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - Owner can get tools", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-tools-perm-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-tools-owner-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    await api.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([serverId]) },
-    });
-
-    const { status } = await api.mcp.getTools({ roomId, serverId });
-
-    expect(status).toBe(200);
-  });
-
-  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - DocSpaceAdmin can get tools", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
     const ownerApi = apiSdk.forRole("owner");
-
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "MCP Agent",
+      profileId,
+    });
+
+    await aiTools.addCustomServer("owner", {
+      name: "duplicate",
+      config: SERVER_CONFIG,
+      agentId,
+    });
+
+    const { data, status } = await aiTools.addCustomServer("owner", {
+      name: "duplicate",
+      config: { url: "https://other.example.invalid/sse" },
+      agentId,
+    });
+
+    // The original registration must survive the rejected duplicate.
+    const { data: existing } = await aiTools.getCustomServer(
       "owner",
-      "DocSpaceAdmin",
+      "duplicate",
+      agentId,
     );
-    const ts = Date.now();
+    expect(existing).toEqual(SERVER_CONFIG);
 
-    const { data: room } = await adminApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-tools-admin-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await adminApi.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-tools-admin-srv-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    await adminApi.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([serverId]) },
-    });
-
-    const { status } = await adminApi.mcp.getTools({ roomId, serverId });
-
+    expect(data?.success).toBe(false);
+    expect(data?.error?.message).toBe("Server already registered: duplicate");
     expect(status).toBe(200);
   });
 
-  const rolesWithoutRoomAccess = ["RoomAdmin", "User", "Guest"] as const;
-
-  for (const role of rolesWithoutRoomAccess) {
-    test(`GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - ${role} without room access receives 403`, async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const ts = Date.now();
-
-      const { data: room } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `mcp-tools-noaccess-${ts}`,
-          roomType: RoomType.AiRoom,
-        },
-      });
-      const roomId = room.response!.id!;
-
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { status } = await api.mcp.getTools({
-        roomId,
-        serverId: fakeServerId,
-      });
-
-      expect(status).toBe(403);
-    });
-  }
-
-  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - Anonymous receives 401", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.getTools({
-      roomId: fakeRoomId,
-      serverId: fakeServerId,
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("MCP Servers - Get Tools Validation", () => {
-  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when roomId does not exist", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.getTools({
-      roomId: fakeRoomId,
-      serverId: fakeServerId,
-    });
-
-    expect(status).toBe(404);
-  });
-
-  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when serverId does not exist", async ({
-    apiSdk,
-  }) => {
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-tools-nosrv-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { status } = await api.mcp.getTools({
-      roomId,
-      serverId: fakeServerId,
-    });
-
-    expect(status).toBe(404);
-  });
-
-  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when server is not connected to the room", async ({
+  test("PUT /api/2.0/ai/tools/update-custom-server - rejects an unknown server", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-tools-notlinked-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-tools-notlinked-srv-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    const { status } = await api.mcp.getTools({ roomId, serverId });
-
-    expect(status).toBe(404);
-  });
-});
-
-test.describe("MCP Servers - Set Tools Validation", () => {
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when roomId does not exist", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.setTools({
-      roomId: fakeRoomId,
-      serverId: fakeServerId,
-      setMcpToolsRequestBody: { disabledTools: [] },
-    });
-
-    expect(status).toBe(404);
-  });
-
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when serverId does not exist", async ({
-    apiSdk,
-  }) => {
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-settools-nosrv-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { status } = await api.mcp.setTools({
-      roomId,
-      serverId: fakeServerId,
-      setMcpToolsRequestBody: { disabledTools: [] },
-    });
-
-    expect(status).toBe(404);
-  });
-
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when server is not connected to room", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-settools-notlinked-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-settools-notlinked-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    const { status } = await api.mcp.setTools({
-      roomId,
-      serverId,
-      setMcpToolsRequestBody: { disabledTools: [] },
-    });
-
-    expect(status).toBe(404);
-  });
-
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when disabledTools is null", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.setTools({
-      roomId: fakeRoomId,
-      serverId: fakeServerId,
-      setMcpToolsRequestBody: { disabledTools: null },
-    });
-
-    expect(status).toBe(400);
-  });
-
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when disabledTools is not an array", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forRole("owner").mcp.setTools({
-      roomId: fakeRoomId,
-      serverId: fakeServerId,
-      setMcpToolsRequestBody: { disabledTools: "not-an-array" as any },
-    });
-
-    expect(status).toBe(400);
-  });
-
-  test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - error when disabledTools contains non-existing tool name", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    test.fail();
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-settools-badtool-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-settools-badtool-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    await api.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([serverId]) },
-    });
-
-    const { status } = await api.mcp.setTools({
-      roomId,
-      serverId,
-      setMcpToolsRequestBody: { disabledTools: ["nonexistent-tool-xyz"] },
-    });
-
-    expect(status).toBe(400);
-  });
-
-  test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - ignores duplicate tool names in disabledTools", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    test.fail();
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-settools-dup-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-settools-dup-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    await api.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([serverId]) },
-    });
-
-    const { data: toolsData } = await api.mcp.getTools({ roomId, serverId });
-    const toolName = toolsData.response![0].name!;
-
-    const { data, status } = await api.mcp.setTools({
-      roomId,
-      serverId,
-      setMcpToolsRequestBody: { disabledTools: [toolName, toolName] },
-    });
-
-    expect(status).toBe(200);
-    expect(data.response!.find((t) => t.name === toolName)!.enabled).toBe(
-      false,
-    );
-  });
-
-  test("BUG 81208: PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - allows disabling all tools", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    test.fail();
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-settools-all-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-settools-all-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    await api.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([serverId]) },
-    });
-
-    const { data: toolsData } = await api.mcp.getTools({ roomId, serverId });
-    const allToolNames = toolsData.response!.map((t) => t.name!);
-    expect(allToolNames.length).toBeGreaterThan(0);
-
-    const { data, status } = await api.mcp.setTools({
-      roomId,
-      serverId,
-      setMcpToolsRequestBody: { disabledTools: allToolNames },
-    });
-
-    expect(status).toBe(200);
-    for (const t of data.response!) {
-      expect(t.enabled).toBe(false);
-    }
-  });
-});
-
-test.describe("MCP Servers - Set Tools Permissions", () => {
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - Owner can configure tools", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
-    const api = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    await enableAiGateway(paymentsApi, api.payment);
-
-    const { data: room } = await api.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-settools-owner-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await api.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-settools-owner-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    await api.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([serverId]) },
-    });
-
-    const { status } = await api.mcp.setTools({
-      roomId,
-      serverId,
-      setMcpToolsRequestBody: { disabledTools: [] },
-    });
-
-    expect(status).toBe(200);
-  });
-
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - user with room edit permissions can configure tools", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const mcpApiKey = process.env.MCP_API_KEY;
-    if (!mcpApiKey) {
-      throw new Error("MCP_API_KEY is not defined in environment variables");
-    }
-
     const ownerApi = apiSdk.forRole("owner");
-    const ts = Date.now();
-
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: room } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-settools-editorperm-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { data: created } = await ownerApi.mcp.addServer({
-      addMcpServerRequestBody: {
-        name: `mcp-settools-editorperm-${ts}`,
-        description: "GitHub Copilot MCP server",
-        endpoint: GITHUB_MCP_ENDPOINT,
-        headers: { Authorization: `Bearer ${mcpApiKey}` },
-      },
-    });
-    const serverId = created.response!.id!;
-
-    await ownerApi.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([serverId]) },
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "MCP Agent",
+      profileId,
     });
 
-    const { data: memberData, api: memberApi } =
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const memberId = memberData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [{ id: memberId, access: FileShare.RoomManager }],
-        notify: false,
-      },
+    const { data, status } = await aiTools.updateCustomServer("owner", {
+      name: "does-not-exist",
+      config: SERVER_CONFIG,
+      agentId,
     });
 
-    const { status } = await memberApi.mcp.setTools({
-      roomId,
-      serverId,
-      setMcpToolsRequestBody: { disabledTools: [] },
-    });
-
+    expect(data?.success).toBe(false);
+    expect(data?.error?.message).toBe("Server not registered: does-not-exist");
     expect(status).toBe(200);
   });
 
-  const rolesWithoutRoomAccess = ["RoomAdmin", "User", "Guest"] as const;
-
-  for (const role of rolesWithoutRoomAccess) {
-    test(`PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - ${role} without room access gets 403`, async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const ts = Date.now();
-
-      const { data: room } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `mcp-settools-noaccess-${ts}`,
-          roomType: RoomType.AiRoom,
-        },
-      });
-      const roomId = room.response!.id!;
-
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-
-      const { status } = await api.mcp.setTools({
-        roomId,
-        serverId: fakeServerId,
-        setMcpToolsRequestBody: { disabledTools: [] },
-      });
-
-      expect(status).toBe(403);
-    });
-  }
-
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - Anonymous gets 401 Unauthorized", async ({
+  test("DELETE /api/2.0/ai/tools/remove-custom-server - removing an unknown server is a silent no-op", async ({
     apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.setTools({
-      roomId: fakeRoomId,
-      serverId: fakeServerId,
-      setMcpToolsRequestBody: { disabledTools: [] },
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-const forbiddenRolesForAddRoomServers = ["RoomAdmin", "User", "Guest"] as const;
-
-test.describe("MCP Servers - Add Room Servers Permissions (Built-in DocSpace Server)", () => {
-  test("POST /api/2.0/ai/rooms/:roomId/servers - Owner can add built-in DocSpace server to room", async ({
-    apiSdk,
+    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const ts = Date.now();
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: available } = await ownerApi.mcp.getAvailableServers();
-    const builtInServerId = available.response!.find(
-      (s) => s.serverType === ServerType.DocSpace,
-    )!.id!;
-
-    const { data: room } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-builtin-perm-owner-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { status } = await ownerApi.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "MCP Agent",
+      profileId,
     });
 
+    const { data, status } = await aiTools.removeCustomServer("owner", {
+      name: "never-existed",
+      agentId,
+    });
+
+    // Unlike add/update, remove does not report a missing server at all.
+    expect(data?.success).toBe(true);
     expect(status).toBe(200);
   });
 
-  test("POST /api/2.0/ai/rooms/:roomId/servers - DocSpaceAdmin can add built-in DocSpace server to room", async ({
+  test("GET /api/2.0/ai/tools/list-custom-servers - an unknown agent id falls back to the portal scope", async ({
     apiSdk,
+    paymentsApi,
   }) => {
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+    // entityId is not validated: a bogus one behaves like no entityId at all.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    await aiTools.addCustomServer("owner", {
+      name: "portal-server",
+      config: SERVER_CONFIG,
+    });
+
+    const { data, status } = await aiTools.listCustomServers(
       "owner",
-      "DocSpaceAdmin",
+      999999999,
     );
-    const ts = Date.now();
-
-    const { data: available } = await adminApi.mcp.getAvailableServers();
-    const builtInServerId = available.response!.find(
-      (s) => s.serverType === ServerType.DocSpace,
-    )!.id!;
-
-    const { data: room } = await adminApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-builtin-perm-admin-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    const { status } = await adminApi.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
-    });
 
     expect(status).toBe(200);
-  });
-
-  for (const role of forbiddenRolesForAddRoomServers) {
-    test(`POST /api/2.0/ai/rooms/:roomId/servers - ${role} cannot add built-in DocSpace server to room`, async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const ts = Date.now();
-
-      const { data: available } = await ownerApi.mcp.getAvailableServers();
-      const builtInServerId = available.response!.find(
-        (s) => s.serverType === ServerType.DocSpace,
-      )!.id!;
-
-      const { data: room } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `mcp-builtin-perm-${role.toLowerCase()}-${ts}`,
-          roomType: RoomType.AiRoom,
-        },
-      });
-      const roomId = room.response!.id!;
-
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-      const { status } = await api.mcp.addRoomServers({
-        roomId,
-        addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
-      });
-
-      expect(status).toBe(403);
-    });
-  }
-
-  test("POST /api/2.0/ai/rooms/:roomId/servers - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.addRoomServers({
-      roomId: fakeRoomId,
-      addRoomServersRequestBody: { servers: new Set([fakeServerId]) },
-    });
-
-    expect(status).toBe(401);
+    expect(Object.keys(data)).toContain("portal-server");
   });
 });
 
-const forbiddenRolesForGetTools = ["RoomAdmin", "User", "Guest"] as const;
-
-test.describe("MCP Servers - Get Tools Permissions (Built-in DocSpace Server)", () => {
-  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - user with room access can get tools for built-in DocSpace server", async ({
+test.describe("MCP - Registration does not reach out to the server", () => {
+  test("POST /api/2.0/ai/tools/add-custom-server - an unreachable endpoint is stored without a connection attempt", async ({
     apiSdk,
+    paymentsApi,
   }) => {
+    // The old POST /ai/servers validated the endpoint by connecting to it
+    // (ThrowIfNotConnectAsync), which made registration a live SSRF egress
+    // surface: an unresolvable host produced a connection-failure 400. The new
+    // endpoint stores the config as-is and answers success immediately, so a
+    // non-resolving .invalid host is accepted. Registration therefore performs
+    // no outbound request; any egress now happens at tool-execution time, which
+    // this suite does not cover.
     const ownerApi = apiSdk.forRole("owner");
-    const ts = Date.now();
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: available } = await ownerApi.mcp.getAvailableServers();
-    const builtInServerId = available.response!.find(
-      (s) => s.serverType === ServerType.DocSpace,
-    )!.id!;
-
-    const { data: room } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-builtin-tools-perm-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "MCP Agent",
+      profileId,
     });
-    const roomId = room.response!.id!;
+    const attackerConfig = { url: `https://${ATTACKER_HOST}/sse` };
 
-    await ownerApi.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
+    const { data, status } = await aiTools.addCustomServer("owner", {
+      name: "attacker-server",
+      config: attackerConfig,
+      agentId,
     });
 
-    const { data: memberData, api: memberApi } =
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [
-          { id: memberData.response!.id!, access: FileShare.RoomManager },
-        ],
-        notify: false,
-      },
-    });
+    const { data: stored } = await aiTools.getCustomServer(
+      "owner",
+      "attacker-server",
+      agentId,
+    );
 
-    const { status } = await memberApi.mcp.getTools({
-      roomId,
-      serverId: builtInServerId,
-    });
-
+    expect(stored).toEqual(attackerConfig);
+    expect(data?.success).toBe(true);
     expect(status).toBe(200);
-  });
-
-  for (const role of forbiddenRolesForGetTools) {
-    test(`GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - ${role} without room access cannot get tools for built-in DocSpace server`, async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const ts = Date.now();
-
-      const { data: available } = await ownerApi.mcp.getAvailableServers();
-      const builtInServerId = available.response!.find(
-        (s) => s.serverType === ServerType.DocSpace,
-      )!.id!;
-
-      const { data: room } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `mcp-builtin-tools-noaccess-${ts}`,
-          roomType: RoomType.AiRoom,
-        },
-      });
-      const roomId = room.response!.id!;
-
-      await ownerApi.mcp.addRoomServers({
-        roomId,
-        addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
-      });
-
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-      const { status } = await api.mcp.getTools({
-        roomId,
-        serverId: builtInServerId,
-      });
-
-      expect(status).toBe(403);
-    });
-  }
-
-  test("GET /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.getTools({
-      roomId: fakeRoomId,
-      serverId: fakeServerId,
-    });
-
-    expect(status).toBe(401);
-  });
-});
-
-const forbiddenRolesForSetTools = ["RoomAdmin", "User", "Guest"] as const;
-
-test.describe("MCP Servers - Set Tools Permissions (Built-in DocSpace Server)", () => {
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - user with room access can configure tools for built-in DocSpace server", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const ts = Date.now();
-
-    const { data: available } = await ownerApi.mcp.getAvailableServers();
-    const builtInServerId = available.response!.find(
-      (s) => s.serverType === ServerType.DocSpace,
-    )!.id!;
-
-    const { data: room } = await ownerApi.rooms.createRoom({
-      createRoomRequestDto: {
-        title: `mcp-builtin-settools-perm-${ts}`,
-        roomType: RoomType.AiRoom,
-      },
-    });
-    const roomId = room.response!.id!;
-
-    await ownerApi.mcp.addRoomServers({
-      roomId,
-      addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
-    });
-
-    const { data: memberData, api: memberApi } =
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    await ownerApi.rooms.setRoomSecurity({
-      id: roomId,
-      roomInvitationRequest: {
-        invitations: [
-          { id: memberData.response!.id!, access: FileShare.RoomManager },
-        ],
-        notify: false,
-      },
-    });
-
-    const { status } = await memberApi.mcp.setTools({
-      roomId,
-      serverId: builtInServerId,
-      setMcpToolsRequestBody: { disabledTools: [] },
-    });
-
-    expect(status).toBe(200);
-  });
-
-  for (const role of forbiddenRolesForSetTools) {
-    test(`PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - ${role} without room access cannot configure tools for built-in DocSpace server`, async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const ts = Date.now();
-
-      const { data: available } = await ownerApi.mcp.getAvailableServers();
-      const builtInServerId = available.response!.find(
-        (s) => s.serverType === ServerType.DocSpace,
-      )!.id!;
-
-      const { data: room } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `mcp-builtin-settools-noaccess-${ts}`,
-          roomType: RoomType.AiRoom,
-        },
-      });
-      const roomId = room.response!.id!;
-
-      await ownerApi.mcp.addRoomServers({
-        roomId,
-        addRoomServersRequestBody: { servers: new Set([builtInServerId]) },
-      });
-
-      const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-      const { status } = await api.mcp.setTools({
-        roomId,
-        serverId: builtInServerId,
-        setMcpToolsRequestBody: { disabledTools: [] },
-      });
-
-      expect(status).toBe(403);
-    });
-  }
-
-  test("PUT /api/2.0/ai/rooms/:roomId/servers/:serverId/tools - Anonymous gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const { status } = await apiSdk.forAnonymous().mcp.setTools({
-      roomId: fakeRoomId,
-      serverId: fakeServerId,
-      setMcpToolsRequestBody: { disabledTools: [] },
-    });
-
-    expect(status).toBe(401);
   });
 });

@@ -2,9 +2,22 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { ATTACKER_HOST, expectNotProxied } from "@/src/helpers/ssrf-payloads";
 
+// SKIPPED: the whole provider area was removed from the product. Every
+// /api/2.0/ai/providers* route answers 404 — manual providers were replaced by
+// gateway profiles (GET /api/2.0/ai/profiles/list), see src/helpers/ai-agent-chat.ts.
+//
+// Kept rather than deleted because the feature may come back. If it does, drop
+// the .skip on the describes below and re-verify against the live contract —
+// these assertions were written for the pre-rewrite API and the error envelope
+// has changed since ({"error":"..."}, no statusCode / error.message).
+//
+// Note this also parks the SSRF regression tests for the OpenAI proxy and the
+// provider-URL surface. Both were already inert on the gateway build (404 / 403
+// before any URL handling), so nothing reachable is left uncovered today.
+
 const fakeProviderId = 1;
 
-test.describe("AI Providers - AI Disabled", () => {
+test.describe.skip("AI Providers - AI Disabled", () => {
   test("POST /api/2.0/ai/providers - returns 403 when AI access is disabled", async ({
     apiSdk,
   }) => {

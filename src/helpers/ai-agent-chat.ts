@@ -1,22 +1,47 @@
-import { APIRequestContext } from "@playwright/test";
-import { TokenStore, Role } from "../services/token-store";
+import { AiHttp, AgentRole, Envelope } from "./ai-http";
 
 // The SDK's AgentsApi points at `/internal/ai/integration/agents` (405 through
 // nginx) and ChatApi at `/api/2.0/ai/rooms/{roomId}/chats` (404) — both dead on
-// current builds. The live surface is the rewritten AI stack below, driven with
-// raw requests until the SDK catches up.
+// current builds. The live surface is the rewritten AI stack below.
 //
-//   GET  /api/2.0/ai/profiles/list
-//   POST /api/2.0/ai/agents                 { title, color, cover, profileId, prompt }
-//   GET  /api/2.0/ai/agents/{id}            -> response.chatSettings.prompt
-//   POST /api/2.0/ai/threads/create         { title, profileId, entityId }
-//   POST /api/2.0/ai/ai/send-with-stream    { threadId, entityId, profileId, actionArgs, userMessage }
-//   GET  /api/2.0/ai/threads/read-messages?threadId=...
+//   GET    /api/2.0/ai/profiles/list
+//   GET    /api/2.0/ai/agents                 -> response.folders[]
+//   POST   /api/2.0/ai/agents                 { title, color, cover, tags, profileId, prompt }
+//   GET    /api/2.0/ai/agents/{id}            -> response.chatSettings.prompt
+//   PUT    /api/2.0/ai/agents/{id}            { title, tags, profileId, chatSettings: { prompt } }
+//   DELETE /api/2.0/ai/agents/{id}            { deleteAfter }
+//   GET    /api/2.0/ai/agents/news
+//   PUT    /api/2.0/ai/agents/agentquota      { roomIds, quota }
+//   PUT    /api/2.0/ai/agents/resetquota      { roomIds }
+//   POST   /api/2.0/ai/threads/create         { title, profileId, entityId }
+//   POST   /api/2.0/ai/ai/send-with-stream    { threadId, entityId, profileId, actionArgs, userMessage }
+//   GET    /api/2.0/ai/threads/read-messages?threadId=...
+//
+// Asymmetry worth remembering: create takes a FLAT `prompt`, update takes a
+// NESTED `chatSettings.prompt`. A flat `prompt` on update returns 200 and is
+// silently ignored.
+
+export type { AgentRole };
 
 export type AiProfile = {
   id: string;
   name: string;
   modelId: string;
+};
+
+export type AgentDto = {
+  id?: number;
+  title?: string;
+  tags?: string[];
+  roomType?: number;
+  chatSettings?: { prompt?: string };
+};
+
+export type AiThread = {
+  threadId?: string;
+  title?: string;
+  lastEditDate?: number;
+  profileId?: string;
 };
 
 export type AiThreadMessage = {
@@ -26,34 +51,21 @@ export type AiThreadMessage = {
   createdAt: number;
 };
 
-export class AiAgentChat {
-  constructor(
-    private readonly request: APIRequestContext,
-    private readonly tokenStore: TokenStore,
-  ) {}
+export class AiAgentChat extends AiHttp {
+  // ---------------------------------------------------------------- profiles
 
-  private headers(role: Role) {
-    return {
-      Authorization: `Bearer ${this.tokenStore.getToken(role)}`,
-      Origin: `http://${this.tokenStore.newTenantDomain}`,
-      "Content-Type": "application/json",
-    };
-  }
-
-  private url(path: string) {
-    return `${this.tokenStore.portalBaseUrl}${path}`;
-  }
-
-  async listProfiles(role: Role): Promise<AiProfile[]> {
-    const response = await this.request.get(
-      this.url("/api/2.0/ai/profiles/list"),
-      { headers: this.headers(role) },
+  /** Returns [] on any non-array payload, e.g. the 403 `{"error":...}` body. */
+  async listProfiles(role: AgentRole = "owner"): Promise<AiProfile[]> {
+    const { data } = await this.call<AiProfile[]>(
+      role,
+      "get",
+      "/api/2.0/ai/profiles/list",
     );
-    return (await response.json()) as AiProfile[];
+    return Array.isArray(data) ? data : [];
   }
 
-  /** The gateway profile every agent in these tests runs on. */
-  async defaultProfileId(role: Role): Promise<string> {
+  /** The gateway profile agents in these tests run on. */
+  async defaultProfileId(role: AgentRole = "owner"): Promise<string> {
     const profiles = await this.listProfiles(role);
     if (profiles.length === 0) {
       throw new Error("No AI profiles available on the portal");
@@ -61,72 +73,156 @@ export class AiAgentChat {
     return profiles[0].id;
   }
 
-  /** `prompt` is the AI Instructions field; it is stored as chatSettings.prompt. */
-  async createAgent(
-    role: Role,
-    body: { title: string; profileId: string; prompt: string },
+  // ------------------------------------------------------------------ agents
+
+  /** `prompt` is the AI Instructions field; stored as chatSettings.prompt. */
+  createAgent(
+    role: AgentRole,
+    body: {
+      title?: string;
+      profileId?: string;
+      prompt?: string;
+      tags?: string[];
+      color?: string;
+      cover?: string;
+    },
   ) {
-    const response = await this.request.post(this.url("/api/2.0/ai/agents"), {
-      headers: this.headers(role),
-      data: {
-        title: body.title,
-        color: "FF5733",
-        cover: "layers",
-        profileId: body.profileId,
-        prompt: body.prompt,
-      },
+    return this.call<Envelope<AgentDto>>(role, "post", "/api/2.0/ai/agents", {
+      color: "FF5733",
+      cover: "layers",
+      ...body,
     });
-    const data = (await response.json()) as {
-      response?: { id?: number; chatSettings?: { prompt?: string } };
-    };
-    return { status: response.status(), data };
   }
 
-  async getAgent(role: Role, agentId: number) {
-    const response = await this.request.get(
-      this.url(`/api/2.0/ai/agents/${agentId}`),
-      { headers: this.headers(role) },
+  getAgents(role: AgentRole) {
+    return this.call<Envelope<{ folders?: AgentDto[]; files?: unknown[] }>>(
+      role,
+      "get",
+      "/api/2.0/ai/agents",
     );
-    const text = await response.text();
-    const data = text.startsWith("{")
-      ? (JSON.parse(text) as {
-          response?: { chatSettings?: { prompt?: string } };
-        })
-      : undefined;
-    return { status: response.status(), data };
   }
 
-  async getAgentInstructions(role: Role, agentId: number) {
-    const { data } = await this.getAgent(role, agentId);
+  getAgentInfo(role: AgentRole, agentId: number | string) {
+    return this.call<Envelope<AgentDto>>(
+      role,
+      "get",
+      `/api/2.0/ai/agents/${agentId}`,
+    );
+  }
+
+  async getAgentInstructions(role: AgentRole, agentId: number) {
+    const { data } = await this.getAgentInfo(role, agentId);
     return data?.response?.chatSettings?.prompt;
   }
 
-  async createThread(
-    role: Role,
-    body: { title: string; profileId: string; agentId: number },
+  /** Note the nested chatSettings — a flat `prompt` here is ignored. */
+  updateAgent(
+    role: AgentRole,
+    agentId: number | string,
+    body: {
+      title?: string;
+      tags?: string[];
+      profileId?: string;
+      prompt?: string;
+    },
   ) {
-    const response = await this.request.post(
-      this.url("/api/2.0/ai/threads/create"),
+    const { prompt, ...rest } = body;
+    return this.call<Envelope<AgentDto>>(
+      role,
+      "put",
+      `/api/2.0/ai/agents/${agentId}`,
       {
-        headers: this.headers(role),
-        data: {
-          title: body.title,
-          profileId: body.profileId,
-          entityId: String(body.agentId),
-        },
+        ...rest,
+        ...(prompt === undefined ? {} : { chatSettings: { prompt } }),
       },
     );
-    const data = (await response.json()) as { threadId: string };
-    return { status: response.status(), threadId: data.threadId };
+  }
+
+  /** Returns an async operation, but the agent is already gone (GET → 404). */
+  deleteAgent(role: AgentRole, agentId: number | string, deleteAfter = false) {
+    return this.call<Envelope<{ id?: string; finished?: boolean }>>(
+      role,
+      "delete",
+      `/api/2.0/ai/agents/${agentId}`,
+      { deleteAfter },
+    );
+  }
+
+  getAgentsNewItems(role: AgentRole) {
+    return this.call<Envelope<unknown[]>>(
+      role,
+      "get",
+      "/api/2.0/ai/agents/news",
+    );
+  }
+
+  updateAgentsQuota(
+    role: AgentRole,
+    body: { roomIds: number[]; quota: number },
+  ) {
+    return this.call<Envelope<AgentDto[]>>(
+      role,
+      "put",
+      "/api/2.0/ai/agents/agentquota",
+      body,
+    );
+  }
+
+  resetAgentsQuota(role: AgentRole, body: { roomIds: number[] }) {
+    return this.call<Envelope<AgentDto[]>>(
+      role,
+      "put",
+      "/api/2.0/ai/agents/resetquota",
+      body,
+    );
+  }
+
+  /** Convenience for the common "make an agent, hand me its id" setup. */
+  async createAgentId(
+    role: AgentRole,
+    body: {
+      title: string;
+      profileId: string;
+      prompt?: string;
+      tags?: string[];
+    },
+  ): Promise<number> {
+    const { status, data } = await this.createAgent(role, {
+      prompt: "You are a test assistant",
+      ...body,
+    });
+    if (status !== 200 || !data?.response?.id) {
+      throw new Error(`createAgent failed: ${status} ${JSON.stringify(data)}`);
+    }
+    return data.response.id;
+  }
+
+  // ----------------------------------------------------------------- threads
+
+  async createThread(
+    role: AgentRole,
+    body: { title: string; profileId: string; agentId: number },
+  ) {
+    const { status, data, error } = await this.call<{ threadId: string }>(
+      role,
+      "post",
+      "/api/2.0/ai/threads/create",
+      {
+        title: body.title,
+        profileId: body.profileId,
+        entityId: String(body.agentId),
+      },
+    );
+    return { status, error, threadId: data?.threadId ?? "" };
   }
 
   /**
-   * Sends a user message. `instructions` is passed as the system-prompt override
-   * the way the client does it — the backend does not pull the agent's stored
-   * AI Instructions into the thread by itself.
+   * Sends a user message. `instructions` is passed as the system-prompt
+   * override the way the client does it — the backend does not pull the agent's
+   * stored AI Instructions into the thread by itself.
    */
   async sendMessage(
-    role: Role,
+    role: AgentRole,
     body: {
       threadId: string;
       profileId: string;
@@ -135,44 +231,121 @@ export class AiAgentChat {
       instructions?: string;
     },
   ) {
-    const response = await this.request.post(
-      this.url("/api/2.0/ai/ai/send-with-stream"),
+    const { status } = await this.call(
+      role,
+      "post",
+      "/api/2.0/ai/ai/send-with-stream",
       {
-        headers: this.headers(role),
-        data: {
-          threadId: body.threadId,
-          entityId: String(body.agentId),
-          profileId: body.profileId,
-          ...(body.instructions
-            ? {
-                actionArgs: {
-                  prompt: { mode: "replace", text: body.instructions },
-                },
-              }
-            : {}),
-          userMessage: {
-            role: "user",
-            content: [{ type: "text", text: body.message }],
-          },
+        threadId: body.threadId,
+        entityId: String(body.agentId),
+        profileId: body.profileId,
+        ...(body.instructions
+          ? {
+              actionArgs: {
+                prompt: { mode: "replace", text: body.instructions },
+              },
+            }
+          : {}),
+        userMessage: {
+          role: "user",
+          content: [{ type: "text", text: body.message }],
         },
-        timeout: 120000,
       },
     );
-    return { status: response.status() };
+    return { status };
   }
 
-  async readMessages(role: Role, threadId: string) {
-    const response = await this.request.get(
-      this.url(`/api/2.0/ai/threads/read-messages?threadId=${threadId}`),
-      { headers: this.headers(role) },
+  /**
+   * Threads are listed per entity — without `entityId` the list is empty.
+   * `data` is normalised to [] on an error payload so side-effect assertions
+   * read cleanly; check `error`/`status` for the failure itself.
+   */
+  async listThreads(role: AgentRole, agentId?: number) {
+    const query = agentId === undefined ? "" : `?entityId=${agentId}`;
+    const { status, data, error } = await this.call<AiThread[]>(
+      role,
+      "get",
+      `/api/2.0/ai/threads/list${query}`,
     );
-    const data = (await response.json()) as AiThreadMessage[];
-    return { status: response.status(), headers: response.headers(), data };
+    return { status, error, data: Array.isArray(data) ? data : [] };
+  }
+
+  getThread(role: AgentRole, threadId: string) {
+    return this.call<AiThread>(
+      role,
+      "get",
+      `/api/2.0/ai/threads/get-by-id?threadId=${threadId}`,
+    );
+  }
+
+  renameThread(role: AgentRole, threadId: string, title: string) {
+    return this.call<{ success?: boolean }>(
+      role,
+      "put",
+      "/api/2.0/ai/threads/rename",
+      { threadId, title },
+    );
+  }
+
+  deleteThread(role: AgentRole, threadId: string) {
+    return this.call<{ success?: boolean }>(
+      role,
+      "delete",
+      "/api/2.0/ai/threads/delete",
+      { threadId },
+    );
+  }
+
+  clearThreadMessages(role: AgentRole, threadId: string) {
+    return this.call<{ success?: boolean }>(
+      role,
+      "delete",
+      "/api/2.0/ai/threads/clear-messages",
+      { threadId },
+    );
+  }
+
+  touchThread(role: AgentRole, threadId: string) {
+    return this.call<{ success?: boolean }>(
+      role,
+      "post",
+      "/api/2.0/ai/threads/touch",
+      { threadId },
+    );
+  }
+
+  /** Stores a user message without asking the model to answer it. */
+  appendUserMessage(
+    role: AgentRole,
+    body: { threadId: string; profileId: string; text: string },
+  ) {
+    return this.call<{ messageId?: unknown }>(
+      role,
+      "post",
+      "/api/2.0/ai/threads/append-user-message",
+      {
+        threadId: body.threadId,
+        profileId: body.profileId,
+        message: {
+          role: "user",
+          content: [{ type: "text", text: body.text }],
+        },
+      },
+    );
+  }
+
+  async readMessages(role: AgentRole, threadId: string) {
+    const { status, data, error } = await this.call<AiThreadMessage[]>(
+      role,
+      "get",
+      `/api/2.0/ai/threads/read-messages?threadId=${threadId}`,
+    );
+    return { status, error, data: Array.isArray(data) ? data : [] };
   }
 
   /** The assistant reply lands asynchronously after send-with-stream returns. */
   async waitForAssistantReply(
-    role: Role,
+    role: AgentRole,
     threadId: string,
     timeoutMs = 90000,
   ): Promise<AiThreadMessage[]> {

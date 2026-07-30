@@ -1,343 +1,195 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { FileShare } from "@onlyoffice/docspace-api-sdk";
-import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
-import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
+import { AiAgentChat, AgentRole } from "@/src/helpers/ai-agent-chat";
+import { UserType } from "@/src/services/api-sdk";
 
-test.describe("POST /ai/agents - User cannot create AI agent", () => {
-  test("POST /ai/agents - User cannot create an agent", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+// Driven through AiAgentChat rather than the SDK's AgentsApi — see the route
+// map in src/helpers/ai-agent-chat.ts.
+//
+// Error bodies are now `{"error":"Forbidden"}` / `{"error":"Unauthorized"}`.
+// The old envelope (`data.statusCode`, `data.error.message`) is gone, so these
+// tests assert the status and, where the API is specific, the `error` string.
+//
+// Access matrix on an agent created by Owner, as measured against the current
+// build:
+//
+//                        owner  DSAdmin  RoomAdmin  User  Guest  anon
+//   POST   /agents         200    200      200      403    403   401
+//   GET    /agents         200    200      200      200    200   401   (scoped)
+//   GET    /agents/{id}    200    200      403      403    403   401
+//   PUT    /agents/{id}    200    403      403      403    403   401
+//   DELETE /agents/{id}    200    403      403      403    403   401
+//   GET    /agents/news    200    200      200      200    200   401
+//   PUT    /agentquota     200    403      403      403    403   401
+//   PUT    /resetquota     200    403      403      403    403   401
+//
+// Quota is scoped to the agent's author, not to the portal owner: an admin who
+// created an agent may set quota on it. That is covered in agents.spec.ts.
 
-    await enableAiGateway(paymentsApi, ownerApi.payment);
+const QUOTA_MINIMAL_BYTES = 104857600; // 100 MB
+const DEFAULT_QUOTA_AGENT_BYTES = 524288000; // 500 MB
 
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
+const NON_OWNER_ROLES: Array<{
+  label: string;
+  type: UserType;
+  role: AgentRole;
+}> = [
+  { label: "DocSpace Admin", type: "DocSpaceAdmin", role: "docSpaceAdmin" },
+  { label: "Room Admin", type: "RoomAdmin", role: "roomAdmin" },
+  { label: "User", type: "User", role: "user" },
+  { label: "Guest", type: "Guest", role: "guest" },
+];
 
-    const { data, status } = await userApi.agents.createAgent({
-      createAgentRequestDto: {
+test.describe("POST /ai/agents - Create AI agent access control", () => {
+  for (const { label, type, role } of [
+    { label: "User", type: "User" as UserType, role: "user" as AgentRole },
+    { label: "Guest", type: "Guest" as UserType, role: "guest" as AgentRole },
+  ]) {
+    test(`POST /ai/agents - ${label} cannot create an agent`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+
+      await apiSdk.addAuthenticatedMember("owner", type);
+
+      const { status, error } = await aiChat.createAgent(role, {
         title: "Autotest Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
+        profileId,
+        prompt: "You are a test assistant",
+      });
+
+      // No agent must have appeared for this user either.
+      const { data: list } = await aiChat.getAgents(role);
+      expect(list?.response?.folders ?? []).toEqual([]);
+
+      expect(error).toBe("Forbidden");
+      expect(status).toBe(403);
     });
+  }
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-});
-
-test.describe("POST /ai/agents - Guest cannot create AI agent", () => {
-  test("POST /ai/agents - Guest cannot create an agent", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to create",
-    );
-  });
-});
-
-test.describe("POST /ai/agents - Anonymous cannot create AI agent", () => {
   test("POST /ai/agents - Anonymous cannot create an agent without authorization", async ({
     apiSdk,
+    paymentsApi,
   }) => {
-    const anonApi = apiSdk.forAnonymous();
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { status } = await anonApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Unauthorized Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { status, error } = await aiChat.createAgent("anonymous", {
+      title: "Autotest Agent",
+      profileId,
+      prompt: "You are a test assistant",
     });
 
+    expect(error).toBe("Unauthorized");
     expect(status).toBe(401);
   });
 });
 
 test.describe("GET /ai/agents - Get AI agents access control", () => {
-  test("BUG 80658: GET /ai/agents - Room Admin cannot see agents created by Owner", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
-
-    const { data, status } = await roomAdminApi.agents.getAgents();
-
-    expect(status).toBe(200);
-    expect((data as any).response?.current.updatedBy?.id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
-    expect((data as any).response?.current.updatedBy?.displayName).toBe("");
-    expect((data as any).response?.current.updatedBy?.profileUrl).toBe("");
-    expect((data as any).response?.current.createdBy?.id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
-    expect((data as any).response?.current.createdBy?.displayName).toBe("");
-    expect((data as any).response?.current.createdBy?.profileUrl).toBe("");
-  });
-
-  test("BUG 80658: GET /ai/agents - User cannot see agents created by Owner", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.getAgents();
-
-    expect(status).toBe(200);
-    expect(status).toBe(200);
-    expect((data as any).response?.current.updatedBy?.id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
-    expect((data as any).response?.current.updatedBy?.displayName).toBe("");
-    expect((data as any).response?.current.updatedBy?.profileUrl).toBe("");
-    expect((data as any).response?.current.createdBy?.id).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
-    expect((data as any).response?.current.createdBy?.displayName).toBe("");
-    expect((data as any).response?.current.createdBy?.profileUrl).toBe("");
-  });
-
-  test.fail(
-    "BUG 81482, 80658: GET /ai/agents - Guest cannot see agents created by Owner",
-    async ({ apiSdk, paymentsApi }) => {
+  for (const { label, type, role } of NON_OWNER_ROLES) {
+    test(`GET /ai/agents - ${label} does not see an agent created by Owner they were not invited to`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
       const ownerApi = apiSdk.forRole("owner");
-
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
-      await ownerApi.agents.createAgent({
-        createAgentRequestDto: {
-          title: "Autotest Hidden Agent",
-          color: "FF5733",
-          cover: "layers",
-          tags: ["autotest"],
-          chatSettings: {
-            providerId: onlyofficeAiProvider.providerId,
-            modelId: onlyofficeAiProvider.defaultModel,
-            prompt: "You are a test assistant",
-          },
-        },
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "Autotest Hidden Agent",
+        profileId,
       });
 
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
-      const guestApi = apiSdk.forRole("guest");
+      await apiSdk.addAuthenticatedMember("owner", type);
 
-      const { data, status } = await guestApi.agents.getAgents();
+      const { data, status } = await aiChat.getAgents(role);
 
+      // DocSpace Admin sees every agent; the rest see only what they are in.
+      const visibleIds = data?.response?.folders?.map((folder) => folder.id);
+      if (role === "docSpaceAdmin") {
+        expect(visibleIds).toContain(agentId);
+      } else {
+        expect(visibleIds ?? []).not.toContain(agentId);
+      }
       expect(status).toBe(200);
-      expect(status).toBe(200);
-      expect((data as any).response?.current.updatedBy?.id).toBe(
-        "00000000-0000-0000-0000-000000000000",
-      );
-      expect((data as any).response?.current.updatedBy?.displayName).toBe("");
-      expect((data as any).response?.current.updatedBy?.profileUrl).toBe("");
-      expect((data as any).response?.current.createdBy?.id).toBe(
-        "00000000-0000-0000-0000-000000000000",
-      );
-      expect((data as any).response?.current.createdBy?.displayName).toBe("");
-      expect((data as any).response?.current.createdBy?.profileUrl).toBe("");
-      expect((data as any).response?.current.filesCount).toBe(0);
-      expect((data as any).response?.current.foldersCount).toBe(0);
-    },
-  );
+    });
+  }
 
   test("GET /ai/agents - Anonymous cannot get agents without authorization", async ({
     apiSdk,
   }) => {
-    const anonApi = apiSdk.forAnonymous();
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
-    const { status } = await anonApi.agents.getAgents();
+    const { status, error } = await aiChat.getAgents("anonymous");
 
+    expect(error).toBe("Unauthorized");
     expect(status).toBe(401);
   });
 });
 
 test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
-  test("GET /ai/agents/:id - Room Admin cannot get agent info", async ({
+  for (const { label, type, role } of NON_OWNER_ROLES.filter(
+    (entry) => entry.role !== "docSpaceAdmin",
+  )) {
+    test(`GET /ai/agents/:id - ${label} cannot get agent info without being invited`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "Autotest Agent",
+        profileId,
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", type);
+
+      const { status, error } = await aiChat.getAgentInfo(role, agentId);
+
+      expect(error).toBe("Forbidden");
+      expect(status).toBe(403);
+    });
+  }
+
+  test("GET /ai/agents/:id - DocSpace Admin can read an agent created by Owner", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Read is allowed for a DocSpace Admin even though write and delete are not
+    // — kept explicit so the split does not silently change.
     const ownerApi = apiSdk.forRole("owner");
-
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
-
-    const { data, status } = await roomAdminApi.agents.getAgentInfo({
-      id: agentId,
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Agent",
+      profileId,
     });
 
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to view the folder content",
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await aiChat.getAgentInfo(
+      "docSpaceAdmin",
+      agentId,
     );
-  });
 
-  test("GET /ai/agents/:id - User cannot get agent info", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.getAgentInfo({ id: agentId });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to view the folder content",
-    );
-  });
-
-  test("GET /ai/agents/:id - Guest cannot get agent info", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.getAgentInfo({
-      id: agentId,
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to view the folder content",
-    );
+    expect(status).toBe(200);
+    expect(data?.response?.id).toBe(agentId);
   });
 
   test("GET /ai/agents/:id - Anonymous cannot get agent info without authorization", async ({
@@ -345,937 +197,102 @@ test.describe("GET /ai/agents/:id - Get AI agent info access control", () => {
     paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Hidden Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    const anonApi = apiSdk.forAnonymous();
-
-    const { status } = await anonApi.agents.getAgentInfo({ id: agentId });
-
-    expect(status).toBe(401);
-  });
-});
-
-test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
-  test("BUG 80654: DELETE /ai/agents/:id - User cannot delete an agent", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent to Delete",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.deleteAgent({
-      id: agentId,
-      deleteRoomRequest: { deleteAfter: false },
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Agent",
+      profileId,
     });
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-  });
+    const { status, error } = await aiChat.getAgentInfo("anonymous", agentId);
 
-  test("BUG 80654: DELETE /ai/agents/:id - Guest cannot delete an agent", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent to Delete",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.deleteAgent({
-      id: agentId,
-      deleteRoomRequest: { deleteAfter: false },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-  });
-
-  test("DELETE /ai/agents/:id - Anonymous cannot delete an agent without authorization", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent to Delete",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    const anonApi = apiSdk.forAnonymous();
-
-    const { status } = await anonApi.agents.deleteAgent({
-      id: agentId,
-      deleteRoomRequest: { deleteAfter: false },
-    });
-
-    expect(status).toBe(401);
-  });
-
-  test("BUG 80654: DELETE /ai/agents/:id - DocSpace Admin cannot delete an agent created by Owner", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent to Delete",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    const adminApi = apiSdk.forRole("docSpaceAdmin");
-
-    const { data, status } = await adminApi.agents.deleteAgent({
-      id: agentId,
-      deleteRoomRequest: { deleteAfter: false },
-    });
-
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
-  });
-});
-
-test.describe("GET /ai/agents/news - Get AI agents new items access control", () => {
-  test("GET /ai/agents/news - Anonymous cannot get agents new items without authorization", async ({
-    apiSdk,
-  }) => {
-    const anonApi = apiSdk.forAnonymous();
-
-    const { status } = await anonApi.agents.getAgentsNewItems();
-
-    expect(status).toBe(401);
-  });
-});
-
-const QUOTA_MINIMAL_BYTES = 104857600; // 100 MB
-const DEFAULT_QUOTA_AGENT_BYTES = 524288000; // 500 MB
-
-test.describe("PUT /ai/agents/agentquota - access control", () => {
-  test("BUG 80679: PUT /ai/agents/agentquota - Room Admin cannot change agent quota limit", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
-
-    const { data, status } = await roomAdminApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /ai/agents/agentquota - User cannot change agent quota limit", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /ai/agents/agentquota - Guest cannot change agent quota limit", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /ai/agents/agentquota - DocSpace Admin cannot change agent quota limit", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    const adminApi = apiSdk.forRole("docSpaceAdmin");
-
-    const { data, status } = await adminApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /ai/agents/agentquota - Anonymous cannot change agent quota limit without authorization", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    const anonApi = apiSdk.forAnonymous();
-
-    const { status } = await anonApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    expect(status).toBe(401);
-  });
-
-  test("PUT /ai/agents/agentquota - Owner changes agent quota limit to a value higher than the total storage size", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Quota Oversize",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    const OVER_SIZE_BYTES = 999999999999999; // exceeds total storage
-
-    const { data } = await ownerApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: OVER_SIZE_BYTES,
-      },
-    });
-
-    expect(data.statusCode).toBe(403);
-    expect((data as any).error.message).toBe(
-      "Failed to set quota per room. The entered value is greater than the total DocSpace storage.",
-    );
-  });
-});
-
-test.describe("PUT /ai/agents/resetagentquota - access control", () => {
-  test("BUG 80680: PUT /ai/agents/resetagentquota - Room Admin cannot reset agent quota limit", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Reset Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await ownerApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
-
-    const { data, status } = await roomAdminApi.agents.resetAgentsQuota({
-      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /ai/agents/resetagentquota - User cannot reset agent quota limit", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Reset Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await ownerApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    await apiSdk.addAuthenticatedMember("owner", "User");
-    const userApi = apiSdk.forRole("user");
-
-    const { data, status } = await userApi.agents.resetAgentsQuota({
-      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /ai/agents/resetagentquota - Guest cannot reset agent quota limit", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Reset Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await ownerApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const guestApi = apiSdk.forRole("guest");
-
-    const { data, status } = await guestApi.agents.resetAgentsQuota({
-      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /ai/agents/resetagentquota - DocSpace Admin cannot reset agent quota limit", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Reset Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await ownerApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    const adminApi = apiSdk.forRole("docSpaceAdmin");
-
-    const { data, status } = await adminApi.agents.resetAgentsQuota({
-      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /ai/agents/resetagentquota - Anonymous cannot reset agent quota limit without authorization", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.setupPayment();
-    const ownerApi = apiSdk.forRole("owner");
-    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
-        enableQuota: true,
-        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
-      },
-    });
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent Reset Quota Perm",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    await ownerApi.agents.updateAgentsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
-        roomIds: [agentId] as any,
-        quota: QUOTA_MINIMAL_BYTES,
-      },
-    });
-
-    const anonApi = apiSdk.forAnonymous();
-
-    const { status } = await anonApi.agents.resetAgentsQuota({
-      updateRoomsRoomIdsRequestDtoInteger: { roomIds: [agentId] as any },
-    });
-
+    expect(error).toBe("Unauthorized");
     expect(status).toBe(401);
   });
 });
 
 test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
-  test("PUT /ai/agents/:id - Non-owner roles cannot update an agent created by Owner", async ({
+  for (const { label, type, role } of NON_OWNER_ROLES) {
+    test(`PUT /ai/agents/:id - ${label} cannot update an agent created by Owner`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "Original Agent",
+        profileId,
+        prompt: "Original prompt",
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", type);
+
+      const { status, error } = await aiChat.updateAgent(role, agentId, {
+        title: "Hacked Agent",
+        profileId,
+        prompt: "Hacked prompt",
+      });
+
+      // Nothing changed for the owner. Re-authenticate first: the shared
+      // request context still carries the member's session, and that session
+      // wins over the bearer token.
+      await apiSdk.authenticateOwner();
+      const { data: info } = await aiChat.getAgentInfo("owner", agentId);
+      expect(info?.response?.title).toBe("Original Agent");
+      expect(info?.response?.chatSettings?.prompt).toBe("Original prompt");
+
+      expect(error).toBe("Forbidden");
+      expect(status).toBe(403);
+    });
+  }
+
+  test("PUT /ai/agents/:id - a member invited as ContentCreator cannot update the agent", async ({
     apiSdk,
     paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Original Agent",
+      profileId,
+      prompt: "Original prompt",
     });
-    const agentId = agentData.response!.id!;
 
-    const { userData: adminUserData } = await apiSdk.addMember(
+    const { data: userData } = await apiSdk.addAuthenticatedMember(
       "owner",
-      "DocSpaceAdmin",
-    );
-    const { userData: roomAdminUserData } = await apiSdk.addMember(
-      "owner",
-      "RoomAdmin",
-    );
-    const { userData: userUserData } = await apiSdk.addMember("owner", "User");
-    const { userData: guestUserData } = await apiSdk.addMember(
-      "owner",
-      "Guest",
+      "User",
     );
 
-    const updateBody = {
-      title: "Updated Agent",
-      tags: ["updated-tag"],
-      chatSettings: {
-        providerId: onlyofficeAiProvider.providerId,
-        modelId: onlyofficeAiProvider.defaultModel,
-        prompt: "Updated prompt",
-      },
-    };
-
-    await test.step("DocSpace Admin cannot update agent", async () => {
-      const adminApi = await apiSdk.authenticateMember(
-        adminUserData,
-        "DocSpaceAdmin",
-      );
-      const { data, status } = await adminApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
-    });
-
-    await test.step("Room Admin cannot update agent", async () => {
-      const roomAdminApi = await apiSdk.authenticateMember(
-        roomAdminUserData,
-        "RoomAdmin",
-      );
-      const { data, status } = await roomAdminApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
-    });
-
-    await test.step("User cannot update agent", async () => {
-      const userApi = await apiSdk.authenticateMember(userUserData, "User");
-      const { data, status } = await userApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
-    });
-
-    await test.step("Guest cannot update agent", async () => {
-      const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-      const { data, status } = await guestApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
-    });
-  });
-
-  test("PUT /ai/agents/:id - Anonymous cannot update an agent without authorization", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    const anonApi = apiSdk.forAnonymous();
-
-    const { status } = await anonApi.agents.updateAgent({
+    const { status: shareStatus } = await ownerApi.rooms.setRoomSecurity({
       id: agentId,
-      updateRoomRequest: {
-        title: "Updated Agent",
-        tags: ["updated-tag"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "Updated prompt",
-        },
+      roomInvitationRequest: {
+        invitations: [
+          { id: userData.response!.id!, access: FileShare.ContentCreator },
+        ],
+        notify: false,
       },
     });
+    expect(shareStatus).toBe(200);
 
-    expect(status).toBe(401);
-  });
-
-  test("PUT /ai/agents/:id - Non-admin roles and Owner cannot update an agent created by DocSpace Admin", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    const adminApi = apiSdk.forRole("docSpaceAdmin");
-
-    const { data: agentData } = await adminApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    const { userData: roomAdminUserData } = await apiSdk.addMember(
-      "owner",
-      "RoomAdmin",
-    );
-    const { userData: userUserData } = await apiSdk.addMember("owner", "User");
-    const { userData: guestUserData } = await apiSdk.addMember(
-      "owner",
-      "Guest",
-    );
-
-    const updateBody = {
-      title: "Updated Agent",
-      tags: ["updated-tag"],
-      chatSettings: {
-        providerId: onlyofficeAiProvider.providerId,
-        modelId: onlyofficeAiProvider.defaultModel,
-        prompt: "Updated prompt",
-      },
-    };
-
-    await test.step("Room Admin cannot update agent", async () => {
-      const roomAdminApi = await apiSdk.authenticateMember(
-        roomAdminUserData,
-        "RoomAdmin",
-      );
-      const { data, status } = await roomAdminApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
+    const { status, error } = await aiChat.updateAgent("user", agentId, {
+      title: "Hacked Agent",
+      profileId,
     });
 
-    await test.step("User cannot update agent", async () => {
-      const userApi = await apiSdk.authenticateMember(userUserData, "User");
-      const { data, status } = await userApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
+    await apiSdk.authenticateOwner();
+    const { data: info } = await aiChat.getAgentInfo("owner", agentId);
+    expect(info?.response?.title).toBe("Original Agent");
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
-    });
-
-    await test.step("Guest cannot update agent", async () => {
-      const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-      const { data, status } = await guestApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
-    });
+    expect(error).toBe("Forbidden");
+    expect(status).toBe(403);
   });
 
   test("PUT /ai/agents/:id - Owner cannot update an agent created by DocSpace Admin", async ({
@@ -1283,42 +300,31 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    const adminApi = apiSdk.forRole("docSpaceAdmin");
-
-    const { data: agentData } = await adminApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    const { data, status } = await ownerApi.agents.updateAgent({
-      id: agentId,
-      updateRoomRequest: {
-        title: "Updated Agent",
-        tags: ["updated-tag"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "Updated prompt",
-        },
-      },
+    const agentId = await aiChat.createAgentId("docSpaceAdmin", {
+      title: "Admin Agent",
+      profileId,
+      prompt: "Admin prompt",
     });
 
+    // Act as the portal owner again: the shared request context is still on
+    // the admin's session, which would otherwise make this a self-update.
+    await apiSdk.authenticateOwner();
+
+    const { status, error } = await aiChat.updateAgent("owner", agentId, {
+      title: "Owner Renamed",
+      profileId,
+    });
+
+    const { data: info } = await aiChat.getAgentInfo("owner", agentId);
+    expect(info?.response?.title).toBe("Admin Agent");
+
+    expect(error).toBe("Forbidden");
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have permission to edit the room",
-    );
   });
 
   test("PUT /ai/agents/:id - Owner cannot update an agent created by Room Admin", async ({
@@ -1326,169 +332,279 @@ test.describe("PUT /ai/agents/:id - Update AI agent access control", () => {
     paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
 
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
-
-    const { data: agentData } = await roomAdminApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    const { data, status } = await ownerApi.agents.updateAgent({
-      id: agentId,
-      updateRoomRequest: {
-        title: "Updated Agent",
-        tags: ["updated-tag"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "Updated prompt",
-        },
-      },
+    const agentId = await aiChat.createAgentId("roomAdmin", {
+      title: "Room Admin Agent",
+      profileId,
+      prompt: "Room Admin prompt",
     });
 
+    // Act as the portal owner again: the shared request context is still on
+    // the admin's session, which would otherwise make this a self-update.
+    await apiSdk.authenticateOwner();
+
+    const { status, error } = await aiChat.updateAgent("owner", agentId, {
+      title: "Owner Renamed",
+      profileId,
+    });
+
+    const { data: info } = await aiChat.getAgentInfo("owner", agentId);
+    expect(info?.response?.title).toBe("Room Admin Agent");
+
+    expect(error).toBe("Forbidden");
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe(
-      "You don't have permission to edit the room",
-    );
   });
 
-  test("PUT /ai/agents/:id - Other roles cannot update an agent created by Room Admin", async ({
+  test("PUT /ai/agents/:id - Anonymous cannot update an agent without authorization", async ({
     apiSdk,
     paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { userData: adminUserData } = await apiSdk.addMember(
-      "owner",
-      "DocSpaceAdmin",
-    );
-    const { userData: userUserData } = await apiSdk.addMember("owner", "User");
-    const { userData: guestUserData } = await apiSdk.addMember(
-      "owner",
-      "Guest",
-    );
-
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
-
-    const { data: agentData } = await roomAdminApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Autotest Agent",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
-    });
-    const agentId = agentData.response!.id!;
-
-    const updateBody = {
-      title: "Updated Agent",
-      tags: ["updated-tag"],
-      chatSettings: {
-        providerId: onlyofficeAiProvider.providerId,
-        modelId: onlyofficeAiProvider.defaultModel,
-        prompt: "Updated prompt",
-      },
-    };
-
-    await test.step("DocSpace Admin cannot update agent", async () => {
-      const adminApi = await apiSdk.authenticateMember(
-        adminUserData,
-        "DocSpaceAdmin",
-      );
-      const { data, status } = await adminApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Original Agent",
+      profileId,
     });
 
-    await test.step("User cannot update agent", async () => {
-      const userApi = await apiSdk.authenticateMember(userUserData, "User");
-      const { data, status } = await userApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
-
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
+    const { status, error } = await aiChat.updateAgent("anonymous", agentId, {
+      title: "Hacked Agent",
+      profileId,
     });
 
-    await test.step("Guest cannot update agent", async () => {
-      const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-      const { data, status } = await guestApi.agents.updateAgent({
-        id: agentId,
-        updateRoomRequest: updateBody,
-      });
+    const { data: info } = await aiChat.getAgentInfo("owner", agentId);
+    expect(info?.response?.title).toBe("Original Agent");
 
-      expect(status).toBe(403);
-      expect((data as any).error.message).toBe(
-        "You don't have permission to edit the room",
-      );
-    });
+    expect(error).toBe("Unauthorized");
+    expect(status).toBe(401);
   });
 });
 
-test.describe("DELETE /ai/agents/:id - Delete AI agent access control (continued)", () => {
-  test("BUG 80654: DELETE /ai/agents/:id - Room Admin cannot delete an agent created by Owner", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+test.describe("DELETE /ai/agents/:id - Delete AI agent access control", () => {
+  for (const { label, type, role } of NON_OWNER_ROLES) {
+    test(`DELETE /ai/agents/:id - ${label} cannot delete an agent created by Owner`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
         title: "Autotest Agent to Delete",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a test assistant",
-        },
-      },
+        profileId,
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", type);
+
+      const { status, error } = await aiChat.deleteAgent(role, agentId);
+
+      // The agent must still be there for its owner. Re-authenticate first:
+      // the shared request context still carries the member's session.
+      await apiSdk.authenticateOwner();
+      const { status: stillThere } = await aiChat.getAgentInfo(
+        "owner",
+        agentId,
+      );
+      expect(stillThere).toBe(200);
+
+      expect(error).toBe("Forbidden");
+      expect(status).toBe(403);
     });
-    const agentId = agentData.response!.id!;
+  }
 
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminApi = apiSdk.forRole("roomAdmin");
+  test("DELETE /ai/agents/:id - Anonymous cannot delete an agent without authorization", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data, status } = await roomAdminApi.agents.deleteAgent({
-      id: agentId,
-      deleteRoomRequest: { deleteAfter: false },
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Agent to Delete",
+      profileId,
     });
 
-    expect(status).toBe(403);
-    expect(data.statusCode).toBe(403);
+    const { status, error } = await aiChat.deleteAgent("anonymous", agentId);
+
+    const { status: stillThere } = await aiChat.getAgentInfo("owner", agentId);
+    expect(stillThere).toBe(200);
+
+    expect(error).toBe("Unauthorized");
+    expect(status).toBe(401);
   });
 });
 
+test.describe("GET /ai/agents/news - Get AI agents new items access control", () => {
+  test("GET /ai/agents/news - Anonymous cannot get agents new items without authorization", async ({
+    apiSdk,
+  }) => {
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { status, error } = await aiChat.getAgentsNewItems("anonymous");
+
+    expect(error).toBe("Unauthorized");
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("PUT /ai/agents/agentquota - Change AI agent quota access control", () => {
+  for (const { label, type, role } of NON_OWNER_ROLES) {
+    test(`PUT /ai/agents/agentquota - ${label} cannot change quota on an agent created by Owner`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+        quotaSettingsRequestsDto: {
+          enableQuota: true,
+          defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+        },
+      });
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "Autotest Agent Quota Perm",
+        profileId,
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", type);
+
+      const { status, error } = await aiChat.updateAgentsQuota(role, {
+        roomIds: [agentId],
+        quota: QUOTA_MINIMAL_BYTES,
+      });
+
+      expect(error).toBe("Forbidden");
+      expect(status).toBe(403);
+    });
+  }
+
+  test("PUT /ai/agents/agentquota - Anonymous cannot change agent quota limit without authorization", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Agent Quota Perm",
+      profileId,
+    });
+
+    const { status, error } = await aiChat.updateAgentsQuota("anonymous", {
+      roomIds: [agentId],
+      quota: QUOTA_MINIMAL_BYTES,
+    });
+
+    expect(error).toBe("Unauthorized");
+    expect(status).toBe(401);
+  });
+
+  test("PUT /ai/agents/agentquota - Owner cannot set a quota larger than total portal storage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: {
+        enableQuota: true,
+        defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+      },
+    });
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Agent Quota Oversize",
+      profileId,
+    });
+
+    const OVER_SIZE_BYTES = 999999999999999; // exceeds total storage
+
+    const { status } = await aiChat.updateAgentsQuota("owner", {
+      roomIds: [agentId],
+      quota: OVER_SIZE_BYTES,
+    });
+
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("PUT /ai/agents/resetquota - Reset AI agent quota access control", () => {
+  for (const { label, type, role } of NON_OWNER_ROLES) {
+    test(`PUT /ai/agents/resetquota - ${label} cannot reset quota on an agent created by Owner`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
+      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+        quotaSettingsRequestsDto: {
+          enableQuota: true,
+          defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
+        },
+      });
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "Autotest Agent Reset Quota Perm",
+        profileId,
+      });
+
+      await apiSdk.addAuthenticatedMember("owner", type);
+
+      const { status, error } = await aiChat.resetAgentsQuota(role, {
+        roomIds: [agentId],
+      });
+
+      expect(error).toBe("Forbidden");
+      expect(status).toBe(403);
+    });
+  }
+
+  test("PUT /ai/agents/resetquota - Anonymous cannot reset agent quota limit without authorization", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Agent Reset Quota Perm",
+      profileId,
+    });
+
+    const { status, error } = await aiChat.resetAgentsQuota("anonymous", {
+      roomIds: [agentId],
+    });
+
+    expect(error).toBe("Unauthorized");
+    expect(status).toBe(401);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Stored HTML injection through the AI Instructions field.
 //
 // A user who can edit an agent stores HTML plus an order to echo it back.
@@ -1537,7 +653,7 @@ test.describe("AI Instructions - stored HTML injection", () => {
   // body, after the precondition — declaring `test.fail(title, fn)` here would
   // mark the test expected-to-fail from the first line, and a model refusal
   // would then be swallowed as "expected" instead of showing up as red.
-  test("BUG XXXXX: POST /api/2.0/ai/agents - attacker HTML stored in AI Instructions is delivered to another room member as active markup", async ({
+  test("BUG XXXXX: POST /ai/agents - attacker HTML stored in AI Instructions is delivered to another room member as active markup", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1550,14 +666,11 @@ test.describe("AI Instructions - stored HTML injection", () => {
     let agentId = 0;
 
     await test.step("Owner stores the payload in AI Instructions", async () => {
-      const { status, data } = await aiChat.createAgent("owner", {
+      agentId = await aiChat.createAgentId("owner", {
         title: "Injection Agent",
         profileId,
         prompt: INJECTION_INSTRUCTIONS,
       });
-
-      expect(status).toBe(200);
-      agentId = data.response!.id!;
     });
 
     const { data: userData } = await apiSdk.addAuthenticatedMember(
@@ -1582,7 +695,7 @@ test.describe("AI Instructions - stored HTML injection", () => {
       });
       expect(shareStatus).toBe(200);
 
-      const { status } = await aiChat.getAgent("user", agentId);
+      const { status } = await aiChat.getAgentInfo("user", agentId);
       instructionsAsSeenByMember = await aiChat.getAgentInstructions(
         "user",
         agentId,
@@ -1632,6 +745,10 @@ test.describe("AI Instructions - stored HTML injection", () => {
     // pass, so it surfaces as a real red instead of a silent expected-fail.
     expect(reply).toContain(INJECTION_MARKER);
 
+    console.log(
+      `\n=== assistant message delivered to the second room member ===\n${reply}\n=== end ===\n`,
+    );
+
     // Everything past this point is the known defect.
     test.fail();
 
@@ -1644,7 +761,7 @@ test.describe("AI Instructions - stored HTML injection", () => {
     expect(reply).not.toContain("attacker.invalid");
   });
 
-  test("GET /api/2.0/ai/agents/:id - a plain room member can read the agent's AI Instructions", async ({
+  test("GET /ai/agents/:id - a plain room member can read the agent's AI Instructions", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1660,14 +777,11 @@ test.describe("AI Instructions - stored HTML injection", () => {
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
-
-    const { status: createStatus, data } = await aiChat.createAgent("owner", {
+    const agentId = await aiChat.createAgentId("owner", {
       title: "Injection Agent - exposure",
       profileId,
       prompt: `<script>window.__xssExecuted=true</script>${INJECTION_MARKER}`,
     });
-    expect(createStatus).toBe(200);
-    const agentId = data.response!.id!;
 
     const { data: userData } = await apiSdk.addAuthenticatedMember(
       "owner",
@@ -1685,7 +799,7 @@ test.describe("AI Instructions - stored HTML injection", () => {
     });
     expect(shareStatus).toBe(200);
 
-    const { status } = await aiChat.getAgent("user", agentId);
+    const { status } = await aiChat.getAgentInfo("user", agentId);
     const seenByMember = await aiChat.getAgentInstructions("user", agentId);
 
     expect(seenByMember).toContain(INJECTION_MARKER);
