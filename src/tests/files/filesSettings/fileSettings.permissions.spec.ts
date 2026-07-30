@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { EmployeeStatus } from "@onlyoffice/docspace-api-sdk";
+import { EmployeeStatus, FileShare } from "@onlyoffice/docspace-api-sdk";
 
 test.describe("PUT /api/2.0/files/thirdparty - Change third-party settings access - Permissions", () => {
   test("PUT /api/2.0/files/thirdparty - Unauthenticated user cannot change third-party access", async ({
@@ -1430,6 +1430,117 @@ test.describe("GET /api/2.0/files/settings - Get all file settings - Permissions
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
+  });
+});
+
+test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the default access rights - Permissions", () => {
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Unauthenticated user cannot change default access rights", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.Read],
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Owner can change default access rights", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.ReadWrite, FileShare.Read],
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - DocSpaceAdmin can change default access rights", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.ReadWrite, FileShare.Read],
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - RoomAdmin can change default access rights", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.Read],
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - User can change default access rights", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.Read],
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Guest can change default access rights", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [FileShare.Read],
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBeDefined();
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Terminated DocSpaceAdmin cannot change default access rights", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
+
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [adminId], resendAll: false },
+    });
+
+    const { status } = await adminApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Read],
+    });
+
+    expect(status).toBe(401);
   });
 });
 
