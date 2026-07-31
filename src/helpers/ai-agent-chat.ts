@@ -44,11 +44,24 @@ export type AiThread = {
   profileId?: string;
 };
 
+/**
+ * Present only on a reply the backend could not finish. A refused inference
+ * call (e.g. the portal has no paid AI Tools wallet service) still lands in the
+ * thread as an assistant message: empty `content` plus this status.
+ */
+export type AiThreadMessageStatus = {
+  type?: string;
+  reason?: string;
+  error?: { code?: string; message?: string };
+};
+
 export type AiThreadMessage = {
   id: string;
   role: "user" | "assistant";
-  content: Array<{ type: string; text?: string }>;
+  /** "" instead of the usual blocks when the reply failed. */
+  content: Array<{ type: string; text?: string }> | string;
   createdAt: number;
+  status?: AiThreadMessageStatus;
 };
 
 export class AiAgentChat extends AiHttp {
@@ -364,10 +377,28 @@ export class AiAgentChat extends AiHttp {
     return messages;
   }
 
+  /** Flattens one message's content, which is "" on a failed reply. */
+  static messageText(message: AiThreadMessage): string {
+    return typeof message.content === "string"
+      ? message.content
+      : message.content.map((block) => block.text ?? "").join("\n");
+  }
+
   static assistantText(messages: AiThreadMessage[]): string {
     return messages
       .filter((message) => message.role === "assistant")
-      .flatMap((message) => message.content.map((block) => block.text ?? ""))
+      .map((message) => AiAgentChat.messageText(message))
       .join("\n");
+  }
+
+  /**
+   * Status of the newest assistant reply. `undefined` on a reply the model
+   * finished normally, populated when the backend gave up on it.
+   */
+  static assistantStatus(
+    messages: AiThreadMessage[],
+  ): AiThreadMessageStatus | undefined {
+    const replies = messages.filter((message) => message.role === "assistant");
+    return replies[replies.length - 1]?.status;
   }
 }

@@ -448,7 +448,7 @@ test.describe("Thread management", () => {
     expect(status).toBe(200);
     expect(data).toHaveLength(1);
     expect(data[0].role).toBe("user");
-    expect(data[0].content[0].text).toBe("Just recording this");
+    expect(AiAgentChat.messageText(data[0])).toBe("Just recording this");
   });
 
   test("POST /api/2.0/ai/threads/touch - Owner touches a thread", async ({
