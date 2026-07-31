@@ -1,6 +1,10 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { FileShare, EmployeeStatus } from "@onlyoffice/docspace-api-sdk";
+import {
+  FileShare,
+  EmployeeStatus,
+  RoomType,
+} from "@onlyoffice/docspace-api-sdk";
 
 test.describe("GET /api/2.0/files/file/{fileId}/group/{groupId}/share", () => {
   test("BUG 81023: GET /api/2.0/files/file/{fileId}/group/{groupId}/share - Guest gets group member count when file is shared only with guest", async ({
@@ -244,4 +248,227 @@ test.describe("PUT /api/2.0/files/file/{fileId}/share", () => {
       "The field SharingMessage must be a string with a maximum length of 255.",
     ]);
   });
+});
+
+test.describe("POST /api/2.0/files/share", () => {
+  test("POST /api/2.0/files/share - Unauthenticated request returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().sharing.getSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/files/share - Owner can call getSecurityInfo on own file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.sharing.getSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("POST /api/2.0/files/share - DocSpaceAdmin can call getSecurityInfo on room file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: docSpaceAdminData, api: docSpaceAdminApi } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const docSpaceAdminId = docSpaceAdminData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Security Info Room",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: docSpaceAdminId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Security Info File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await docSpaceAdminApi.sharing.getSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("POST /api/2.0/files/share - RoomAdmin can call getSecurityInfo on room file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomAdminData, api: roomAdminApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Security Info Room",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: roomAdminId, access: FileShare.RoomManager }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Security Info File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await roomAdminApi.sharing.getSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("POST /api/2.0/files/share - User with file access can call getSecurityInfo", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await userApi.sharing.getSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  // BUG XXXXX: POST /api/2.0/files/share - User without file access gets 200 instead of 403
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/share - User without file access gets 200 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Security Info File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+
+      const { status } = await userApi.sharing.getSecurityInfo({
+        baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test("POST /api/2.0/files/share - Guest with file access can call getSecurityInfo", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: guestData, api: guestApi } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await guestApi.sharing.getSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  // BUG XXXXX: POST /api/2.0/files/share - Guest without file access gets 200 instead of 403
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/files/share - Guest without file access gets 200 instead of 403",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Security Info File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
+
+      const { status } = await guestApi.sharing.getSecurityInfo({
+        baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+      });
+
+      expect(status).toBe(403);
+    },
+  );
 });
