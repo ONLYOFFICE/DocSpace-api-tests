@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 
 test.describe("AI Vectorization - AI Disabled", () => {
-  test("POST /api/2.0/ai/vectorization - returns 403 when AI access is disabled", async ({
+  test("POST /api/2.0/ai/vectorization/tasks - returns 403 when AI access is disabled", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
