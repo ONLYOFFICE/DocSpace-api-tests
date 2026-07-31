@@ -64,35 +64,10 @@ test.describe("AI Settings - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("POST /api/2.0/ai/text-to-docx - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
-
-    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
-    const folderId = myFolder.response!.current!.id!;
-
-    const before = await aiSettings.textToDocx("owner", {
-      title: "Exported AI Message before",
-      content: "hello",
-      folderId,
-    });
-    expect(before.status).toBe(202);
-
-    const disabled = await setPortalAiAccess(ownerApi, false);
-    expect(disabled.writeStatus).toBe(200);
-    expect(disabled.enabled).toBe(false);
-
-    const { status, error } = await aiSettings.textToDocx("owner", {
-      title: "Exported AI Message after",
-      content: "hello",
-      folderId,
-    });
-
-    expect(error).toBe("Forbidden");
-    expect(status).toBe(403);
-  });
+  // `POST /ai/text-to-docx` is gated by the switch too, but it lives in the
+  // messages suite (it replaced the removed message export), and its off-state
+  // needs the target folder checked for a document that must not appear — see
+  // messages.ai-disabled.spec.ts.
 
   test("POST /api/2.0/ai/vectorization/tasks - returns 403 when AI access is disabled", async ({
     apiSdk,
@@ -265,42 +240,9 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
     expect(data).toBe(false);
   });
 
-  test("POST /api/2.0/ai/text-to-docx - exports text without a paid AI Tools service", async ({
-    apiSdk,
-  }) => {
-    // Pinned as NOT AI-gated: the export is a document-builder job, it never
-    // reaches the AI gateway, so an unpaid portal still gets its file.
-    const ownerApi = apiSdk.forRole("owner");
-    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
-
-    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
-    const folderId = myFolder.response!.current!.id!;
-    const title = `Exported ${apiSdk.faker.generateString(8)}`;
-
-    const { data, status } = await aiSettings.textToDocx("owner", {
-      title,
-      content: "The assistant said hello.",
-      folderId,
-    });
-    expect(status).toBe(202);
-    expect(data?.success).toBe(true);
-
-    // 202: generation is asynchronous, so poll the folder for the new file.
-    let titles: string[] = [];
-    let found = false;
-    for (let attempt = 0; attempt < 20 && !found; attempt++) {
-      const { data: folder } = await ownerApi.folders.getFolderByFolderId({
-        folderId,
-      });
-      titles = (folder.response?.files ?? []).map((file) => file.title ?? "");
-      found = titles.some((name) => name.startsWith(title));
-      if (!found) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-    }
-
-    expect(found).toBe(true);
-  });
+  // `POST /ai/text-to-docx` works on an unpaid portal as well — pinned in
+  // messages.ai-disabled.spec.ts together with the rest of that endpoint's
+  // off-state behaviour.
 
   test("POST /api/2.0/ai/vectorization/tasks - is accepted without a paid AI Tools service", async ({
     apiSdk,

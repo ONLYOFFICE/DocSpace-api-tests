@@ -19,6 +19,17 @@ export type AiUserConfig = {
   chatRecommendedModelVisible?: boolean;
 };
 
+/**
+ * Body of `POST /ai/text-to-docx`. The types are deliberately wider than the
+ * DTO: negative tests need to send a null title or a folderId of the wrong
+ * type, and doing that through the type system beats casting at every call.
+ */
+export type TextToDocxBody = {
+  title?: string | null;
+  content?: string | null;
+  folderId?: number | string | null;
+};
+
 export class AiSettings extends AiHttp {
   getAiConfig(role: AgentRole) {
     return this.call<Envelope<Record<string, unknown>>>(
@@ -88,10 +99,7 @@ export class AiSettings extends AiHttp {
   }
 
   /** Replaces the removed POST /ai/messages/{id}/export. Success is 202. */
-  textToDocx(
-    role: AgentRole,
-    body: { title?: string; content?: string; folderId?: number },
-  ) {
+  textToDocx(role: AgentRole, body: TextToDocxBody) {
     return this.call<{ success?: boolean }>(
       role,
       "post",
