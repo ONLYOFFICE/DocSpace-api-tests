@@ -394,9 +394,9 @@ test.describe("POST /api/2.0/files/share", () => {
     expect(data.statusCode).toBe(200);
   });
 
-  // BUG XXXXX: POST /api/2.0/files/share - User without file access gets 200 with sensitive sharing info instead of 403
+  // BUG XXXXX: POST /api/2.0/files/share - User without file access gets 200 instead of 403
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/share - User without file access gets 200 with sensitive sharing info instead of 403",
+    "BUG XXXXX: POST /api/2.0/files/share - User without file access gets 200 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -448,9 +448,9 @@ test.describe("POST /api/2.0/files/share", () => {
     expect(data.statusCode).toBe(200);
   });
 
-  // BUG XXXXX: POST /api/2.0/files/share - Guest without file access gets 200 with sensitive sharing info instead of 403
+  // BUG XXXXX: POST /api/2.0/files/share - Guest without file access gets 200 instead of 403
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/share - Guest without file access gets 200 with sensitive sharing info instead of 403",
+    "BUG XXXXX: POST /api/2.0/files/share - Guest without file access gets 200 instead of 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
