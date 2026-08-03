@@ -1,15 +1,28 @@
 import { test } from "@/src/fixtures";
 import { expect } from "@playwright/test";
-import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
-import { FileShare, FolderType } from "@onlyoffice/docspace-api-sdk";
+import {
+  createAgentWithKnowledgeFolder,
+  createKnowledgeFile,
+} from "@/src/helpers/ai-vectorization";
+import { FileShare } from "@onlyoffice/docspace-api-sdk";
+
+const ROLES = ["DocSpaceAdmin", "RoomAdmin", "User", "Guest"] as const;
 
 test.describe("Vectorization - startTask permissions", () => {
   test("POST /api/2.0/ai/vectorization/tasks - Anonymous gets 401 Unauthorized", async ({
     apiSdk,
+    paymentsApi,
   }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    // AI is enabled first so the 401 cannot come from a disabled-AI 403 instead.
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
     const anonApi = apiSdk.forAnonymous();
 
+    // File id 1 need not exist: authentication must be rejected before the
+    // endpoint looks the file up.
     const { status } = await anonApi.vectorization.startTask({
       vectorizationStartRequestBody: {
         files: new Set([1]),
@@ -19,7 +32,10 @@ test.describe("Vectorization - startTask permissions", () => {
     expect(status).toBe(401);
   });
 
-  for (const role of ["DocSpaceAdmin", "RoomAdmin", "User", "Guest"] as const) {
+  // The member gets the id of a REAL file the owner created in the agent's
+  // Knowledge folder, so a rejection can only be about the caller's rights —
+  // passing a folder id here would let the endpoint fail on the input instead.
+  for (const role of ROLES) {
     test.fail(
       `BUG 80736: POST /api/2.0/ai/vectorization/tasks - ${role} with Viewer role cannot start vectorization task`,
       async ({ apiSdk, paymentsApi }) => {
@@ -27,47 +43,31 @@ test.describe("Vectorization - startTask permissions", () => {
 
         await enableAiGateway(paymentsApi, ownerApi.payment);
 
-        const { data: agentData } = await ownerApi.agents.createAgent({
-          createAgentRequestDto: {
-            title: "Autotest Vectorization Agent",
-            color: "FF5733",
-            cover: "layers",
-            tags: ["autotest", "vectorization"],
-            chatSettings: {
-              providerId: onlyofficeAiProvider.providerId,
-              modelId: onlyofficeAiProvider.defaultModel,
-              prompt: "You are a test assistant",
-            },
-          },
-        });
-        const agentId = agentData.response!.id!;
+        const { agentId, knowledgeFolderId } =
+          await createAgentWithKnowledgeFolder(apiSdk);
+
+        const fileId = await createKnowledgeFile(
+          ownerApi,
+          knowledgeFolderId,
+          `Autotest Vectorization Viewer ${role}.docx`,
+        );
 
         const { data: memberData, userData } = await apiSdk.addMember(
           "owner",
           role,
         );
-        const memberId = memberData.response!.id!;
 
         await ownerApi.rooms.setRoomSecurity({
           id: agentId,
           roomInvitationRequest: {
-            invitations: [{ id: memberId, access: FileShare.Read }],
+            invitations: [
+              { id: memberData.response!.id!, access: FileShare.Read },
+            ],
             notify: false,
           },
         });
 
         const memberApi = await apiSdk.authenticateMember(userData, role);
-
-        const { data: foldersData } = await memberApi.folders.getFolders({
-          folderId: agentId,
-        });
-        const folders = foldersData.response as any[];
-        const knowledgeFolder = folders?.find(
-          (f: any) => f.type === FolderType.Knowledge,
-        );
-        expect(knowledgeFolder).toBeDefined();
-
-        const fileId = knowledgeFolder.id;
 
         const { status } = await memberApi.vectorization.startTask({
           vectorizationStartRequestBody: {
@@ -80,7 +80,7 @@ test.describe("Vectorization - startTask permissions", () => {
     );
   }
 
-  for (const role of ["DocSpaceAdmin", "RoomAdmin", "User", "Guest"] as const) {
+  for (const role of ROLES) {
     test.fail(
       `BUG 80736: POST /api/2.0/ai/vectorization/tasks - ${role} not added to agent cannot start vectorization task`,
       async ({ apiSdk, paymentsApi }) => {
@@ -88,31 +88,14 @@ test.describe("Vectorization - startTask permissions", () => {
 
         await enableAiGateway(paymentsApi, ownerApi.payment);
 
-        const { data: agentData } = await ownerApi.agents.createAgent({
-          createAgentRequestDto: {
-            title: "Autotest Vectorization Agent",
-            color: "FF5733",
-            cover: "layers",
-            tags: ["autotest", "vectorization"],
-            chatSettings: {
-              providerId: onlyofficeAiProvider.providerId,
-              modelId: onlyofficeAiProvider.defaultModel,
-              prompt: "You are a test assistant",
-            },
-          },
-        });
-        const agentId = agentData.response!.id!;
+        const { knowledgeFolderId } =
+          await createAgentWithKnowledgeFolder(apiSdk);
 
-        const { data: foldersData } = await ownerApi.folders.getFolders({
-          folderId: agentId,
-        });
-        const folders = foldersData.response as any[];
-        const knowledgeFolder = folders?.find(
-          (f: any) => f.type === FolderType.Knowledge,
+        const fileId = await createKnowledgeFile(
+          ownerApi,
+          knowledgeFolderId,
+          `Autotest Vectorization Outsider ${role}.docx`,
         );
-        expect(knowledgeFolder).toBeDefined();
-
-        const fileId = knowledgeFolder.id;
 
         const { api: memberApi } = await apiSdk.addAuthenticatedMember(
           "owner",

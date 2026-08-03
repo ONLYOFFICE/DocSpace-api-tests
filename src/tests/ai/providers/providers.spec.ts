@@ -16,11 +16,24 @@ import {
   expectProviderUrlRefused,
 } from "@/src/helpers/ssrf-payloads";
 
+// SKIPPED: the whole provider area was removed from the product. Every
+// /api/2.0/ai/providers* route answers 404 — manual providers were replaced by
+// gateway profiles (GET /api/2.0/ai/profiles/list), see src/helpers/ai-agent-chat.ts.
+//
+// Kept rather than deleted because the feature may come back. If it does, drop
+// the .skip on the describes below and re-verify against the live contract —
+// these assertions were written for the pre-rewrite API and the error envelope
+// has changed since ({"error":"..."}, no statusCode / error.message).
+//
+// Note this also parks the SSRF regression tests for the OpenAI proxy and the
+// provider-URL surface. Both were already inert on the gateway build (404 / 403
+// before any URL handling), so nothing reachable is left uncovered today.
+
 // The product runs AI through the built-in "ONLYOFFICE AI" gateway. Manual
 // provider management (add / update / delete / set-default / available) is
 // disabled by the gateway (returns 403), so only the read endpoints below are
 // exercised — they return the single built-in gateway provider.
-test.describe("AI Providers - Get", () => {
+test.describe.skip("AI Providers - Get", () => {
   test("GET /api/2.0/ai/providers - Owner gets the gateway provider", async ({
     apiSdk,
   }) => {
@@ -73,7 +86,7 @@ test.describe("AI Providers - Get", () => {
   });
 });
 
-test.describe("AI Providers - Get Default", () => {
+test.describe.skip("AI Providers - Get Default", () => {
   test("GET /api/2.0/ai/providers/default - Owner gets the gateway default provider", async ({
     apiSdk,
   }) => {
@@ -162,7 +175,7 @@ test.describe("AI Providers - Get Default", () => {
 // which were removed from the product. These tests therefore act as a
 // regression guard: they pass on the current inert 404 and would fail the day a
 // live proxy starts returning a proxied 2xx / canary response.
-test.describe("AI Providers - OpenAI proxy SSRF protection", () => {
+test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
   // The provider id we proxy through is the one the product actually uses today:
   // the built-in gateway, read back the same way the app does — each test calls
   // getDefaultProvider() and uses data.response.providerId.
@@ -405,7 +418,8 @@ const forbiddenProviderUrls = [
   ...unsafeSchemeUrls,
 ];
 
-test.describe("AI Providers - Provider URL SSRF protection (preview)", () => {
+test.describe
+  .skip("AI Providers - Provider URL SSRF protection (preview)", () => {
   for (const { name, url } of forbiddenProviderUrls) {
     test(`POST /api/2.0/ai/providers/preview - Owner: forbidden URL is refused before connect: ${name}`, async ({
       apiSdk,
@@ -425,7 +439,8 @@ test.describe("AI Providers - Provider URL SSRF protection (preview)", () => {
   }
 });
 
-test.describe("AI Providers - Provider URL SSRF protection (create)", () => {
+test.describe
+  .skip("AI Providers - Provider URL SSRF protection (create)", () => {
   for (const { name, url } of forbiddenProviderUrls) {
     test(`POST /api/2.0/ai/providers - Owner: forbidden URL is refused before connect: ${name}`, async ({
       apiSdk,
@@ -472,7 +487,8 @@ test.describe("AI Providers - Provider URL SSRF protection (create)", () => {
   });
 });
 
-test.describe("AI Providers - Provider URL SSRF protection (update)", () => {
+test.describe
+  .skip("AI Providers - Provider URL SSRF protection (update)", () => {
   for (const { name, url } of forbiddenProviderUrls) {
     test(`PUT /api/2.0/ai/providers/:id - Owner: forbidden URL is refused before connect: ${name}`, async ({
       apiSdk,

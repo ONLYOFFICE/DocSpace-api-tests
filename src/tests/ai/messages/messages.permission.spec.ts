@@ -1,674 +1,423 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { FileShare } from "@onlyoffice/docspace-api-sdk";
-import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
-import { enableAiGateway } from "@/src/helpers/wallet-services";
+import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import { AiSettings } from "@/src/helpers/ai-settings";
+import { AgentRole } from "@/src/helpers/ai-http";
+import { UserType } from "@/src/services/api-sdk";
+import {
+  listFolderFiles,
+  waitForStableFolderFiles,
+  waitForExportToSettle,
+  waitForExportedFile,
+} from "@/src/helpers/text-to-docx";
 
-test.describe("AI Messages - Export Permissions (not a member of agent)", () => {
-  test("BUG 80770: POST /api/2.0/ai/messages/:messageId/export - DocSpaceAdmin cannot export message without being in agent", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
+// Permissions of `POST /api/2.0/ai/text-to-docx`, the endpoint that replaced the
+// removed `POST /ai/messages/{messageId}/export` (404, as is
+// `POST /ai/chats/{chatId}/messages/export`). The old suite here drove the
+// removed chat surface and tracked BUG 80770 (export without agent membership),
+// BUG 80772 (export as a Viewer) and BUG 80779 (messageId 0 / -1); none of them
+// can be re-checked, because the new endpoint takes no message and no agent.
+//
+// The one rule this endpoint enforces, verified against a live portal on
+// 2026-07-31: the caller must be able to create files in the target folder.
+// Nothing else matters — not the user type, not who owns the portal:
+//
+//   * DocSpaceAdmin, RoomAdmin and User all get 202 for their own My Documents.
+//   * a Guest, who has no My Documents at all, gets 202 for a room where they
+//     hold Content Creator.
+//   * the Owner gets 403 for another user's My Documents, and so does a
+//     DocSpaceAdmin.
+//   * a room member with Viewer or Editor access gets 403, exactly as
+//     `POST /files/{folderId}/file` does for them.
+//
+// Which is why no test here exports into a folder the caller does not own: a 403
+// on someone else's My Documents says nothing about the caller's user type.
+//
+// One role per test on purpose — `apiSdk.request` is a single context whose
+// session cookie beats the bearer token, so a second authenticated member in the
+// same test would hijack every later AI call.
+//
+// That caveat applies to the AI calls only. State is read back through the SDK
+// clients, and those go through an axios adapter that sends `Cookie: ""` on every
+// request (src/utils/playwright-axios-adapter.ts:102), so `ownerApi` and
+// `memberApi` keep acting as the role their bearer token belongs to no matter
+// whose session the shared context is currently holding. Every "nothing was
+// created" assertion below is still written against a folder that holds a known
+// control file, so a listing the caller could not read would fail the test
+// instead of looking like an empty folder — and `listFolderFiles` throws on a
+// non-200 read for the same reason.
 
-    await enableAiGateway(paymentsApi, ownerApi.payment);
+const MEMBER_TYPES: Array<{ type: UserType; role: AgentRole }> = [
+  { type: "DocSpaceAdmin", role: "docSpaceAdmin" },
+  { type: "RoomAdmin", role: "roomAdmin" },
+  { type: "User", role: "user" },
+];
 
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
+test.describe("AI Messages - text-to-docx own-folder permissions", () => {
+  for (const { type, role } of MEMBER_TYPES) {
+    test(`POST /api/2.0/ai/text-to-docx - ${role} exports into their own My Documents`, async ({
+      apiSdk,
+    }) => {
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        type,
+      );
+
+      // The member's own folder, not the Owner's: writing into the Owner's My
+      // Documents is refused for everyone, so it cannot show whether the user
+      // type is allowed to call the endpoint at all.
+      const { data: myFolder } = await memberApi.folders.getMyFolder({});
+      const folderId = myFolder.response!.current!.id!;
+
+      const title = `Exported ${apiSdk.faker.generateString(8)}`;
+      const { data, status } = await aiSettings.textToDocx(role, {
+        title,
+        content: "The assistant said hello.",
+        folderId,
+      });
+      expect(status).toBe(202);
+      expect(data?.success).toBe(true);
+
+      const exported = await waitForExportedFile(
+        memberApi,
+        folderId,
+        `${title}.docx`,
+      );
+      expect(
+        exported,
+        `no "${title}.docx" in the ${role}'s My Documents`,
+      ).toBeDefined();
+      expect(exported!.fileExst).toBe(".docx");
     });
-    const agentRoomId = agentData.response!.id!;
+  }
 
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
+  test("GET /api/2.0/files/@my - a Guest has no My Documents to export into", async ({
+    apiSdk,
+  }) => {
+    // Pinned because it is the reason the Guest case has to go through a room:
+    // there is no personal folder to aim a Guest export at.
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
     );
 
-    const { data: chatsData } = await ownerApi.chat.getChats({
-      roomId: agentRoomId,
+    const { status } = await guestApi.folders.getMyFolder({});
+
+    expect(status).toBe(404);
+  });
+});
+
+test.describe("AI Messages - text-to-docx target folder permissions", () => {
+  // Access levels that do not carry "create a file in this room". The export is
+  // refused for exactly the same set, which is the evidence that the endpoint
+  // defers to the folder's permissions instead of checking the user type.
+  for (const { label, access } of [
+    { label: "Viewer", access: FileShare.Read },
+    { label: "Editor", access: FileShare.Editing },
+  ]) {
+    test(`POST /api/2.0/ai/text-to-docx - a room member with ${label} access cannot export into the room`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TextToDocx Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      // A file the member is allowed to see, so the check at the end is "the
+      // room still holds exactly this" rather than "the listing was empty",
+      // which is also what an unreadable room would look like.
+      const { data: control } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Control" },
+      });
+      const controlId = control.response!.id!;
+
+      const { data: memberData, userData } = await apiSdk.addMember(
+        "owner",
+        "User",
+      );
+      const { status: shareStatus } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
+      expect(shareStatus).toBe(200);
+
+      const memberApi = await apiSdk.authenticateMember(userData, "User");
+
+      // Reference behaviour: this access level cannot create a file in the room
+      // through the files API either.
+      const { status: createStatus } = await memberApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Direct Create" },
+      });
+      expect(createStatus).toBe(403);
+
+      const title = `Exported ${apiSdk.faker.generateString(8)}`;
+      const { status, error } = await aiSettings.textToDocx("user", {
+        title,
+        content: "hello",
+        folderId: roomId,
+      });
+
+      await waitForExportToSettle();
+      expect(
+        (await listFolderFiles(memberApi, roomId)).map((f) => f.id),
+      ).toEqual([controlId]);
+      expect(error).toBe("Forbidden");
+      expect(status).toBe(403);
     });
-    const chatId = chatsData.response![0].id!;
+  }
 
-    const { data: messagesData } = await ownerApi.chat.getMessages({
-      chatId,
+  // Access levels that do carry it. RoomManager is granted to a RoomAdmin
+  // because a User or a Guest cannot hold it.
+  for (const { label, access, type, role } of [
+    {
+      label: "ContentCreator",
+      access: FileShare.ContentCreator,
+      type: "User",
+      role: "user",
+    },
+    {
+      label: "RoomManager",
+      access: FileShare.RoomManager,
+      type: "RoomAdmin",
+      role: "roomAdmin",
+    },
+    {
+      label: "ContentCreator",
+      access: FileShare.ContentCreator,
+      type: "Guest",
+      role: "guest",
+    },
+  ] as Array<{
+    label: string;
+    access: FileShare;
+    type: UserType;
+    role: AgentRole;
+  }>) {
+    test(`POST /api/2.0/ai/text-to-docx - a ${type} with ${label} access exports into someone else's room`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest TextToDocx Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: memberData, userData } = await apiSdk.addMember(
+        "owner",
+        type,
+      );
+      const { status: shareStatus } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
+      expect(shareStatus).toBe(200);
+
+      const memberApi = await apiSdk.authenticateMember(userData, type);
+
+      const title = `Exported ${apiSdk.faker.generateString(8)}`;
+      const { status } = await aiSettings.textToDocx(role, {
+        title,
+        content: "The assistant said hello.",
+        folderId: roomId,
+      });
+      expect(status).toBe(202);
+
+      // The room belongs to the Owner, so this also shows the export is not
+      // limited to folders the caller owns.
+      const exported = await waitForExportedFile(
+        memberApi,
+        roomId,
+        `${title}.docx`,
+      );
+      expect(exported, `no "${title}.docx" in the room`).toBeDefined();
     });
-    const aiMessage = messagesData.response!.find((m) => m.role === 1);
-    const messageId = aiMessage!.id!;
+  }
 
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
+  test("POST /api/2.0/ai/text-to-docx - a member cannot export into the Owner's My Documents", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
-    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const ownerFolderId = myFolder.response!.current!.id!;
+    const before = (
+      await waitForStableFolderFiles(ownerApi, ownerFolderId)
+    ).map((file) => file.id);
+    // The sample documents make this a positive control: an empty baseline would
+    // mean the folder was not really read as its owner.
+    expect(before.length).toBeGreaterThan(0);
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { status, error } = await aiSettings.textToDocx("user", {
+      title: `Exported ${apiSdk.faker.generateString(8)}`,
+      content: "hello",
+      folderId: ownerFolderId,
+    });
+
+    await waitForExportToSettle();
+    const after = (await listFolderFiles(ownerApi, ownerFolderId)).map(
+      (file) => file.id,
+    );
+    expect(after.sort()).toEqual(before.sort());
+    expect(error).toBe("Forbidden");
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - the Owner cannot export into a member's My Documents", async ({
+    apiSdk,
+  }) => {
+    // The portal Owner has no special standing here either.
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data: memberFolder } = await memberApi.folders.getMyFolder({});
+    const memberFolderId = memberFolder.response!.current!.id!;
+    const before = (
+      await waitForStableFolderFiles(memberApi, memberFolderId)
+    ).map((file) => file.id);
+    expect(before.length).toBeGreaterThan(0);
+
+    // The shared request context now carries the member's session, so the Owner
+    // has to take it back before the export runs as the Owner.
+    await apiSdk.authenticateOwner();
+
+    const { status, error } = await aiSettings.textToDocx("owner", {
+      title: `Exported ${apiSdk.faker.generateString(8)}`,
+      content: "hello",
+      folderId: memberFolderId,
+    });
+
+    await waitForExportToSettle();
+    const after = (await listFolderFiles(memberApi, memberFolderId)).map(
+      (file) => file.id,
+    );
+    expect(after.sort()).toEqual(before.sort());
+    expect(error).toBe("Forbidden");
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - a DocSpaceAdmin cannot export into a member's My Documents", async ({
+    apiSdk,
+  }) => {
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    // Both members are created before either is authenticated: adding a member
+    // while a member's session is current answers 403.
+    const { userData: adminUserData } = await apiSdk.addMember(
       "owner",
       "DocSpaceAdmin",
     );
-
-    const { data, status } = await adminApi.messages.exportMessage({
-      messageId,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-
-  test("BUG 80770: POST /api/2.0/ai/messages/:messageId/export - RoomAdmin cannot export message without being in agent", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
-    });
-    const agentRoomId = agentData.response!.id!;
-
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
-    );
-
-    const { data: chatsData } = await ownerApi.chat.getChats({
-      roomId: agentRoomId,
-    });
-    const chatId = chatsData.response![0].id!;
-
-    const { data: messagesData } = await ownerApi.chat.getMessages({
-      chatId,
-    });
-    const aiMessage = messagesData.response!.find((m) => m.role === 1);
-    const messageId = aiMessage!.id!;
-
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
-
-    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "RoomAdmin",
-    );
-
-    const { data, status } = await roomAdminApi.messages.exportMessage({
-      messageId,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-
-  test("BUG 80770: POST /api/2.0/ai/messages/:messageId/export - User cannot export message without being in agent", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
-    });
-    const agentRoomId = agentData.response!.id!;
-
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
-    );
-
-    const { data: chatsData } = await ownerApi.chat.getChats({
-      roomId: agentRoomId,
-    });
-    const chatId = chatsData.response![0].id!;
-
-    const { data: messagesData } = await ownerApi.chat.getMessages({
-      chatId,
-    });
-    const aiMessage = messagesData.response!.find((m) => m.role === 1);
-    const messageId = aiMessage!.id!;
-
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
-
-    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+    const { userData: memberUserData } = await apiSdk.addMember(
       "owner",
       "User",
     );
 
-    const { data, status } = await userApi.messages.exportMessage({
-      messageId,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
+    const memberApi = await apiSdk.authenticateMember(memberUserData, "User");
+    const { data: memberFolder } = await memberApi.folders.getMyFolder({});
+    const memberFolderId = memberFolder.response!.current!.id!;
+    const before = (
+      await waitForStableFolderFiles(memberApi, memberFolderId)
+    ).map((file) => file.id);
+    expect(before.length).toBeGreaterThan(0);
+
+    await apiSdk.authenticateMember(adminUserData, "DocSpaceAdmin");
+
+    const { status, error } = await aiSettings.textToDocx("docSpaceAdmin", {
+      title: `Exported ${apiSdk.faker.generateString(8)}`,
+      content: "hello",
+      folderId: memberFolderId,
     });
 
+    await waitForExportToSettle();
+    const after = (await listFolderFiles(memberApi, memberFolderId)).map(
+      (file) => file.id,
+    );
+    expect(after.sort()).toEqual(before.sort());
+    expect(error).toBe("Forbidden");
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
   });
 
-  test("BUG 80770: POST /api/2.0/ai/messages/:messageId/export - Guest cannot export message without being in agent", async ({
+  test("POST /api/2.0/ai/text-to-docx - a non-member cannot export into a room", async ({
     apiSdk,
-    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TextToDocx Closed Room",
+        roomType: RoomType.CustomRoom,
       },
     });
-    const agentRoomId = agentData.response!.id!;
+    const roomId = roomData.response!.id!;
 
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
-    );
-
-    const { data: chatsData } = await ownerApi.chat.getChats({
-      roomId: agentRoomId,
+    const { data: control } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Control" },
     });
-    const chatId = chatsData.response![0].id!;
+    const controlId = control.response!.id!;
 
-    const { data: messagesData } = await ownerApi.chat.getMessages({
-      chatId,
-    });
-    const aiMessage = messagesData.response!.find((m) => m.role === 1);
-    const messageId = aiMessage!.id!;
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
-
-    const { userData: guestUserData } = await apiSdk.addMember(
-      "owner",
-      "Guest",
-    );
-    const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-
-    const { data, status } = await guestApi.messages.exportMessage({
-      messageId,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
+    const { status, error } = await aiSettings.textToDocx("user", {
+      title: `Exported ${apiSdk.faker.generateString(8)}`,
+      content: "hello",
+      folderId: roomId,
     });
 
+    // An invisible room is refused, not hidden behind a 404. The room is read
+    // back as the Owner — the member cannot see it at all, so only the Owner's
+    // listing can say whether anything was created.
+    await waitForExportToSettle();
+    expect((await listFolderFiles(ownerApi, roomId)).map((f) => f.id)).toEqual([
+      controlId,
+    ]);
+    expect(error).toBe("Forbidden");
     expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
   });
-});
 
-test.describe("AI Messages - Export Permissions (Viewer in agent)", () => {
-  test("BUG 80772: POST /api/2.0/ai/messages/:messageId/export - DocSpaceAdmin with Viewer role cannot export message", async ({
+  test("POST /api/2.0/ai/text-to-docx - Anonymous gets 401 Unauthorized", async ({
     apiSdk,
-    paymentsApi,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
-    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
 
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
-    });
-    const agentRoomId = agentData.response!.id!;
-
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
-    );
-
-    const { data: chatsData } = await ownerApi.chat.getChats({
-      roomId: agentRoomId,
-    });
-    const chatId = chatsData.response![0].id!;
-
-    const { data: messagesData } = await ownerApi.chat.getMessages({
-      chatId,
-    });
-    const aiMessage = messagesData.response!.find((m) => m.role === 1);
-    const messageId = aiMessage!.id!;
-
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
-
-    const { api: adminApi, data: adminData } =
-      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    const adminId = adminData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: agentRoomId,
-      roomInvitationRequest: {
-        invitations: [{ id: adminId, access: FileShare.Read }],
-        notify: false,
-      },
+    const { status, error } = await aiSettings.textToDocx("anonymous", {
+      title: `Exported ${apiSdk.faker.generateString(8)}`,
+      content: "hello",
+      folderId,
     });
 
-    const { data, status } = await adminApi.messages.exportMessage({
-      messageId,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-
-  test("BUG 80772: POST /api/2.0/ai/messages/:messageId/export - RoomAdmin with Viewer role cannot export message", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
-    });
-    const agentRoomId = agentData.response!.id!;
-
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
-    );
-
-    const { data: chatsData } = await ownerApi.chat.getChats({
-      roomId: agentRoomId,
-    });
-    const chatId = chatsData.response![0].id!;
-
-    const { data: messagesData } = await ownerApi.chat.getMessages({
-      chatId,
-    });
-    const aiMessage = messagesData.response!.find((m) => m.role === 1);
-    const messageId = aiMessage!.id!;
-
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
-
-    const { api: roomAdminApi, data: roomAdminData } =
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-    const roomAdminId = roomAdminData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: agentRoomId,
-      roomInvitationRequest: {
-        invitations: [{ id: roomAdminId, access: FileShare.Read }],
-        notify: false,
-      },
-    });
-
-    const { data, status } = await roomAdminApi.messages.exportMessage({
-      messageId,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-
-  test("BUG 80772: POST /api/2.0/ai/messages/:messageId/export - User with Viewer role cannot export message", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
-    });
-    const agentRoomId = agentData.response!.id!;
-
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
-    );
-
-    const { data: chatsData } = await ownerApi.chat.getChats({
-      roomId: agentRoomId,
-    });
-    const chatId = chatsData.response![0].id!;
-
-    const { data: messagesData } = await ownerApi.chat.getMessages({
-      chatId,
-    });
-    const aiMessage = messagesData.response!.find((m) => m.role === 1);
-    const messageId = aiMessage!.id!;
-
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
-
-    const { api: userApi, data: userData } =
-      await apiSdk.addAuthenticatedMember("owner", "User");
-    const userId = userData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: agentRoomId,
-      roomInvitationRequest: {
-        invitations: [{ id: userId, access: FileShare.Read }],
-        notify: false,
-      },
-    });
-
-    const { data, status } = await userApi.messages.exportMessage({
-      messageId,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-
-  test("BUG 80772: POST /api/2.0/ai/messages/:messageId/export - Guest with Viewer role cannot export message", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
-    });
-    const agentRoomId = agentData.response!.id!;
-
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
-    );
-
-    const { data: chatsData } = await ownerApi.chat.getChats({
-      roomId: agentRoomId,
-    });
-    const chatId = chatsData.response![0].id!;
-
-    const { data: messagesData } = await ownerApi.chat.getMessages({
-      chatId,
-    });
-    const aiMessage = messagesData.response!.find((m) => m.role === 1);
-    const messageId = aiMessage!.id!;
-
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
-
-    const { data: guestData, userData: guestUserData } = await apiSdk.addMember(
-      "owner",
-      "Guest",
-    );
-    const guestId = guestData.response!.id!;
-
-    await ownerApi.rooms.setRoomSecurity({
-      id: agentRoomId,
-      roomInvitationRequest: {
-        invitations: [{ id: guestId, access: FileShare.Read }],
-        notify: false,
-      },
-    });
-
-    const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
-
-    const { data, status } = await guestApi.messages.exportMessage({
-      messageId,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
-    });
-
-    expect(status).toBe(403);
-    expect((data as any).error.message).toBe("Access denied");
-  });
-});
-
-test.describe("AI Messages - Export Validation", () => {
-  test("BUG 80779: POST /api/2.0/ai/messages/:messageId/export - returns 400 for messageId = 0", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
-    });
-    const agentRoomId = agentData.response!.id!;
-
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
-    );
-
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
-
-    const { data, status } = await ownerApi.messages.exportMessage({
-      messageId: 0,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
-    });
-
-    expect(status).toBe(400);
-    expect((data as any).response.errors.messageId[0]).toBe(
-      "The field MessageId must be between 1 and 2147483647.",
-    );
-  });
-
-  test("BUG 80779: POST /api/2.0/ai/messages/:messageId/export - returns 400 for messageId = -1", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const { data: agentData } = await ownerApi.agents.createAgent({
-      createAgentRequestDto: {
-        title: "Export Test Agent",
-        color: "FF5733",
-        cover: "layers",
-        tags: ["autotest"],
-        chatSettings: {
-          providerId: onlyofficeAiProvider.providerId,
-          modelId: onlyofficeAiProvider.defaultModel,
-          prompt: "You are a helpful test assistant. Keep answers very short.",
-        },
-      },
-    });
-    const agentRoomId = agentData.response!.id!;
-
-    await ownerApi.chat.startNewChat(
-      {
-        roomId: agentRoomId,
-        startNewChatBody: {
-          message: "What is 2+2? Answer in one word.",
-        },
-      },
-      { responseType: "stream" },
-    );
-
-    const { data: myFolderData } = await ownerApi.folders.getMyFolder({});
-    const myFolderId = myFolderData.response!.current!.id!;
-
-    const { data, status } = await ownerApi.messages.exportMessage({
-      messageId: -1,
-      exportMessageRequestBody: {
-        folderId: myFolderId,
-        title: "Exported AI Message",
-      },
-    });
-
-    expect(status).toBe(400);
-    expect((data as any).response.errors.messageId[0]).toBe(
-      "The field MessageId must be between 1 and 2147483647.",
-    );
-  });
-});
-
-test.describe("AI Messages - Export Unauthorized", () => {
-  test("POST /api/2.0/ai/messages/:messageId/export - Anonymous user gets 401 Unauthorized", async ({
-    apiSdk,
-  }) => {
-    const anonymousApi = apiSdk.forAnonymous();
-
-    const { status } = await anonymousApi.messages.exportMessage({
-      messageId: 1,
-      exportMessageRequestBody: {
-        folderId: 1,
-        title: "Exported AI Message",
-      },
-    });
-
+    expect(error).toBe("Unauthorized");
     expect(status).toBe(401);
   });
 });
