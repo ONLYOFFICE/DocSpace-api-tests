@@ -200,7 +200,7 @@ test.describe("AI Settings - per-user chat config", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/config/user - an empty body wipes the stored preference", async ({
+  test("BUG 82725: PUT /api/2.0/ai/config/user - an empty body wipes the stored preference", async ({
     apiSdk,
   }) => {
     // The DTO carries a single optional flag, so `{}` says "change nothing".

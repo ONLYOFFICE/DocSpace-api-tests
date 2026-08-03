@@ -659,7 +659,7 @@ test.describe("AI Instructions - stored HTML injection", () => {
   // and that log is what has to be read to tell the two apart. When the bug is
   // fixed this reports "Expected to fail, but passed".
   test.fail(
-    "BUG XXXXX: POST /ai/agents - attacker HTML stored in AI Instructions is delivered to another room member as active markup",
+    "BUG 82726: POST /ai/agents - attacker HTML stored in AI Instructions is delivered to another room member as active markup",
     async ({ apiSdk, paymentsApi }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
