@@ -345,7 +345,7 @@ test.describe("AI Attachments - cross-user access", () => {
     expect(status, "linking into a thread the caller cannot read").toBe(403);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/get - a User reads another user's image draft including its payload", async ({
+  test("BUG 82758: POST /api/2.0/ai/attachments/get - a User reads another user's image draft including its payload", async ({
     apiSdk,
   }) => {
     // Same defect through the single-id route and for the image kind, where the
