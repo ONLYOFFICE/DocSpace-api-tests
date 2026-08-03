@@ -41,7 +41,13 @@ export class AiHttp {
     method: "get" | "post" | "put" | "delete",
     path: string,
     body?: unknown,
-  ): Promise<{ status: number; data: T | undefined; error?: string }> {
+  ): Promise<{
+    status: number;
+    data: T | undefined;
+    error?: string;
+    /** Raw body — the only way to see inside a streamed (non-JSON) response. */
+    text: string;
+  }> {
     const response = await this.request[method](
       `${this.tokenStore.portalBaseUrl}${path}`,
       {
@@ -64,6 +70,11 @@ export class AiHttp {
         ? String((parsed as { error: unknown }).error)
         : undefined;
 
-    return { status: response.status(), data: parsed as T | undefined, error };
+    return {
+      status: response.status(),
+      data: parsed as T | undefined,
+      error,
+      text,
+    };
   }
 }

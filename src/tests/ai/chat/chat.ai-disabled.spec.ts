@@ -2,7 +2,9 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 import { AiTools } from "@/src/helpers/ai-tools";
+import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
+import { ApiSDK } from "@/src/services/api-sdk";
 
 // The chat surface moved from `/ai/rooms/{roomId}/chats` (404) to
 // `/ai/threads/*` + `/ai/ai/send-with-stream`. See the route map in
@@ -10,163 +12,233 @@ import { enableAiGateway } from "@/src/helpers/wallet-services";
 //
 // Two independent states turn AI off and both are covered here: the portal AI
 // switch (first block) and the unpaid "AI Tools" wallet service (second block).
+//
+// Everything in the first block runs against a REAL agent, thread and message
+// created while AI was still on. Pointing these calls at made-up ids would make
+// them untrustworthy: an unknown thread produces 200/404/"stream error"
+// depending on the route, so a fake-id test cannot tell "the AI switch refused
+// this" from "that id does not exist".
 
-const fakeAgentId = 999999999;
-const fakeThreadId = "019f0000-0000-7000-8000-000000000000";
+const REAL_THREAD_TITLE = "Autotest thread";
+const REAL_MESSAGE = "A message from before AI was turned off";
+
+type DisabledAiContext = {
+  aiChat: AiAgentChat;
+  profileId: string;
+  agentId: number;
+  threadId: string;
+  /** lastEditDate as it stood when the switch was flipped off. */
+  lastEditDate: number;
+};
+
+/**
+ * Builds a real agent/thread/message, then switches the portal AI access off
+ * and confirms the portal really stored the new value — asserting 403 after a
+ * disable call that silently failed is a false positive.
+ */
+async function withAiSwitchedOff(apiSdk: ApiSDK): Promise<DisabledAiContext> {
+  const ownerApi = apiSdk.forRole("owner");
+  const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+  const profileId = await aiChat.defaultProfileId("owner");
+  const agentId = await aiChat.createAgentId("owner", {
+    title: "Autotest Chat Agent",
+    profileId,
+  });
+  const threadId = await aiChat.createThreadId("owner", {
+    title: REAL_THREAD_TITLE,
+    profileId,
+    agentId,
+  });
+  const appended = await aiChat.appendUserMessage("owner", {
+    threadId,
+    profileId,
+    text: REAL_MESSAGE,
+  });
+  expect(appended.status, "seeding the thread with a message").toBe(200);
+
+  const thread = await aiChat.getThread("owner", threadId);
+  expect(thread.status).toBe(200);
+
+  const off = await setPortalAiAccess(ownerApi, false);
+  expect(off.writeStatus).toBe(200);
+  expect(off.enabled, "the portal AI switch was really turned off").toBe(false);
+
+  return {
+    aiChat,
+    profileId,
+    agentId,
+    threadId,
+    lastEditDate: thread.data!.lastEditDate!,
+  };
+}
+
+/** Turns AI back on so the thread can be inspected for side effects. */
+async function switchAiBackOn(apiSdk: ApiSDK) {
+  const on = await setPortalAiAccess(apiSdk.forRole("owner"), true);
+  expect(on.enabled, "the portal AI switch was turned back on").toBe(true);
+}
+
+type GatedCase = {
+  name: string;
+  act: (
+    context: DisabledAiContext,
+  ) => Promise<{ status: number; error?: string }>;
+  /** Verification run with AI switched back on. */
+  verifyUnchanged?: (context: DisabledAiContext) => Promise<void>;
+};
+
+const GATED_ROUTES: GatedCase[] = [
+  {
+    name: "GET /api/2.0/ai/threads/list",
+    act: ({ aiChat, agentId }) => aiChat.listThreads("owner", agentId),
+  },
+  {
+    name: "GET /api/2.0/ai/threads/get-by-id",
+    act: ({ aiChat, threadId }) => aiChat.getThread("owner", threadId),
+  },
+  {
+    name: "GET /api/2.0/ai/threads/read-messages",
+    act: ({ aiChat, threadId }) => aiChat.readMessages("owner", threadId),
+  },
+  {
+    name: "GET /api/2.0/ai/profiles/list",
+    // Replaces the removed GET /ai/chats/models.
+    act: ({ aiChat }) => aiChat.getProfiles("owner"),
+  },
+  {
+    name: "POST /api/2.0/ai/threads/create",
+    act: ({ aiChat, profileId, agentId }) =>
+      aiChat.createThread("owner", {
+        title: "Thread created while AI is off",
+        profileId,
+        agentId,
+      }),
+    verifyUnchanged: async ({ aiChat, agentId, threadId }) => {
+      const list = await aiChat.listThreads("owner", agentId);
+      expect(list.status).toBe(200);
+      expect(list.data.map((thread) => thread.threadId)).toEqual([threadId]);
+    },
+  },
+  {
+    name: "PUT /api/2.0/ai/threads/rename",
+    act: ({ aiChat, threadId }) =>
+      aiChat.renameThread("owner", threadId, "Renamed while AI is off"),
+    verifyUnchanged: async ({ aiChat, threadId }) => {
+      const { status, data } = await aiChat.getThread("owner", threadId);
+      expect(status).toBe(200);
+      expect(data?.title).toBe(REAL_THREAD_TITLE);
+    },
+  },
+  {
+    name: "DELETE /api/2.0/ai/threads/delete",
+    act: ({ aiChat, threadId }) => aiChat.deleteThread("owner", threadId),
+    verifyUnchanged: async ({ aiChat, agentId, threadId }) => {
+      const list = await aiChat.listThreads("owner", agentId);
+      expect(list.status).toBe(200);
+      expect(list.data.map((thread) => thread.threadId)).toContain(threadId);
+    },
+  },
+  {
+    name: "DELETE /api/2.0/ai/threads/clear-messages",
+    act: ({ aiChat, threadId }) =>
+      aiChat.clearThreadMessages("owner", threadId),
+    verifyUnchanged: async ({ aiChat, threadId }) => {
+      const { status, data } = await aiChat.readMessages("owner", threadId);
+      expect(status).toBe(200);
+      expect(data).toHaveLength(1);
+      expect(AiAgentChat.messageText(data[0])).toBe(REAL_MESSAGE);
+    },
+  },
+  {
+    name: "POST /api/2.0/ai/threads/append-user-message",
+    act: ({ aiChat, threadId, profileId }) =>
+      aiChat.appendUserMessage("owner", {
+        threadId,
+        profileId,
+        text: "Appended while AI is off",
+      }),
+    verifyUnchanged: async ({ aiChat, threadId }) => {
+      const { status, data } = await aiChat.readMessages("owner", threadId);
+      expect(status).toBe(200);
+      expect(data).toHaveLength(1);
+      expect(AiAgentChat.messageText(data[0])).toBe(REAL_MESSAGE);
+    },
+  },
+  {
+    name: "POST /api/2.0/ai/threads/touch",
+    act: ({ aiChat, threadId }) => aiChat.touchThread("owner", threadId),
+    verifyUnchanged: async ({ aiChat, threadId, lastEditDate }) => {
+      const { status, data } = await aiChat.getThread("owner", threadId);
+      expect(status).toBe(200);
+      expect(data?.lastEditDate).toBe(lastEditDate);
+    },
+  },
+];
 
 test.describe("AI Chat - AI Disabled", () => {
-  test("GET /api/2.0/ai/threads/list - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+  for (const { name, act, verifyUnchanged } of GATED_ROUTES) {
+    test(`${name} - returns 403 when AI access is disabled`, async ({
+      apiSdk,
+    }) => {
+      const context = await withAiSwitchedOff(apiSdk);
 
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      const { status, error } = await act(context);
+
+      if (verifyUnchanged) {
+        await switchAiBackOn(apiSdk);
+        await verifyUnchanged(context);
+      }
+
+      expect(error).toBe("Forbidden");
+      expect(status).toBe(403);
     });
+  }
 
-    const { status } = await aiChat.listThreads("owner", fakeAgentId);
-
-    expect(status).toBe(403);
-  });
-
-  test("POST /api/2.0/ai/threads/create - returns 403 when AI access is disabled", async ({
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - reports the refusal inside a 200 instead of returning 403", async ({
     apiSdk,
+    paymentsApi,
   }) => {
+    // Every other thread route answers a clean 403 once the portal AI switch is
+    // off. This one answers HTTP 200 and puts the refusal in the stream body as
+    // `{"type":"error","message":"stream error"}` — an opaque message a client
+    // cannot act on, and a status a client will read as success.
+    //
+    // Inference itself IS blocked: nothing reaches the model and nothing is
+    // stored in the thread, which is what the assertions below establish before
+    // the status is checked. The defect is the response contract, not access.
     const ownerApi = apiSdk.forRole("owner");
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
+    const context = await withAiSwitchedOff(apiSdk);
+    const { aiChat, profileId, agentId, threadId } = context;
 
-    const { status } = await aiChat.createThread("owner", {
-      title: "Autotest thread",
+    const { status, streamError } = await aiChat.sendMessage("owner", {
+      threadId,
       profileId,
-      agentId: fakeAgentId,
+      agentId,
+      message: "What is 2+2? Answer in one word.",
     });
 
-    expect(status).toBe(403);
-  });
-
-  test("GET /api/2.0/ai/threads/get-by-id - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await aiChat.getThread("owner", fakeThreadId);
-
-    expect(status).toBe(403);
-  });
-
-  test("GET /api/2.0/ai/threads/read-messages - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await aiChat.readMessages("owner", fakeThreadId);
-
-    expect(status).toBe(403);
-  });
-
-  test("PUT /api/2.0/ai/threads/rename - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await aiChat.renameThread(
+    // The request neither reached the model nor touched the thread: no new user
+    // message, no assistant reply, not even a failed one.
+    await switchAiBackOn(apiSdk);
+    const messages = await aiChat.waitForAssistantReplies(
       "owner",
-      fakeThreadId,
-      "Renamed",
+      threadId,
+      1,
+      20000,
     );
+    expect(messages).toHaveLength(1);
+    expect(AiAgentChat.messageText(messages[0])).toBe(REAL_MESSAGE);
+    expect(AiAgentChat.assistantMessages(messages)).toHaveLength(0);
 
-    expect(status).toBe(403);
-  });
+    // What the endpoint actually does today.
+    expect(streamError).toBe("stream error");
 
-  test("DELETE /api/2.0/ai/threads/delete - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await aiChat.deleteThread("owner", fakeThreadId);
-
-    expect(status).toBe(403);
-  });
-
-  test("DELETE /api/2.0/ai/threads/clear-messages - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await aiChat.clearThreadMessages("owner", fakeThreadId);
-
-    expect(status).toBe(403);
-  });
-
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - still answers 200 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    // Every other thread route is gated by the portal AI switch; the send
-    // endpoint is not, so inference stays reachable after AI is turned off.
-    const ownerApi = apiSdk.forRole("owner");
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const { status } = await aiChat.sendMessage("owner", {
-      threadId: fakeThreadId,
-      profileId,
-      agentId: fakeAgentId,
-      message: "Hello",
-    });
-
+    // What it should do: refuse like every neighbouring route.
     test.fail();
     expect(status).toBe(403);
-  });
-
-  test("GET /api/2.0/ai/profiles/list - returns 403 when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    // Replaces the removed GET /ai/chats/models.
-    const ownerApi = apiSdk.forRole("owner");
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-
-    await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
-    });
-
-    const profiles = await aiChat.listProfiles("owner");
-
-    expect(profiles).toEqual([]);
   });
 });
 
@@ -190,27 +262,21 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     const ownerApi = apiSdk.forRole("owner");
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
-    const profiles = await aiChat.listProfiles("owner");
-    expect(profiles.length).toBeGreaterThan(0);
-    const profileId = profiles[0].id;
-
-    const created = await aiChat.createAgent("owner", {
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Unpaid AI Agent",
       profileId,
       prompt: "You are a test assistant",
     });
-    expect(created.status).toBe(200);
-    const agentId = created.data!.response!.id!;
 
-    const unpaidThread = await aiChat.createThread("owner", {
+    const unpaidThread = await aiChat.createThreadId("owner", {
       title: "Autotest unpaid thread",
       profileId,
       agentId,
     });
-    expect(unpaidThread.status).toBe(200);
 
     const unpaidSend = await aiChat.sendMessage("owner", {
-      threadId: unpaidThread.threadId,
+      threadId: unpaidThread,
       profileId,
       agentId,
       message: "Say hi",
@@ -219,7 +285,7 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
 
     const unpaidMessages = await aiChat.waitForAssistantReply(
       "owner",
-      unpaidThread.threadId,
+      unpaidThread,
       60000,
     );
     const unpaidStatus = AiAgentChat.assistantStatus(unpaidMessages);
@@ -233,15 +299,14 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
 
     // A fresh thread: the previous one already holds an assistant message, and
     // waitForAssistantReply returns on the first one it sees.
-    const paidThread = await aiChat.createThread("owner", {
+    const paidThread = await aiChat.createThreadId("owner", {
       title: "Autotest paid thread",
       profileId,
       agentId,
     });
-    expect(paidThread.status).toBe(200);
 
     const paidSend = await aiChat.sendMessage("owner", {
-      threadId: paidThread.threadId,
+      threadId: paidThread,
       profileId,
       agentId,
       message: "Say hi",
@@ -250,7 +315,7 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
 
     const paidMessages = await aiChat.waitForAssistantReply(
       "owner",
-      paidThread.threadId,
+      paidThread,
     );
 
     expect(AiAgentChat.assistantStatus(paidMessages)?.error).toBeUndefined();
@@ -271,7 +336,7 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
 
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Unpaid AI Agent",
-      profileId: profiles[0].id,
+      profileId: AiAgentChat.pickTextProfile(profiles).id,
     });
 
     const agents = await aiChat.getAgents("owner");
@@ -311,13 +376,13 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
       title: "Autotest Unpaid AI Agent",
       profileId,
     });
-    const thread = await aiChat.createThread("owner", {
+    const threadId = await aiChat.createThreadId("owner", {
       title: "Autotest unpaid thread",
       profileId,
       agentId,
     });
     await aiChat.sendMessage("owner", {
-      threadId: thread.threadId,
+      threadId,
       profileId,
       agentId,
       message: "Say hi",
@@ -325,12 +390,13 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
 
     const messages = await aiChat.waitForAssistantReply(
       "owner",
-      thread.threadId,
+      threadId,
       60000,
     );
 
-    const questions = messages.filter((message) => message.role === "user");
-    expect(questions.length).toBe(1);
+    const questions = AiAgentChat.userMessages(messages);
+    expect(questions).toHaveLength(1);
+    expect(AiAgentChat.messageText(questions[0])).toBe("Say hi");
     expect(AiAgentChat.assistantText(messages)).toBe("");
     expect(AiAgentChat.assistantStatus(messages)?.error?.code).toBe("auth");
   });

@@ -159,9 +159,12 @@ test.describe("AI Agents - AI Disabled", () => {
     });
 
     const { status } = await aiChat.getAgentInfo("owner", fakeAgentId);
-    const profiles = await aiChat.listProfiles("owner");
+    // An empty array would also be what a 403 body normalises to, so the
+    // catalogue call is asserted on its status, not on its payload.
+    const profiles = await aiChat.getProfiles("owner");
 
-    expect(profiles).toEqual([]);
+    expect(profiles.error).toBe("Forbidden");
+    expect(profiles.status).toBe(403);
     expect(status).toBe(403);
   });
 });

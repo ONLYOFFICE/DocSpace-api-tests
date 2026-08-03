@@ -1,0 +1,35 @@
+﻿
+Running 44 tests using 1 worker
+
+node.exe : (node:13368) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connect
+ions and HTTPS requests insecure by disabling certificate verification.
+At C:\Program Files\nodejs\npx.ps1:29 char:3
++   & $NODE_EXE $NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:13368) Wa...e verification.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13368) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+Portal domain: docspace-aa8ktg.onlyoffice.io
+Deleting portal: docspace-aa8ktg.onlyoffice.io
+  ok  1 [api-tests] › src\tests\ai\messages\messages.ai-disabled.spec.ts:29:7 › AI Messages - AI Disabled › POST /api/2.0/ai/text-to-docx - returns 403 when the portal AI switch is off (25.3s)
+Portal domain: docspace-12mrvc.onlyoffice.io
+Deleting portal: docspace-12mrvc.onlyoffice.io
+  ok  2 [api-tests] › src\tests\ai\messages\messages.ai-disabled.spec.ts:75:7 › AI Messages - AI Disabled › POST /api/2.0/ai/text-to-docx - body validation runs before the AI switch is checked (2.0s)
+Portal domain: docspace-f3mtwb.onlyoffice.io
+Deleting portal: docspace-f3mtwb.onlyoffice.io
+  ok  3 [api-tests] › src\tests\ai\messages\messages.ai-disabled.spec.ts:100:7 › AI Messages - AI Disabled › POST /api/2.0/ai/text-to-docx - exports text without a paid AI Tools service (10.1s)
+Portal domain: docspace-s18ibd.onlyoffice.io
+Deleting portal: docspace-s18ibd.onlyoffice.io
+  ok  4 [api-tests] › src\tests\ai\messages\messages.permission.spec.ts:58:9 › AI Messages - text-to-docx own-folder permissions › POST /api/2.0/ai/text-to-docx - docSpaceAdmin exports into their own My Documents (4.7s)
+Portal domain: docspace-nuhja9.onlyoffice.io
+Deleting portal: docspace-nuhja9.onlyoffice.io
+  ok  5 [api-tests] › src\tests\ai\messages\messages.permission.spec.ts:58:9 › AI Messages - text-to-docx own-folder permissions › POST /api/2.0/ai/text-to-docx - roomAdmin exports into their own My Documents (4.6s)
+Portal domain: docspace-8m6ofa.onlyoffice.io
+Deleting portal: docspace-8m6ofa.onlyoffice.io
+  ok  6 [api-tests] › src\tests\ai\messages\messages.permission.spec.ts:58:9 › AI Messages - text-to-docx own-folder permissions › POST /api/2.0/ai/text-to-docx - user exports into their own My Documents (5.5s)
+Portal domain: docspace-f5db53.onlyoffice.io
+Deleting portal: docspace-f5db53.onlyoffice.io
+  ok  7 [api-tests] › src\tests\ai\messages\messages.permission.spec.ts:96:7 › AI Messages - text-to-docx own-folder permissions › GET /api/2.0/files/@my - a Guest has no My Documents to export into (2.3s)
+Portal domain: docspace-kjskbg.onlyoffice.io
