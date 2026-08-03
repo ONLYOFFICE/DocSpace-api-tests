@@ -3,26 +3,45 @@ import { test } from "@/src/fixtures";
 import { FileShare } from "@onlyoffice/docspace-api-sdk";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { AiAgentChat, AgentRole } from "@/src/helpers/ai-agent-chat";
-import { AiTools } from "@/src/helpers/ai-tools";
+import { AiTools, McpMutationResult } from "@/src/helpers/ai-tools";
 import { ATTACKER_HOST } from "@/src/helpers/ssrf-payloads";
 import { ApiSDK, UserType } from "@/src/services/api-sdk";
+import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
 
-// Access matrix measured on an agent the member has been invited to:
+// Measured on an agent the member has been invited to (ContentCreator, except
+// Guest which tops out at Read). Every one of the twelve `/ai/tools/*` routes
+// is covered, for every role:
 //
 //                        owner  DSAdmin  RoomAdmin  User  Guest  anon
 //   list-system-tools      200    200      200      200    200   401
 //   list-custom-servers    200    200      200      200    403   401
-//   add / remove server    200    200      403      403    403   401
+//   get-custom-server      200    200      200      200    403   401
+//   get-disabled           200    200      200      200    403   401
+//   is-tool-disabled       200    200      200      200    403   401
+//   get-allow-always       200    200      200      200    403   401
+//   is-allow-always        200    200      200      200    403   401
 //   set-disabled           200    200      200      200    403   401
+//   set-allow-always       200    200      200      200    403   401
+//   add-custom-server      200    200      403      403    403   401
+//   update-custom-server   200    200      403      403    403   401
+//   remove-custom-server   200    200      403      403    403   401
 //
-// So managing MCP servers is admin-only, while toggling individual tools is
-// open to any non-guest member.
+// So registering MCP servers is admin-only, while reading them and toggling
+// individual tools is open to any non-guest member. `list-system-tools` is the
+// only route with no membership requirement at all — but it still needs a
+// session, so anonymous is 401 across the board.
+//
+// The Guest column measures "Guest at Read", not "Guest": the agent room caps
+// Guests at Read and Read cannot use the agent, so the two cannot be separated
+// here.
 //
 // Validation is mostly soft: bad input comes back as HTTP 200 with
 // `{success:false, error:{field, message}}`. Only a missing `config` on add is
 // a real 400.
 
 const SERVER_CONFIG = { url: "https://mcp.example.invalid/sse" };
+const UPDATED_CONFIG = { url: "https://mcp-updated.example.invalid/sse" };
+const OWNERS_SERVER = "owners-server";
 
 const MEMBER_ROLES: Array<{ type: UserType; role: AgentRole }> = [
   { type: "DocSpaceAdmin", role: "docSpaceAdmin" },
@@ -31,8 +50,13 @@ const MEMBER_ROLES: Array<{ type: UserType; role: AgentRole }> = [
   { type: "Guest", role: "guest" },
 ];
 
-async function agentWithMember(apiSdk: ApiSDK, type: UserType) {
+type Payments = Pick<PortalPaymentApi, "setupPayment" | "makeWalletTopUp">;
+
+async function agentForOwner(apiSdk: ApiSDK, paymentsApi: Payments) {
   const ownerApi = apiSdk.forRole("owner");
+  await enableAiGateway(paymentsApi, ownerApi.payment);
+
+  const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
   const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
   const profileId = await aiChat.defaultProfileId("owner");
   const agentId = await aiChat.createAgentId("owner", {
@@ -40,12 +64,48 @@ async function agentWithMember(apiSdk: ApiSDK, type: UserType) {
     profileId,
   });
 
-  const { data: memberData } = await apiSdk.addAuthenticatedMember(
-    "owner",
-    type,
+  return { ownerApi, aiTools, agentId };
+}
+
+/**
+ * One agent, one server the owner already registered on it, and one member of
+ * `type` invited in.
+ *
+ * Ordering rule: `AiTools` issues raw `apiSdk.request` calls, and that shared
+ * context's session cookie beats the bearer header — so every owner-side
+ * `AiTools` call has to happen before the member authenticates, and
+ * `apiSdk.authenticateOwner()` has to run before anything is read back as the
+ * owner afterwards. `apiSdk.addMember` posts through the same context and is
+ * bound by the same rule.
+ *
+ * The `forRole` clients are the one exception: their adapter sends
+ * `Cookie: ""` on every request (src/utils/playwright-axios-adapter.ts), so
+ * `ownerApi.rooms.setRoomSecurity` would still run as the owner even after the
+ * member logs in. The invite is issued before authentication anyway — one
+ * ordering rule for the whole helper is easier to keep true than two, and a
+ * silently misattributed invite would leave the member outside the agent while
+ * every assertion below still looked plausible.
+ */
+async function agentWithMember(
+  apiSdk: ApiSDK,
+  paymentsApi: Payments,
+  type: UserType,
+) {
+  const { ownerApi, aiTools, agentId } = await agentForOwner(
+    apiSdk,
+    paymentsApi,
   );
 
-  await ownerApi.rooms.setRoomSecurity({
+  const { status } = await aiTools.addCustomServer("owner", {
+    name: OWNERS_SERVER,
+    config: SERVER_CONFIG,
+    agentId,
+  });
+  expect(status, "owner registers the server the matrix reads").toBe(200);
+
+  const { data: memberData, userData } = await apiSdk.addMember("owner", type);
+
+  const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
     id: agentId,
     roomInvitationRequest: {
       invitations: [
@@ -57,141 +117,255 @@ async function agentWithMember(apiSdk: ApiSDK, type: UserType) {
       notify: false,
     },
   });
+  // Membership is the premise of the whole matrix: an unasserted invite could
+  // fail and leave a 403 looking like a permission rule.
+  expect(inviteStatus, `owner invites the ${type} into the agent`).toBe(200);
 
-  return agentId;
+  await apiSdk.authenticateMember(userData, type);
+
+  return { aiTools, agentId };
 }
 
-test.describe("MCP - Server management permissions", () => {
-  for (const { type, role } of MEMBER_ROLES) {
-    test(`POST /api/2.0/ai/tools/add-custom-server - ${role} in the agent`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
+type Call = { status: number; error?: string; data?: unknown };
 
-      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-      const agentId = await agentWithMember(apiSdk, type);
+/**
+ * A route that manages the server registry. `verify` runs as the owner and is
+ * what separates a real refusal from a 403 returned after the write landed.
+ */
+type ManageOp = {
+  label: string;
+  run: (tools: AiTools, role: AgentRole, agentId: number) => Promise<Call>;
+  verify: (
+    tools: AiTools,
+    role: AgentRole,
+    agentId: number,
+    allowed: boolean,
+  ) => Promise<void>;
+};
 
-      const { data, status } = await aiTools.addCustomServer(role, {
+const MANAGE_OPS: ManageOp[] = [
+  {
+    label: "POST /api/2.0/ai/tools/add-custom-server",
+    run: (tools, role, agentId) =>
+      tools.addCustomServer(role, {
         name: `${role}-server`,
         config: SERVER_CONFIG,
         agentId,
-      });
-
-      if (role === "docSpaceAdmin") {
-        expect(status).toBe(200);
-        expect(data?.success).toBe(true);
+      }),
+    verify: async (tools, role, agentId, allowed) => {
+      const { data: list } = await tools.listCustomServers("owner", agentId);
+      if (allowed) {
+        expect(Object.keys(list)).toContain(`${role}-server`);
       } else {
-        // Nothing was registered.
-        await apiSdk.authenticateOwner();
-        const { data: list } = await aiTools.listCustomServers(
-          "owner",
-          agentId,
-        );
         expect(Object.keys(list)).not.toContain(`${role}-server`);
-
-        expect(status).toBe(403);
       }
-    });
-
-    test(`DELETE /api/2.0/ai/tools/remove-custom-server - ${role} in the agent`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-
-      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profileId = await aiChat.defaultProfileId("owner");
-      const agentId = await aiChat.createAgentId("owner", {
-        title: "MCP Agent",
-        profileId,
-      });
-      await aiTools.addCustomServer("owner", {
-        name: "owners-server",
-        config: SERVER_CONFIG,
+    },
+  },
+  {
+    label: "PUT /api/2.0/ai/tools/update-custom-server",
+    run: (tools, role, agentId) =>
+      tools.updateCustomServer(role, {
+        name: OWNERS_SERVER,
+        config: UPDATED_CONFIG,
         agentId,
-      });
-
-      const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      }),
+    verify: async (tools, _role, agentId, allowed) => {
+      const { data } = await tools.getCustomServer(
         "owner",
-        type,
-      );
-      await ownerApi.rooms.setRoomSecurity({
-        id: agentId,
-        roomInvitationRequest: {
-          invitations: [
-            {
-              id: memberData.response!.id!,
-              access:
-                type === "Guest" ? FileShare.Read : FileShare.ContentCreator,
-            },
-          ],
-          notify: false,
-        },
-      });
-
-      const { status } = await aiTools.removeCustomServer(role, {
-        name: "owners-server",
+        OWNERS_SERVER,
         agentId,
-      });
-
-      await apiSdk.authenticateOwner();
-      const { data: list } = await aiTools.listCustomServers("owner", agentId);
-
-      if (role === "docSpaceAdmin") {
-        expect(Object.keys(list)).not.toContain("owners-server");
-        expect(status).toBe(200);
+      );
+      expect(data).toEqual(allowed ? UPDATED_CONFIG : SERVER_CONFIG);
+    },
+  },
+  {
+    label: "DELETE /api/2.0/ai/tools/remove-custom-server",
+    run: (tools, role, agentId) =>
+      tools.removeCustomServer(role, { name: OWNERS_SERVER, agentId }),
+    verify: async (tools, _role, agentId, allowed) => {
+      const { data: list } = await tools.listCustomServers("owner", agentId);
+      if (allowed) {
+        expect(Object.keys(list)).not.toContain(OWNERS_SERVER);
       } else {
-        expect(Object.keys(list)).toContain("owners-server");
-        expect(status).toBe(403);
+        expect(Object.keys(list)).toContain(OWNERS_SERVER);
       }
-    });
-  }
-});
+    },
+  },
+];
 
-test.describe("MCP - Tool toggling permissions", () => {
-  for (const { type, role } of MEMBER_ROLES) {
-    test(`PUT /api/2.0/ai/tools/set-disabled - ${role} in the agent`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
+/**
+ * A route any invited non-guest may call. `expectAllowed` asserts the payload
+ * a fresh member sees — the disabled/allow-always state is per user, so a
+ * member starts from an empty one even on an agent the owner has configured.
+ */
+type MemberOp = {
+  label: string;
+  run: (tools: AiTools, role: AgentRole, agentId: number) => Promise<Call>;
+  expectAllowed: (
+    call: Call,
+    tools: AiTools,
+    role: AgentRole,
+    agentId: number,
+  ) => Promise<void>;
+};
 
-      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-      const agentId = await agentWithMember(apiSdk, type);
-
-      const { data, status } = await aiTools.setDisabledTools(role, {
+const MEMBER_OPS: MemberOp[] = [
+  {
+    label: "GET /api/2.0/ai/tools/list-custom-servers",
+    run: (tools, role, agentId) => tools.listCustomServers(role, agentId),
+    expectAllowed: async ({ data }) => {
+      expect(Object.keys(data as object)).toContain(OWNERS_SERVER);
+    },
+  },
+  {
+    label: "GET /api/2.0/ai/tools/get-custom-server",
+    run: (tools, role, agentId) =>
+      tools.getCustomServer(role, OWNERS_SERVER, agentId),
+    expectAllowed: async ({ data }) => {
+      expect(data).toEqual(SERVER_CONFIG);
+    },
+  },
+  {
+    label: "GET /api/2.0/ai/tools/get-disabled",
+    run: (tools, role, agentId) => tools.getDisabledTools(role, agentId),
+    expectAllowed: async ({ data }) => {
+      expect(data).toEqual({});
+    },
+  },
+  {
+    label: "GET /api/2.0/ai/tools/is-tool-disabled",
+    run: (tools, role, agentId) =>
+      tools.isToolDisabled(role, {
+        serverType: "docspace",
+        toolName: "delete_file",
+        agentId,
+      }),
+    expectAllowed: async ({ data }) => {
+      expect(data).toBe(false);
+    },
+  },
+  {
+    label: "GET /api/2.0/ai/tools/get-allow-always",
+    run: (tools, role, agentId) => tools.getAllowAlways(role, agentId),
+    expectAllowed: async ({ data }) => {
+      expect(data).toEqual([]);
+    },
+  },
+  {
+    label: "GET /api/2.0/ai/tools/is-allow-always",
+    run: (tools, role, agentId) =>
+      tools.isAllowAlways(role, {
+        serverType: "docspace",
+        toolName: "delete_file",
+        agentId,
+      }),
+    expectAllowed: async ({ data }) => {
+      expect(data).toBe(false);
+    },
+  },
+  {
+    label: "PUT /api/2.0/ai/tools/set-disabled",
+    run: (tools, role, agentId) =>
+      tools.setDisabledTools(role, {
         serverType: "docspace",
         toolNames: ["delete_file"],
         agentId,
+      }),
+    expectAllowed: async ({ data }, tools, role, agentId) => {
+      expect((data as McpMutationResult)?.success).toBe(true);
+      const { data: disabled } = await tools.isToolDisabled(role, {
+        serverType: "docspace",
+        toolName: "delete_file",
+        agentId,
       });
+      expect(disabled).toBe(true);
+    },
+  },
+  {
+    label: "PUT /api/2.0/ai/tools/set-allow-always",
+    run: (tools, role, agentId) =>
+      tools.setAllowAlways(role, {
+        serverType: "docspace",
+        toolName: "delete_file",
+        value: true,
+        agentId,
+      }),
+    expectAllowed: async ({ data }, tools, role, agentId) => {
+      expect((data as McpMutationResult)?.success).toBe(true);
+      const { data: allowed } = await tools.isAllowAlways(role, {
+        serverType: "docspace",
+        toolName: "delete_file",
+        agentId,
+      });
+      expect(allowed).toBe(true);
+    },
+  },
+];
 
-      if (role === "guest") {
-        expect(status).toBe(403);
-      } else {
-        expect(status).toBe(200);
-        expect(data?.success).toBe(true);
-      }
-    });
+test.describe("MCP - Server management permissions", () => {
+  for (const { type, role } of MEMBER_ROLES) {
+    for (const op of MANAGE_OPS) {
+      test(`${op.label} - ${role} in the agent`, async ({
+        apiSdk,
+        paymentsApi,
+      }) => {
+        const { aiTools, agentId } = await agentWithMember(
+          apiSdk,
+          paymentsApi,
+          type,
+        );
+        const allowed = role === "docSpaceAdmin";
 
-    test(`GET /api/2.0/ai/tools/list-custom-servers - ${role} in the agent`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
+        const { status, error, data } = await op.run(aiTools, role, agentId);
 
-      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-      const agentId = await agentWithMember(apiSdk, type);
+        // Read back as the owner first: a 403 that still wrote is the failure
+        // mode a status-only assertion cannot see.
+        await apiSdk.authenticateOwner();
+        await op.verify(aiTools, role, agentId, allowed);
 
-      const { status } = await aiTools.listCustomServers(role, agentId);
+        if (allowed) {
+          // These routes report soft failures as 200 + success:false, so the
+          // status alone does not say the write was accepted.
+          expect((data as McpMutationResult)?.success).toBe(true);
+          expect(status).toBe(200);
+        } else {
+          expect(error).toBe("Forbidden");
+          expect(status).toBe(403);
+        }
+      });
+    }
+  }
+});
 
-      expect(status).toBe(role === "guest" ? 403 : 200);
-    });
+test.describe("MCP - Tool state permissions", () => {
+  for (const { type, role } of MEMBER_ROLES) {
+    for (const op of MEMBER_OPS) {
+      test(`${op.label} - ${role} in the agent`, async ({
+        apiSdk,
+        paymentsApi,
+      }) => {
+        const { aiTools, agentId } = await agentWithMember(
+          apiSdk,
+          paymentsApi,
+          type,
+        );
+        const allowed = role !== "guest";
+
+        const call = await op.run(aiTools, role, agentId);
+
+        if (allowed) {
+          expect(call.status).toBe(200);
+          await op.expectAllowed(call, aiTools, role, agentId);
+        } else {
+          // No side-effect check is possible for the refused writes: the
+          // disabled / allow-always state is per user and the Guest is denied
+          // the matching read as well, so there is nothing the owner could
+          // look at.
+          expect(call.error).toBe("Forbidden");
+          expect(call.status).toBe(403);
+        }
+      });
+    }
 
     test(`GET /api/2.0/ai/tools/list-system-tools - ${role} reads the catalogue`, async ({
       apiSdk,
@@ -212,27 +386,71 @@ test.describe("MCP - Tool toggling permissions", () => {
 });
 
 test.describe("MCP - Anonymous access", () => {
-  for (const [label, call] of [
+  // Every route, not a sample: `list-system-tools` needs no membership, so it
+  // is the one most likely to have been left unauthenticated by accident.
+  const ANONYMOUS_CALLS: Array<[string, (tools: AiTools) => Promise<Call>]> = [
+    ["list-system-tools", (t) => t.listSystemTools("anonymous")],
+    ["list-custom-servers", (t) => t.listCustomServers("anonymous")],
+    ["get-custom-server", (t) => t.getCustomServer("anonymous", OWNERS_SERVER)],
+    ["get-disabled", (t) => t.getDisabledTools("anonymous")],
     [
-      "list-system-tools",
-      (tools: AiTools) => tools.listSystemTools("anonymous"),
+      "is-tool-disabled",
+      (t) =>
+        t.isToolDisabled("anonymous", {
+          serverType: "docspace",
+          toolName: "delete_file",
+        }),
+    ],
+    ["get-allow-always", (t) => t.getAllowAlways("anonymous")],
+    [
+      "is-allow-always",
+      (t) =>
+        t.isAllowAlways("anonymous", {
+          serverType: "docspace",
+          toolName: "delete_file",
+        }),
     ],
     [
-      "list-custom-servers",
-      (tools: AiTools) => tools.listCustomServers("anonymous"),
+      "set-disabled",
+      (t) =>
+        t.setDisabledTools("anonymous", {
+          serverType: "docspace",
+          toolNames: ["delete_file"],
+        }),
+    ],
+    [
+      "set-allow-always",
+      (t) =>
+        t.setAllowAlways("anonymous", {
+          serverType: "docspace",
+          toolName: "delete_file",
+          value: true,
+        }),
     ],
     [
       "add-custom-server",
-      (tools: AiTools) =>
-        tools.addCustomServer("anonymous", {
+      (t) =>
+        t.addCustomServer("anonymous", {
           name: "anon-server",
           config: SERVER_CONFIG,
         }),
     ],
-  ] as Array<
-    [string, (tools: AiTools) => Promise<{ status: number; error?: string }>]
-  >) {
-    test(`GET|POST /api/2.0/ai/tools/${label} - Anonymous gets 401`, async ({
+    [
+      "update-custom-server",
+      (t) =>
+        t.updateCustomServer("anonymous", {
+          name: OWNERS_SERVER,
+          config: UPDATED_CONFIG,
+        }),
+    ],
+    [
+      "remove-custom-server",
+      (t) => t.removeCustomServer("anonymous", { name: OWNERS_SERVER }),
+    ],
+  ];
+
+  for (const [label, call] of ANONYMOUS_CALLS) {
+    test(`/api/2.0/ai/tools/${label} - Anonymous gets 401`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -240,6 +458,12 @@ test.describe("MCP - Anonymous access", () => {
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+      // A portal-level registration, so the routes that name a server are
+      // refused for the session and not for a missing resource.
+      await aiTools.addCustomServer("owner", {
+        name: OWNERS_SERVER,
+        config: SERVER_CONFIG,
+      });
 
       const { status, error } = await call(aiTools);
 
@@ -266,16 +490,7 @@ test.describe("MCP - Custom server validation", () => {
       apiSdk,
       paymentsApi,
     }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-
-      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profileId = await aiChat.defaultProfileId("owner");
-      const agentId = await aiChat.createAgentId("owner", {
-        title: "MCP Agent",
-        profileId,
-      });
+      const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
 
       const { data, status } = await aiTools.addCustomServer("owner", {
         ...body,
@@ -294,16 +509,7 @@ test.describe("MCP - Custom server validation", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "MCP Agent",
-      profileId,
-    });
+    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
 
     const { status, error } = await aiTools.addCustomServer("owner", {
       name: "no-config",
@@ -320,16 +526,7 @@ test.describe("MCP - Custom server validation", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "MCP Agent",
-      profileId,
-    });
+    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
 
     await aiTools.addCustomServer("owner", {
       name: "duplicate",
@@ -360,16 +557,7 @@ test.describe("MCP - Custom server validation", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "MCP Agent",
-      profileId,
-    });
+    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
 
     const { data, status } = await aiTools.updateCustomServer("owner", {
       name: "does-not-exist",
@@ -386,16 +574,7 @@ test.describe("MCP - Custom server validation", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "MCP Agent",
-      profileId,
-    });
+    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
 
     const { data, status } = await aiTools.removeCustomServer("owner", {
       name: "never-existed",
@@ -443,16 +622,7 @@ test.describe("MCP - Registration does not reach out to the server", () => {
     // non-resolving .invalid host is accepted. Registration therefore performs
     // no outbound request; any egress now happens at tool-execution time, which
     // this suite does not cover.
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "MCP Agent",
-      profileId,
-    });
+    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
     const attackerConfig = { url: `https://${ATTACKER_HOST}/sse` };
 
     const { data, status } = await aiTools.addCustomServer("owner", {
