@@ -197,7 +197,7 @@ test.describe("AI Messages - text-to-docx export", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a title containing a slash loses everything before it", async ({
+  test("BUG 82711: POST /api/2.0/ai/text-to-docx - a title containing a slash loses everything before it", async ({
     apiSdk,
   }) => {
     // The export treats "/" and "\" in the title as path separators and keeps
@@ -251,7 +251,7 @@ test.describe("AI Messages - text-to-docx export", () => {
     expect(landed).toEqual(expect.arrayContaining(Object.values(expected)));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - whitespace-only content is accepted instead of rejected", async ({
+  test("BUG 82712: POST /api/2.0/ai/text-to-docx - whitespace-only content is accepted instead of rejected", async ({
     apiSdk,
   }) => {
     // A whitespace-only *title* is refused with the same 400 as an empty one, so
@@ -498,7 +498,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     { name: "folderId 0", folderId: 0 },
     { name: "folderId -1", folderId: -1 },
   ]) {
-    test(`BUG XXXXX: POST /api/2.0/ai/text-to-docx - ${name} returns 500 instead of 400`, async ({
+    test(`BUG 82713: POST /api/2.0/ai/text-to-docx - ${name} returns 500 instead of 400`, async ({
       apiSdk,
     }) => {
       const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
@@ -514,7 +514,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     });
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a folderId sent as a string returns 500 instead of 400", async ({
+  test("BUG 82713: POST /api/2.0/ai/text-to-docx - a folderId sent as a string returns 500 instead of 400", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -535,7 +535,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a non-existent folderId returns 500 instead of 404", async ({
+  test("BUG 82714: POST /api/2.0/ai/text-to-docx - a non-existent folderId returns 500 instead of 404", async ({
     apiSdk,
   }) => {
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
@@ -551,7 +551,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     expect(status).toBe(404);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a deleted folderId returns 500 instead of 404", async ({
+  test("BUG 82714: POST /api/2.0/ai/text-to-docx - a deleted folderId returns 500 instead of 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -591,7 +591,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     expect(status).toBe(404);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a file id as folderId returns 500 instead of 404", async ({
+  test("BUG 82714: POST /api/2.0/ai/text-to-docx - a file id as folderId returns 500 instead of 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");

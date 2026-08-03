@@ -128,7 +128,7 @@ test.describe("Threads - access control for non-members", () => {
   for (const { type, role } of NON_MEMBER_ROLES.filter(
     (entry) => entry.role !== "docSpaceAdmin",
   )) {
-    test(`BUG XXXXX: POST /api/2.0/ai/threads/create - ${role} not in the agent gets 500 instead of 403`, async ({
+    test(`BUG 82715: POST /api/2.0/ai/threads/create - ${role} not in the agent gets 500 instead of 403`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -335,7 +335,7 @@ test.describe("Threads - isolation between members of the same agent", () => {
       });
     }
 
-    test(`BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - ${role} invited to the agent gets 200 instead of 403 on Owner's thread`, async ({
+    test(`BUG 82717: POST /api/2.0/ai/ai/send-with-stream - ${role} invited to the agent gets 200 instead of 403 on Owner's thread`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -617,7 +617,7 @@ test.describe("Threads - validation", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/threads/get-by-id - an unknown threadId returns 200 with a null body instead of 404", async ({
+  test("BUG 82718: GET /api/2.0/ai/threads/get-by-id - an unknown threadId returns 200 with a null body instead of 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -649,7 +649,7 @@ test.describe("Threads - validation", () => {
     expect(status).toBe(404);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/threads/create - a non-existent agent id creates an orphan thread", async ({
+  test("BUG 82719: POST /api/2.0/ai/threads/create - a non-existent agent id creates an orphan thread", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -681,7 +681,7 @@ test.describe("Threads - validation", () => {
     expect(status).toBe(404);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - an empty message is stored and forwarded to the model", async ({
+  test("BUG 82720: POST /api/2.0/ai/ai/send-with-stream - an empty message is stored and forwarded to the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -723,7 +723,7 @@ test.describe("Threads - validation", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - an unknown thread reports the failure inside a 200", async ({
+  test("BUG 82723: POST /api/2.0/ai/ai/send-with-stream - an unknown thread reports the failure inside a 200", async ({
     apiSdk,
     paymentsApi,
   }) => {

@@ -195,7 +195,7 @@ test.describe("AI Chat - AI Disabled", () => {
     });
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - reports the refusal inside a 200 instead of returning 403", async ({
+  test("BUG 82724: POST /api/2.0/ai/ai/send-with-stream - reports the refusal inside a 200 instead of returning 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
