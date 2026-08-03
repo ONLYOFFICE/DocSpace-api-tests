@@ -2,7 +2,10 @@ import { expect } from "@playwright/test";
 import { FileType } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
-import { enableAiGateway } from "@/src/helpers/wallet-services";
+import {
+  configureAiToolsAsUnpaid,
+  enableAiGateway,
+} from "@/src/helpers/wallet-services";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 import {
   AiAttachments,
@@ -375,5 +378,89 @@ test.describe("AI Attachments - AI access disabled", () => {
       new Set(statuses),
       `get-many answered ${statuses.join(",")} for one unchanged portal state`,
     ).toHaveProperty("size", 1);
+  });
+});
+
+// The other off-state: the portal AI switch is ON but the "AI Tools" wallet
+// service was never paid for. It gates none of /ai/attachments/* — which is the
+// same conclusion as for the save-* routes above, but for a different reason:
+// the wallet only gates inference, so nothing in the attachment store is
+// affected at all.
+//
+// One lifecycle test rather than a route-by-route sweep: what needs proving is
+// that a draft can still be created, read, referenced and removed on an unpaid
+// portal, and a chain shows that better than four isolated 200s. The bulk
+// save-*-many routes are left to attachments.spec.ts — they share this
+// controller and have not diverged from the single-item ones in any state.
+
+test.describe("AI Attachments - AI Tools wallet service not paid for", () => {
+  test("POST /api/2.0/ai/attachments/save-file, get, link-to-message, DELETE delete - the attachment lifecycle works with AI Tools unpaid", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await configureAiToolsAsUnpaid(ownerApi);
+
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Unpaid Wallet Attachments Agent",
+      profileId,
+    });
+    // `append-user-message` stores the carrier message without asking the model
+    // anything, so this setup does not depend on the inference the unpaid state
+    // blocks.
+    const { threadId, messageId } = await createThreadWithUserMessage(
+      aiChat,
+      "owner",
+      { profileId, agentId },
+    );
+
+    const draftId = await test.step("save-file", async () => {
+      const { status, data } = await attachments.saveFile("owner", {
+        input: {
+          title: "Autotest unpaid-wallet.docx",
+          content: "stored with AI Tools unpaid",
+          type: FileType.Document,
+        },
+        entityId: String(agentId),
+      });
+      expect(status).toBe(200);
+      expect(data?.id).toBeTruthy();
+      return data!.id!;
+    });
+
+    await test.step("get", async () => {
+      // Polled: reads are intermittent in every portal state (see the helper),
+      // so a single empty read would say nothing about the wallet.
+      const stored = await attachments.expectStored(
+        "owner",
+        draftId,
+        "a draft stored with AI Tools unpaid",
+      );
+      expect(stored.content).toBe("stored with AI Tools unpaid");
+    });
+
+    await test.step("link-to-message", async () => {
+      // Only the call being accepted is asserted. `link-to-message` answers
+      // `{success:true}` without attaching anything in ANY portal state, so a
+      // test claiming the draft ends up on the message would be wrong here for
+      // reasons that have nothing to do with the wallet.
+      const { status, data } = await attachments.linkToMessage("owner", {
+        ids: [draftId],
+        messageId,
+        threadId,
+      });
+      expect(status).toBe(200);
+      expect(data?.success).toBe(true);
+    });
+
+    await test.step("delete", async () => {
+      const { status } = await attachments.deleteOne("owner", draftId);
+      expect(status).toBe(200);
+      // Repeated, because one delete is intermittent in every portal state.
+      await attachments.purge("owner", draftId);
+    });
   });
 });

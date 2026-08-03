@@ -2,7 +2,10 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { AiSettings } from "@/src/helpers/ai-settings";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
-import { enableAiGateway } from "@/src/helpers/wallet-services";
+import {
+  configureAiToolsAsUnpaid,
+  enableAiGateway,
+} from "@/src/helpers/wallet-services";
 import {
   listFolderFiles,
   waitForExportToSettle,
@@ -21,9 +24,14 @@ import {
 //   * the unpaid "AI Tools" wallet service, which is the state every fresh test
 //     portal starts in, does not block it at all.
 //
-// Each test proves a transition rather than an end state: a test that only
-// asserted 403 after flipping the switch would also pass if the endpoint were
-// permanently forbidden, or if flipping the switch had silently failed.
+// The first and the third test prove a transition rather than an end state: a
+// test that only asserted 403 after flipping the switch would also pass if the
+// endpoint were permanently forbidden, or if flipping the switch had silently
+// failed. Both start by putting the portal into the state they claim to start
+// from instead of trusting the defaults of a fresh portal.
+//
+// The second test is deliberately NOT a transition — it pins the order in which
+// the endpoint validates, which only shows up in the off-state.
 
 test.describe("AI Messages - AI Disabled", () => {
   test("POST /api/2.0/ai/text-to-docx - returns 403 when the portal AI switch is off", async ({
@@ -31,6 +39,14 @@ test.describe("AI Messages - AI Disabled", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    // The starting state is set explicitly rather than assumed: this test claims
+    // an enabled -> disabled transition, and if a fresh portal ever stopped
+    // shipping with AI on it would fail at the positive control below while the
+    // contract under test had not changed at all.
+    const enabled = await setPortalAiAccess(ownerApi, true);
+    expect(enabled.writeStatus).toBe(200);
+    expect(enabled.enabled).toBe(true);
 
     const { data: myFolder } = await ownerApi.folders.getMyFolder({});
     const folderId = myFolder.response!.current!.id!;
@@ -97,15 +113,26 @@ test.describe("AI Messages - AI Disabled", () => {
     expect(status).toBe(400);
   });
 
-  test("POST /api/2.0/ai/text-to-docx - exports text without a paid AI Tools service", async ({
+  test("POST /api/2.0/ai/text-to-docx - exports text both before and after AI Tools is enabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // Pinned as NOT AI-gated: the export is a document-builder job that never
     // reaches the AI gateway, so an unpaid portal still gets its file — and
     // paying for the service changes nothing about it.
+    //
+    // The paid half is not strictly part of "works while unpaid", but it is what
+    // makes the unpaid 202 mean something: it shows the endpoint is indifferent
+    // to the wallet rather than merely happening to answer on this portal. The
+    // title says both halves so nobody trims it back to one and keeps the name.
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    // Explicit about the state instead of trusting a fresh portal to be unpaid:
+    // the switch is turned on and AI Tools is asserted to be absent from the
+    // enabled wallet services, so `aiReady: false` below can only come from the
+    // wallet.
+    await configureAiToolsAsUnpaid(ownerApi);
 
     const { data: myFolder } = await ownerApi.folders.getMyFolder({});
     const folderId = myFolder.response!.current!.id!;
@@ -138,9 +165,13 @@ test.describe("AI Messages - AI Disabled", () => {
       await waitForExportedFile(ownerApi, folderId, `${paidTitle}.docx`),
     ).toBeDefined();
 
-    const files = await listFolderFiles(ownerApi, folderId);
-    expect(
-      files.filter((file) => file.title.startsWith("Exported ")).length,
-    ).toBe(2);
+    // Tied to the two titles this test generated, not to a count of everything
+    // that happens to start with "Exported " — the second export must not have
+    // replaced the first one, and only these two files can show that.
+    const titles = (await listFolderFiles(ownerApi, folderId)).map(
+      (file) => file.title,
+    );
+    expect(titles).toContain(`${unpaidTitle}.docx`);
+    expect(titles).toContain(`${paidTitle}.docx`);
   });
 });

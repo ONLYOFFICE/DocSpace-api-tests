@@ -9,7 +9,7 @@ import { CommonSettingsApi } from "@onlyoffice/docspace-api-sdk";
 // switching the flag always reads it back: a test that asserts 403 after a
 // failed disable call is a false positive.
 
-type AiAccessClient = {
+export type AiAccessClient = {
   commonSettings: Pick<
     CommonSettingsApi,
     "getTenantAiAccessSettings" | "setTenantAiAccessSettings"

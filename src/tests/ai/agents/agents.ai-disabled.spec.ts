@@ -2,7 +2,10 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
-import { enableAiGateway } from "@/src/helpers/wallet-services";
+import {
+  configureAiToolsAsUnpaid,
+  enableAiGateway,
+} from "@/src/helpers/wallet-services";
 
 // With portal AI access switched off every agent route answers 403, including
 // the profiles catalogue the other tests bootstrap from.
@@ -20,6 +23,9 @@ import { enableAiGateway } from "@/src/helpers/wallet-services";
 //     same valid one the positive tests in agents.spec.ts use.
 //   * the AI-access guard runs BEFORE the existence check — a nonexistent id
 //     that answers 404 with AI on answers 403 with AI off (last test).
+//
+// The second describe covers the other off-state — an unpaid "AI Tools" wallet
+// service — where the same routes are deliberately NOT gated.
 
 const fakeAgentId = 999999999;
 const VALID_QUOTA_BYTES = 1048576; // the value the positive quota tests use
@@ -359,6 +365,105 @@ test.describe("AI Agents - AI Disabled", () => {
       const { status, error } = await aiChat.deleteAgent("owner", fakeAgentId);
       expect(error).toBe("Forbidden");
       expect(status).toBe(403);
+    });
+  });
+});
+
+// The other off-state: the portal AI switch is ON but the "AI Tools" wallet
+// service was never paid for. Unlike the switch, it gates nothing here — the
+// whole agent surface keeps working, and only inference fails (asynchronously,
+// see chat.ai-disabled.spec.ts).
+//
+// One representative chain rather than a per-route copy of the block above: the
+// routes share the AI-access guard, so what is worth pinning is that the wallet
+// state does not reach any of them. Each step is checked by reading the result
+// back, so a 200 that did nothing cannot pass for "not gated".
+
+test.describe("AI Agents - AI Tools wallet service not paid for", () => {
+  test("GET|POST|PUT|DELETE /ai/agents - the agent surface is not gated by the AI Tools wallet service", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await configureAiToolsAsUnpaid(ownerApi);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const profileId = await test.step("GET /ai/profiles/list", async () => {
+      const { status, data } = await aiChat.getProfiles("owner");
+      expect(status).toBe(200);
+      expect(Array.isArray(data)).toBe(true);
+      expect(data!.length).toBeGreaterThan(0);
+      return AiAgentChat.pickTextProfile(data!).id;
+    });
+
+    const agentId = await test.step("POST /ai/agents", async () => {
+      const { status, data } = await aiChat.createAgent("owner", {
+        title: "Autotest Unpaid Wallet Agent",
+        tags: ["autotest"],
+        profileId,
+        prompt: "Original prompt",
+      });
+      expect(status).toBe(200);
+      const id = data?.response?.id;
+      expect(id).toBeDefined();
+      return id!;
+    });
+
+    await test.step("GET /ai/agents and /ai/agents/:id", async () => {
+      const { status, data } = await aiChat.getAgents("owner");
+      expect(status).toBe(200);
+      expect(data?.response?.folders?.map((agent) => agent.id)).toContain(
+        agentId,
+      );
+
+      const info = await aiChat.getAgentInfo("owner", agentId);
+      expect(info.status).toBe(200);
+      expect(info.data?.response?.title).toBe("Autotest Unpaid Wallet Agent");
+      expect(info.data?.response?.chatSettings?.prompt).toBe("Original prompt");
+    });
+
+    await test.step("PUT /ai/agents/:id", async () => {
+      const { status } = await aiChat.updateAgent("owner", agentId, {
+        title: "Autotest Unpaid Wallet Agent Renamed",
+        profileId,
+        prompt: "Updated prompt",
+      });
+      expect(status).toBe(200);
+
+      const { data } = await aiChat.getAgentInfo("owner", agentId);
+      expect(data?.response?.title).toBe(
+        "Autotest Unpaid Wallet Agent Renamed",
+      );
+      expect(data?.response?.chatSettings?.prompt).toBe("Updated prompt");
+    });
+
+    await test.step("PUT /ai/agents/agentquota", async () => {
+      // The stored limit is not exposed anywhere — measured on a live portal:
+      // no `quotaLimit` on `GET /ai/agents/:id`, in the `GET /ai/agents` list,
+      // or in the agentquota/resetquota response bodies. So the strongest
+      // available signal is the route answering with the agent it acted on.
+      //
+      // `resetquota` is deliberately left out of this chain for the same
+      // reason: with nothing readable it would add a second bare 200 without
+      // proving anything the line below does not already cover. Its own gating
+      // is pinned in the AI-switch block above.
+      const { status, data } = await aiChat.updateAgentsQuota("owner", {
+        roomIds: [agentId],
+        quota: VALID_QUOTA_BYTES,
+      });
+      expect(status).toBe(200);
+      expect(data?.response?.map((agent) => agent.id)).toContain(agentId);
+    });
+
+    await test.step("GET /ai/agents/news", async () => {
+      const { status } = await aiChat.getAgentsNewItems("owner");
+      expect(status).toBe(200);
+    });
+
+    await test.step("DELETE /ai/agents/:id", async () => {
+      const { status } = await aiChat.deleteAgent("owner", agentId);
+      expect(status).toBe(200);
+      expect(await aiChat.waitForAgentDeleted("owner", agentId)).toBe(404);
     });
   });
 });

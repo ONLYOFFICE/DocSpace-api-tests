@@ -107,8 +107,8 @@ test.describe("AI Settings - AI Disabled", () => {
       await ownerApi.aiSettings.getAiSettings();
     expect(beforeStatus).toBe(200);
     expect(before.response?.aiReady).toBe(true);
-    expect(before.response?.webSearchEnabled).toBe(true);
     expect(before.response?.vectorizationEnabled).toBe(true);
+    expect(before.response?.systemAiEnabled).toBe(true);
 
     const disabled = await setPortalAiAccess(ownerApi, false);
     expect(disabled.writeStatus).toBe(200);
@@ -118,8 +118,8 @@ test.describe("AI Settings - AI Disabled", () => {
 
     expect(status).toBe(200);
     expect(after.response?.aiReady).toBe(false);
-    expect(after.response?.webSearchEnabled).toBe(false);
     expect(after.response?.vectorizationEnabled).toBe(false);
+    expect(after.response?.systemAiEnabled).toBe(false);
   });
 
   test("GET/PUT /api/2.0/ai/config/user - stays usable when AI access is disabled", async ({
@@ -156,8 +156,8 @@ test.describe("AI Settings - AI Disabled", () => {
 // portal that has not paid for it reports AI as off without blocking a single
 // route:
 //
-//   * `GET /ai/config` answers 200 with aiReady / webSearchEnabled /
-//     vectorizationEnabled / systemAiEnabled all false.
+//   * `GET /ai/config` answers 200 with aiReady / vectorizationEnabled /
+//     systemAiEnabled all false.
 //   * the AI management routes all keep working — the profiles catalog, agent
 //     CRUD and quota, threads and the MCP tools surface behave exactly as on a
 //     paid portal (pinned in chat.ai-disabled.spec.ts).
@@ -175,12 +175,21 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
+    // Only the flags `/ai/config` actually returns. Measured on a live portal on
+    // 2026-08-03 the whole body is
+    //
+    //   { vectorizationEnabled, vectorizationNeedReset, aiReady, embeddingModel,
+    //     systemAiEnabled, recommendedModelForForms }
+    //
+    // so `aiReadyNeedReset` and `webSearchEnabled` are absent, and asserting
+    // `toBe(false)` on them was inventing a contract: a missing field and an
+    // explicit `false` are not the same answer, even though both are falsy.
+    // Their disappearance is a change on the server side, not something to
+    // absorb here — see settings.spec.ts, which pins the body's shape.
     const { data: unpaid, status: unpaidStatus } =
       await ownerApi.aiSettings.getAiSettings();
     expect(unpaidStatus).toBe(200);
     expect(unpaid.response?.aiReady).toBe(false);
-    expect(unpaid.response?.aiReadyNeedReset).toBe(false);
-    expect(unpaid.response?.webSearchEnabled).toBe(false);
     expect(unpaid.response?.vectorizationEnabled).toBe(false);
     expect(unpaid.response?.systemAiEnabled).toBe(false);
 
@@ -190,7 +199,6 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
 
     expect(status).toBe(200);
     expect(paid.response?.aiReady).toBe(true);
-    expect(paid.response?.webSearchEnabled).toBe(true);
     expect(paid.response?.vectorizationEnabled).toBe(true);
     expect(paid.response?.systemAiEnabled).toBe(true);
   });
@@ -222,9 +230,10 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    // `webSearchEnabled` in /ai/config follows the wallet service, but the
+    // Whether web search is *available* now follows the wallet service, but the
     // web-search provider itself is separate portal configuration and stays
-    // unconfigured either way.
+    // unconfigured either way. (`/ai/config` no longer carries a
+    // `webSearchEnabled` flag at all, so this route is the only signal left.)
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 

@@ -3,7 +3,12 @@ import { test } from "@/src/fixtures";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 import { AiTools } from "@/src/helpers/ai-tools";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
-import { enableAiGateway } from "@/src/helpers/wallet-services";
+import {
+  configureAiToolsAsUnpaid,
+  enableAiGateway,
+  enableAiToolsWithoutAiCredit,
+} from "@/src/helpers/wallet-services";
+import { expectHealthyAssistantReply } from "@/src/helpers/ai-agent-chat";
 import { ApiSDK } from "@/src/services/api-sdk";
 
 // The chat surface moved from `/ai/rooms/{roomId}/chats` (404) to
@@ -12,6 +17,8 @@ import { ApiSDK } from "@/src/services/api-sdk";
 //
 // Two independent states turn AI off and both are covered here: the portal AI
 // switch (first block) and the unpaid "AI Tools" wallet service (second block).
+// The third block is the state that must NOT turn AI off — AI Tools paid for
+// with no AI credit — and it is here so the three cannot drift into one.
 //
 // Everything in the first block runs against a REAL agent, thread and message
 // created while AI was still on. Pointing these calls at made-up ids would make
@@ -253,6 +260,11 @@ test.describe("AI Chat - AI Disabled", () => {
 //
 // So a test that only checks the send status cannot tell a working portal from a
 // portal where AI is dead. These tests read the reply back.
+//
+// The state itself is set up with `configureAiToolsAsUnpaid`, which turns the
+// portal AI switch ON and asserts AI Tools is absent from the enabled wallet
+// services. Relying on a fresh portal simply being unpaid would mean the tests
+// quietly start proving something else if that default ever changes.
 
 test.describe("AI Chat - AI Tools wallet service not paid for", () => {
   test("POST /api/2.0/ai/ai/send-with-stream - the assistant reply fails until AI Tools is paid for", async ({
@@ -261,6 +273,8 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    await configureAiToolsAsUnpaid(ownerApi);
 
     const profileId = await aiChat.defaultProfileId("owner");
     const agentId = await aiChat.createAgentId("owner", {
@@ -328,8 +342,12 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     // Pinned so that moving the gate earlier (or later) shows up here: on an
     // unpaid portal the profiles catalog, agent CRUD, agent quota and the MCP
     // tools surface all behave exactly as on a paid one. Only inference differs.
+    // The per-suite versions of this pin live in agents/mcp/attachments/
+    // vectorization `*.ai-disabled.spec.ts`.
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const tools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+
+    await configureAiToolsAsUnpaid(apiSdk.forRole("owner"));
 
     const profiles = await aiChat.listProfiles("owner");
     expect(profiles.length).toBeGreaterThan(0);
@@ -371,6 +389,8 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     // portal ends up with a thread holding a question and a failed answer.
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
+    await configureAiToolsAsUnpaid(apiSdk.forRole("owner"));
+
     const profileId = await aiChat.defaultProfileId("owner");
     const agentId = await aiChat.createAgentId("owner", {
       title: "Autotest Unpaid AI Agent",
@@ -399,5 +419,67 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     expect(AiAgentChat.messageText(questions[0])).toBe("Say hi");
     expect(AiAgentChat.assistantText(messages)).toBe("");
     expect(AiAgentChat.assistantStatus(messages)?.error?.code).toBe("auth");
+  });
+});
+
+// A third portal state, and the one that is easiest to confuse with the unpaid
+// one: AI Tools IS paid for, but no AI credit was ever added. Inference works
+// here. Kept as its own test with the contract in its title so that "AI is out
+// of money" and "AI was never paid for" cannot silently merge into one
+// expectation later.
+//
+// `GET /portal/payment/customer/aibalance` answers 403 "Accounting client does
+// not support sub-accounts" on these portals, so the zero-credit state is
+// established by never calling `creditAiBalance` rather than by reading a
+// balance of 0. The wallet service being enabled IS asserted — that is what
+// separates this state from the unpaid one above.
+
+test.describe("AI Chat - AI Tools paid for with no AI credit", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream - AI inference remains available when AI Tools is enabled and AI credit balance is zero", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const on = await setPortalAiAccess(ownerApi, true);
+    expect(on.enabled, "portal AI switch before the wallet setup").toBe(true);
+    await enableAiToolsWithoutAiCredit(paymentsApi, ownerApi.payment);
+
+    const { data: config, status: configStatus } =
+      await ownerApi.aiSettings.getAiSettings();
+    expect(configStatus).toBe(200);
+    expect(config.response?.aiReady, "aiReady with AI Tools paid for").toBe(
+      true,
+    );
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Zero Credit Agent",
+      profileId,
+      prompt: "You are a test assistant",
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest zero credit thread",
+      profileId,
+      agentId,
+    });
+
+    const { status } = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Say hi",
+    });
+    expect(status).toBe(200);
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+
+    // The reply has to be a real one: a refused inference is also stored as an
+    // assistant message, so "an assistant message exists" would pass on a dead
+    // portal. `auth` is called out separately because that is the exact failure
+    // the unpaid state produces — this test is what keeps the two apart.
+    expect(AiAgentChat.assistantStatus(messages)?.error?.code).not.toBe("auth");
+    expectHealthyAssistantReply(messages);
   });
 });
