@@ -355,7 +355,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(stored.source).toBeUndefined();
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - the request body the SDK documents is rejected with 500", async ({
+  test("BUG 82739: POST /api/2.0/ai/attachments/save-file - the request body the SDK documents is rejected with 500", async ({
     apiSdk,
   }) => {
     // `NewAiAttachmentsSaveFileRequestInput` declares path + content + type
@@ -380,7 +380,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(status).toBe(200);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - omitting the optional title returns 500", async ({
+  test("BUG 82740: POST /api/2.0/ai/attachments/save-file - omitting the optional title returns 500", async ({
     apiSdk,
   }) => {
     // `title` is optional in the DTO, so a body without it should be accepted.
@@ -399,7 +399,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(status).toBe(200);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - a malformed body returns 500 instead of 400", async ({
+  test("BUG 82741: POST /api/2.0/ai/attachments/save-file - a malformed body returns 500 instead of 400", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -424,7 +424,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(statuses).toEqual(bodies.map(([label]) => [label, 400]));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - a non-empty path returns 500 even with every other field present", async ({
+  test("BUG 82742: POST /api/2.0/ai/attachments/save-file - a non-empty path returns 500 even with every other field present", async ({
     apiSdk,
   }) => {
     // Isolates `path` from the missing-title case: everything the endpoint
@@ -455,7 +455,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(status).toBe(200);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - a type outside the FileType enum is accepted", async ({
+  test("BUG 82743: POST /api/2.0/ai/attachments/save-file - a type outside the FileType enum is accepted", async ({
     apiSdk,
   }) => {
     // FileType defines 0-7, 10 and 11. `FileType.Unknown` (0) is a member and is
@@ -482,7 +482,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(statuses).toEqual(types.map(() => 400));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - a type of the wrong JSON kind is accepted", async ({
+  test("BUG 82745: POST /api/2.0/ai/attachments/save-file - a type of the wrong JSON kind is accepted", async ({
     apiSdk,
   }) => {
     // Separate from the enum-range case: these are not out-of-range integers but
@@ -503,7 +503,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(statuses).toEqual(types.map(() => 400));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - a numeric string type is stored as a string instead of being coerced", async ({
+  test("BUG 82746: POST /api/2.0/ai/attachments/save-file - a numeric string type is stored as a string instead of being coerced", async ({
     apiSdk,
   }) => {
     // Kept apart from both cases above because accepting `"7"` is defensible on
@@ -522,7 +522,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(data?.type, "a numeric string type").toBe(FileType.Document);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - a blank or non-string title is accepted", async ({
+  test("BUG 82748: POST /api/2.0/ai/attachments/save-file - a blank or non-string title is accepted", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -540,7 +540,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(statuses).toEqual(titles.map(() => 400));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - non-string content is accepted", async ({
+  test("BUG 82749: POST /api/2.0/ai/attachments/save-file - non-string content is accepted", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -629,7 +629,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(oversized.status).toBe(413);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-image - an image draft with no payload at all is accepted", async ({
+  test("BUG 82751: POST /api/2.0/ai/attachments/save-image - an image draft with no payload at all is accepted", async ({
     apiSdk,
   }) => {
     // `{ input: {} }` and even `{ input: "some string" }` create a record: an
@@ -652,7 +652,7 @@ test.describe("AI Attachments - save-image", () => {
     expect([empty.status, asString.status]).toEqual([400, 400]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-image - base64 is stored without any validation", async ({
+  test("BUG 82752: POST /api/2.0/ai/attachments/save-image - base64 is stored without any validation", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -683,7 +683,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(statuses).toEqual(payloads.map(() => 400));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-image - a malformed body returns 500 instead of 400", async ({
+  test("BUG 82753: POST /api/2.0/ai/attachments/save-image - a malformed body returns 500 instead of 400", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -806,7 +806,7 @@ test.describe("AI Attachments - batch saves", () => {
     expect(data).toEqual([]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-files-many - a missing or null inputs list is silently treated as empty", async ({
+  test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - a missing or null inputs list is silently treated as empty", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -824,7 +824,7 @@ test.describe("AI Attachments - batch saves", () => {
     expect([missing.status, nulled.status]).toEqual([400, 400]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-files-many - one invalid element makes the whole batch return 500", async ({
+  test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - one invalid element makes the whole batch return 500", async ({
     apiSdk,
   }) => {
     // An element without a title takes the batch down with a 500 rather than a
@@ -845,7 +845,7 @@ test.describe("AI Attachments - batch saves", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-files-many - a non-array inputs value returns 500 instead of 400", async ({
+  test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - a non-array inputs value returns 500 instead of 400", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -862,7 +862,7 @@ test.describe("AI Attachments - batch saves", () => {
     expect(statuses).toEqual(values.map(() => 400));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-images-many - an element with no payload is still stored", async ({
+  test("BUG 82755: POST /api/2.0/ai/attachments/save-images-many - an element with no payload is still stored", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -950,7 +950,7 @@ test.describe("AI Attachments - get", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/get - an empty id answers 405 Method Not Allowed", async ({
+  test("BUG 82756: POST /api/2.0/ai/attachments/get - an empty id answers 405 Method Not Allowed", async ({
     apiSdk,
   }) => {
     // Every other malformed id is a 400; an empty string uniquely reports that

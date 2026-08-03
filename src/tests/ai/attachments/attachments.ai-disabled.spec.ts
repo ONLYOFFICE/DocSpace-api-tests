@@ -315,7 +315,7 @@ test.describe("AI Attachments - AI access disabled", () => {
     expect(images.data).toHaveLength(1);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/get - the same call answers both 200 and 403 for one portal state", async ({
+  test("BUG 82759: POST /api/2.0/ai/attachments/get - the same call answers both 200 and 403 for one portal state", async ({
     apiSdk,
   }) => {
     // This one is filed, and the claim is not "it should be 403". The scope of
