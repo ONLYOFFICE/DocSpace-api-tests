@@ -10,14 +10,26 @@ import { AiSettings } from "@/src/helpers/ai-settings";
 //
 // `GET /api/2.0/ai/config` mixes two very different kinds of field:
 //
-//   * portal STATE — webSearchEnabled / vectorizationEnabled / aiReady /
-//     systemAiEnabled and their *NeedReset twins. These follow the paid AI Tools
-//     wallet service and the portal AI switch, so a fresh portal reports them
-//     all false. Their values are pinned in settings.ai-disabled.spec.ts, which
-//     covers both off-states (unpaid -> paid transition and switch off) and so
-//     establishes the cause. Here we only assert the contract.
+//   * portal STATE — vectorizationEnabled / aiReady / systemAiEnabled and
+//     vectorizationNeedReset. These follow the paid AI Tools wallet service and
+//     the portal AI switch, so a fresh portal reports them all false. Their
+//     values are pinned in settings.ai-disabled.spec.ts, which covers both
+//     off-states (unpaid -> paid transition and switch off) and so establishes
+//     the cause. Here we only assert the contract.
 //   * product CONSTANTS — the MCP tool names and the embedding model, which the
 //     clients depend on by name. Those are pinned exactly, once.
+//
+// Most of that second group, and three flags from the first, stopped being
+// returned — measured on a live portal on 2026-08-03, the entire body is now
+//
+//   { vectorizationEnabled, vectorizationNeedReset, aiReady, embeddingModel,
+//     systemAiEnabled, recommendedModelForForms }
+//
+// The role tests below therefore assert only the fields the portal still sends,
+// so they keep doing their actual job — proving every role may read the config —
+// instead of failing on the missing ones and hiding a future 403 for Guest
+// behind an expected failure. The disappearance itself is pinned once, as the
+// `test.fail` bug test at the end of this describe.
 
 const ROLES: Array<{ label: string; type?: UserType }> = [
   { label: "Owner" },
@@ -28,14 +40,28 @@ const ROLES: Array<{ label: string; type?: UserType }> = [
 ];
 
 const STATE_FLAGS = [
-  "webSearchEnabled",
-  "webSearchNeedReset",
   "vectorizationEnabled",
   "vectorizationNeedReset",
   "aiReady",
-  "aiReadyNeedReset",
   "systemAiEnabled",
 ] as const;
+
+/** Booleans the response used to carry and no longer does. */
+const REMOVED_STATE_FLAGS = [
+  "webSearchEnabled",
+  "webSearchNeedReset",
+  "aiReadyNeedReset",
+] as const;
+
+/** The names the web client and the MCP server address the tools by. */
+const TOOL_NAMES = {
+  knowledgeSearchToolName: "docspace_knowledge_search",
+  webSearchToolName: "docspace_web_search",
+  webCrawlingToolName: "docspace_web_crawling",
+  generateDocxToolName: "docspace_generate_docx",
+  generateFormToolName: "docspace_generate_form",
+  generatePresentationToolName: "docspace_generate_presentation",
+} as const;
 
 test.describe("AI Settings - getAiSettings", () => {
   for (const { label, type } of ROLES) {
@@ -55,42 +81,57 @@ test.describe("AI Settings - getAiSettings", () => {
       for (const flag of STATE_FLAGS) {
         expect(typeof response?.[flag]).toBe("boolean");
       }
-      expect(typeof response?.portalMcpServerId).toBe("string");
-      expect(response?.portalMcpServerId).not.toBe("");
       expect(typeof response?.embeddingModel).toBe("string");
-      expect(Object.keys(response?.modelAliases ?? {}).length).toBeGreaterThan(
-        0,
-      );
-      expect(typeof response?.knowledgeSearchToolName).toBe("string");
-      expect(typeof response?.webSearchToolName).toBe("string");
-      expect(typeof response?.webCrawlingToolName).toBe("string");
-      expect(typeof response?.generateDocxToolName).toBe("string");
-      expect(typeof response?.generateFormToolName).toBe("string");
-      expect(typeof response?.generatePresentationToolName).toBe("string");
+      expect(typeof response?.recommendedModelForForms).toBe("string");
     });
   }
 
-  test("GET /api/2.0/ai/config - the tool names and embedding model match the published contract", async ({
+  test("GET /api/2.0/ai/config - the embedding model matches the published contract", async ({
     apiSdk,
   }) => {
-    // These are the names the web client and the MCP server address the tools
-    // by; a rename here breaks integrations, so pin them exactly.
     const { data, status } = await apiSdk
       .forRole("owner")
       .aiSettings.getAiSettings();
 
     expect(status).toBe(200);
+    expect(data.response?.embeddingModel).toBe("text-embedding-3-small");
+  });
 
+  test("BUG XXXXX: GET /api/2.0/ai/config - the tool names, portalMcpServerId, model aliases and three state flags are no longer returned", async ({
+    apiSdk,
+  }) => {
+    // Marked as a defect rather than rewritten away: the tool names are the
+    // identifiers the web client and the MCP server address the tools by, and
+    // `portalMcpServerId` is how a client reaches the portal's own MCP server,
+    // so a response that stops carrying them breaks integrations that read them
+    // from here. If the removal turns out to be intended, this test goes away and
+    // the fields go with it — but that decision has to be made explicitly.
+    //
+    // The BUG number is a placeholder until the ticket exists.
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .aiSettings.getAiSettings();
+
+    // Positive control: the route answers and the body is the current, shorter
+    // one — so the failure below is about missing fields, not a dead endpoint or
+    // a portal in some broken state.
+    expect(status).toBe(200);
+    expect(data.response?.embeddingModel).toBe("text-embedding-3-small");
+    expect(typeof data.response?.aiReady).toBe("boolean");
+
+    test.fail();
     const response = data.response;
-    expect(response?.knowledgeSearchToolName).toBe("docspace_knowledge_search");
-    expect(response?.webSearchToolName).toBe("docspace_web_search");
-    expect(response?.webCrawlingToolName).toBe("docspace_web_crawling");
-    expect(response?.generateDocxToolName).toBe("docspace_generate_docx");
-    expect(response?.generateFormToolName).toBe("docspace_generate_form");
-    expect(response?.generatePresentationToolName).toBe(
-      "docspace_generate_presentation",
-    );
-    expect(response?.embeddingModel).toBe("text-embedding-3-small");
+    for (const flag of REMOVED_STATE_FLAGS) {
+      expect(typeof response?.[flag], `${flag} in the response`).toBe(
+        "boolean",
+      );
+    }
+    expect(typeof response?.portalMcpServerId).toBe("string");
+    expect(response?.portalMcpServerId).not.toBe("");
+    expect(Object.keys(response?.modelAliases ?? {}).length).toBeGreaterThan(0);
+    for (const [field, name] of Object.entries(TOOL_NAMES)) {
+      expect(response?.[field as keyof typeof TOOL_NAMES], field).toBe(name);
+    }
   });
 });
 

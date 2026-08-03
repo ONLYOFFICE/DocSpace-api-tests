@@ -3,7 +3,10 @@ import { test } from "@/src/fixtures";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 import { AiTools } from "@/src/helpers/ai-tools";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
-import { enableAiGateway } from "@/src/helpers/wallet-services";
+import {
+  configureAiToolsAsUnpaid,
+  enableAiGateway,
+} from "@/src/helpers/wallet-services";
 import { ApiSDK } from "@/src/services/api-sdk";
 
 // All twelve `/ai/tools/*` routes are pinned here, not just the ones the other
@@ -23,6 +26,9 @@ import { ApiSDK } from "@/src/services/api-sdk";
 // The refused writes are deliberately different from the value that is already
 // stored (disable -> clear, allow -> revoke, update -> a third URL), so the
 // "nothing changed" check after re-enabling can actually fail.
+//
+// The second describe covers the other off-state — an unpaid "AI Tools" wallet
+// service — where none of these routes is gated.
 
 const SERVER_CONFIG = { url: "https://mcp.example.invalid/sse" };
 const UPDATED_CONFIG = { url: "https://mcp-updated.example.invalid/sse" };
@@ -421,5 +427,115 @@ test.describe("MCP - AI Disabled", () => {
 
     expect(error).toBe("Forbidden");
     expect(status).toBe(403);
+  });
+});
+
+// The other off-state: the portal AI switch is ON but the "AI Tools" wallet
+// service was never paid for. The tools surface is not gated by it at all.
+//
+// One test rather than a second twelve-route matrix. The full matrix above earns
+// its size because the answers actually differ per route — `list-system-tools`
+// stays 200 while the other eleven turn into 403. Here nothing differs, so what
+// is worth pinning is that each KIND of route is reachable: the system
+// catalogue, a read, a create, an update, a delete, and one write/read pair on
+// the per-tool state, which is stored differently from the servers. Every write
+// is read back, so a 200 that stored nothing cannot pass as "not gated".
+
+test.describe("MCP - AI Tools wallet service not paid for", () => {
+  test("GET|POST|PUT|DELETE /api/2.0/ai/tools/* - the tools surface is not gated by the AI Tools wallet service", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await configureAiToolsAsUnpaid(ownerApi);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Unpaid Wallet MCP Agent",
+      profileId,
+    });
+
+    await test.step("GET list-system-tools", async () => {
+      const { status, data } = await aiTools.listSystemTools("owner");
+      expect(status).toBe(200);
+      expect((data?.docspace ?? []).length).toBeGreaterThan(0);
+    });
+
+    await test.step("POST add-custom-server", async () => {
+      const { status, data } = await aiTools.addCustomServer("owner", {
+        name: "autotest-unpaid-server",
+        config: SERVER_CONFIG,
+        agentId,
+      });
+      expect(status).toBe(200);
+      expect(data?.success).toBe(true);
+    });
+
+    await test.step("GET list-custom-servers and get-custom-server", async () => {
+      const list = await aiTools.listCustomServers("owner", agentId);
+      expect(list.status).toBe(200);
+      expect(Object.keys(list.data)).toContain("autotest-unpaid-server");
+
+      const server = await aiTools.getCustomServer(
+        "owner",
+        "autotest-unpaid-server",
+        agentId,
+      );
+      expect(server.status).toBe(200);
+      expect(server.data).toEqual(SERVER_CONFIG);
+    });
+
+    await test.step("PUT update-custom-server", async () => {
+      const { status, data } = await aiTools.updateCustomServer("owner", {
+        name: "autotest-unpaid-server",
+        config: UPDATED_CONFIG,
+        agentId,
+      });
+      expect(status).toBe(200);
+      expect(data?.success).toBe(true);
+
+      const server = await aiTools.getCustomServer(
+        "owner",
+        "autotest-unpaid-server",
+        agentId,
+      );
+      expect(server.data).toEqual(UPDATED_CONFIG);
+    });
+
+    await test.step("PUT set-disabled, GET get-disabled and is-tool-disabled", async () => {
+      const { status } = await aiTools.setDisabledTools("owner", {
+        serverType: "docspace",
+        toolNames: ["delete_file"],
+        agentId,
+      });
+      expect(status).toBe(200);
+
+      const disabled = await aiTools.getDisabledTools("owner", agentId);
+      expect(disabled.status).toBe(200);
+      expect(disabled.data?.docspace).toEqual(["delete_file"]);
+
+      const one = await aiTools.isToolDisabled("owner", {
+        serverType: "docspace",
+        toolName: "delete_file",
+        agentId,
+      });
+      expect(one.status).toBe(200);
+      expect(one.data).toBe(true);
+    });
+
+    await test.step("DELETE remove-custom-server", async () => {
+      const { status, data } = await aiTools.removeCustomServer("owner", {
+        name: "autotest-unpaid-server",
+        agentId,
+      });
+      expect(status).toBe(200);
+      expect(data?.success).toBe(true);
+
+      // `remove` reports a missing server as success too, so the registration
+      // really being gone is what makes this step mean anything.
+      const list = await aiTools.listCustomServers("owner", agentId);
+      expect(Object.keys(list.data)).not.toContain("autotest-unpaid-server");
+    });
   });
 });
