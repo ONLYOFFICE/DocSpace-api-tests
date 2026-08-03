@@ -448,8 +448,10 @@ test.describe("DELETE /ai/agents/:id - Delete AI agent", () => {
 
       const { status } = await aiChat.deleteAgent(role, agentId);
 
-      // Deletion returns an async operation but takes effect immediately.
-      const { status: afterStatus } = await aiChat.getAgentInfo(role, agentId);
+      // Deletion returns an async operation. It normally lands before the call
+      // returns, but not always — polled, so a slow operation is a wait and a
+      // delete that never happened is still a failure.
+      const afterStatus = await aiChat.waitForAgentDeleted(role, agentId);
 
       expect(afterStatus).toBe(404);
       expect(status).toBe(200);

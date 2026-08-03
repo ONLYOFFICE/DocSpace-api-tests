@@ -250,7 +250,10 @@ export class AiAgentChat extends AiHttp {
     );
   }
 
-  /** Returns an async operation, but the agent is already gone (GET → 404). */
+  /**
+   * Returns an async operation. The agent is usually gone by the time the call
+   * comes back, but not reliably — read it back with `waitForAgentDeleted`.
+   */
   deleteAgent(role: AgentRole, agentId: number | string, deleteAfter = false) {
     return this.call<Envelope<{ id?: string; finished?: boolean }>>(
       role,
@@ -258,6 +261,34 @@ export class AiAgentChat extends AiHttp {
       `/api/2.0/ai/agents/${agentId}`,
       { deleteAfter },
     );
+  }
+
+  /**
+   * Polls GET /ai/agents/{id} until the agent is gone, and returns the last
+   * status seen so the caller still does the asserting.
+   *
+   * DELETE hands back an async operation. It usually lands before the call
+   * returns, which is why a bare follow-up GET passed for a long time, but on
+   * 2026-08-03 a Room Admin run read 200 straight after a 200 delete. Polling
+   * is what tells "the operation needed a moment" apart from "the 200 was a
+   * lie": if this still returns 200 at the deadline, the delete really was a
+   * no-op and the caller's `toBe(404)` fails on a product bug, not a race.
+   */
+  async waitForAgentDeleted(
+    role: AgentRole,
+    agentId: number | string,
+    timeoutMs = 15000,
+  ): Promise<number> {
+    const deadline = Date.now() + timeoutMs;
+    let status: number;
+
+    for (;;) {
+      ({ status } = await this.getAgentInfo(role, agentId));
+      if (status === 404 || Date.now() >= deadline) {
+        return status;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
   }
 
   getAgentsNewItems(role: AgentRole) {

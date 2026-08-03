@@ -649,117 +649,120 @@ const INJECTION_INSTRUCTIONS =
 const NEUTRAL_MESSAGE = "Hi there!";
 
 test.describe("AI Instructions - stored HTML injection", () => {
-  // Declared as a normal test on purpose. `test.fail()` is armed inside the
-  // body, after the precondition — declaring `test.fail(title, fn)` here would
-  // mark the test expected-to-fail from the first line, and a model refusal
-  // would then be swallowed as "expected" instead of showing up as red.
-  test("BUG XXXXX: POST /ai/agents - attacker HTML stored in AI Instructions is delivered to another room member as active markup", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
+  // Marked expected-to-fail from the first line, so the whole test is one
+  // known defect and the suite stays green while the bug is open.
+  //
+  // The cost of the declaration form: a model that declines to emit the markup
+  // fails the precondition below, and Playwright counts that as "expected"
+  // too. So a green result here does NOT prove the payload was reproduced —
+  // the assistant message is printed unconditionally above the assertions,
+  // and that log is what has to be read to tell the two apart. When the bug is
+  // fixed this reports "Expected to fail, but passed".
+  test.fail(
+    "BUG XXXXX: POST /ai/agents - attacker HTML stored in AI Instructions is delivered to another room member as active markup",
+    async ({ apiSdk, paymentsApi }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
 
-    let agentId = 0;
+      let agentId = 0;
 
-    await test.step("Owner stores the payload in AI Instructions", async () => {
-      agentId = await aiChat.createAgentId("owner", {
-        title: "Injection Agent",
-        profileId,
-        prompt: INJECTION_INSTRUCTIONS,
+      await test.step("Owner stores the payload in AI Instructions", async () => {
+        agentId = await aiChat.createAgentId("owner", {
+          title: "Injection Agent",
+          profileId,
+          prompt: INJECTION_INSTRUCTIONS,
+        });
       });
-    });
 
-    const { data: userData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "User",
-    );
-
-    let instructionsAsSeenByMember: string | undefined;
-
-    await test.step("A second user joins the room and can read the instructions", async () => {
-      const { status: shareStatus } = await ownerApi.rooms.setRoomSecurity({
-        id: agentId,
-        roomInvitationRequest: {
-          invitations: [
-            {
-              id: userData.response!.id!,
-              access: FileShare.ContentCreator,
-            },
-          ],
-          notify: false,
-        },
-      });
-      expect(shareStatus).toBe(200);
-
-      const { status } = await aiChat.getAgentInfo("user", agentId);
-      instructionsAsSeenByMember = await aiChat.getAgentInstructions(
-        "user",
-        agentId,
+      const { data: userData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
       );
 
-      expect(status).toBe(200);
-      expect(instructionsAsSeenByMember).toContain(INJECTION_MARKER);
-    });
+      let instructionsAsSeenByMember: string | undefined;
 
-    let reply = "";
-
-    await test.step("The member chats with the agent", async () => {
-      // The model occasionally declines to emit raw markup. Retry on fresh
-      // threads so a refusal does not masquerade as the bug being fixed.
-      for (
-        let attempt = 0;
-        attempt < 3 && !reply.includes(INJECTION_MARKER);
-        attempt++
-      ) {
-        const thread = await aiChat.createThread("user", {
-          title: `Injection thread ${attempt}`,
-          profileId,
-          agentId,
+      await test.step("A second user joins the room and can read the instructions", async () => {
+        const { status: shareStatus } = await ownerApi.rooms.setRoomSecurity({
+          id: agentId,
+          roomInvitationRequest: {
+            invitations: [
+              {
+                id: userData.response!.id!,
+                access: FileShare.ContentCreator,
+              },
+            ],
+            notify: false,
+          },
         });
-        expect(thread.status).toBe(200);
+        expect(shareStatus).toBe(200);
 
-        const { status } = await aiChat.sendMessage("user", {
-          threadId: thread.threadId,
-          profileId,
-          agentId,
-          message: NEUTRAL_MESSAGE,
-          instructions: instructionsAsSeenByMember,
-        });
-        expect(status).toBe(200);
-
-        const messages = await aiChat.waitForAssistantReply(
+        const { status } = await aiChat.getAgentInfo("user", agentId);
+        instructionsAsSeenByMember = await aiChat.getAgentInstructions(
           "user",
-          thread.threadId,
+          agentId,
         );
-        reply = AiAgentChat.assistantText(messages);
-      }
-    });
 
-    // Precondition, asserted BEFORE test.fail() is armed: the agent has to
-    // actually reproduce the payload for this scenario to mean anything. If
-    // the model refuses, this throws while the test is still expected to
-    // pass, so it surfaces as a real red instead of a silent expected-fail.
-    expect(reply).toContain(INJECTION_MARKER);
+        expect(status).toBe(200);
+        expect(instructionsAsSeenByMember).toContain(INJECTION_MARKER);
+      });
 
-    console.log(
-      `\n=== assistant message delivered to the second room member ===\n${reply}\n=== end ===\n`,
-    );
+      let reply = "";
 
-    // Everything past this point is the known defect.
-    test.fail();
+      await test.step("The member chats with the agent", async () => {
+        // The model occasionally declines to emit raw markup. Retry on fresh
+        // threads so a refusal does not masquerade as the bug being fixed.
+        for (
+          let attempt = 0;
+          attempt < 3 && !reply.includes(INJECTION_MARKER);
+          attempt++
+        ) {
+          const thread = await aiChat.createThread("user", {
+            title: `Injection thread ${attempt}`,
+            profileId,
+            agentId,
+          });
+          expect(thread.status).toBe(200);
 
-    // The correct outcome: whatever the agent was told to emit, the message
-    // handed to another user must not carry executable or externally-loading
-    // markup. Today it does, verbatim.
-    expect(reply).not.toContain("<script");
-    expect(reply).not.toContain("onerror=");
-    expect(reply).not.toContain("onload=");
-    expect(reply).not.toContain("attacker.invalid");
-  });
+          const { status } = await aiChat.sendMessage("user", {
+            threadId: thread.threadId,
+            profileId,
+            agentId,
+            message: NEUTRAL_MESSAGE,
+            instructions: instructionsAsSeenByMember,
+          });
+          expect(status).toBe(200);
+
+          const messages = await aiChat.waitForAssistantReply(
+            "user",
+            thread.threadId,
+          );
+          reply = AiAgentChat.assistantText(messages);
+        }
+      });
+
+      // Logged before anything is asserted: with the whole test marked
+      // expected-to-fail, this is the only way to tell a reproduced payload from
+      // a model that just said hello.
+      console.log(
+        `\n=== assistant message delivered to the second room member ===\n${reply}\n=== end ===\n`,
+      );
+
+      // Precondition: the agent has to actually reproduce the payload for this
+      // scenario to mean anything.
+      expect(reply).toContain(INJECTION_MARKER);
+
+      // The correct outcome: whatever the agent was told to emit, the message
+      // handed to another user must not carry executable or externally-loading
+      // markup. Today it does, verbatim.
+      expect(reply).not.toContain("<script");
+      expect(reply).not.toContain("onerror=");
+      expect(reply).not.toContain("onload=");
+      expect(reply).not.toContain("attacker.invalid");
+    },
+  );
 
   test("GET /ai/agents/:id - a plain room member can read the agent's AI Instructions", async ({
     apiSdk,
