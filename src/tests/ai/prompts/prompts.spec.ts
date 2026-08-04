@@ -303,7 +303,7 @@ test.describe("AI Prompts - content validation", () => {
     );
   });
 
-  test("POST /api/2.0/ai/prompts/create - cyrillic, emoji and markdown survive the round trip", async ({
+  test("POST /api/2.0/ai/prompts/create - unicode, emoji and markdown survive the round trip", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -311,17 +311,17 @@ test.describe("AI Prompts - content validation", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
-    const name = "Автотест перевод 🎉";
+    const name = "Autotest translate 🎉";
     const text = [
-      "# Заголовок",
+      "# Heading",
       "",
-      "Переведи **этот** текст на английский:",
+      "Translate **this** text into French:",
       "",
       "```js",
       "const a = 1 < 2 && 3 > 2;",
       "```",
       "",
-      '| колонка | "значение" |',
+      '| column | "value" |',
     ].join("\n");
 
     const promptId = await prompts.createPromptId("owner", { name, text });
@@ -793,7 +793,7 @@ test.describe("AI Prompt folders - validation", () => {
     expect((await prompts.listFolders("owner")).data).toEqual([]);
   });
 
-  test("POST /api/2.0/ai/prompts/create-folder - cyrillic and emoji names round-trip", async ({
+  test("POST /api/2.0/ai/prompts/create-folder - unicode and emoji names round-trip", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -801,7 +801,7 @@ test.describe("AI Prompt folders - validation", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
-    const name = "Мои промпты 📁";
+    const name = "Autotest prompts 📁";
 
     const folderId = await prompts.createFolderId("owner", name);
     expect((await prompts.getFolder("owner", folderId)).data?.name).toBe(name);
