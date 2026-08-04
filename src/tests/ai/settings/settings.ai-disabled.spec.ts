@@ -104,7 +104,7 @@ test.describe("AI Settings - AI Disabled", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const { data: before, status: beforeStatus } =
-      await ownerApi.aiSettings.getAiSettings();
+      await ownerApi.aiSettings.aiSettingsGet();
     expect(beforeStatus).toBe(200);
     expect(before.response?.aiReady).toBe(true);
     expect(before.response?.vectorizationEnabled).toBe(true);
@@ -114,7 +114,7 @@ test.describe("AI Settings - AI Disabled", () => {
     expect(disabled.writeStatus).toBe(200);
     expect(disabled.enabled).toBe(false);
 
-    const { data: after, status } = await ownerApi.aiSettings.getAiSettings();
+    const { data: after, status } = await ownerApi.aiSettings.aiSettingsGet();
 
     expect(status).toBe(200);
     expect(after.response?.aiReady).toBe(false);
@@ -134,19 +134,19 @@ test.describe("AI Settings - AI Disabled", () => {
     expect(disabled.enabled).toBe(false);
 
     const { data: before, status } =
-      await ownerApi.aiSettings.getAiUserSettings();
+      await ownerApi.aiSettings.aiSettingsGetUser();
     expect(status).toBe(200);
     const target = !before.response?.chatRecommendedModelVisible;
 
-    const { status: writeStatus } = await ownerApi.aiSettings.setAiUserSettings(
+    const { status: writeStatus } = await ownerApi.aiSettings.aiSettingsSetUser(
       {
-        setAiUserSettingsRequestDto: { chatRecommendedModelVisible: target },
+        requestBody: { chatRecommendedModelVisible: target },
       },
     );
     expect(writeStatus).toBe(200);
 
     const { data: after, status: afterStatus } =
-      await ownerApi.aiSettings.getAiUserSettings();
+      await ownerApi.aiSettings.aiSettingsGetUser();
     expect(afterStatus).toBe(200);
     expect(after.response?.chatRecommendedModelVisible).toBe(target);
   });
@@ -187,7 +187,7 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
     // Their disappearance is a change on the server side, not something to
     // absorb here — see settings.spec.ts, which pins the body's shape.
     const { data: unpaid, status: unpaidStatus } =
-      await ownerApi.aiSettings.getAiSettings();
+      await ownerApi.aiSettings.aiSettingsGet();
     expect(unpaidStatus).toBe(200);
     expect(unpaid.response?.aiReady).toBe(false);
     expect(unpaid.response?.vectorizationEnabled).toBe(false);
@@ -195,7 +195,7 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
 
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { data: paid, status } = await ownerApi.aiSettings.getAiSettings();
+    const { data: paid, status } = await ownerApi.aiSettings.aiSettingsGet();
 
     expect(status).toBe(200);
     expect(paid.response?.aiReady).toBe(true);
@@ -221,7 +221,7 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
     ).toBe("Customer could not be found");
 
     const { data: config, status: configStatus } =
-      await ownerApi.aiSettings.getAiSettings();
+      await ownerApi.aiSettings.aiSettingsGet();
     expect(configStatus).toBe(200);
     expect(config.response?.aiReady).toBe(false);
   });

@@ -137,7 +137,7 @@ test.describe("AI Messages - AI Disabled", () => {
     const { data: myFolder } = await ownerApi.folders.getMyFolder({});
     const folderId = myFolder.response!.current!.id!;
 
-    const { data: unpaidConfig } = await ownerApi.aiSettings.getAiSettings();
+    const { data: unpaidConfig } = await ownerApi.aiSettings.aiSettingsGet();
     expect(unpaidConfig.response?.aiReady).toBe(false);
 
     const unpaidTitle = `Exported unpaid ${apiSdk.faker.generateString(6)}`;

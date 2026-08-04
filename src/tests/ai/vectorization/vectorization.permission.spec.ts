@@ -23,8 +23,8 @@ test.describe("Vectorization - startTask permissions", () => {
 
     // File id 1 need not exist: authentication must be rejected before the
     // endpoint looks the file up.
-    const { status } = await anonApi.vectorization.startTask({
-      vectorizationStartRequestBody: {
+    const { status } = await anonApi.vectorization.aiVectorizationStartTask({
+      requestBody: {
         files: new Set([1]),
       },
     });
@@ -69,11 +69,12 @@ test.describe("Vectorization - startTask permissions", () => {
 
         const memberApi = await apiSdk.authenticateMember(userData, role);
 
-        const { status } = await memberApi.vectorization.startTask({
-          vectorizationStartRequestBody: {
-            files: new Set([fileId]),
-          },
-        });
+        const { status } =
+          await memberApi.vectorization.aiVectorizationStartTask({
+            requestBody: {
+              files: new Set([fileId]),
+            },
+          });
 
         expect(status).toBe(403);
       },
@@ -102,11 +103,12 @@ test.describe("Vectorization - startTask permissions", () => {
           role,
         );
 
-        const { status } = await memberApi.vectorization.startTask({
-          vectorizationStartRequestBody: {
-            files: new Set([fileId]),
-          },
-        });
+        const { status } =
+          await memberApi.vectorization.aiVectorizationStartTask({
+            requestBody: {
+              files: new Set([fileId]),
+            },
+          });
 
         expect(status).toBe(403);
       },

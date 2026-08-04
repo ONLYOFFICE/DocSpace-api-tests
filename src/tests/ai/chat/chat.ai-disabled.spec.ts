@@ -447,7 +447,7 @@ test.describe("AI Chat - AI Tools paid for with no AI credit", () => {
     await enableAiToolsWithoutAiCredit(paymentsApi, ownerApi.payment);
 
     const { data: config, status: configStatus } =
-      await ownerApi.aiSettings.getAiSettings();
+      await ownerApi.aiSettings.aiSettingsGet();
     expect(configStatus).toBe(200);
     expect(config.response?.aiReady, "aiReady with AI Tools paid for").toBe(
       true,

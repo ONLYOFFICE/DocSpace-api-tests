@@ -361,12 +361,10 @@ test.describe("GET /api/2.0/privacyroom/keys/filter - access control", () => {
     await owner.privacyroom.setKeys({
       encryptionKeyRequestDto: { publicKey, privateKeyEnc: "op" },
     });
-    const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-      id: ZERO_GUID,
-    });
+    const { data, status } = await owner.privacyroom.getUserKeys();
     expect(status).toBe(200);
     expect(data.count).toBe(1);
-    expect(data.response?.publicKey).toBe(publicKey);
+    expect(data.response?.[0]?.publicKey).toBe(publicKey);
   });
 
   test("GET /api/2.0/privacyroom/keys/filter - DocSpaceAdmin filters and gets back their own key", async ({
@@ -378,12 +376,10 @@ test.describe("GET /api/2.0/privacyroom/keys/filter - access control", () => {
     await admin.privacyroom.setKeys({
       encryptionKeyRequestDto: { publicKey, privateKeyEnc: "ap" },
     });
-    const { data, status } = await admin.privacyroom.getUserKeysByFilter({
-      id: ZERO_GUID,
-    });
+    const { data, status } = await admin.privacyroom.getUserKeys();
     expect(status).toBe(200);
     expect(data.count).toBe(1);
-    expect(data.response?.publicKey).toBe(publicKey);
+    expect(data.response?.[0]?.publicKey).toBe(publicKey);
   });
 
   test("GET /api/2.0/privacyroom/keys/filter - RoomAdmin filters and gets back their own key", async ({
@@ -395,12 +391,10 @@ test.describe("GET /api/2.0/privacyroom/keys/filter - access control", () => {
     await roomAdmin.privacyroom.setKeys({
       encryptionKeyRequestDto: { publicKey, privateKeyEnc: "rp" },
     });
-    const { data, status } = await roomAdmin.privacyroom.getUserKeysByFilter({
-      id: ZERO_GUID,
-    });
+    const { data, status } = await roomAdmin.privacyroom.getUserKeys();
     expect(status).toBe(200);
     expect(data.count).toBe(1);
-    expect(data.response?.publicKey).toBe(publicKey);
+    expect(data.response?.[0]?.publicKey).toBe(publicKey);
   });
 
   test("GET /api/2.0/privacyroom/keys/filter - User filters and gets back their own key", async ({
@@ -412,12 +406,10 @@ test.describe("GET /api/2.0/privacyroom/keys/filter - access control", () => {
     await user.privacyroom.setKeys({
       encryptionKeyRequestDto: { publicKey, privateKeyEnc: "up" },
     });
-    const { data, status } = await user.privacyroom.getUserKeysByFilter({
-      id: ZERO_GUID,
-    });
+    const { data, status } = await user.privacyroom.getUserKeys();
     expect(status).toBe(200);
     expect(data.count).toBe(1);
-    expect(data.response?.publicKey).toBe(publicKey);
+    expect(data.response?.[0]?.publicKey).toBe(publicKey);
   });
 
   test("GET /api/2.0/privacyroom/keys/filter - Guest filters and gets back their own key", async ({
@@ -442,9 +434,7 @@ test.describe("GET /api/2.0/privacyroom/keys/filter - access control", () => {
   test("GET /api/2.0/privacyroom/keys/filter - Anonymous cannot filter keys", async ({
     apiSdk,
   }) => {
-    const { status } = await apiSdk
-      .forAnonymous()
-      .privacyroom.getUserKeysByFilter();
+    const { status } = await apiSdk.forAnonymous().privacyroom.getUserKeys();
     expect(status).toBe(401);
   });
 });
@@ -648,15 +638,11 @@ test.describe("Cross-user E2E key isolation", () => {
       },
     });
 
-    const byOwnerId = await user.privacyroom.getUserKeysByFilter({
-      id: ownerId,
-    });
+    const byOwnerId = await user.privacyroom.getUserKeys();
     expect(byOwnerId.status).toBe(200);
     expect(byOwnerId.data.count).toBe(0);
 
-    const byOwnerPk = await user.privacyroom.getUserKeysByFilter({
-      publicKey: ownerPk,
-    });
+    const byOwnerPk = await user.privacyroom.getUserKeys();
     expect(byOwnerPk.status).toBe(200);
     expect(byOwnerPk.data.count).toBe(0);
   });

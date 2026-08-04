@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { ProviderType } from "@onlyoffice/docspace-api-sdk";
+import { AiBuiltinProviderType } from "@onlyoffice/docspace-api-sdk";
 import {
   expectAbsoluteUrlRejected,
   ATTACKER_HOST,
@@ -31,7 +31,7 @@ test.describe.skip("AI Providers - Get Permissions", () => {
     }) => {
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
 
-      const { data, status } = await api.providers.getProviders();
+      const { data, status } = await api.providers.aiProfilesList();
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
@@ -43,7 +43,7 @@ test.describe.skip("AI Providers - Get Permissions", () => {
   }) => {
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.providers.getProviders();
+    const { status } = await anonApi.providers.aiProfilesList();
 
     expect(status).toBe(401);
   });
@@ -55,7 +55,7 @@ test.describe.skip("AI Providers - Get Default Permissions", () => {
   }) => {
     const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { data, status } = await api.providers.getDefaultProvider();
+    const { data, status } = await api.providers.aiProfilesList();
 
     expect(status).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -66,7 +66,7 @@ test.describe.skip("AI Providers - Get Default Permissions", () => {
   }) => {
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.providers.getDefaultProvider();
+    const { status } = await anonApi.providers.aiProfilesList();
 
     expect(status).toBe(401);
   });
@@ -82,10 +82,8 @@ test.describe
     test(`GET /ai/openai/:providerId/v1/{absolute url} - ${role}: absolute URL is not proxied`, async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk
-        .forRole("owner")
-        .providers.getDefaultProvider();
-      const providerId = data.response!.providerId!;
+      const { data } = await apiSdk.forRole("owner").providers.aiProfilesList();
+      const providerId = data?.[0]?.id ?? "";
 
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
       const roleName = role.charAt(0).toLowerCase() + role.slice(1);
@@ -123,13 +121,15 @@ test.describe
     }) => {
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
 
-      const { data, status } = await api.providers.previewProviderModels({
-        previewProviderModelsRequestDto: {
-          type: ProviderType.OpenAiCompatible,
-          url: attackerProviderUrl,
-          key: "sk-security-test",
+      const { data, status } = await api.providers.aiProfilesListProviderModels(
+        {
+          aiProfilesListProviderModelsRequest: {
+            providerType: AiBuiltinProviderType.Openaicompatible,
+            baseUrl: attackerProviderUrl,
+            apiKey: "sk-security-test",
+          },
         },
-      });
+      );
 
       expect(status).toBe(403);
       expect((data as any).error.message).toBe("Access denied");
@@ -140,12 +140,13 @@ test.describe
     }) => {
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
 
-      const { status } = await api.providers.addProvider({
-        createProviderRequestDto: {
-          type: ProviderType.OpenAiCompatible,
-          title: `ssrf-${role}`,
-          url: attackerProviderUrl,
+      const { status } = await api.providers.aiProfilesCreate({
+        aiCreateProfileInput: {
+          providerType: AiBuiltinProviderType.Openaicompatible,
+          name: `ssrf-${role}`,
+          baseUrl: attackerProviderUrl,
           key: "sk-security-test",
+          modelId: "",
         },
       });
 
@@ -157,11 +158,14 @@ test.describe
     }) => {
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
 
-      const { status } = await api.providers.updateProvider({
-        id: 1,
-        updateProviderBody: {
-          url: attackerProviderUrl,
+      const { status } = await api.providers.aiProfilesUpdate({
+        aiProfile: {
+          id: "1",
+          name: "test",
+          providerType: AiBuiltinProviderType.Openaicompatible,
+          baseUrl: attackerProviderUrl,
           key: "sk-security-test",
+          modelId: "",
         },
       });
 
@@ -174,11 +178,11 @@ test.describe
   }) => {
     const { status } = await apiSdk
       .forAnonymous()
-      .providers.previewProviderModels({
-        previewProviderModelsRequestDto: {
-          type: ProviderType.OpenAiCompatible,
-          url: attackerProviderUrl,
-          key: "sk-security-test",
+      .providers.aiProfilesListProviderModels({
+        aiProfilesListProviderModelsRequest: {
+          providerType: AiBuiltinProviderType.Openaicompatible,
+          baseUrl: attackerProviderUrl,
+          apiKey: "sk-security-test",
         },
       });
 
