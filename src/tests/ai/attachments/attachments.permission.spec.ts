@@ -161,7 +161,7 @@ test.describe("AI Attachments - anonymous access", () => {
 });
 
 test.describe("AI Attachments - cross-user access", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/get-many - a User reads another user's draft in full", async ({
+  test("BUG 82765: POST /api/2.0/ai/attachments/get-many - a User reads another user's draft in full", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -195,7 +195,7 @@ test.describe("AI Attachments - cross-user access", () => {
     expect(leaked, "another user's draft must not be readable").toBeNull();
   });
 
-  test("BUG XXXXX: DELETE /api/2.0/ai/attachments/delete - a User deletes another user's draft", async ({
+  test("BUG 82768: DELETE /api/2.0/ai/attachments/delete - a User deletes another user's draft", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -242,7 +242,7 @@ test.describe("AI Attachments - cross-user access", () => {
     ).not.toBeNull();
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/get-many - a Guest reads the portal owner's draft", async ({
+  test("BUG 82765: POST /api/2.0/ai/attachments/get-many - a Guest reads the portal owner's draft", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -291,7 +291,7 @@ test.describe("AI Attachments - cross-user access", () => {
     expect(leaked, "a Guest must not read the owner's draft").toBeNull();
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/link-to-message - the caller's access to the target thread is not checked", async ({
+  test("BUG 82774: POST /api/2.0/ai/attachments/link-to-message - the caller's access to the target thread is not checked", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -375,7 +375,7 @@ test.describe("AI Attachments - cross-user access", () => {
     ).toBeNull();
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/get-many - a mixed batch returns another user's draft alongside the caller's own", async ({
+  test("BUG 82765: POST /api/2.0/ai/attachments/get-many - a mixed batch returns another user's draft alongside the caller's own", async ({
     apiSdk,
   }) => {
     // The batch form of the leak, and the shape a real client would hit: the
@@ -436,7 +436,7 @@ test.describe("AI Attachments - cross-user access", () => {
     ).toBe(0);
   });
 
-  test("BUG XXXXX: DELETE /api/2.0/ai/attachments/delete-many - a mixed batch deletes another user's draft", async ({
+  test("BUG 82769: DELETE /api/2.0/ai/attachments/delete-many - a mixed batch deletes another user's draft", async ({
     apiSdk,
   }) => {
     // delete-many is a separate route from delete, and this is the form that

@@ -351,7 +351,7 @@ test.describe("AI Attachments - AI access disabled", () => {
     ).toHaveProperty("size", 1);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/get-many - the same call answers both 200 and 403 for one portal state", async ({
+  test("BUG 82766: POST /api/2.0/ai/attachments/get-many - the same call answers both 200 and 403 for one portal state", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");

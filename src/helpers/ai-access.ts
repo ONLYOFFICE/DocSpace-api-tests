@@ -2,8 +2,8 @@ import { CommonSettingsApi } from "@onlyoffice/docspace-api-sdk";
 
 // The portal AI switch is still PUT /api/2.0/settings/ai-access — verified
 // against a live portal on 2026-07-31. Turning it off flips
-// `GET /ai/config` -> aiReady/webSearchEnabled/vectorizationEnabled to false
-// and makes the AI routes answer 403.
+// `GET /ai/config` -> aiReady/vectorizationEnabled/systemAiEnabled to false and
+// makes the AI routes answer 403.
 //
 // Setup that is never checked is setup that can silently stop working, so
 // switching the flag always reads it back: a test that asserts 403 after a

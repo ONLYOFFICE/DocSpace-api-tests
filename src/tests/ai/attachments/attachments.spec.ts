@@ -1056,7 +1056,7 @@ test.describe("AI Attachments - get-many", () => {
     expect(wrapped.status, "{ ids: [uuid] }").toBe(200);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/get-many - a missing body returns 500 instead of 400", async ({
+  test("BUG 82763: POST /api/2.0/ai/attachments/get-many - a missing body returns 500 instead of 400", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -1082,7 +1082,7 @@ test.describe("AI Attachments - intermittent reads and deletes", () => {
   //
   // Both are written over ten independent drafts rather than ten reads of one
   // draft: a single draft can be readable by luck, ten in a row cannot.
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/get-many - a freshly saved draft is intermittently unavailable on an immediate read", async ({
+  test("BUG 82764: POST /api/2.0/ai/attachments/get-many - a freshly saved draft is intermittently unavailable on an immediate read", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -1114,7 +1114,7 @@ test.describe("AI Attachments - intermittent reads and deletes", () => {
     ).toEqual([]);
   });
 
-  test("BUG XXXXX: DELETE /api/2.0/ai/attachments/delete - a deleted draft remains intermittently readable after the delete reported success", async ({
+  test("BUG 82767: DELETE /api/2.0/ai/attachments/delete - a deleted draft remains intermittently readable after the delete reported success", async ({
     apiSdk,
   }) => {
     // The same symptom on the write side, and the more dangerous half: a client
@@ -1147,7 +1147,7 @@ test.describe("AI Attachments - intermittent reads and deletes", () => {
 });
 
 test.describe("AI Attachments - link-to-message", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/link-to-message - a linked draft never reaches the message", async ({
+  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - a linked draft never reaches the message", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1205,7 +1205,7 @@ test.describe("AI Attachments - link-to-message", () => {
     ).toEqual([expect.objectContaining({ id })]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/link-to-message - a linked draft keeps no messageId or threadId", async ({
+  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - a linked draft keeps no messageId or threadId", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1251,7 +1251,7 @@ test.describe("AI Attachments - link-to-message", () => {
     ).toEqual({ messageId, threadId });
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/link-to-message - unknown and mismatched targets all report success", async ({
+  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - unknown and mismatched targets all report success", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1323,7 +1323,7 @@ test.describe("AI Attachments - link-to-message", () => {
     ).toBe(true);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/link-to-message - an empty body reports success", async ({
+  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an empty body reports success", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -1358,7 +1358,7 @@ test.describe("AI Attachments - link-to-message", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/link-to-message - multiple, repeated and re-pointed links all leave every message empty", async ({
+  test("BUG 82773: POST /api/2.0/ai/attachments/link-to-message - multiple, repeated and re-pointed links all leave every message empty", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1744,7 +1744,7 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     expect(userMessage?.attachments).toEqual([{ id }]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a draft passed as attachments:[{id}] does not reach the model", async ({
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a draft passed as attachments:[{id}] does not reach the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
