@@ -1788,7 +1788,7 @@ test.describe("API rooms methods", () => {
     }) => {
       test.fail(
         true,
-        "BUG XXXXX: updateRoom accepts chatSettings on a non-AI room with 200 and silently ignores it instead of 400",
+        "BUG 82798: updateRoom accepts chatSettings on a non-AI room with 200 and silently ignores it instead of 400",
       );
       const ownerApi = apiSdk.forRole("owner");
       const roomId = await mkRoom(ownerApi, "Autotest Chat Settings");

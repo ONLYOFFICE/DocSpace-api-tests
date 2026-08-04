@@ -445,7 +445,7 @@ test.describe("API privacyroom methods", () => {
       // was, so it will encrypt against a key the portal does not have.
       test.fail(
         true,
-        "BUG XXXXX: setKeys with an oversized publicKey returns a success-shaped 200 and stores nothing instead of 400",
+        "BUG 82800: setKeys with an oversized publicKey returns a success-shaped 200 and stores nothing instead of 400",
       );
       const owner = apiSdk.forRole("owner");
 
