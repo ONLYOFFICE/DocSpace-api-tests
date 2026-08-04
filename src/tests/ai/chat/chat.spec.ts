@@ -7,14 +7,17 @@ import {
   expectHealthyAssistantReply,
   inviteToAgent,
 } from "@/src/helpers/ai-agent-chat";
+import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
 import { UserType } from "@/src/services/api-sdk";
 
 // Chat moved off `/ai/rooms/{roomId}/chats` (404) onto threads:
 //
 //   POST   /ai/threads/create            { title, profileId, entityId }
-//   GET    /ai/threads/list?entityId=    threads for one agent (empty without it)
+//   POST   /ai/threads/open-or-create    { threadId?, profileId, firstMessage, entityId? }
+//   GET    /ai/threads/list?entityId=[&count=][&cursor=][&query=]
 //   GET    /ai/threads/get-by-id?threadId=
 //   PUT    /ai/threads/rename            { threadId, title }
+//   POST   /ai/threads/regenerate-title  { threadId, profile }
 //   DELETE /ai/threads/delete            { threadId }
 //   DELETE /ai/threads/clear-messages    { threadId }
 //   POST   /ai/threads/touch             { threadId }
@@ -617,5 +620,379 @@ test.describe("GET /api/2.0/ai/profiles/list - Model catalogue", () => {
     );
     expect(agentStatus).toBe(200);
     expect(agent?.response?.id).toBe(agentId);
+  });
+});
+
+// The thread routes the chat suite does not already cover — sections 8.1 and 8.2.
+//
+//   POST /ai/threads/open-or-create   { threadId?, profile, profileId, firstMessage, entityId? }
+//   GET  /ai/threads/list?entityId=[&count=][&cursor=][&query=]
+//   POST /ai/threads/regenerate-title { threadId, profile }
+//
+// Thread creation, rename, delete, clear-messages and touch live in
+// chat/chat.spec.ts; this file is the listing contract and the two routes the
+// client uses that turned out to be broken.
+//
+// `open-or-create` is the route section 8.1 is written against: the client calls
+// it with the first message instead of creating an empty thread. Only the "open an
+// existing thread" half works — the "create from the first message" half answers
+// 500 — so the atomicity, auto-title and concurrency cases of 8.1 have nothing to
+// run against and are recorded as gaps.
+
+test.describe("AI Threads - listing", () => {
+  test("GET /api/2.0/ai/threads/list - threads come back newest-activity first", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profileId = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    ).id;
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Threads Agent",
+      profileId,
+    });
+
+    const alpha = await aiChat.createThreadId("owner", {
+      title: "Alpha thread",
+      profileId,
+      agentId,
+    });
+    const beta = await aiChat.createThreadId("owner", {
+      title: "Beta thread",
+      profileId,
+      agentId,
+    });
+    const gamma = await aiChat.createThreadId("owner", {
+      title: "Gamma thread",
+      profileId,
+      agentId,
+    });
+
+    const { status, data } = await aiChat.listThreads("owner", agentId);
+    expect(status).toBe(200);
+    expect(data.map((thread) => thread.threadId)).toEqual([gamma, beta, alpha]);
+
+    // Section 8.2: the payload has to carry enough for the sidebar — a title, the
+    // selected profile and a timestamp to group by.
+    for (const thread of data) {
+      expect(thread.title, "thread title").toBeTruthy();
+      expect(thread.profileId).toBe(profileId);
+      expect(typeof thread.lastEditDate).toBe("number");
+    }
+
+    // `lastEditDate` is what the order is built from, and it decreases down the
+    // list — the grouping section 8.2 wants ("today / yesterday / 7 days") is a
+    // client-side reading of these timestamps.
+    const dates = data.map((thread) => thread.lastEditDate!);
+    expect(dates).toEqual([...dates].sort((a, b) => b - a));
+  });
+
+  test("GET /api/2.0/ai/threads/list - a deleted thread leaves the list", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profileId = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    ).id;
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Threads Agent",
+      profileId,
+    });
+    const doomed = await aiChat.createThreadId("owner", {
+      title: "Doomed thread",
+      profileId,
+      agentId,
+    });
+    const keeper = await aiChat.createThreadId("owner", {
+      title: "Keeper thread",
+      profileId,
+      agentId,
+    });
+
+    expect((await aiChat.deleteThread("owner", doomed)).status).toBe(200);
+
+    const { data } = await aiChat.listThreads("owner", agentId);
+    expect(data.map((thread) => thread.threadId)).toEqual([keeper]);
+  });
+
+  test("BUG XXXXX: GET /api/2.0/ai/threads/list - count, cursor and query are accepted and ignored", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profileId = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    ).id;
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Threads Agent",
+      profileId,
+    });
+    for (const title of ["Alpha thread", "Beta thread", "Gamma thread"]) {
+      await aiChat.createThreadId("owner", { title, profileId, agentId });
+    }
+
+    const all = await aiChat.listThreads("owner", agentId);
+    expect(all.data).toHaveLength(3);
+
+    // Paging: a count of 1 still returns everything, so a client cannot page and
+    // a portal with thousands of threads has no way to ask for fewer.
+    const paged = await aiChat.listThreads("owner", agentId, { count: 1 });
+    expect(paged.status).toBe(200);
+    expect(paged.data, "count=1 returns the whole list").toHaveLength(3);
+
+    const cursored = await aiChat.listThreads("owner", agentId, {
+      count: 2,
+      cursor: "1",
+    });
+    expect(cursored.data).toHaveLength(3);
+
+    // Search: a query that matches one title returns all three, and a query that
+    // matches nothing returns all three as well — the filter is not applied, so
+    // the sidebar search of 8.2 has to be done client-side.
+    const matching = await aiChat.listThreads("owner", agentId, {
+      query: "Alpha",
+    });
+    expect(matching.data).toHaveLength(3);
+
+    const notMatching = await aiChat.listThreads("owner", agentId, {
+      query: "nothing-matches-this",
+    });
+    expect(notMatching.status).toBe(200);
+
+    test.fail();
+    expect(
+      notMatching.data,
+      "a query matching no title must return no threads",
+    ).toEqual([]);
+  });
+});
+
+test.describe("AI Threads - open-or-create", () => {
+  test("POST /api/2.0/ai/threads/open-or-create - opens an existing thread and replays its history", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Threads Agent",
+      profileId: profile.id,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Existing thread",
+      profileId: profile.id,
+      agentId,
+    });
+
+    const { status, data } = await aiChat.openOrCreateThread("owner", {
+      threadId,
+      profileId: profile.id,
+      profile,
+      entityId: String(agentId),
+      firstMessage: {
+        role: "user",
+        content: [{ type: "text", text: "hello" }],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data?.threadId, "the existing thread is reused").toBe(threadId);
+    expect(Array.isArray(data?.priorMessages)).toBe(true);
+    expect(data?.priorMessages).toEqual([]);
+
+    // Opening does not send the message: the thread is still empty afterwards,
+    // and no second thread appeared.
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(messages.data).toEqual([]);
+
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.data.map((thread) => thread.threadId)).toEqual([threadId]);
+  });
+
+  test("POST /api/2.0/ai/threads/open-or-create - the profile id alone is enough to open a thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Threads Agent",
+      profileId: profile.id,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Existing thread",
+      profileId: profile.id,
+      agentId,
+    });
+
+    // The SDK types make the whole `AiProfile` object a required field, but the
+    // open path binds on `profileId` alone. Worth pinning: it means the 500 in the
+    // create case below is about the missing threadId, not about the body being
+    // short of a profile.
+    const { status, data } = await aiChat.openOrCreateThread("owner", {
+      threadId,
+      profileId: profile.id,
+      entityId: String(agentId),
+      firstMessage: {
+        role: "user",
+        content: [{ type: "text", text: "hello" }],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data?.threadId).toBe(threadId);
+    expect(data?.priorMessages).toEqual([]);
+
+    // Opening still does not store the first message.
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(messages.data).toEqual([]);
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/threads/open-or-create - creating a thread from the first message returns 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Threads Agent",
+      profileId: profile.id,
+    });
+
+    // The same body that works for an existing thread, minus the threadId — the
+    // "no thread yet, start one from this message" call of section 8.1.
+    const { status, error } = await aiChat.openOrCreateThread("owner", {
+      profileId: profile.id,
+      profile,
+      entityId: String(agentId),
+      firstMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+
+    expect(error).toBe("Internal server error");
+
+    // And it left nothing behind, so at least there is no orphan thread.
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.data, "no thread was created").toEqual([]);
+
+    test.fail();
+    expect(status, "creating a thread from the first message must work").toBe(
+      200,
+    );
+  });
+});
+
+test.describe("AI Threads - regenerate-title", () => {
+  test("BUG XXXXX: POST /api/2.0/ai/threads/regenerate-title - returns 500 on a thread with a real conversation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Threads Agent",
+      profileId: profile.id,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Title me",
+      profileId: profile.id,
+      agentId,
+    });
+
+    // A thread the model has actually answered, so the failure cannot be blamed on
+    // there being nothing to build a title from.
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id,
+      agentId,
+      message: "Explain gravity in one sentence.",
+    });
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expect(AiAgentChat.assistantMessages(messages).length).toBeGreaterThan(0);
+
+    // Both shapes fail: the full profile object the SDK types ask for, and the
+    // profileId a caller would try next.
+    const withProfile = await aiChat.regenerateThreadTitle("owner", {
+      threadId,
+      profile,
+    });
+    expect(withProfile.error).toBe("Internal server error");
+
+    const withProfileId = await aiChat.regenerateThreadTitle("owner", {
+      threadId,
+      profileId: profile.id,
+      entityId: String(agentId),
+    });
+    expect(withProfileId.status).toBe(500);
+
+    // The title is untouched, so nothing half-applied.
+    const thread = await aiChat.getThread("owner", threadId);
+    expect(thread.data?.title).toBe("Title me");
+
+    test.fail();
+    expect(withProfile.status, "regenerating a thread title must work").toBe(
+      200,
+    );
   });
 });

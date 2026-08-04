@@ -56,6 +56,16 @@ export async function createPrivateRoom(
   });
 }
 
+/**
+ * How many of the rooms created by createAllRoomTypes the DEFAULT rooms view
+ * (searchArea=Active) lists.
+ *
+ * Form filling rooms moved out of the Active area: they now live under their own
+ * root (FolderType.Forms) and GET /files/rooms only returns them for
+ * searchArea=SearchArea.Forms. searchArea=Any still lists all five.
+ */
+export const activeAreaRoomCount = 4;
+
 export async function createAllRoomTypes(apiSdk: ApiSDK, role: Role) {
   const configs = [
     { title: "Autotest Custom", roomType: RoomType.CustomRoom },

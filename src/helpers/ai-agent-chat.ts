@@ -41,6 +41,11 @@ export type AiProfile = {
   name: string;
   modelId: string;
   providerType?: string;
+  /**
+   * `list` publishes the portal's public address here; `get-by-id` answers with
+   * the cluster-internal one. See the leak test in profiles.spec.ts.
+   */
+  baseUrl?: string;
   key?: string;
   /** Bitmask; image-only profiles come back as 2, text ones as 257/385. */
   capabilities?: number;
@@ -420,6 +425,72 @@ export class AiAgentChat extends AiHttp {
   }
 
   /**
+   * The frames of a `send-with-stream` / `regenerate-stream` response. The
+   * protocol is newline-delimited JSON objects with a `type` discriminator
+   * (`user-message-stored`, `message-start`, `message-end`, `error`), NOT the
+   * `event:`/`data:` SSE the old chat endpoints used — `parseSseEvents` does not
+   * apply here.
+   */
+  static streamFrames(
+    body: string,
+  ): Array<{ type?: string; messageId?: string; [key: string]: unknown }> {
+    return body
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("{"))
+      .flatMap((line) => {
+        try {
+          return [JSON.parse(line)];
+        } catch {
+          return [];
+        }
+      });
+  }
+
+  /**
+   * The chunks of a `send-with-stream-openai` response: OpenAI-compatible
+   * `data: {...}` frames terminated by `data: [DONE]`.
+   */
+  static openAiStreamChunks(body: string): {
+    chunks: Array<Record<string, unknown>>;
+    done: boolean;
+    text: string;
+  } {
+    const lines = body
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trim());
+
+    const chunks: Array<Record<string, unknown>> = [];
+    let done = false;
+    for (const payload of lines) {
+      if (payload === "[DONE]") {
+        done = true;
+        continue;
+      }
+      try {
+        chunks.push(JSON.parse(payload));
+      } catch {
+        // a partial frame — ignore, the assertions look at what did arrive
+      }
+    }
+
+    const text = chunks
+      .map((chunk) => {
+        const choices = chunk.choices as
+          | Array<{ delta?: { content?: string } }>
+          | undefined;
+        return (
+          choices?.map((choice) => choice.delta?.content ?? "").join("") ?? ""
+        );
+      })
+      .join("");
+
+    return { chunks, done, text };
+  }
+
+  /**
    * The `{"type":"error","message":"..."}` frame a streamed response carries
    * instead of an HTTP error status. `undefined` when the stream looks healthy.
    */
@@ -434,15 +505,137 @@ export class AiAgentChat extends AiHttp {
    * Threads are listed per entity — without `entityId` the list is empty.
    * `data` is normalised to [] on an error payload so side-effect assertions
    * read cleanly; check `error`/`status` for the failure itself.
+   *
+   * `count`, `cursor` and `query` are accepted by the route and, as of
+   * 2026-08-04, all three are ignored — see chat/threads.spec.ts.
    */
-  async listThreads(role: AgentRole, agentId?: number) {
-    const query = agentId === undefined ? "" : `?entityId=${agentId}`;
+  async listThreads(
+    role: AgentRole,
+    agentId?: number,
+    options?: { count?: number; cursor?: string; query?: string },
+  ) {
+    const params = new URLSearchParams();
+    if (agentId !== undefined) params.set("entityId", String(agentId));
+    if (options?.count !== undefined)
+      params.set("count", String(options.count));
+    if (options?.cursor !== undefined) params.set("cursor", options.cursor);
+    if (options?.query !== undefined) params.set("query", options.query);
+    const query = params.toString() ? `?${params}` : "";
+
     const { status, data, error } = await this.call<AiThread[]>(
       role,
       "get",
       `/api/2.0/ai/threads/list${query}`,
     );
     return { status, error, data: Array.isArray(data) ? data : [] };
+  }
+
+  /**
+   * "Open the thread if I already have one, otherwise start it from this first
+   * message" — the route the client uses instead of `create`, and the API-side
+   * counterpart of section 8.1. The `profile` field is the whole AiProfile
+   * object, not just its id: omitting it answers 500.
+   *
+   * The create half of that contract does not work on current builds: without a
+   * `threadId` the call answers 500 whatever else is sent.
+   */
+  openOrCreateThread(role: AgentRole, body: Record<string, unknown>) {
+    return this.call<{
+      threadId?: string;
+      title?: string;
+      priorMessages?: unknown[];
+    }>(role, "post", "/api/2.0/ai/threads/open-or-create", body);
+  }
+
+  /** Asks the model for a fresh title. Answers 500 on current builds. */
+  regenerateThreadTitle(role: AgentRole, body: Record<string, unknown>) {
+    return this.call<{ success?: boolean; title?: string }>(
+      role,
+      "post",
+      "/api/2.0/ai/threads/regenerate-title",
+      body,
+    );
+  }
+
+  getMessageById(role: AgentRole, messageId: string) {
+    return this.call<AiThreadMessage | null>(
+      role,
+      "get",
+      `/api/2.0/ai/threads/get-message-by-id?messageId=${encodeURIComponent(messageId)}`,
+    );
+  }
+
+  /**
+   * Rewrites a stored message in place. The id and the thread binding survive;
+   * `createdAt` is re-stamped, so it is a modification timestamp after an edit.
+   */
+  updateMessage(role: AgentRole, body: Record<string, unknown>) {
+    return this.call<{ success?: boolean }>(
+      role,
+      "put",
+      "/api/2.0/ai/threads/update-message",
+      body,
+    );
+  }
+
+  deleteMessage(role: AgentRole, messageId: unknown) {
+    return this.call<{ success?: boolean }>(
+      role,
+      "delete",
+      "/api/2.0/ai/threads/delete-message",
+      messageId,
+    );
+  }
+
+  /**
+   * Re-runs the last assistant turn. Streams like send-with-stream, so a
+   * per-request failure shows up in `text` as a `{"type":"error"}` frame rather
+   * than as an HTTP status.
+   */
+  async regenerateStream(role: AgentRole, body: Record<string, unknown>) {
+    const { status, error, text } = await this.call(
+      role,
+      "post",
+      "/api/2.0/ai/ai/regenerate-stream",
+      body,
+    );
+    return { status, error, text, streamError: AiAgentChat.streamError(text) };
+  }
+
+  /** Non-streaming single-shot inference for one action type. */
+  send(role: AgentRole, body: Record<string, unknown>) {
+    return this.call<AiThreadMessage & { status?: AiThreadMessageStatus }>(
+      role,
+      "post",
+      "/api/2.0/ai/ai/send",
+      body,
+    );
+  }
+
+  /** Single-shot inference against a caller-supplied system prompt. */
+  sendCustom(role: AgentRole, body: Record<string, unknown>) {
+    return this.call<{
+      isEnd?: boolean;
+      responseMessage?: AiThreadMessage & { status?: AiThreadMessageStatus };
+    }>(role, "post", "/api/2.0/ai/ai/send-custom", body);
+  }
+
+  /** OpenAI-compatible SSE variant: `data: {...}` frames ending in `data: [DONE]`. */
+  sendWithStreamOpenAi(role: AgentRole, body: Record<string, unknown>) {
+    return this.call(
+      role,
+      "post",
+      "/api/2.0/ai/ai/send-with-stream-openai",
+      body,
+    );
+  }
+
+  approveToolCall(role: AgentRole, body: Record<string, unknown>) {
+    return this.call(role, "post", "/api/2.0/ai/ai/approve-tool-call", body);
+  }
+
+  denyToolCall(role: AgentRole, body: Record<string, unknown>) {
+    return this.call(role, "post", "/api/2.0/ai/ai/deny-tool-call", body);
   }
 
   getThread(role: AgentRole, threadId: string) {

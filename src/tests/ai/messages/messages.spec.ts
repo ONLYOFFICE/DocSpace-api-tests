@@ -11,6 +11,15 @@ import {
   waitForExportedFile,
   waitForStableFolderFiles,
 } from "@/src/helpers/text-to-docx";
+import { enableAiGateway } from "@/src/helpers/wallet-services";
+import { setPortalAiAccess } from "@/src/helpers/ai-access";
+import {
+  AiAgentChat,
+  inviteToAgent,
+  expectHealthyAssistantReply,
+} from "@/src/helpers/ai-agent-chat";
+import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
+import { ApiSDK } from "@/src/services/api-sdk";
 
 // `POST /api/2.0/ai/messages/{messageId}/export` and
 // `POST /api/2.0/ai/chats/{chatId}/messages/export` are both 404 — message
@@ -644,5 +653,819 @@ test.describe("AI Messages - text-to-docx validation", () => {
       await waitForExportedFile(ownerApi, folderId, `${title} big.docx`, 0),
     ).toBeUndefined();
     expect(refused.status).toBe(413);
+  });
+});
+
+// Per-message routes: read one, rewrite one, remove one.
+//
+//   GET    /ai/threads/get-message-by-id?messageId=
+//   PUT    /ai/threads/update-message  { messageId, message }
+//   DELETE /ai/threads/delete-message  bare message id
+//
+// Section 9.4 says there should be no API for editing a sent user message. There
+// is one — `update-message` rewrites any stored message in place — so the "verify
+// the route is absent / 404 / 405" case is inverted here into a test of what the
+// route actually does, and the ownership question it raises is at the bottom.
+//
+// `append-user-message` is used as the fixture throughout: it stores a user
+// message without asking the model to answer it, which keeps these tests off the
+// provider.
+
+async function setupThread(apiSdk: ApiSDK) {
+  const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+  const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+  const catalogue = await profiles.catalogue("owner");
+  const profileId = AiProfiles.byCapabilities(
+    catalogue,
+    AI_CAPS.textVisionTools,
+  ).id;
+
+  const agentId = await aiChat.createAgentId("owner", {
+    title: "Autotest Message Agent",
+    profileId,
+  });
+  const threadId = await aiChat.createThreadId("owner", {
+    title: "Autotest thread",
+    profileId,
+    agentId,
+  });
+
+  return { aiChat, profileId, agentId, threadId };
+}
+
+test.describe("AI Messages - reading one message", () => {
+  test("POST /api/2.0/ai/threads/append-user-message, GET get-message-by-id - a stored message is readable by id", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, threadId } = await setupThread(apiSdk);
+
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "Autotest question",
+    });
+    expect(appended.status).toBe(200);
+
+    // The append response nests the whole message under `messageId` rather than
+    // returning a bare id — worth pinning, because `data.messageId` reads like an
+    // id and is not one.
+    const stored = appended.data?.messageId as
+      | { id?: string; role?: string }
+      | undefined;
+    expect(stored?.id, "append returns the stored message").toBeTruthy();
+    expect(stored?.role).toBe("user");
+
+    const messageId = stored!.id!;
+    const { status, data } = await aiChat.getMessageById("owner", messageId);
+    expect(status).toBe(200);
+    expect(data?.id).toBe(messageId);
+    expect(data?.role).toBe("user");
+    expect(AiAgentChat.messageText(data!)).toBe("Autotest question");
+  });
+
+  test("GET /api/2.0/ai/threads/get-message-by-id - an unknown id answers 200 null and a malformed one 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    await setupThread(apiSdk);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const unknown = await aiChat.getMessageById(
+      "owner",
+      "019fcc1d-478e-749f-85df-7427ca64566b",
+    );
+    expect(unknown.status).toBe(200);
+    expect(unknown.data).toBeNull();
+
+    const malformed = await aiChat.getMessageById("owner", "not-a-guid");
+    expect(malformed.status).toBe(400);
+  });
+});
+
+test.describe("AI Messages - rewriting a message", () => {
+  test("PUT /api/2.0/ai/threads/update-message - rewrites the content in place", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, threadId } = await setupThread(apiSdk);
+
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "original",
+    });
+    const messageId = (appended.data?.messageId as { id: string }).id;
+
+    const { status, data } = await aiChat.updateMessage("owner", {
+      messageId,
+      message: {
+        role: "user",
+        content: [{ type: "text", text: "edited" }],
+      },
+    });
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
+
+    // The id survives, so this is an edit rather than a replace...
+    const read = await aiChat.getMessageById("owner", messageId);
+    expect(read.data?.id).toBe(messageId);
+    expect(AiAgentChat.messageText(read.data!)).toBe("edited");
+
+    // ...and the thread holds exactly one message, with the new text.
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(messages.data).toHaveLength(1);
+    expect(AiAgentChat.messageText(messages.data[0])).toBe("edited");
+    expect(messages.data[0].id).toBe(messageId);
+  });
+
+  test("PUT /api/2.0/ai/threads/update-message - an unknown or malformed message id", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, threadId } = await setupThread(apiSdk);
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "original",
+    });
+    const messageId = (appended.data?.messageId as { id: string }).id;
+
+    // Unlike the prompt routes, this one answers a proper 404 for a well-formed
+    // id that does not exist rather than a soft `{success:false}`.
+    const unknown = await aiChat.updateMessage("owner", {
+      messageId: "019fcc1d-478e-749f-85df-7427ca64566b",
+      message: { role: "user", content: [{ type: "text", text: "hijacked" }] },
+    });
+    expect(unknown.status).toBe(404);
+
+    const malformed = await aiChat.updateMessage("owner", {
+      messageId: "not-a-guid",
+      message: { role: "user", content: [{ type: "text", text: "hijacked" }] },
+    });
+    expect(malformed.status).toBe(400);
+
+    // The real message is untouched by either attempt.
+    const read = await aiChat.getMessageById("owner", messageId);
+    expect(AiAgentChat.messageText(read.data!)).toBe("original");
+  });
+});
+
+test.describe("AI Messages - deleting a message", () => {
+  test("DELETE /api/2.0/ai/threads/delete-message - removes one message and keeps the rest", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, threadId } = await setupThread(apiSdk);
+
+    const first = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "first",
+    });
+    const second = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "second",
+    });
+    const doomed = (first.data?.messageId as { id: string }).id;
+    const keeper = (second.data?.messageId as { id: string }).id;
+
+    const { status, data } = await aiChat.deleteMessage("owner", doomed);
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
+
+    expect((await aiChat.getMessageById("owner", doomed)).data).toBeNull();
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(messages.data.map((message) => message.id)).toEqual([keeper]);
+
+    // The thread itself outlives its messages.
+    const thread = await aiChat.getThread("owner", threadId);
+    expect(thread.status).toBe(200);
+    expect(thread.data?.threadId).toBe(threadId);
+  });
+
+  test("DELETE /api/2.0/ai/threads/delete-message - a malformed id is rejected and a second delete is accepted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, threadId } = await setupThread(apiSdk);
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "only",
+    });
+    const messageId = (appended.data?.messageId as { id: string }).id;
+
+    const malformed = await aiChat.deleteMessage("owner", "not-a-guid");
+    expect(malformed.status).toBe(400);
+    expect(
+      (await aiChat.readMessages("owner", threadId)).data,
+      "the rejected delete removed nothing",
+    ).toHaveLength(1);
+
+    expect((await aiChat.deleteMessage("owner", messageId)).data?.success).toBe(
+      true,
+    );
+
+    const again = await aiChat.deleteMessage("owner", messageId);
+    expect(again.status).toBe(200);
+    expect(again.data?.success).toBe(true);
+  });
+});
+
+test.describe("AI Messages - cross-user access to one message", () => {
+  test("PUT|DELETE /api/2.0/ai/threads/update-message, delete-message - a non-member cannot touch a message in someone else's thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, threadId } = await setupThread(apiSdk);
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "owner's question",
+    });
+    const messageId = (appended.data?.messageId as { id: string }).id;
+
+    // The member is created after all of the owner's setup, so the shared
+    // context's session cookie cannot make the calls below run as the owner.
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await aiChat.expectActingAs("user", memberData.response!.id!, "User");
+
+    // All three are refused outright — the message id is not a bearer token the
+    // way an attachment id is (see ai_attachments_no_user_isolation).
+    expect((await aiChat.getMessageById("user", messageId)).status).toBe(403);
+    expect(
+      (
+        await aiChat.updateMessage("user", {
+          messageId,
+          message: {
+            role: "user",
+            content: [{ type: "text", text: "hijacked" }],
+          },
+        })
+      ).status,
+    ).toBe(403);
+    expect((await aiChat.deleteMessage("user", messageId)).status).toBe(403);
+
+    // The thread around it is closed too, so the refusals are not a fluke of the
+    // per-message routes alone.
+    expect((await aiChat.getThread("user", threadId)).status).toBe(403);
+
+    await apiSdk.authenticateOwner();
+    const after = await aiChat.getMessageById("owner", messageId);
+    expect(after.status).toBe(200);
+    expect(
+      AiAgentChat.messageText(after.data!),
+      "the owner's message content",
+    ).toBe("owner's question");
+    expect(
+      (await aiChat.readMessages("owner", threadId)).data,
+      "the owner's thread still holds the message",
+    ).toHaveLength(1);
+  });
+
+  test("PUT /api/2.0/ai/threads/update-message - a room member cannot rewrite another member's message", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, agentId, threadId } = await setupThread(apiSdk);
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "owner's question",
+    });
+    const messageId = (appended.data?.messageId as { id: string }).id;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    await inviteToAgent(ownerApi.rooms, agentId, memberData.response!.id!);
+    await aiChat.expectActingAs(
+      "roomAdmin",
+      memberData.response!.id!,
+      "RoomAdmin",
+    );
+
+    // Membership in the agent room buys access to the room, not to another
+    // member's messages: the per-message routes stay 403.
+    expect((await aiChat.getMessageById("roomAdmin", messageId)).status).toBe(
+      403,
+    );
+    expect(
+      (
+        await aiChat.updateMessage("roomAdmin", {
+          messageId,
+          message: {
+            role: "user",
+            content: [{ type: "text", text: "hijacked" }],
+          },
+        })
+      ).status,
+    ).toBe(403);
+    expect((await aiChat.deleteMessage("roomAdmin", messageId)).status).toBe(
+      403,
+    );
+
+    await apiSdk.authenticateOwner();
+    const after = await aiChat.getMessageById("owner", messageId);
+    expect(AiAgentChat.messageText(after.data!)).toBe("owner's question");
+    expect(
+      (await aiChat.readMessages("owner", threadId)).data,
+      "the owner's thread is intact",
+    ).toHaveLength(1);
+  });
+});
+
+// Named apart from the "AI Messages - AI Disabled" block in
+// messages.ai-disabled.spec.ts, which covers the text-to-docx side of the switch.
+test.describe("AI Messages - per-message routes with AI Disabled", () => {
+  test("GET|PUT|DELETE /api/2.0/ai/threads/*-message - the per-message routes return 403 when AI access is disabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, threadId } = await setupThread(apiSdk);
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "original",
+    });
+    const messageId = (appended.data?.messageId as { id: string }).id;
+
+    const { writeStatus, readStatus, enabled } = await setPortalAiAccess(
+      ownerApi,
+      false,
+    );
+    expect(writeStatus).toBe(200);
+    expect(readStatus).toBe(200);
+    expect(enabled).toBe(false);
+
+    expect((await aiChat.getMessageById("owner", messageId)).status).toBe(403);
+    expect(
+      (
+        await aiChat.updateMessage("owner", {
+          messageId,
+          message: { role: "user", content: [{ type: "text", text: "off" }] },
+        })
+      ).status,
+    ).toBe(403);
+    expect((await aiChat.deleteMessage("owner", messageId)).status).toBe(403);
+
+    // Turning AI back on shows the refused writes really were refused.
+    const on = await setPortalAiAccess(ownerApi, true);
+    expect(on.enabled).toBe(true);
+
+    const read = await aiChat.getMessageById("owner", messageId);
+    expect(read.status).toBe(200);
+    expect(AiAgentChat.messageText(read.data!)).toBe("original");
+  });
+});
+
+// The inference routes other than `send-with-stream` (which chat/chat.spec.ts and
+// messages/messages.spec.ts already cover).
+//
+//   POST /ai/ai/regenerate-stream       { threadId, entityId?, profileId? }
+//   POST /ai/ai/send                    { actionType, userMessage, entityId? }
+//   POST /ai/ai/send-custom             { isStream, systemPrompt, userMessage }
+//   POST /ai/ai/send-with-stream-openai same body as send-with-stream
+//
+// `regenerate-stream` is the regenerate of section 9.4 and it works. `send` and
+// `send-custom` are the one-shot, non-threaded paths and they do not: the model
+// call comes back with an `auth` error even on a portal where the streaming path
+// answers normally, so section 11's per-error-type matrix cannot be built on them.
+//
+// Two protocol notes, because they differ per route:
+//   * send-with-stream / regenerate-stream stream newline-delimited JSON frames
+//     with a `type` field (`AiAgentChat.streamFrames`).
+//   * send-with-stream-openai streams OpenAI `data: {...}` chunks ending in
+//     `data: [DONE]` (`AiAgentChat.openAiStreamChunks`).
+//
+// There is no stop/cancel route anywhere on this surface, so all of section 9.3 is
+// a gap rather than a set of tests.
+
+test.describe("AI Messages - regenerate", () => {
+  test("POST /api/2.0/ai/ai/regenerate-stream - replaces the last assistant reply and keeps the question", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Regenerate Agent",
+      profileId: profile.id,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread",
+      profileId: profile.id,
+      agentId,
+    });
+
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id,
+      agentId,
+      message: "Reply with the single word OK.",
+    });
+    const before = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(before);
+
+    const question = AiAgentChat.userMessages(before)[0];
+    const firstReply = AiAgentChat.assistantMessages(before)[0];
+
+    const { status, text, streamError } = await aiChat.regenerateStream(
+      "owner",
+      {
+        threadId,
+        entityId: String(agentId),
+        profileId: profile.id,
+      },
+    );
+
+    expect(status).toBe(200);
+    expect(streamError).toBeUndefined();
+
+    // The regenerate opens a fresh streaming lifecycle of its own.
+    const frames = AiAgentChat.streamFrames(text);
+    expect(frames.map((frame) => frame.type)).toContain("message-start");
+    expect(frames.map((frame) => frame.type)).toContain("message-end");
+
+    const streamedId = frames.find((frame) => frame.type === "message-start")
+      ?.messageId as string | undefined;
+    expect(streamedId, "the stream reports the new message id").toBeTruthy();
+    expect(streamedId).not.toBe(firstReply.id);
+
+    // Poll for the replacement rather than reading once: the stored message lands
+    // after the response body is complete.
+    let after = await aiChat.readMessages("owner", threadId);
+    const deadline = Date.now() + 60000;
+    while (
+      Date.now() < deadline &&
+      AiAgentChat.assistantMessages(after.data).some(
+        (message) => message.id === firstReply.id,
+      )
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      after = await aiChat.readMessages("owner", threadId);
+    }
+
+    // The old reply is replaced, not appended to: exactly one assistant message,
+    // with a new id.
+    const replies = AiAgentChat.assistantMessages(after.data);
+    expect(replies).toHaveLength(1);
+    expect(replies[0].id).not.toBe(firstReply.id);
+    expect(replies[0].id).toBe(streamedId);
+    expectHealthyAssistantReply(after.data);
+
+    // The user message survives untouched — section 9.4.
+    const questions = AiAgentChat.userMessages(after.data);
+    expect(questions).toHaveLength(1);
+    expect(questions[0].id).toBe(question.id);
+    expect(AiAgentChat.messageText(questions[0])).toBe(
+      "Reply with the single word OK.",
+    );
+
+    // And the thread keeps its profile: regenerating does not re-resolve the model.
+    const thread = await aiChat.getThread("owner", threadId);
+    expect(thread.data?.profileId).toBe(profile.id);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream - a thread with nothing to regenerate", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Regenerate Agent",
+      profileId: profile.id,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread",
+      profileId: profile.id,
+      agentId,
+    });
+
+    const { status } = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId: profile.id,
+    });
+
+    // Whatever it answers, an empty thread must not gain a reply out of nowhere.
+    expect(status).toBe(200);
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(AiAgentChat.assistantMessages(messages.data)).toEqual([]);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream - an unknown thread reports the failure inside the stream", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Regenerate Agent",
+      profileId: profile.id,
+    });
+
+    const { status, streamError } = await aiChat.regenerateStream("owner", {
+      threadId: "019fcc1d-3c16-7527-90c2-bb509d2f8136",
+      entityId: String(agentId),
+      profileId: profile.id,
+    });
+
+    // Same shape as BUG 82723 on send-with-stream: the refusal is a frame inside a
+    // 200, not an HTTP status.
+    expect(status).toBe(200);
+    expect(streamError).toBe("stream error");
+  });
+});
+
+test.describe("AI Messages - the OpenAI-compatible stream", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - streams OpenAI chunks and terminates with [DONE]", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest OpenAI Stream Agent",
+      profileId: profile.id,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread",
+      profileId: profile.id,
+      agentId,
+    });
+
+    const { status, text } = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId: profile.id,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+
+    expect(status).toBe(200);
+
+    const {
+      chunks,
+      done,
+      text: assembled,
+    } = AiAgentChat.openAiStreamChunks(text);
+
+    // Section 9.2, in the form this route supports it: several chunks, each tied
+    // to one completion id and the model that produced it, a terminating
+    // finish_reason, and a clean end-of-stream marker.
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(done, "the stream ends with data: [DONE]").toBe(true);
+
+    const ids = new Set(chunks.map((chunk) => chunk.id));
+    expect(ids.size, "every chunk belongs to one completion").toBe(1);
+    for (const chunk of chunks) {
+      expect(chunk.object).toBe("chat.completion.chunk");
+      expect(chunk.model).toBe(profile.modelId);
+    }
+
+    const finishReasons = chunks.flatMap((chunk) => {
+      const choices = chunk.choices as Array<{ finish_reason?: string | null }>;
+      return choices.map((choice) => choice.finish_reason);
+    });
+    expect(finishReasons, "the stream reports why it stopped").toContain(
+      "stop",
+    );
+
+    // The text assembled from the chunks is a real answer, not an empty stream.
+    expect(assembled.length).toBeGreaterThan(0);
+  });
+});
+
+test.describe("AI Messages - one-shot inference", () => {
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send - the non-streaming path answers with an auth error while streaming works", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Agent",
+      profileId: profile.id,
+    });
+
+    // `send` resolves the model through the assignments, so Chat gets a binding
+    // first — without one the route answers 500 (covered below).
+    const { data: assigned } = await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: profile.id,
+    });
+    expect(assigned?.success).toBe(true);
+
+    // The same gateway, the same profile, answering a streamed request normally —
+    // so the failure below is this route, not the portal.
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest control thread",
+      profileId: profile.id,
+      agentId,
+    });
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id,
+      agentId,
+      message: "Reply with the single word OK.",
+    });
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    const { status, data } = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+
+    expect(status).toBe(200);
+
+    // The reply is an empty assistant message carrying a gateway auth failure.
+    expect(data?.role).toBe("assistant");
+    expect(data?.content).toBe("");
+    expect(data?.status?.reason).toBe("error");
+    expect(data?.status?.error?.code).toBe("auth");
+
+    test.fail();
+    expect(
+      data?.status?.error,
+      "one-shot inference must not fail authentication when streaming succeeds",
+    ).toBeUndefined();
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send - an action type without its own binding returns 500 although resolution falls back to Default", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Agent",
+      profileId: profile.id,
+    });
+
+    // Vision has no binding of its own on a fresh portal, but the assignments API
+    // resolves it perfectly well through Default — so a model *is* available.
+    const resolved = await profiles.resolveForAction("owner", "Vision");
+    expect(resolved.status).toBe(200);
+    expect(
+      resolved.data?.profileId,
+      "Vision resolves through Default",
+    ).toBeTruthy();
+
+    const { status, error } = await aiChat.send("owner", {
+      actionType: "Vision",
+      entityId: String(agentId),
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Describe this." }],
+      },
+    });
+
+    // `send` nevertheless crashes: it only reaches the model for an action type
+    // that has an explicit assignment, and it reports the difference as a 500
+    // rather than as a "no model configured for this action" error.
+    expect(error).toBe("Internal server error");
+
+    test.fail();
+    expect(
+      status,
+      "an action type that resolves through Default must not answer 500",
+    ).not.toBe(500);
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-custom - the streaming form answers with an auth error and the non-streaming form with 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const userMessage = {
+      role: "user",
+      content: [{ type: "text", text: "What is 2+2?" }],
+    };
+
+    // isStream:false does not even get as far as the model.
+    const nonStreaming = await aiChat.sendCustom("owner", {
+      isStream: false,
+      systemPrompt: "Answer with a single word.",
+      userMessage,
+    });
+    expect(nonStreaming.status).toBe(500);
+    expect(nonStreaming.error).toBe("Internal server error");
+
+    // isStream:true is answered, but the answer is an empty assistant message
+    // carrying a gateway auth failure — on a portal where send-with-stream works.
+    const streaming = await aiChat.sendCustom("owner", {
+      isStream: true,
+      systemPrompt: "Answer with a single word.",
+      userMessage,
+    });
+    expect(streaming.status).toBe(200);
+    expect(streaming.data?.isEnd).toBe(true);
+    expect(streaming.data?.responseMessage?.status?.error?.code).toBe("auth");
+
+    test.fail();
+    expect(
+      streaming.data?.responseMessage?.status?.error,
+      "send-custom must not fail authentication",
+    ).toBeUndefined();
   });
 });

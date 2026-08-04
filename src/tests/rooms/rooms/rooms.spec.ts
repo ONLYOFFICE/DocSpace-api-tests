@@ -14,6 +14,7 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import type { ApiSDK } from "@/src/services/api-sdk";
 import {
+  activeAreaRoomCount,
   createAllRoomTypes,
   createPrivateRoom,
   ensureEncryptionKeys,
@@ -870,19 +871,44 @@ test.describe("API rooms methods", () => {
 
   test("GET /files/rooms - Owner gets rooms list", async ({ api, apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
-    await createAllRoomTypes(apiSdk, "owner");
+    const created = await createAllRoomTypes(apiSdk, "owner");
 
     await test.step("returns all created rooms with correct count", async () => {
       const { data, status } = await ownerApi.rooms.getRoomsFolder({});
 
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
-      expect(data.response!.folders!.length).toBe(5);
+      // The form filling room is NOT here - it lives in searchArea=Forms (see
+      // the step below), so the default view lists four of the five rooms.
+      expect(data.response!.folders!.length).toBe(activeAreaRoomCount);
       expect((data.response!.files as unknown[]).length).toBe(0);
-      expect(data.response!.count).toBe(5);
-      expect(data.response!.total).toBe(5);
+      expect(data.response!.count).toBe(activeAreaRoomCount);
+      expect(data.response!.total).toBe(activeAreaRoomCount);
       expect(data.response!.startIndex).toBe(0);
       expect(data.response!.folders![0].ownedBy!.id).toBe(api.adminUserId);
+      expect(
+        (data.response!.folders as any[]).map((f) => f.roomType),
+      ).not.toContain(RoomType.FillingFormsRoom);
+    });
+
+    await test.step("the form filling room is listed in the Forms area", async () => {
+      const formRoomId = created.find(
+        (r) => r.roomType === RoomType.FillingFormsRoom,
+      )!.id;
+
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Forms,
+      });
+
+      expect(status).toBe(200);
+      expect((data.response!.folders as any[]).map((f) => f.id)).toEqual([
+        formRoomId,
+      ]);
+      // ...and searchArea=Any spans both areas, so all five are reachable.
+      const { data: any_ } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Any,
+      });
+      expect(any_.response!.total).toBe(created.length);
     });
 
     await test.step("filter by type returns only matching rooms", async () => {
@@ -1751,14 +1777,23 @@ test.describe("API rooms methods", () => {
       });
     });
 
-    // chatSettings is not configurable on a plain CustomRoom via updateRoom.
+    // chatSettings only belongs to an AI room: the field is part of the room DTO
+    // for RoomType.AiRoom (which reports security.UseChat) and absent on a plain
+    // CustomRoom. Sending it for a CustomRoom must be a validation error, but the
+    // API answers 200 and drops it on the floor, so the caller believes it
+    // configured a chat that does not exist. The no-op is verified first, so only
+    // the status drives the expected failure.
     test("PUT /files/rooms/:id - chatSettings on CustomRoom is rejected", async ({
       apiSdk,
     }) => {
+      test.fail(
+        true,
+        "BUG XXXXX: updateRoom accepts chatSettings on a non-AI room with 200 and silently ignores it instead of 400",
+      );
       const ownerApi = apiSdk.forRole("owner");
       const roomId = await mkRoom(ownerApi, "Autotest Chat Settings");
 
-      const { status } = await ownerApi.rooms.updateRoom({
+      const { status, data } = await ownerApi.rooms.updateRoom({
         id: roomId,
         updateRoomRequest: {
           chatSettings: {
@@ -1770,7 +1805,43 @@ test.describe("API rooms methods", () => {
         },
       });
 
+      // Nothing was stored: neither the update response nor a fresh read carries
+      // chatSettings (an AI room would - see the AI room coverage below).
+      expect((data.response as any)?.chatSettings).toBeUndefined();
+      const after = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect((after.data.response as any)?.chatSettings).toBeUndefined();
       expect(status).toBe(400);
+    });
+
+    test("PUT /files/rooms/:id - chatSettings applies to an AI room", async ({
+      apiSdk,
+    }) => {
+      // Positive control for the test above: the same field IS honoured on an AI
+      // room, so the CustomRoom no-op is about the room type and not about the
+      // field being unsupported everywhere.
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: created } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest AI Chat Settings",
+          roomType: RoomType.AiRoom,
+        },
+      });
+      const roomId = created.response!.id!;
+      expect((created.response as any).chatSettings).toBeDefined();
+
+      const { status, data } = await ownerApi.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { chatSettings: { prompt: "Autotest prompt" } },
+      });
+
+      expect(status).toBe(200);
+      expect((data.response as any).chatSettings?.prompt).toBe(
+        "Autotest prompt",
+      );
+      const after = await ownerApi.rooms.getRoomInfo({ id: roomId });
+      expect((after.data.response as any).chatSettings?.prompt).toBe(
+        "Autotest prompt",
+      );
     });
 
     test("PUT /files/rooms/:id - Update multiple fields in one request", async ({
@@ -2870,9 +2941,15 @@ test.describe("API rooms methods", () => {
       return data.response!.id!;
     }
 
-    // Locate a room in the caller's getRoomsFolder view.
-    async function findRoomRow(api: { rooms: RoomsApi }, roomId: number) {
-      const { data } = await api.rooms.getRoomsFolder({});
+    // Locate a room in the caller's getRoomsFolder view. Form filling rooms are
+    // not in the default Active area - they list under searchArea=Forms - so the
+    // area has to be passed explicitly for them.
+    async function findRoomRow(
+      api: { rooms: RoomsApi },
+      roomId: number,
+      searchArea: SearchArea = SearchArea.Active,
+    ) {
+      const { data } = await api.rooms.getRoomsFolder({ searchArea });
       const folders = data.response!.folders!;
       const matches = folders.filter((f) => (f as any).id === roomId);
       const row = matches[0] as any;
@@ -2886,8 +2963,16 @@ test.describe("API rooms methods", () => {
 
     // Assert the real effect of pinning: the room is present, flagged pinned in the
     // list, appears exactly once, and sits above the first unpinned room.
-    async function expectPinnedOnTop(api: { rooms: RoomsApi }, roomId: number) {
-      const { folders, row, count, index } = await findRoomRow(api, roomId);
+    async function expectPinnedOnTop(
+      api: { rooms: RoomsApi },
+      roomId: number,
+      searchArea: SearchArea = SearchArea.Active,
+    ) {
+      const { folders, row, count, index } = await findRoomRow(
+        api,
+        roomId,
+        searchArea,
+      );
       expect(count, `room ${roomId} should appear exactly once`).toBe(1);
       expect(row.pinned).toBe(true);
       const firstUnpinned = folders.findIndex((f) => !(f as any).pinned);
@@ -3206,20 +3291,26 @@ test.describe("API rooms methods", () => {
           apiSdk,
         }) => {
           const ownerApi = apiSdk.forRole("owner");
+          // Form filling rooms are listed in their own Forms area, so both the
+          // extra room and the assertion have to use that area for them.
+          const searchArea =
+            roomType === RoomType.FillingFormsRoom
+              ? SearchArea.Forms
+              : SearchArea.Active;
           const roomId = await createRoom(
             ownerApi,
             `Autotest Pin ${name}`,
             roomType,
           );
           // An extra unpinned room so the "floats to the top" check is meaningful.
-          await createRoom(ownerApi, `Autotest Pin ${name} Other`);
+          await createRoom(ownerApi, `Autotest Pin ${name} Other`, roomType);
 
           const { status, data } = await ownerApi.rooms.pinRoom({ id: roomId });
 
           expect(status).toBe(200);
           expect(data.response!.pinned).toBe(true);
           // Effect: the room is actually pinned in the list and sits above unpinned rooms.
-          await expectPinnedOnTop(ownerApi, roomId);
+          await expectPinnedOnTop(ownerApi, roomId, searchArea);
         });
       }
     });
@@ -3666,8 +3757,14 @@ test.describe("API rooms methods", () => {
       return data.response!.id!;
     }
 
-    async function findRoomRow(api: { rooms: RoomsApi }, roomId: number) {
-      const { data } = await api.rooms.getRoomsFolder({});
+    // Form filling rooms list under searchArea=Forms rather than the default
+    // Active area, so the area is a parameter here as well.
+    async function findRoomRow(
+      api: { rooms: RoomsApi },
+      roomId: number,
+      searchArea: SearchArea = SearchArea.Active,
+    ) {
+      const { data } = await api.rooms.getRoomsFolder({ searchArea });
       const folders = data.response!.folders!;
       const matches = folders.filter((f) => (f as any).id === roomId);
       const row = matches[0] as any;
@@ -3740,26 +3837,40 @@ test.describe("API rooms methods", () => {
       }) => {
         const ownerApi = apiSdk.forRole("owner");
         const marker = `Unpin${apiSdk.faker.generateString(8)}`;
-        const a = await createRoom(ownerApi, `${marker} AAA`);
+        await createRoom(ownerApi, `${marker} AAA`);
         await createRoom(ownerApi, `${marker} MMM`);
         const z = await createRoom(ownerApi, `${marker} ZZZ`);
 
-        // Pinning floats Z to the top; unpinning must drop it back to its
-        // alphabetical position (last of the three) under title-ascending sort.
+        // The natural position is whatever the list order is before pinning:
+        // asserting a specific (alphabetical) place would only re-test the
+        // broken title sort of BUG 81809, not the pin round-trip.
+        const order = async () => {
+          const { data } = await ownerApi.rooms.getRoomsFolder({
+            filterValue: marker,
+            sortBy: "title",
+            sortOrder: SortOrder.Ascending,
+          });
+          const folders = data.response!.folders!;
+          return {
+            ids: folders.map((f) => (f as any).id),
+            zRow: folders.find((f) => (f as any).id === z) as any,
+          };
+        };
+
+        const before = await order();
+        expect(before.ids).toHaveLength(3);
+
+        // Pinning floats Z to the top...
         await ownerApi.rooms.pinRoom({ id: z });
+        const pinned = await order();
+        expect(pinned.zRow.pinned).toBe(true);
+        expect(pinned.ids[0]).toBe(z);
+
+        // ...and unpinning drops it back exactly where it was.
         await ownerApi.rooms.unpinRoom({ id: z });
-
-        const { data } = await ownerApi.rooms.getRoomsFolder({
-          filterValue: marker,
-          sortBy: "title",
-          sortOrder: SortOrder.Ascending,
-        });
-        const folders = data.response!.folders!;
-        const ids = folders.map((f) => (f as any).id);
-        const zRow = folders.find((f) => (f as any).id === z) as any;
-
-        expect(zRow.pinned).toBe(false);
-        expect(ids.indexOf(a)).toBeLessThan(ids.indexOf(z));
+        const after = await order();
+        expect(after.zRow.pinned).toBe(false);
+        expect(after.ids).toEqual(before.ids);
       });
 
       test("PUT /files/rooms/:id/unpin - Unpinning a room does not remove it from the list", async ({
@@ -3846,7 +3957,14 @@ test.describe("API rooms methods", () => {
           expect(status).toBe(200);
           expect(data.response!.pinned).toBe(false);
 
-          const { row } = await findRoomRow(ownerApi, roomId);
+          // Form filling rooms are listed in the Forms area, not the Active one.
+          const { row } = await findRoomRow(
+            ownerApi,
+            roomId,
+            roomType === RoomType.FillingFormsRoom
+              ? SearchArea.Forms
+              : SearchArea.Active,
+          );
           expect(row.pinned).toBe(false);
         });
       }
@@ -4489,34 +4607,33 @@ test.describe("API rooms methods", () => {
       return waitForRoomTemplate(api.rooms);
     };
 
-    test.fail(
-      "BUG 81938: PUT /files/roomtemplate/public - Re-applying public:true on an already-public template incorrectly disables it",
-      async ({ apiSdk }) => {
-        // setPublicSettings is not idempotent for public:true. The first call
-        // enables the flag; a second identical call flips it back to false
-        // instead of leaving it enabled (the boolean in the body is ignored
-        // when the template is already public).
-        const ownerApi = apiSdk.forRole("owner");
-        const templateId = await createPublicFlagTemplate(
-          ownerApi,
-          "Autotest SetPublic IdemTrue",
-        );
+    test("PUT /files/roomtemplate/public - public:true applied twice stays true", async ({
+      apiSdk,
+    }) => {
+      // Used to be BUG 81938: a second identical public:true call flipped the
+      // flag back to false because the boolean in the body was ignored once the
+      // template was already public. Fixed - verified on a live portal on
+      // 2026-08-04.
+      const ownerApi = apiSdk.forRole("owner");
+      const templateId = await createPublicFlagTemplate(
+        ownerApi,
+        "Autotest SetPublic IdemTrue",
+      );
 
-        const first = await ownerApi.rooms.setPublicSettings({
-          setPublicDto: { id: templateId, public: true },
-        });
-        expect(first.status).toBe(200);
-        const second = await ownerApi.rooms.setPublicSettings({
-          setPublicDto: { id: templateId, public: true },
-        });
-        expect(second.status).toBe(200);
+      const first = await ownerApi.rooms.setPublicSettings({
+        setPublicDto: { id: templateId, public: true },
+      });
+      expect(first.status).toBe(200);
+      const second = await ownerApi.rooms.setPublicSettings({
+        setPublicDto: { id: templateId, public: true },
+      });
+      expect(second.status).toBe(200);
 
-        const { data } = await ownerApi.rooms.getPublicSettings({
-          id: templateId,
-        });
-        expect(data.response).toBe(true);
-      },
-    );
+      const { data } = await ownerApi.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(data.response).toBe(true);
+    });
 
     test("PUT /files/roomtemplate/public - public:false applied twice stays false", async ({
       apiSdk,
@@ -5249,91 +5366,89 @@ test.describe("API rooms methods", () => {
 
     // === Validation: title ===
 
-    // POST /files/rooms rejects missing title with 400 — createRoomTemplate should match.
-    // Currently API returns 200 but async operation hangs (templateId never becomes > 0).
-    test.fail(
-      "BUG 81690: POST /files/roomtemplate - Missing title returns 400",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest NoTitle Source",
-            roomType: RoomType.CustomRoom,
-          },
-        });
+    // Title is validated like POST /files/rooms: required, max 400 chars. This
+    // used to be BUG 81690 (200 plus an async operation that hung, so templateId
+    // never became > 0); fixed - verified on a live portal on 2026-08-04.
+    test("POST /files/roomtemplate - Missing title returns 400", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest NoTitle Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
 
-        const { data } = await ownerApi.rooms.createRoomTemplate({
-          roomTemplateDto: { roomId: roomData.response!.id! } as any,
-        });
+      const { data } = await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: { roomId: roomData.response!.id! } as any,
+      });
 
-        const { data: list } = await ownerApi.rooms.getRoomsFolder({
-          searchArea: SearchArea.Templates,
-        });
-        // No template should appear from a missing-title request.
-        const sourceRoomTitle = "Autotest NoTitle Source";
-        const titles = (list.response!.folders ?? []).map(
-          (f) => (f as any).title as string,
-        );
-        expect(titles).not.toContain(sourceRoomTitle);
-        expect(data.statusCode).toBe(400);
-      },
-    );
+      const { data: list } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Templates,
+      });
+      // No template should appear from a missing-title request.
+      const sourceRoomTitle = "Autotest NoTitle Source";
+      const titles = (list.response!.folders ?? []).map(
+        (f) => (f as any).title as string,
+      );
+      expect(titles).not.toContain(sourceRoomTitle);
+      expect(data.statusCode).toBe(400);
+    });
 
-    test.fail(
-      "BUG 81690: POST /files/roomtemplate - Empty title returns 400",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest EmptyTitle Source",
-            roomType: RoomType.CustomRoom,
-          },
-        });
+    test("POST /files/roomtemplate - Empty title returns 400", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest EmptyTitle Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
 
-        const { data } = await ownerApi.rooms.createRoomTemplate({
-          roomTemplateDto: { roomId: roomData.response!.id!, title: "" },
-        });
+      const { data } = await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: { roomId: roomData.response!.id!, title: "" },
+      });
 
-        const { data: list } = await ownerApi.rooms.getRoomsFolder({
-          searchArea: SearchArea.Templates,
-        });
-        const titles = (list.response!.folders ?? []).map(
-          (f) => (f as any).title as string,
-        );
-        expect(titles).not.toContain("");
-        expect(data.statusCode).toBe(400);
-      },
-    );
+      const { data: list } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Templates,
+      });
+      const titles = (list.response!.folders ?? []).map(
+        (f) => (f as any).title as string,
+      );
+      expect(titles).not.toContain("");
+      expect(data.statusCode).toBe(400);
+    });
 
-    test.fail(
-      "BUG 81690: POST /files/roomtemplate - Very long title (1000 chars) is rejected with 400",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest LongTitle Source",
-            roomType: RoomType.CustomRoom,
-          },
-        });
+    test("POST /files/roomtemplate - Very long title (1000 chars) is rejected with 400", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest LongTitle Source",
+          roomType: RoomType.CustomRoom,
+        },
+      });
 
-        const longTitle = "A".repeat(1000);
-        const { data } = await ownerApi.rooms.createRoomTemplate({
-          roomTemplateDto: {
-            roomId: roomData.response!.id!,
-            title: longTitle,
-          },
-        });
+      const longTitle = "A".repeat(1000);
+      const { data } = await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: roomData.response!.id!,
+          title: longTitle,
+        },
+      });
 
-        const { data: list } = await ownerApi.rooms.getRoomsFolder({
-          searchArea: SearchArea.Templates,
-        });
-        const titles = (list.response!.folders ?? []).map(
-          (f) => (f as any).title as string,
-        );
-        expect(titles).not.toContain(longTitle);
-        expect(data.statusCode).toBe(400);
-      },
-    );
+      const { data: list } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Templates,
+      });
+      const titles = (list.response!.folders ?? []).map(
+        (f) => (f as any).title as string,
+      );
+      expect(titles).not.toContain(longTitle);
+      expect(data.statusCode).toBe(400);
+    });
 
     test("POST /files/roomtemplate - Invalid title type (number) returns 400", async ({
       apiSdk,
@@ -20626,6 +20741,9 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
     });
   });
 
+  // createAllRoomTypes makes five rooms, but the default (Active) view only
+  // lists activeAreaRoomCount of them - the form filling room paginates under
+  // searchArea=Forms instead.
   test.describe("pagination", () => {
     test("GET /files/rooms - count limits the number of returned folders", async ({
       apiSdk,
@@ -20639,7 +20757,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
 
       expect(status).toBe(200);
       expect(data.response!.folders!.length).toBe(2);
-      expect(data.response!.total).toBe(5);
+      expect(data.response!.total).toBe(activeAreaRoomCount);
     });
 
     test("GET /files/rooms - startIndex skips first N folders", async ({
@@ -20657,7 +20775,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
 
       expect(status).toBe(200);
       const ids = (data.response!.folders as any[]).map((f) => f.id);
-      expect(ids.length).toBe(3);
+      expect(ids.length).toBe(activeAreaRoomCount - 2);
       expect(ids).toEqual(allIds.slice(2));
     });
 
@@ -20692,7 +20810,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
 
       expect(status).toBe(200);
       expect(data.response!.folders!.length).toBe(0);
-      expect(data.response!.total).toBe(5);
+      expect(data.response!.total).toBe(activeAreaRoomCount);
     });
 
     test("GET /files/rooms - Pagination metadata matches request", async ({
@@ -20709,7 +20827,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
       expect(status).toBe(200);
       expect(data.response!.startIndex).toBe(1);
       expect(data.response!.count).toBe(2);
-      expect(data.response!.total).toBe(5);
+      expect(data.response!.total).toBe(activeAreaRoomCount);
     });
   });
 
