@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { onlyofficeAiProvider } from "@/src/helpers/ai-providers";
-import { ProviderType } from "@onlyoffice/docspace-api-sdk";
+import { AiBuiltinProviderType } from "@onlyoffice/docspace-api-sdk";
 import {
   absoluteUrlBypassPayloads,
   specialAddressPayloads,
@@ -39,13 +39,11 @@ test.describe.skip("AI Providers - Get", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.providers.getProviders();
+    const { data, status } = await ownerApi.providers.aiProfilesList();
 
     expect(status).toBe(200);
     expect(
-      data.response?.some(
-        (p) => p.title === onlyofficeAiProvider.providerTitle,
-      ),
+      data?.some((p) => p.name === onlyofficeAiProvider.providerTitle),
     ).toBe(true);
   });
 
@@ -57,13 +55,11 @@ test.describe.skip("AI Providers - Get", () => {
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.providers.getProviders();
+    const { data, status } = await adminApi.providers.aiProfilesList();
 
     expect(status).toBe(200);
     expect(
-      data.response?.some(
-        (p) => p.title === onlyofficeAiProvider.providerTitle,
-      ),
+      data?.some((p) => p.name === onlyofficeAiProvider.providerTitle),
     ).toBe(true);
   });
 
@@ -75,13 +71,11 @@ test.describe.skip("AI Providers - Get", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.providers.getProviders();
+    const { data, status } = await roomAdminApi.providers.aiProfilesList();
 
     expect(status).toBe(200);
     expect(
-      data.response?.some(
-        (p) => p.title === onlyofficeAiProvider.providerTitle,
-      ),
+      data?.some((p) => p.name === onlyofficeAiProvider.providerTitle),
     ).toBe(true);
   });
 });
@@ -92,15 +86,12 @@ test.describe.skip("AI Providers - Get Default", () => {
   }) => {
     const { data, status } = await apiSdk
       .forRole("owner")
-      .providers.getDefaultProvider();
+      .providers.aiProfilesList();
 
     expect(status).toBe(200);
-    expect(data.count).toBe(1);
-    expect(data.response?.providerId).toBe(onlyofficeAiProvider.providerId);
-    expect(data.response?.defaultModel).toBe(onlyofficeAiProvider.defaultModel);
-    expect(data.response?.providerTitle).toBe(
-      onlyofficeAiProvider.providerTitle,
-    );
+    expect(data?.length).toBeGreaterThanOrEqual(1);
+    expect(data?.[0]?.modelId).toBe(onlyofficeAiProvider.defaultModel);
+    expect(data?.[0]?.name).toBe(onlyofficeAiProvider.providerTitle);
   });
 
   test("GET /api/2.0/ai/providers/default - DocSpaceAdmin gets the gateway default provider", async ({
@@ -111,14 +102,12 @@ test.describe.skip("AI Providers - Get Default", () => {
       "DocSpaceAdmin",
     );
 
-    const { data, status } = await adminApi.providers.getDefaultProvider();
+    const { data, status } = await adminApi.providers.aiProfilesList();
 
     expect(status).toBe(200);
-    expect(data.count).toBe(1);
-    expect(data.response?.defaultModel).toBe(onlyofficeAiProvider.defaultModel);
-    expect(data.response?.providerTitle).toBe(
-      onlyofficeAiProvider.providerTitle,
-    );
+    expect(data?.length).toBeGreaterThanOrEqual(1);
+    expect(data?.[0]?.modelId).toBe(onlyofficeAiProvider.defaultModel);
+    expect(data?.[0]?.name).toBe(onlyofficeAiProvider.providerTitle);
   });
 
   test("GET /api/2.0/ai/providers/default - RoomAdmin gets the gateway default provider", async ({
@@ -129,14 +118,12 @@ test.describe.skip("AI Providers - Get Default", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.providers.getDefaultProvider();
+    const { data, status } = await roomAdminApi.providers.aiProfilesList();
 
     expect(status).toBe(200);
-    expect(data.count).toBe(1);
-    expect(data.response?.defaultModel).toBe(onlyofficeAiProvider.defaultModel);
-    expect(data.response?.providerTitle).toBe(
-      onlyofficeAiProvider.providerTitle,
-    );
+    expect(data?.length).toBeGreaterThanOrEqual(1);
+    expect(data?.[0]?.modelId).toBe(onlyofficeAiProvider.defaultModel);
+    expect(data?.[0]?.name).toBe(onlyofficeAiProvider.providerTitle);
   });
 
   test("GET /api/2.0/ai/providers/default - User gets the gateway default provider", async ({
@@ -147,14 +134,12 @@ test.describe.skip("AI Providers - Get Default", () => {
       "User",
     );
 
-    const { data, status } = await userApi.providers.getDefaultProvider();
+    const { data, status } = await userApi.providers.aiProfilesList();
 
     expect(status).toBe(200);
-    expect(data.count).toBe(1);
-    expect(data.response?.defaultModel).toBe(onlyofficeAiProvider.defaultModel);
-    expect(data.response?.providerTitle).toBe(
-      onlyofficeAiProvider.providerTitle,
-    );
+    expect(data?.length).toBeGreaterThanOrEqual(1);
+    expect(data?.[0]?.modelId).toBe(onlyofficeAiProvider.defaultModel);
+    expect(data?.[0]?.name).toBe(onlyofficeAiProvider.providerTitle);
   });
 });
 
@@ -184,8 +169,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.providers.getDefaultProvider();
-    const providerId = data.response!.providerId!;
+    const { data } = await ownerApi.providers.aiProfilesList();
+    const providerId = data?.[0]?.id ?? "";
 
     const result = await apiSdk.aiOpenAiProxyRaw("owner", providerId, "models");
 
@@ -202,8 +187,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.providers.getDefaultProvider();
-    const providerId = data.response!.providerId!;
+    const { data } = await ownerApi.providers.aiProfilesList();
+    const providerId = data?.[0]?.id ?? "";
 
     const result = await apiSdk.aiOpenAiProxyRaw(
       "owner",
@@ -218,8 +203,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.providers.getDefaultProvider();
-    const providerId = data.response!.providerId!;
+    const { data } = await ownerApi.providers.aiProfilesList();
+    const providerId = data?.[0]?.id ?? "";
 
     const result = await apiSdk.aiOpenAiProxyRaw(
       "owner",
@@ -237,8 +222,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.providers.getDefaultProvider();
-      const providerId = data.response!.providerId!;
+      const { data } = await ownerApi.providers.aiProfilesList();
+      const providerId = data?.[0]?.id ?? "";
 
       const result = await apiSdk.aiOpenAiProxyRaw(
         "owner",
@@ -264,8 +249,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.providers.getDefaultProvider();
-      const providerId = data.response!.providerId!;
+      const { data } = await ownerApi.providers.aiProfilesList();
+      const providerId = data?.[0]?.id ?? "";
 
       const result = await apiSdk.aiOpenAiProxyRaw("owner", providerId, path);
 
@@ -281,8 +266,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.providers.getDefaultProvider();
-    const providerId = data.response!.providerId!;
+    const { data } = await ownerApi.providers.aiProfilesList();
+    const providerId = data?.[0]?.id ?? "";
 
     const result = await apiSdk.aiOpenAiProxyRaw(
       "owner",
@@ -302,8 +287,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.providers.getDefaultProvider();
-    const providerId = data.response!.providerId!;
+    const { data } = await ownerApi.providers.aiProfilesList();
+    const providerId = data?.[0]?.id ?? "";
 
     const result = await apiSdk.aiOpenAiProxyRaw(
       "owner",
@@ -322,8 +307,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.providers.getDefaultProvider();
-    const providerId = data.response!.providerId!;
+    const { data } = await ownerApi.providers.aiProfilesList();
+    const providerId = data?.[0]?.id ?? "";
 
     const result = await apiSdk.aiOpenAiProxyRaw(
       null,
@@ -345,8 +330,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.providers.getDefaultProvider();
-      const providerId = data.response!.providerId!;
+      const { data } = await ownerApi.providers.aiProfilesList();
+      const providerId = data?.[0]?.id ?? "";
 
       const result = await apiSdk.aiOpenAiProxyRaw("owner", providerId, path);
 
@@ -362,8 +347,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.providers.getDefaultProvider();
-    const providerId = data.response!.providerId!;
+    const { data } = await ownerApi.providers.aiProfilesList();
+    const providerId = data?.[0]?.id ?? "";
 
     const result = await apiSdk.aiOpenAiProxyRaw(
       "owner",
@@ -382,8 +367,8 @@ test.describe.skip("AI Providers - OpenAI proxy SSRF protection", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.providers.getDefaultProvider();
-    const providerId = data.response!.providerId!;
+    const { data } = await ownerApi.providers.aiProfilesList();
+    const providerId = data?.[0]?.id ?? "";
 
     const result = await apiSdk.aiOpenAiProxyRaw(
       "owner",
@@ -426,11 +411,11 @@ test.describe
     }) => {
       const { status } = await apiSdk
         .forRole("owner")
-        .providers.previewProviderModels({
-          previewProviderModelsRequestDto: {
-            type: ProviderType.OpenAiCompatible,
-            url,
-            key: "sk-security-test",
+        .providers.aiProfilesListProviderModels({
+          aiProfilesListProviderModelsRequest: {
+            providerType: AiBuiltinProviderType.Openaicompatible,
+            baseUrl: url,
+            apiKey: "sk-security-test",
           },
         });
 
@@ -445,17 +430,17 @@ test.describe
     test(`POST /api/2.0/ai/providers - Owner: forbidden URL is refused before connect: ${name}`, async ({
       apiSdk,
     }) => {
-      const { status } = await apiSdk.forRole("owner").providers.addProvider({
-        createProviderRequestDto: {
-          type: ProviderType.OpenAiCompatible,
-          title: `ssrf-create-${name}`,
-          url,
-          key: "sk-security-test",
-          modelSettings: new Set([
-            { modelId: "gpt-4o", isEnabled: true } as never,
-          ]),
-        },
-      });
+      const { status } = await apiSdk
+        .forRole("owner")
+        .providers.aiProfilesCreate({
+          aiCreateProfileInput: {
+            providerType: AiBuiltinProviderType.Openaicompatible,
+            name: `ssrf-create-${name}`,
+            baseUrl: url,
+            key: "sk-security-test",
+            modelId: "",
+          },
+        });
 
       expectProviderUrlRefused(status);
     });
@@ -467,21 +452,19 @@ test.describe
     const ownerApi = apiSdk.forRole("owner");
     const title = `ssrf-not-persisted-${Date.now()}`;
 
-    const { status } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: {
-        type: ProviderType.OpenAiCompatible,
-        title,
-        url: `http://${ATTACKER_HOST}:9999/models`,
+    const { status } = await ownerApi.providers.aiProfilesCreate({
+      aiCreateProfileInput: {
+        providerType: AiBuiltinProviderType.Openaicompatible,
+        name: title,
+        baseUrl: `http://${ATTACKER_HOST}:9999/models`,
         key: "sk-security-test",
-        modelSettings: new Set([
-          { modelId: "gpt-4o", isEnabled: true } as never,
-        ]),
+        modelId: "",
       },
     });
 
     // Side-effect check BEFORE the status assertion: no partial provider record.
-    const { data: list } = await ownerApi.providers.getProviders();
-    expect(list.response?.some((p) => p.title === title)).toBe(false);
+    const { data: list } = await ownerApi.providers.aiProfilesList();
+    expect(list?.some((p) => p.name === title)).toBe(false);
 
     expectProviderUrlRefused(status);
   });
@@ -495,12 +478,14 @@ test.describe
     }) => {
       const { status } = await apiSdk
         .forRole("owner")
-        .providers.updateProvider({
-          id: 1,
-          updateProviderBody: {
-            title: "ssrf-update",
-            url,
+        .providers.aiProfilesUpdate({
+          aiProfile: {
+            id: "1",
+            name: "ssrf-update",
+            providerType: AiBuiltinProviderType.Openaicompatible,
+            baseUrl: url,
             key: "sk-security-test",
+            modelId: "",
           },
         });
 
@@ -514,13 +499,17 @@ test.describe
   test("PUT /api/2.0/ai/providers/:id - forbidden URL without a new key is still refused before connect", async ({
     apiSdk,
   }) => {
-    const { status } = await apiSdk.forRole("owner").providers.updateProvider({
-      id: 1,
-      updateProviderBody: {
-        title: "ssrf-update-no-key",
-        url: `http://${ATTACKER_HOST}:9999/models`,
-      },
-    });
+    const { status } = await apiSdk
+      .forRole("owner")
+      .providers.aiProfilesUpdate({
+        aiProfile: {
+          id: "1",
+          name: "ssrf-update-no-key",
+          providerType: AiBuiltinProviderType.Openaicompatible,
+          baseUrl: `http://${ATTACKER_HOST}:9999/models`,
+          modelId: "",
+        },
+      });
 
     expectProviderUrlRefused(status);
   });

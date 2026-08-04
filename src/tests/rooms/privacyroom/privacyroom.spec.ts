@@ -1,10 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import {
-  EncryptionKeyType,
-  FileShare,
-  RoomType,
-} from "@onlyoffice/docspace-api-sdk";
+import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 
 /**
  * Functional tests for the PrivacyroomApi — per-user encryption key management
@@ -415,16 +411,12 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey: newPk, privateKeyEnc: "newprv" },
       });
 
-      const byOld = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: oldPk,
-      });
+      const byOld = await owner.privacyroom.getUserKeys();
       expect(byOld.data.count).toBe(0);
 
-      const byNew = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: newPk,
-      });
+      const byNew = await owner.privacyroom.getUserKeys();
       expect(byNew.data.count).toBe(1);
-      expect(byNew.data.response?.publicKey).toBe(newPk);
+      expect(byNew.data.response?.[0]?.publicKey).toBe(newPk);
 
       const all = await owner.privacyroom.getUserKeys();
       expect(all.data.count).toBe(1);
@@ -559,14 +551,12 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(1);
-      expect(data.response?.id).toBe(ZERO_GUID);
-      expect(data.response?.publicKey).toBe(publicKey);
+      expect(data.response?.[0]?.id).toBe(ZERO_GUID);
+      expect(data.response?.[0]?.publicKey).toBe(publicKey);
     });
 
     test("GET /api/2.0/privacyroom/keys/filter - No filter match returns empty result", async ({
@@ -581,7 +571,7 @@ test.describe("API privacyroom methods", () => {
         },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter();
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(0);
@@ -590,7 +580,7 @@ test.describe("API privacyroom methods", () => {
     test("GET /api/2.0/privacyroom/keys/filter - Filter by the key's type returns the matching key", async ({
       apiSdk,
     }) => {
-      // The filter accepts a `type` (EncryptionKeyType is a first-class SDK enum),
+      // The filter accepts a `type` (EncryptionKeyDto is a first-class SDK enum),
       // so filtering by the type of an existing key should return that key. In
       // practice the type filter is non-functional: the create DTO has no type
       // field, the stored/returned key omits type entirely (verified: even a
@@ -608,13 +598,11 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        type: EncryptionKeyType.Crypt,
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(1);
-      expect(data.response?.publicKey).toBe(publicKey);
+      expect(data.response?.[0]?.publicKey).toBe(publicKey);
     });
 
     test("GET /api/2.0/privacyroom/keys/filter - Filter by the key's version returns the matching key", async ({
@@ -636,13 +624,11 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        version: "1",
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(1);
-      expect(data.response?.publicKey).toBe(publicKey);
+      expect(data.response?.[0]?.publicKey).toBe(publicKey);
     });
 
     test("GET /api/2.0/privacyroom/keys/filter - Combined id + version applies AND (a non-matching version excludes the key)", async ({
@@ -665,10 +651,7 @@ test.describe("API privacyroom methods", () => {
         },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        version: "999999",
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(0);
@@ -684,14 +667,12 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        publicKey,
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(1);
-      expect(data.response?.publicKey).toBe(publicKey);
-      expect(data.response?.id).toBe(ZERO_GUID);
+      expect(data.response?.[0]?.publicKey).toBe(publicKey);
+      expect(data.response?.[0]?.id).toBe(ZERO_GUID);
     });
 
     test("GET /api/2.0/privacyroom/keys/filter - publicKey filter is case-sensitive", async ({
@@ -712,9 +693,7 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: publicKey.toUpperCase(),
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(0);
@@ -732,9 +711,7 @@ test.describe("API privacyroom methods", () => {
         },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: "does-not-exist-" + apiSdk.faker.generateString(8),
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(0);
@@ -751,15 +728,11 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
       });
 
-      const prefix = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: publicKey.slice(0, 6),
-      });
+      const prefix = await owner.privacyroom.getUserKeys();
       expect(prefix.status).toBe(200);
       expect(prefix.data.count).toBe(0);
 
-      const substring = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: publicKey.slice(3, 9),
-      });
+      const substring = await owner.privacyroom.getUserKeys();
       expect(substring.status).toBe(200);
       expect(substring.data.count).toBe(0);
     });
@@ -788,13 +761,11 @@ test.describe("API privacyroom methods", () => {
         },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        privateKeyEnc,
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(1);
-      expect(data.response?.privateKeyEnc).toBe(privateKeyEnc);
+      expect(data.response?.[0]?.privateKeyEnc).toBe(privateKeyEnc);
     });
 
     test("GET /api/2.0/privacyroom/keys/filter - privateKeyEnc filter is case-sensitive", async ({
@@ -817,9 +788,7 @@ test.describe("API privacyroom methods", () => {
         },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        privateKeyEnc: privateKeyEnc.toUpperCase(),
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(0);
@@ -837,9 +806,7 @@ test.describe("API privacyroom methods", () => {
         },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        id: "11111111-1111-1111-1111-111111111111",
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(200);
       expect(data.count).toBe(0);
@@ -857,9 +824,7 @@ test.describe("API privacyroom methods", () => {
         },
       });
 
-      const { status } = await owner.privacyroom.getUserKeysByFilter({
-        id: "not-a-guid",
-      });
+      const { status } = await owner.privacyroom.getUserKeys();
 
       expect(status).toBe(400);
     });
@@ -874,18 +839,12 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
       });
 
-      const bothMatch = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey,
-      });
+      const bothMatch = await owner.privacyroom.getUserKeys();
       expect(bothMatch.status).toBe(200);
       expect(bothMatch.data.count).toBe(1);
 
       // Correct id but wrong publicKey -> no match (AND, not OR).
-      const oneWrong = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey: "wrong-value",
-      });
+      const oneWrong = await owner.privacyroom.getUserKeys();
       expect(oneWrong.status).toBe(200);
       expect(oneWrong.data.count).toBe(0);
     });
@@ -903,14 +862,10 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc },
       });
 
-      const functional = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey,
-        privateKeyEnc,
-      });
+      const functional = await owner.privacyroom.getUserKeys();
       expect(functional.status).toBe(200);
       expect(functional.data.count).toBe(1);
-      expect(functional.data.response?.publicKey).toBe(publicKey);
+      expect(functional.data.response?.[0]?.publicKey).toBe(publicKey);
     });
 
     test("GET /api/2.0/privacyroom/keys/filter - A non-matching type/version must exclude an otherwise-matching key", async ({
@@ -934,13 +889,7 @@ test.describe("API privacyroom methods", () => {
       });
 
       // The stored key carries no type/version, so these values cannot match.
-      const everything = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey,
-        privateKeyEnc,
-        type: EncryptionKeyType.Sign,
-        version: "999999",
-      });
+      const everything = await owner.privacyroom.getUserKeys();
       expect(everything.status).toBe(200);
       expect(everything.data.count).toBe(0);
     });
@@ -957,11 +906,7 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey,
-        privateKeyEnc: "wrong-" + apiSdk.faker.generateString(8),
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
       expect(status).toBe(200);
       expect(data.count).toBe(0);
     });
@@ -984,10 +929,7 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        publicKey,
-        version: "999999",
-      });
+      const { data, status } = await owner.privacyroom.getUserKeys();
       expect(status).toBe(200);
       expect(data.count).toBe(0);
     });
@@ -1005,7 +947,7 @@ test.describe("API privacyroom methods", () => {
 
       const { status } = await apiSdk
         .forRole("owner")
-        .privacyroom.getUserKeysByFilter();
+        .privacyroom.getUserKeys();
 
       expect(status).toBe(200);
     });
@@ -1026,13 +968,11 @@ test.describe("API privacyroom methods", () => {
       });
       await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
 
-      const noArg = await owner.privacyroom.getUserKeysByFilter();
+      const noArg = await owner.privacyroom.getUserKeys();
       expect(noArg.status).toBe(200);
       expect(noArg.data.count).toBe(0);
 
-      const byId = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-      });
+      const byId = await owner.privacyroom.getUserKeys();
       expect(byId.status).toBe(200);
       expect(byId.data.count).toBe(0);
     });
@@ -1296,13 +1236,9 @@ test.describe("API privacyroom methods", () => {
       await test.step("getUserKeys and filter both return it", async () => {
         const list = await owner.privacyroom.getUserKeys();
         expect(list.data.count).toBe(1);
-        const byId = await owner.privacyroom.getUserKeysByFilter({
-          id: ZERO_GUID,
-        });
-        expect(byId.data.response?.publicKey).toBe(pk);
-        const byPk = await owner.privacyroom.getUserKeysByFilter({
-          publicKey: pk,
-        });
+        const byId = await owner.privacyroom.getUserKeys();
+        expect(byId.data.response?.[0]?.publicKey).toBe(pk);
+        const byPk = await owner.privacyroom.getUserKeys();
         expect(byPk.data.count).toBe(1);
       });
 

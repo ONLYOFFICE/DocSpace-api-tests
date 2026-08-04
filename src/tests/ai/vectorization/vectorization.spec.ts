@@ -58,8 +58,8 @@ test.describe("Vectorization - startTask", () => {
         `Autotest Vectorization File ${manager.type ?? "Owner"}.docx`,
       );
 
-      const { status } = await api.vectorization.startTask({
-        vectorizationStartRequestBody: {
+      const { status } = await api.vectorization.aiVectorizationStartTask({
+        requestBody: {
           files: new Set([fileId]),
         },
       });

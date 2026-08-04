@@ -32,18 +32,18 @@ import {
   GroupsApi,
   GroupApi,
   SearchApi as GroupSearchApi,
-  ProvidersApi,
-  ChatApi,
   SettingsQuotaApi,
   PaymentApi as SdkPaymentApi,
   MessagesApi,
-  SettingsMessagesApi,
   CommonSettingsApi,
-  SettingsApi as AiSettingsApi,
   UsersApi,
 } from "@onlyoffice/docspace-api-sdk";
+import { ProfilesApi as ProvidersApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/profiles-api";
+import { ThreadsApi as ChatApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/threads-api";
+import { AISettingsApi as AiSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/aisettings-api";
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
-import { MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/mcpapi";
+import { ToolsApi as MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/tools-api";
+import { SettingsApi as FilesSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/settings-api";
 import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { ApiKeysApi } from "@onlyoffice/docspace-api-sdk/dist/api/api-keys/api-keys-api";
 import { AuthenticationApi } from "@onlyoffice/docspace-api-sdk/dist/api/authentication/authentication-api";
@@ -54,7 +54,6 @@ import { ClientManagementApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth
 import { ClientQueryingApi } from "@onlyoffice/docspace-api-sdk/dist/api/oauth20/client-querying-api";
 import { OAuth2Api } from "@onlyoffice/docspace-api-sdk/dist/api/security/oauth2-api";
 import { SecurityAccessToDevToolsApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/security-access-to-dev-tools-api";
-import { FilesSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/files-settings-api";
 import { AuditTrailDataApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/audit-trail-data-api";
 import { SecurityBannersVisibilityApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/security-banners-visibility-api";
 import { CSPApi } from "@onlyoffice/docspace-api-sdk/dist/api/security/cspapi";
@@ -217,11 +216,7 @@ export class ApiSDK {
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
       payment: new SdkPaymentApi(config, undefined, axiosInstance),
-      settingsMessages: new SettingsMessagesApi(
-        config,
-        undefined,
-        axiosInstance,
-      ),
+      settingsMessages: new MessagesApi(config, undefined, axiosInstance),
       commonSettings: new CommonSettingsApi(config, undefined, axiosInstance),
       aiSettings: new AiSettingsApi(config, undefined, axiosInstance),
       vectorization: new VectorizationApi(config, undefined, axiosInstance),
@@ -329,11 +324,7 @@ export class ApiSDK {
       providers: new ProvidersApi(config, undefined, axiosInstance),
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
-      settingsMessages: new SettingsMessagesApi(
-        config,
-        undefined,
-        axiosInstance,
-      ),
+      settingsMessages: new MessagesApi(config, undefined, axiosInstance),
       commonSettings: new CommonSettingsApi(config, undefined, axiosInstance),
       aiSettings: new AiSettingsApi(config, undefined, axiosInstance),
       vectorization: new VectorizationApi(config, undefined, axiosInstance),

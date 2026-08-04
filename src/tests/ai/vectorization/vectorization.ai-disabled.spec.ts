@@ -30,8 +30,8 @@ test.describe("AI Vectorization - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.vectorization.startTask({
-      vectorizationStartRequestBody: { files: new Set([1]) },
+    const { status } = await ownerApi.vectorization.aiVectorizationStartTask({
+      requestBody: { files: new Set([1]) },
     });
 
     expect(status).toBe(403);
@@ -68,8 +68,8 @@ test.describe("AI Vectorization - AI Tools wallet service not paid for", () => {
     await test.step("the task route itself is not wallet-gated", async () => {
       // A missing id is accepted in every portal state (see vectorization.spec.ts),
       // which is all that is needed to show the route is reachable while unpaid.
-      const { status } = await ownerApi.vectorization.startTask({
-        vectorizationStartRequestBody: { files: new Set([MISSING_FILE_ID]) },
+      const { status } = await ownerApi.vectorization.aiVectorizationStartTask({
+        requestBody: { files: new Set([MISSING_FILE_ID]) },
       });
       expect(status).toBe(200);
     });
@@ -112,8 +112,8 @@ test.describe("AI Vectorization - AI Tools wallet service not paid for", () => {
         "Autotest Wallet Paid File.docx",
       );
 
-      const { status } = await ownerApi.vectorization.startTask({
-        vectorizationStartRequestBody: { files: new Set([fileId]) },
+      const { status } = await ownerApi.vectorization.aiVectorizationStartTask({
+        requestBody: { files: new Set([fileId]) },
       });
       expect(status).toBe(200);
 

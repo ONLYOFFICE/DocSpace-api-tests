@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
+import { AiBuiltinProviderType } from "@onlyoffice/docspace-api-sdk";
 import { ATTACKER_HOST, expectNotProxied } from "@/src/helpers/ssrf-payloads";
 
 // SKIPPED: the whole provider area was removed from the product. Every
@@ -27,8 +28,14 @@ test.describe.skip("AI Providers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.providers.addProvider({
-      createProviderRequestDto: { title: "test", key: "fake-key" },
+    const { status } = await ownerApi.providers.aiProfilesCreate({
+      aiCreateProfileInput: {
+        name: "test",
+        key: "fake-key",
+        providerType: AiBuiltinProviderType.Openaicompatible,
+        baseUrl: "",
+        modelId: "",
+      },
     });
 
     expect(status).toBe(403);
@@ -43,8 +50,8 @@ test.describe.skip("AI Providers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.providers.deleteProviders({
-      removeProviderRequestDto: { ids: new Set([fakeProviderId]) },
+    const { status } = await ownerApi.providers.aiProfilesDelete({
+      body: String(fakeProviderId),
     });
 
     expect(status).toBe(403);
@@ -59,7 +66,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.providers.getProviders();
+    const { status } = await ownerApi.providers.aiProfilesList();
 
     expect(status).toBe(403);
   });
@@ -73,7 +80,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.providers.getAvailableProviders();
+    const { status } = await ownerApi.providers.aiProfilesList();
 
     expect(status).toBe(403);
   });
@@ -87,7 +94,7 @@ test.describe.skip("AI Providers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.providers.getDefaultProvider();
+    const { status } = await ownerApi.providers.aiProfilesList();
 
     expect(status).toBe(403);
   });
@@ -101,8 +108,8 @@ test.describe.skip("AI Providers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.providers.getProviderModels({
-      providerId: fakeProviderId,
+    const { status } = await ownerApi.providers.aiProfilesListModels({
+      profileId: String(fakeProviderId),
     });
 
     expect(status).toBe(403);
@@ -117,8 +124,12 @@ test.describe.skip("AI Providers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.providers.previewProviderModels({
-      previewProviderModelsRequestDto: { key: null },
+    const { status } = await ownerApi.providers.aiProfilesListProviderModels({
+      aiProfilesListProviderModelsRequest: {
+        providerType: AiBuiltinProviderType.Openaicompatible,
+        baseUrl: "",
+        apiKey: "",
+      },
     });
 
     expect(status).toBe(403);
@@ -133,8 +144,14 @@ test.describe.skip("AI Providers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.providers.setDefaultProvider({
-      setDefaultProviderRequestDto: { defaultModel: null },
+    const { status } = await ownerApi.providers.aiProfilesUpdate({
+      aiProfile: {
+        id: "1",
+        name: "test",
+        providerType: AiBuiltinProviderType.Openaicompatible,
+        baseUrl: "",
+        modelId: "",
+      },
     });
 
     expect(status).toBe(403);
@@ -149,9 +166,15 @@ test.describe.skip("AI Providers - AI Disabled", () => {
       tenantAiAccessSettingsDto: { enabled: false },
     });
 
-    const { status } = await ownerApi.providers.updateProvider({
-      id: fakeProviderId,
-      updateProviderBody: { key: "new-key" },
+    const { status } = await ownerApi.providers.aiProfilesUpdate({
+      aiProfile: {
+        id: String(fakeProviderId),
+        name: "test",
+        providerType: AiBuiltinProviderType.Openaicompatible,
+        baseUrl: "",
+        modelId: "",
+        key: "new-key",
+      },
     });
 
     expect(status).toBe(403);

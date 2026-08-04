@@ -72,7 +72,7 @@ test.describe("AI Settings - getAiSettings", () => {
         ? (await apiSdk.addAuthenticatedMember("owner", type)).api
         : apiSdk.forRole("owner");
 
-      const { data, status } = await api.aiSettings.getAiSettings();
+      const { data, status } = await api.aiSettings.aiSettingsGet();
 
       expect(status).toBe(200);
 
@@ -91,7 +91,7 @@ test.describe("AI Settings - getAiSettings", () => {
   }) => {
     const { data, status } = await apiSdk
       .forRole("owner")
-      .aiSettings.getAiSettings();
+      .aiSettings.aiSettingsGet();
 
     expect(status).toBe(200);
     expect(data.response?.embeddingModel).toBe("text-embedding-3-small");
@@ -110,7 +110,7 @@ test.describe("AI Settings - getAiSettings", () => {
     // The BUG number is a placeholder until the ticket exists.
     const { data, status } = await apiSdk
       .forRole("owner")
-      .aiSettings.getAiSettings();
+      .aiSettings.aiSettingsGet();
 
     // Positive control: the route answers and the body is the current, shorter
     // one — so the failure below is about missing fields, not a dead endpoint or
@@ -120,7 +120,7 @@ test.describe("AI Settings - getAiSettings", () => {
     expect(typeof data.response?.aiReady).toBe("boolean");
 
     test.fail();
-    const response = data.response;
+    const response = data.response as any;
     for (const flag of REMOVED_STATE_FLAGS) {
       expect(typeof response?.[flag], `${flag} in the response`).toBe(
         "boolean",
@@ -130,7 +130,7 @@ test.describe("AI Settings - getAiSettings", () => {
     expect(response?.portalMcpServerId).not.toBe("");
     expect(Object.keys(response?.modelAliases ?? {}).length).toBeGreaterThan(0);
     for (const [field, name] of Object.entries(TOOL_NAMES)) {
-      expect(response?.[field as keyof typeof TOOL_NAMES], field).toBe(name);
+      expect(response?.[field], field).toBe(name);
     }
   });
 });
@@ -143,7 +143,7 @@ test.describe("AI Settings - per-user chat config", () => {
     // stay default-agnostic.
     const { data, status } = await apiSdk
       .forRole("owner")
-      .aiSettings.getAiUserSettings();
+      .aiSettings.aiSettingsGetUser();
 
     expect(status).toBe(200);
     expect(data.response?.chatRecommendedModelVisible).toBe(true);
@@ -155,21 +155,21 @@ test.describe("AI Settings - per-user chat config", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: before, status: readStatus } =
-      await ownerApi.aiSettings.getAiUserSettings();
+      await ownerApi.aiSettings.aiSettingsGetUser();
     expect(readStatus).toBe(200);
     const initial = before.response?.chatRecommendedModelVisible;
     expect(typeof initial).toBe("boolean");
     const updated = !initial;
 
     const { data: written, status: writeStatus } =
-      await ownerApi.aiSettings.setAiUserSettings({
-        setAiUserSettingsRequestDto: { chatRecommendedModelVisible: updated },
+      await ownerApi.aiSettings.aiSettingsSetUser({
+        requestBody: { chatRecommendedModelVisible: updated },
       });
     expect(writeStatus).toBe(200);
     expect(written.response?.chatRecommendedModelVisible).toBe(updated);
 
     const { data: after, status: afterStatus } =
-      await ownerApi.aiSettings.getAiUserSettings();
+      await ownerApi.aiSettings.aiSettingsGetUser();
     expect(afterStatus).toBe(200);
     expect(after.response?.chatRecommendedModelVisible).toBe(updated);
   });
@@ -191,27 +191,27 @@ test.describe("AI Settings - per-user chat config", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: userBefore, status: userBeforeStatus } =
-      await userApi.aiSettings.getAiUserSettings();
+      await userApi.aiSettings.aiSettingsGetUser();
     expect(userBeforeStatus).toBe(200);
     const target = !userBefore.response?.chatRecommendedModelVisible;
 
-    const { status } = await userApi.aiSettings.setAiUserSettings({
-      setAiUserSettingsRequestDto: { chatRecommendedModelVisible: target },
+    const { status } = await userApi.aiSettings.aiSettingsSetUser({
+      requestBody: { chatRecommendedModelVisible: target },
     });
     expect(status).toBe(200);
 
     const { data: userAfter, status: userAfterStatus } =
-      await userApi.aiSettings.getAiUserSettings();
+      await userApi.aiSettings.aiSettingsGetUser();
     expect(userAfterStatus).toBe(200);
     expect(userAfter.response?.chatRecommendedModelVisible).toBe(target);
 
     const { data: roomAdminAfter, status: roomAdminStatus } =
-      await roomAdminApi.aiSettings.getAiUserSettings();
+      await roomAdminApi.aiSettings.aiSettingsGetUser();
     expect(roomAdminStatus).toBe(200);
     expect(roomAdminAfter.response?.chatRecommendedModelVisible).toBe(!target);
 
     const { data: ownerAfter, status: ownerStatus } =
-      await ownerApi.aiSettings.getAiUserSettings();
+      await ownerApi.aiSettings.aiSettingsGetUser();
     expect(ownerStatus).toBe(200);
     expect(ownerAfter.response?.chatRecommendedModelVisible).toBe(!target);
   });
@@ -223,7 +223,7 @@ test.describe("AI Settings - per-user chat config", () => {
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
     const { data: before, status: beforeStatus } =
-      await ownerApi.aiSettings.getAiUserSettings();
+      await ownerApi.aiSettings.aiSettingsGetUser();
     expect(beforeStatus).toBe(200);
     const initial = before.response?.chatRecommendedModelVisible;
 
@@ -234,7 +234,7 @@ test.describe("AI Settings - per-user chat config", () => {
     });
 
     const { data: after, status: afterStatus } =
-      await ownerApi.aiSettings.getAiUserSettings();
+      await ownerApi.aiSettings.aiSettingsGetUser();
     expect(afterStatus).toBe(200);
     expect(after.response?.chatRecommendedModelVisible).toBe(initial);
     expect(error).toBe("Bad Request");
@@ -251,7 +251,7 @@ test.describe("AI Settings - per-user chat config", () => {
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
     const { data: before, status: beforeStatus } =
-      await ownerApi.aiSettings.getAiUserSettings();
+      await ownerApi.aiSettings.aiSettingsGetUser();
     expect(beforeStatus).toBe(200);
     const initial = before.response?.chatRecommendedModelVisible;
     expect(initial).toBe(true);
@@ -259,7 +259,7 @@ test.describe("AI Settings - per-user chat config", () => {
     const { status } = await aiSettings.setUserConfig("owner", {});
 
     const { data: after, status: afterStatus } =
-      await ownerApi.aiSettings.getAiUserSettings();
+      await ownerApi.aiSettings.aiSettingsGetUser();
     // Checked before test.fail() is armed: a broken read must surface as a real
     // failure, not as the expected one.
     expect(afterStatus).toBe(200);
