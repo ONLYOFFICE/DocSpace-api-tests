@@ -8,7 +8,12 @@ import { AiSettings } from "@/src/helpers/ai-settings";
 // endpoints return 403 for everyone, Owner included — see
 // settings.permission.spec.ts).
 //
-// `GET /api/2.0/ai/config` mixes two very different kinds of field:
+// `GET /api/2.0/ai/config` returns six fields:
+//
+//   { vectorizationEnabled, vectorizationNeedReset, aiReady, embeddingModel,
+//     systemAiEnabled, recommendedModelForForms }
+//
+// which are two very different kinds of field:
 //
 //   * portal STATE — vectorizationEnabled / aiReady / systemAiEnabled and
 //     vectorizationNeedReset. These follow the paid AI Tools wallet service and
@@ -16,20 +21,14 @@ import { AiSettings } from "@/src/helpers/ai-settings";
 //     values are pinned in settings.ai-disabled.spec.ts, which covers both
 //     off-states (unpaid -> paid transition and switch off) and so establishes
 //     the cause. Here we only assert the contract.
-//   * product CONSTANTS — the MCP tool names and the embedding model, which the
-//     clients depend on by name. Those are pinned exactly, once.
+//   * a product CONSTANT — the embedding model, which the clients depend on by
+//     name. It is pinned exactly, once.
 //
-// Most of that second group, and three flags from the first, stopped being
-// returned — measured on a live portal on 2026-08-03, the entire body is now
-//
-//   { vectorizationEnabled, vectorizationNeedReset, aiReady, embeddingModel,
-//     systemAiEnabled, recommendedModelForForms }
-//
-// The role tests below therefore assert only the fields the portal still sends,
-// so they keep doing their actual job — proving every role may read the config —
-// instead of failing on the missing ones and hiding a future 403 for Guest
-// behind an expected failure. The disappearance itself is pinned once, as the
-// `test.fail` bug test at the end of this describe.
+// An earlier, longer body also carried the MCP tool names, portalMcpServerId,
+// modelAliases and the webSearchEnabled / webSearchNeedReset / aiReadyNeedReset
+// flags. They were dropped deliberately, not lost: SDK 3.7.0 renamed the model
+// (AiSettingsDto -> AiAiSettingsDto) and declares exactly the six fields above,
+// so the shorter body is the contract.
 
 const ROLES: Array<{ label: string; type?: UserType }> = [
   { label: "Owner" },
@@ -45,23 +44,6 @@ const STATE_FLAGS = [
   "aiReady",
   "systemAiEnabled",
 ] as const;
-
-/** Booleans the response used to carry and no longer does. */
-const REMOVED_STATE_FLAGS = [
-  "webSearchEnabled",
-  "webSearchNeedReset",
-  "aiReadyNeedReset",
-] as const;
-
-/** The names the web client and the MCP server address the tools by. */
-const TOOL_NAMES = {
-  knowledgeSearchToolName: "docspace_knowledge_search",
-  webSearchToolName: "docspace_web_search",
-  webCrawlingToolName: "docspace_web_crawling",
-  generateDocxToolName: "docspace_generate_docx",
-  generateFormToolName: "docspace_generate_form",
-  generatePresentationToolName: "docspace_generate_presentation",
-} as const;
 
 test.describe("AI Settings - getAiSettings", () => {
   for (const { label, type } of ROLES) {
@@ -95,43 +77,6 @@ test.describe("AI Settings - getAiSettings", () => {
 
     expect(status).toBe(200);
     expect(data.response?.embeddingModel).toBe("text-embedding-3-small");
-  });
-
-  test("BUG XXXXX: GET /api/2.0/ai/config - the tool names, portalMcpServerId, model aliases and three state flags are no longer returned", async ({
-    apiSdk,
-  }) => {
-    // Marked as a defect rather than rewritten away: the tool names are the
-    // identifiers the web client and the MCP server address the tools by, and
-    // `portalMcpServerId` is how a client reaches the portal's own MCP server,
-    // so a response that stops carrying them breaks integrations that read them
-    // from here. If the removal turns out to be intended, this test goes away and
-    // the fields go with it — but that decision has to be made explicitly.
-    //
-    // The BUG number is a placeholder until the ticket exists.
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .aiSettings.aiSettingsGet();
-
-    // Positive control: the route answers and the body is the current, shorter
-    // one — so the failure below is about missing fields, not a dead endpoint or
-    // a portal in some broken state.
-    expect(status).toBe(200);
-    expect(data.response?.embeddingModel).toBe("text-embedding-3-small");
-    expect(typeof data.response?.aiReady).toBe("boolean");
-
-    test.fail();
-    const response = data.response as any;
-    for (const flag of REMOVED_STATE_FLAGS) {
-      expect(typeof response?.[flag], `${flag} in the response`).toBe(
-        "boolean",
-      );
-    }
-    expect(typeof response?.portalMcpServerId).toBe("string");
-    expect(response?.portalMcpServerId).not.toBe("");
-    expect(Object.keys(response?.modelAliases ?? {}).length).toBeGreaterThan(0);
-    for (const [field, name] of Object.entries(TOOL_NAMES)) {
-      expect(response?.[field], field).toBe(name);
-    }
   });
 });
 
