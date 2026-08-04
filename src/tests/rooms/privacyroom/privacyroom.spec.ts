@@ -36,12 +36,12 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  *    untouched); with no matching id it is a 200 no-op that creates nothing.
  *  - replaceKey is an unvalidated FULL overwrite: any field missing from the
  *    request is erased from the stored key, so an empty/absent body destroys the
- *    caller's key material (BUG XXXXX). Only the client holds the plaintext
+ *    caller's key material (BUG 82802). Only the client holds the plaintext
  *    private key, so a wiped privateKeyEnc cannot be restored and every private
  *    room it protects becomes undecryptable.
  *  - Neither setKeys nor replaceKey bounds the key length. A publicKey of 8192
  *    chars is stored; at 65536 the call still answers 200 but nothing is saved —
- *    and on replaceKey the caller's ENTIRE key set disappears (BUG XXXXX).
+ *    and on replaceKey the caller's ENTIRE key set disappears (BUG 82800).
  *  - deleteKeys removes only the key with the given id.
  *  - There is no "active" key on the backend: which key is active is tracked
  *    only on the client, so it is not (and cannot be) covered here.
@@ -716,7 +716,7 @@ test.describe("API privacyroom methods", () => {
       }) => {
         test.fail(
           true,
-          `BUG XXXXX: replaceKey performs no input validation and overwrites in full — ${damage} and the call returns 200 instead of 400`,
+          `BUG 82802: replaceKey performs no input validation and overwrites in full — ${damage} and the call returns 200 instead of 400`,
         );
         const owner = apiSdk.forRole("owner");
         const publicKey = "orig-pk-" + apiSdk.faker.generateString(12);
@@ -748,7 +748,7 @@ test.describe("API privacyroom methods", () => {
       // erased. A request that supplies no data must not be able to destroy data.
       test.fail(
         true,
-        "BUG XXXXX: replaceKey with no request body returns 200 and erases both key fields of the zero-GUID key instead of 400",
+        "BUG 82802: replaceKey with no request body returns 200 and erases both key fields of the zero-GUID key instead of 400",
       );
       const owner = apiSdk.forRole("owner");
       const publicKey = "orig-pk-" + apiSdk.faker.generateString(12);
@@ -775,7 +775,7 @@ test.describe("API privacyroom methods", () => {
       // body with 400 — silently discarding the private key is neither.
       test.fail(
         true,
-        "BUG XXXXX: replaceKey with only publicKey supplied returns 200 and erases the stored privateKeyEnc",
+        "BUG 82802: replaceKey with only publicKey supplied returns 200 and erases the stored privateKeyEnc",
       );
       const owner = apiSdk.forRole("owner");
       const privateKeyEnc = "orig-prv-" + apiSdk.faker.generateString(12);
@@ -805,7 +805,7 @@ test.describe("API privacyroom methods", () => {
       // Expected: 400 with both keys left alone.
       test.fail(
         true,
-        "BUG XXXXX: replaceKey with an oversized publicKey returns 200 and deletes the caller's entire key set, including untargeted keys",
+        "BUG 82800: replaceKey with an oversized publicKey returns 200 and deletes the caller's entire key set, including untargeted keys",
       );
       const owner = apiSdk.forRole("owner");
       const otherId = "aaaa0000-0000-0000-0000-000000000001";
@@ -1195,7 +1195,7 @@ test.describe("API privacyroom methods", () => {
       // reported honestly (403, see the test above); wiping it is not.
       test.fail(
         true,
-        "BUG XXXXX: after replaceKey erases the key material, getUserKeysForRoom returns 200 with a key entry that has no publicKey/privateKeyEnc",
+        "BUG 82804: after replaceKey erases the key material, getUserKeysForRoom returns 200 with a key entry that has no publicKey/privateKeyEnc",
       );
       const owner = apiSdk.forRole("owner");
       await owner.privacyroom.setKeys({

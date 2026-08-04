@@ -17,7 +17,7 @@ import { roomAccesses } from "@/src/helpers/rooms";
  * Room key sets (GET /privacyroom/{roomId}/access) are MEMBERSHIP-scoped, not
  * role-scoped: a DocSpaceAdmin who is not a member is denied, while any member
  * from Viewer upwards reads the full set. Every entry in that set currently
- * carries the member's privateKeyEnc, which is a leak (BUG XXXXX).
+ * carries the member's privateKeyEnc, which is a leak (BUG 82803).
  *
  * The per-role tests for GET /privacyroom/keys/filter were removed on
  * 2026-08-04: the route no longer exists (see the note in privacyroom.spec.ts),
@@ -595,7 +595,7 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     expect(toPlain.status).toBe(200);
   });
 
-  test("BUG XXXXX: GET /api/2.0/privacyroom/{roomId}/access - Every member receives the other members' privateKeyEnc", async ({
+  test("BUG 82803: GET /api/2.0/privacyroom/{roomId}/access - Every member receives the other members' privateKeyEnc", async ({
     apiSdk,
   }) => {
     // The response carries one entry per member, and each entry includes that
@@ -607,7 +607,7 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
     // so an empty or broken read cannot pass this test.
     test.fail(
       true,
-      "BUG XXXXX: getUserKeysForRoom returns other members' privateKeyEnc to every member of the room",
+      "BUG 82803: getUserKeysForRoom returns other members' privateKeyEnc to every member of the room",
     );
     const { roomId } = await createPrivateRoomAsOwner(apiSdk);
 

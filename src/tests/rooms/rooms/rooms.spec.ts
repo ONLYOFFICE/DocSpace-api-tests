@@ -7294,7 +7294,7 @@ test.describe("API rooms methods", () => {
     });
 
     test.fail(
-      "DELETE /files/tags - Very long tag name (10000 chars) returns 400",
+      "BUG 81689: DELETE /files/tags - Very long tag name (10000 chars) returns 400",
       async ({ apiSdk }) => {
         test.fail(
           true,
@@ -16201,7 +16201,7 @@ test.describe("PUT /files/tags - Update tag", () => {
 
   // ── Whitespace handling ──
 
-  // BUG XXXXX: an empty newName is rejected with 400, but a whitespace-only
+  // BUG 82372: an empty newName is rejected with 400, but a whitespace-only
   // newName is accepted with 200 — validation should treat it the same as empty.
   test.fail(
     "BUG 82372: PUT /files/tags - Whitespace-only newName should return 400 but is accepted (200)",
@@ -16352,7 +16352,7 @@ test.describe("PUT /files/tags - Update tag", () => {
     );
   });
 
-  // BUG XXXXX: emoji in newName crashes the API with 500. Cyrillic and other
+  // BUG 82374: emoji in newName crashes the API with 500. Cyrillic and other
   // Unicode are accepted (see the Cyrillic test), so emoji should be too.
   test.fail(
     "BUG 82374: PUT /files/tags - newName with emoji should return 200 but returns 500",
