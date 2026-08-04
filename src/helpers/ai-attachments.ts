@@ -396,39 +396,6 @@ export class AiAttachments extends AiHttp {
   }
 
   /**
-   * Asserts which user a role's requests are actually acting as.
-   *
-   * `apiSdk.request` is one shared context whose session cookie beats the bearer
-   * token, so a missed `authenticateOwner()` silently sends a "member reads the
-   * owner's draft" call as the owner — which would turn a leak test green. Any
-   * test whose conclusion depends on *who* made the call should pin it with this
-   * first.
-   */
-  async whoAmI(role: AgentRole): Promise<string> {
-    const { status, data } = await this.call<{
-      response?: { id?: string };
-    }>(role, "get", "/api/2.0/people/@self");
-    expect(status, `GET /people/@self as ${role}`).toBe(200);
-    const id = data?.response?.id;
-    expect(id, `GET /people/@self as ${role} returned no id`).toBeTruthy();
-    return id as string;
-  }
-
-  async expectActingAs(role: AgentRole, userId: string, label: string = role) {
-    expect(
-      await this.whoAmI(role),
-      `the request context is acting as ${label}`,
-    ).toBe(userId);
-  }
-
-  async expectNotActingAs(role: AgentRole, userId: string, label: string) {
-    expect(
-      await this.whoAmI(role),
-      `the request context must not be acting as ${label}`,
-    ).not.toBe(userId);
-  }
-
-  /**
    * Deletes until the draft is gone, and asserts each call was accepted. One
    * `delete` is intermittent — the draft survived a single delete in half the
    * measured attempts — so a test that needs an attachment to really be gone has
