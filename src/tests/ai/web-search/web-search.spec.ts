@@ -124,7 +124,7 @@ test.describe("AI Web Search - provider names", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/web-search/test-connection - no web-search provider is recognised, Exa and ONLYOFFICE included", async ({
+  test("BUG 82811: POST /api/2.0/ai/web-search/test-connection - no web-search provider is recognised, Exa and ONLYOFFICE included", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -160,7 +160,7 @@ test.describe("AI Web Search - provider names", () => {
 });
 
 test.describe("AI Web Search - configure is broken", () => {
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - every body returns 500 and nothing is stored", async ({
+  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - every body returns 500 and nothing is stored", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -293,7 +293,7 @@ test.describe("AI Web Search - permissions", () => {
     });
   }
 
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - a Guest gets 500 instead of 403", async ({
+  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - a Guest gets 500 instead of 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -342,7 +342,7 @@ test.describe("AI Web Search - AI Disabled", () => {
     expect((await webSearch.clear("owner", {})).status).toBe(403);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - the 500 also bypasses the portal AI switch", async ({
+  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - the 500 also bypasses the portal AI switch", async ({
     apiSdk,
     paymentsApi,
   }) => {

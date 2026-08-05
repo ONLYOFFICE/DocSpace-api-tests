@@ -268,7 +268,7 @@ test.describe("AI Prompts - cross-user isolation", () => {
     expect(read.data?.folderId).toBeUndefined();
   });
 
-  test("BUG XXXXX: DELETE /api/2.0/ai/prompts/delete - deleting another user's prompt reports success", async ({
+  test("BUG 82809: DELETE /api/2.0/ai/prompts/delete - deleting another user's prompt reports success", async ({
     apiSdk,
     paymentsApi,
   }) => {

@@ -552,7 +552,7 @@ test.describe("MCP - tool-call confirmation validation", () => {
     expect((await aiChat.denyToolCall("anonymous", body)).status).toBe(401);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - a non-member of the agent may decide on another user's tool call", async ({
+  test("BUG 82837: POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - a non-member of the agent may decide on another user's tool call", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -629,7 +629,7 @@ test.describe("MCP - tool-call confirmation validation", () => {
 });
 
 test.describe("MCP - tool-call confirmation with AI Disabled", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - both are still accepted when AI access is disabled", async ({
+  test("BUG 82838: POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - both are still accepted when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {

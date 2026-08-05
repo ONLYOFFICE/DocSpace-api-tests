@@ -105,7 +105,7 @@ test.describe("AI Profiles - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - provider discovery still runs when AI access is disabled", async ({
+  test("BUG 82810: POST /api/2.0/ai/profiles/list-provider-models - provider discovery still runs when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {

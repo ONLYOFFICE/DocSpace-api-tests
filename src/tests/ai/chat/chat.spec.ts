@@ -731,7 +731,7 @@ test.describe("AI Threads - listing", () => {
     expect(data.map((thread) => thread.threadId)).toEqual([keeper]);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/threads/list - count, cursor and query are accepted and ignored", async ({
+  test("BUG 82825: GET /api/2.0/ai/threads/list - count, cursor and query are accepted and ignored", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -889,7 +889,7 @@ test.describe("AI Threads - open-or-create", () => {
     expect(messages.data).toEqual([]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/threads/open-or-create - creating a thread from the first message returns 500", async ({
+  test("BUG 82826: POST /api/2.0/ai/threads/open-or-create - creating a thread from the first message returns 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -935,7 +935,7 @@ test.describe("AI Threads - open-or-create", () => {
 });
 
 test.describe("AI Threads - regenerate-title", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/threads/regenerate-title - returns 500 on a thread with a real conversation", async ({
+  test("BUG 82828: POST /api/2.0/ai/threads/regenerate-title - returns 500 on a thread with a real conversation", async ({
     apiSdk,
     paymentsApi,
   }) => {

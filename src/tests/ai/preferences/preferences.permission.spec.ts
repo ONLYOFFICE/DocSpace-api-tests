@@ -159,7 +159,7 @@ test.describe("AI Preferences - per-user isolation", () => {
     ).toBe(true);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/preferences/get-deep-mode - reading an entity the caller has no access to returns 500", async ({
+  test("BUG 82816: GET /api/2.0/ai/preferences/get-deep-mode - reading an entity the caller has no access to returns 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
