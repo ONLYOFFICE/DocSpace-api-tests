@@ -58,6 +58,12 @@ export type AiAttachment = {
   threadId?: string;
   entityId?: string;
   createdAt?: number;
+  /**
+   * Set by the backend for a form it can analyse, and never by a client — see
+   * attachments/attachments.spec.ts.
+   */
+  canAnalyze?: boolean;
+  formKeys?: Array<{ key?: string; text?: string }>;
 };
 
 export type AiAttachmentMutation = { success?: boolean };

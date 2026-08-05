@@ -11,12 +11,19 @@ import { AiHttp, AgentRole } from "./ai-http";
 //   POST   /ai/tools/add-custom-server      { name, config, entityId? }
 //   PUT    /ai/tools/update-custom-server   { name, config, entityId? }
 //   DELETE /ai/tools/remove-custom-server   { name, entityId? }
+//   PUT    /ai/tools/replace-all-custom-servers { map, entityId? }
 //   GET    /ai/tools/get-disabled[?entityId=]         map of serverType -> [toolName]
 //   PUT    /ai/tools/set-disabled           { serverType, toolNames, entityId? }
 //   GET    /ai/tools/is-tool-disabled?serverType=&toolName=[&entityId=]
 //   GET    /ai/tools/get-allow-always[?entityId=]
 //   PUT    /ai/tools/set-allow-always       { serverType, toolName, value, entityId? }
 //   GET    /ai/tools/is-allow-always?serverType=&toolName=[&entityId=]
+//
+// `entityId` is any entity the caller may manage, not just an agent: a plain
+// room id is accepted too (and refused with 403 for a personal folder, or for
+// anyone who is not the room's owner/admin). Room-scoped servers are readable
+// through get-custom-server but missing from list-custom-servers — see
+// the room-scope block of mcp/mcp.spec.ts.
 //
 // Error style is mixed and matters for assertions: most failures come back as
 // HTTP 200 with `{success:false, error:{field, message}}`, while a missing
@@ -37,8 +44,32 @@ export type McpMutationResult = {
 export type McpServerMap = Record<string, Record<string, unknown>>;
 
 export class AiTools extends AiHttp {
-  private scope(agentId?: number, separator = "?") {
-    return agentId === undefined ? "" : `${separator}entityId=${agentId}`;
+  private scope(agentId?: number | string, separator = "?") {
+    return agentId === undefined
+      ? ""
+      : `${separator}entityId=${encodeURIComponent(String(agentId))}`;
+  }
+
+  /**
+   * Full replacement of one scope's custom servers, keyed by name. The body
+   * field is `map` — an SDK-shaped `{servers: …}` is accepted with
+   * `{success:true}` and silently clears the scope instead.
+   */
+  replaceAllCustomServers(
+    role: AgentRole,
+    body: { map?: unknown; agentId?: number | string },
+  ) {
+    return this.call<McpMutationResult>(
+      role,
+      "put",
+      "/api/2.0/ai/tools/replace-all-custom-servers",
+      {
+        ...(body.map === undefined ? {} : { map: body.map }),
+        ...(body.agentId === undefined
+          ? {}
+          : { entityId: String(body.agentId) }),
+      },
+    );
   }
 
   listSystemTools(role: AgentRole) {
@@ -49,7 +80,7 @@ export class AiTools extends AiHttp {
     );
   }
 
-  async listCustomServers(role: AgentRole, agentId?: number) {
+  async listCustomServers(role: AgentRole, agentId?: number | string) {
     const { status, data, error } = await this.call<McpServerMap>(
       role,
       "get",
@@ -59,7 +90,7 @@ export class AiTools extends AiHttp {
     return { status, error, data: isMap ? data : {} };
   }
 
-  getCustomServer(role: AgentRole, name: string, agentId?: number) {
+  getCustomServer(role: AgentRole, name: string, agentId?: number | string) {
     return this.call<Record<string, unknown>>(
       role,
       "get",
@@ -69,7 +100,7 @@ export class AiTools extends AiHttp {
 
   addCustomServer(
     role: AgentRole,
-    body: { name?: string; config?: unknown; agentId?: number },
+    body: { name?: string; config?: unknown; agentId?: number | string },
   ) {
     return this.call<McpMutationResult>(
       role,
@@ -87,7 +118,7 @@ export class AiTools extends AiHttp {
 
   updateCustomServer(
     role: AgentRole,
-    body: { name: string; config: unknown; agentId?: number },
+    body: { name: string; config: unknown; agentId?: number | string },
   ) {
     return this.call<McpMutationResult>(
       role,
@@ -105,7 +136,7 @@ export class AiTools extends AiHttp {
 
   removeCustomServer(
     role: AgentRole,
-    body: { name: string; agentId?: number },
+    body: { name: string; agentId?: number | string },
   ) {
     return this.call<McpMutationResult>(
       role,
@@ -120,7 +151,7 @@ export class AiTools extends AiHttp {
     );
   }
 
-  getDisabledTools(role: AgentRole, agentId?: number) {
+  getDisabledTools(role: AgentRole, agentId?: number | string) {
     return this.call<Record<string, string[]>>(
       role,
       "get",
@@ -130,7 +161,11 @@ export class AiTools extends AiHttp {
 
   setDisabledTools(
     role: AgentRole,
-    body: { serverType: string; toolNames: string[]; agentId?: number },
+    body: {
+      serverType: string;
+      toolNames: string[];
+      agentId?: number | string;
+    },
   ) {
     return this.call<McpMutationResult>(
       role,
@@ -148,7 +183,7 @@ export class AiTools extends AiHttp {
 
   isToolDisabled(
     role: AgentRole,
-    body: { serverType: string; toolName: string; agentId?: number },
+    body: { serverType: string; toolName: string; agentId?: number | string },
   ) {
     return this.call<boolean>(
       role,
@@ -157,7 +192,7 @@ export class AiTools extends AiHttp {
     );
   }
 
-  getAllowAlways(role: AgentRole, agentId?: number) {
+  getAllowAlways(role: AgentRole, agentId?: number | string) {
     return this.call<string[]>(
       role,
       "get",
@@ -171,7 +206,7 @@ export class AiTools extends AiHttp {
       serverType: string;
       toolName: string;
       value: boolean;
-      agentId?: number;
+      agentId?: number | string;
     },
   ) {
     return this.call<McpMutationResult>(
@@ -191,7 +226,7 @@ export class AiTools extends AiHttp {
 
   isAllowAlways(
     role: AgentRole,
-    body: { serverType: string; toolName: string; agentId?: number },
+    body: { serverType: string; toolName: string; agentId?: number | string },
   ) {
     return this.call<boolean>(
       role,
