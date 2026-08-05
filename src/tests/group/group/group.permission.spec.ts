@@ -976,36 +976,35 @@ test.describe("PUT /api/2.0/group/{id}/members - validation and negative cases",
     expect(groupData.response?.membersCount).toBe(initialCount);
   });
 
-  test.fail(
-    "BUG 81484: PUT /api/2.0/group/{id}/members - Null members returns 200 and group is unchanged",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerId = ownerProfile.response!.id!;
+  test("BUG 81484: PUT /api/2.0/group/{id}/members - Null members returns 200 and group is unchanged", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
 
-      const { data: created } = await ownerApi.groupApi.addGroup({
-        groupRequestDto: {
-          groupName: apiSdk.faker.generateString(10),
-          groupManager: ownerId,
-        },
-      });
-      const groupId = created.response!.id!;
-      const initialCount = created.response!.membersCount!;
+    const { data: created } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+      },
+    });
+    const groupId = created.response!.id!;
+    const initialCount = created.response!.membersCount!;
 
-      const { status } = await ownerApi.groupApi.addMembersTo({
-        id: groupId,
-        membersRequest: { members: null },
-      });
+    const { status } = await ownerApi.groupApi.addMembersTo({
+      id: groupId,
+      membersRequest: { members: null },
+    });
 
-      expect(status).toBe(200);
+    expect(status).toBe(200);
 
-      const { data: groupData } = await ownerApi.groupApi.getGroup({
-        id: groupId,
-        includeMembers: true,
-      });
-      expect(groupData.response?.membersCount).toBe(initialCount);
-    },
-  );
+    const { data: groupData } = await ownerApi.groupApi.getGroup({
+      id: groupId,
+      includeMembers: true,
+    });
+    expect(groupData.response?.membersCount).toBe(initialCount);
+  });
 });
 
 test.describe("PUT /api/2.0/group/{id}/members - permissions", () => {

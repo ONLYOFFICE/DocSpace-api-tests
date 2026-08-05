@@ -1641,7 +1641,7 @@ test.describe("POST /api/2.0/portal/payment/request - empty field validation", (
       });
 
     expect(status).toBe(400);
-    expect((data as any).error?.message).toBe(
+    expect((data as any).response?.errors?.UserName?.[0]).toBe(
       "Incorrect firstname or lastname",
     );
   });
@@ -1660,7 +1660,7 @@ test.describe("POST /api/2.0/portal/payment/request - empty field validation", (
       });
 
     expect(status).toBe(400);
-    expect((data as any).error?.message).toBe("Incorrect email");
+    expect((data as any).response?.errors?.Email?.[0]).toBe("Incorrect email");
   });
 
   test("POST /api/2.0/portal/payment/request - Owner cannot send request with empty message", async ({
@@ -1677,7 +1677,9 @@ test.describe("POST /api/2.0/portal/payment/request - empty field validation", (
       });
 
     expect(status).toBe(400);
-    expect((data as any).error?.message).toBe("Message text is empty");
+    expect((data as any).response?.errors?.Message?.[0]).toBe(
+      "Message text is empty",
+    );
   });
 });
 
