@@ -84,10 +84,62 @@ export type AiThreadMessageStatus = {
 export type AiThreadMessage = {
   id: string;
   role: "user" | "assistant";
-  /** "" instead of the usual blocks when the reply failed. */
-  content: Array<{ type: string; text?: string }> | string;
+  /**
+   * "" instead of the usual blocks when the reply failed. A reply that asked for
+   * a tool carries a `tool-call` part alongside the text ones; its `result` is
+   * absent until approve/deny fills it in.
+   */
+  content: Array<AiMessageContentPart> | string;
   createdAt: number;
   status?: AiThreadMessageStatus;
+  /** Echoed back verbatim from what the send carried. */
+  attachments?: Array<Record<string, unknown>>;
+};
+
+export type AiMessageContentPart = {
+  type: string;
+  text?: string;
+  /** `tool-call` parts only. */
+  toolName?: string;
+  toolCallId?: string;
+  args?: Record<string, unknown>;
+  argsText?: string;
+  /** Written by approve-tool-call / deny-tool-call. */
+  result?: unknown;
+};
+
+/**
+ * A tool the *client* offers the model for one request — what the editor does
+ * when it hands over insert_text/replace_selection, and what
+ * `actionArgs.tools` on send-with-stream takes. Shape is the SDK's TMCPItem.
+ *
+ * `requireApproval` is the per-tool half of the pause contract: `false` lets the
+ * engine flag the pending call `autoAllow`, `true` always prompts, and leaving
+ * it unset defers to the persisted allow-always list.
+ */
+export type HostTool = {
+  name: string;
+  description: string;
+  inputSchema: object;
+  enabled?: boolean;
+  requireApproval?: boolean;
+};
+
+/**
+ * One frame of a streamed response. `tool-call-pending` is the only pause point
+ * the engine has: the stream stops there and only resumes through
+ * approve-tool-call / deny-tool-call.
+ */
+export type AiStreamFrame = {
+  type?: string;
+  message?: AiThreadMessage;
+  messageId?: string;
+  threadId?: string;
+  idx?: number;
+  autoAllow?: boolean;
+  serverExecuted?: boolean;
+  title?: string;
+  [key: string]: unknown;
 };
 
 export class AiAgentChat extends AiHttp {
@@ -349,7 +401,7 @@ export class AiAgentChat extends AiHttp {
 
   async createThread(
     role: AgentRole,
-    body: { title: string; profileId: string; agentId: number },
+    body: { title: string; profileId: string; agentId: number | string },
   ) {
     const { status, data, error } = await this.call<{ threadId: string }>(
       role,
@@ -370,7 +422,7 @@ export class AiAgentChat extends AiHttp {
    */
   async createThreadId(
     role: AgentRole,
-    body: { title: string; profileId: string; agentId: number },
+    body: { title: string; profileId: string; agentId: number | string },
   ): Promise<string> {
     const { status, error, threadId } = await this.createThread(role, body);
     if (status !== 200 || !threadId) {
@@ -394,12 +446,33 @@ export class AiAgentChat extends AiHttp {
     role: AgentRole,
     body: {
       threadId: string;
-      profileId: string;
-      agentId: number;
+      /**
+       * Per-request model override. Omit it to let the backend resolve the model
+       * from the entity's / portal's assignment instead.
+       */
+      profileId?: string;
+      agentId: number | string;
       message: string;
       instructions?: string;
+      /** Client-supplied tools for this request only — see `HostTool`. */
+      tools?: HostTool[];
+      /** Attachment drafts carried by the user message. */
+      attachments?: Array<Record<string, unknown>>;
+      /**
+       * Caps the wait on the stream. Needed for the requests that never
+       * terminate; the frames received before the cap are lost, so the
+       * assertions then have to read the thread back.
+       */
+      timeoutMs?: number;
     },
   ) {
+    const actionArgs = {
+      ...(body.instructions
+        ? { prompt: { mode: "replace", text: body.instructions } }
+        : {}),
+      ...(body.tools ? { tools: body.tools } : {}),
+    };
+
     const { status, error, text } = await this.call(
       role,
       "post",
@@ -407,21 +480,23 @@ export class AiAgentChat extends AiHttp {
       {
         threadId: body.threadId,
         entityId: String(body.agentId),
-        profileId: body.profileId,
-        ...(body.instructions
-          ? {
-              actionArgs: {
-                prompt: { mode: "replace", text: body.instructions },
-              },
-            }
-          : {}),
+        ...(body.profileId === undefined ? {} : { profileId: body.profileId }),
+        ...(Object.keys(actionArgs).length > 0 ? { actionArgs } : {}),
         userMessage: {
           role: "user",
           content: [{ type: "text", text: body.message }],
+          ...(body.attachments ? { attachments: body.attachments } : {}),
         },
       },
+      body.timeoutMs === undefined ? undefined : { timeoutMs: body.timeoutMs },
     );
-    return { status, error, text, streamError: AiAgentChat.streamError(text) };
+    return {
+      status,
+      error,
+      text,
+      streamError: AiAgentChat.streamError(text),
+      frames: AiAgentChat.streamFrames(text),
+    };
   }
 
   /**
@@ -431,9 +506,7 @@ export class AiAgentChat extends AiHttp {
    * `event:`/`data:` SSE the old chat endpoints used — `parseSseEvents` does not
    * apply here.
    */
-  static streamFrames(
-    body: string,
-  ): Array<{ type?: string; messageId?: string; [key: string]: unknown }> {
+  static streamFrames(body: string): AiStreamFrame[] {
     return body
       .split("\n")
       .map((line) => line.trim())
@@ -490,6 +563,84 @@ export class AiAgentChat extends AiHttp {
     return { chunks, done, text };
   }
 
+  /** The frame types in order — the cheap way to say what a stream did. */
+  static frameTypes(body: string): string[] {
+    return AiAgentChat.streamFrames(body).map((frame) => frame.type ?? "");
+  }
+
+  /**
+   * The pause frame, if the model asked to run a tool. Everything needed to
+   * resume — messageId, idx, the message itself — lives on it, so approve/deny
+   * bodies are built from this rather than from the thread.
+   */
+  static pendingToolCall(body: string): AiStreamFrame | undefined {
+    return AiAgentChat.streamFrames(body).find(
+      (frame) => frame.type === "tool-call-pending",
+    );
+  }
+
+  /** The `tool-call` parts of a stored message, in content order. */
+  static toolCalls(message: AiThreadMessage): AiMessageContentPart[] {
+    return typeof message.content === "string"
+      ? []
+      : message.content.filter((part) => part.type === "tool-call");
+  }
+
+  /**
+   * Resumes a paused tool call. `result` is what the model is told the tool
+   * returned — pass a string: an object result is refused by the gateway (see
+   * the bug in the tool-call pause block of
+   * mcp/mcp.spec.ts).
+   */
+  approvePendingToolCall(
+    role: AgentRole,
+    pending: AiStreamFrame,
+    body: {
+      threadId: string;
+      profileId: string;
+      agentId: number | string;
+      result: unknown;
+      tools?: HostTool[];
+      allowAlways?: boolean;
+    },
+  ) {
+    return this.approveToolCall(role, {
+      threadId: body.threadId,
+      messageId: pending.messageId,
+      idx: pending.idx ?? 0,
+      message: pending.message,
+      entityId: String(body.agentId),
+      profileId: body.profileId,
+      result: body.result,
+      ...(body.allowAlways === undefined
+        ? {}
+        : { allowAlways: body.allowAlways }),
+      ...(body.tools ? { actionArgs: { tools: body.tools } } : {}),
+    });
+  }
+
+  /** Refuses a paused tool call; the model is told the user denied it. */
+  denyPendingToolCall(
+    role: AgentRole,
+    pending: AiStreamFrame,
+    body: {
+      threadId: string;
+      profileId: string;
+      agentId: number | string;
+      tools?: HostTool[];
+    },
+  ) {
+    return this.denyToolCall(role, {
+      threadId: body.threadId,
+      messageId: pending.messageId,
+      idx: pending.idx ?? 0,
+      message: pending.message,
+      entityId: String(body.agentId),
+      profileId: body.profileId,
+      ...(body.tools ? { actionArgs: { tools: body.tools } } : {}),
+    });
+  }
+
   /**
    * The `{"type":"error","message":"..."}` frame a streamed response carries
    * instead of an HTTP error status. `undefined` when the stream looks healthy.
@@ -511,7 +662,7 @@ export class AiAgentChat extends AiHttp {
    */
   async listThreads(
     role: AgentRole,
-    agentId?: number,
+    agentId?: number | string,
     options?: { count?: number; cursor?: string; query?: string },
   ) {
     const params = new URLSearchParams();

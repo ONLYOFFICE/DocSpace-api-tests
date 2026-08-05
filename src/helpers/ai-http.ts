@@ -41,6 +41,15 @@ export class AiHttp {
     method: "get" | "post" | "put" | "delete",
     path: string,
     body?: unknown,
+    options?: {
+      /**
+       * Client-side cap on the request. Only worth setting for the streaming
+       * routes: a stream that never finishes (see the `generate_image` hang in
+       * the image-generation block of chat/chat.spec.ts) would otherwise burn the
+       * default two minutes before the test can look at what was persisted.
+       */
+      timeoutMs?: number;
+    },
   ): Promise<{
     status: number;
     data: T | undefined;
@@ -53,7 +62,7 @@ export class AiHttp {
       {
         headers: this.headers(role),
         ...(body === undefined ? {} : { data: body }),
-        timeout: 120000,
+        timeout: options?.timeoutMs ?? 120000,
       },
     );
 

@@ -2,7 +2,10 @@ import { expect } from "@playwright/test";
 import { FileType } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
-import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
+import {
+  AiAgentChat,
+  expectHealthyAssistantReply,
+} from "@/src/helpers/ai-agent-chat";
 import {
   AiAttachments,
   ATTACHMENTS_BASE,
@@ -559,6 +562,43 @@ test.describe("AI Attachments - save-file", () => {
     test.fail();
     expect(status).toBe(400);
   });
+
+  test("POST /api/2.0/ai/attachments/save-file - source, canAnalyze and formKeys are not accepted from a client", async ({
+    apiSdk,
+  }) => {
+    // The three fields the record type grew after the routes above were written:
+    // `source: "tool"` marks an attachment the model produced (a generated
+    // image), `canAnalyze` and `formKeys` describe an attached form. All three
+    // are read-only — a client that sends them gets a draft without them rather
+    // than an error, so an integration can neither forge the provenance of an
+    // attachment nor set up a form-analysis case by hand.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { status, data } = await attachments.saveFile("owner", {
+      input: {
+        title: "Autotest form.pdf",
+        content: "a form",
+        type: FileType.Document,
+        source: "tool",
+        canAnalyze: true,
+        formKeys: [{ key: "field_1", text: "Field 1" }],
+      },
+    });
+
+    expect(status).toBe(200);
+    // What a client may set is kept...
+    expect(data?.title).toBe("Autotest form.pdf");
+    expect(data?.content).toBe("a form");
+    expect(data?.type).toBe(FileType.Document);
+
+    // ...and the rest is dropped, in the response and in the store alike.
+    const stored = await attachments.expectStored("owner", data!.id!);
+    for (const record of [data!, stored]) {
+      expect(record.source).toBeUndefined();
+      expect(record.canAnalyze).toBeUndefined();
+      expect(record.formKeys).toBeUndefined();
+    }
+  });
 });
 
 test.describe("AI Attachments - save-image", () => {
@@ -696,6 +736,26 @@ test.describe("AI Attachments - save-image", () => {
 
     test.fail();
     expect(statuses).toEqual(bodies.map(() => 400));
+  });
+
+  test("POST /api/2.0/ai/attachments/save-image - an image draft comes back without a source either", async ({
+    apiSdk,
+  }) => {
+    // `source` matters most on images, since a generated one is exactly what the
+    // "tool" provenance is for — and it is dropped here too.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { status, data } = await attachments.saveImage("owner", {
+      input: { name: "autotest.png", base64: PNG_1X1, source: "tool" },
+    });
+
+    expect(status).toBe(200);
+    expect(data?.kind).toBe("image");
+    expect(data?.base64).toBe(PNG_1X1);
+    expect(data?.source).toBeUndefined();
+
+    const stored = await attachments.expectStored("owner", data!.id!, "image");
+    expect(stored.source).toBeUndefined();
   });
 });
 
@@ -1752,11 +1812,10 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // no attachment was provided.
     //
     // Scope of the claim, deliberately narrow: this shows that passing an
-    // attachment by id alone does not give the model its content. It does NOT
-    // show that a file attached through the UI never reaches the model — the
-    // real client payload has not been seen, and `NewAiThreadMessageLike`
-    // declares `attachments?: Array<object>` with no schema, so the client may
-    // well inline the whole record. Confirm against the frontend before filing.
+    // attachment by id alone does not give the model its content. The obvious
+    // escape — that the real client inlines the whole record instead of sending
+    // a bare id — is ruled out by the test right below, which sends the full
+    // record, content included, and is answered just as blindly.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -1816,6 +1875,72 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
       .map((message) => AiAgentChat.messageText(message))
       .join("\n");
     expect(reply.length, "the assistant answered at all").toBeGreaterThan(0);
+
+    test.fail();
+    expect(reply, `assistant reply: ${reply}`).toContain(marker);
+  });
+
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a fully inlined attachment record does not reach the model either", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Same defect from the other side. Here nothing has to be looked up: the
+    // message carries the whole record — kind, title and the text itself — so
+    // even a backend that never resolves attachment ids has the content in its
+    // hands. The model still answers as if no file had been sent, which is what
+    // closes the "maybe the client inlines it" escape on the test above.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const marker = `PINEAPPLE-${apiSdk.faker.generateString(6).toUpperCase()}`;
+    const content = `The code word is ${marker}. Nothing else matters.`;
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Attachments Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest Attachments Thread",
+      profileId,
+      agentId,
+    });
+    const id = await attachments.saveFileId(
+      "owner",
+      { title: "code-word.txt", content, type: FileType.Document },
+      String(agentId),
+    );
+    const inlined = {
+      id,
+      kind: "file",
+      title: "code-word.txt",
+      content,
+      type: FileType.Document,
+    };
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message:
+        "The attached file contains one code word. Reply with that code word and nothing else.",
+      attachments: [inlined],
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+
+    // The record really did travel with the message and was stored whole...
+    const userMessage = AiAgentChat.userMessages(messages)[0];
+    expect(userMessage.attachments).toEqual([inlined]);
+
+    // ...and the model finished its turn normally, so a missing code word is
+    // about what the model was given, not about a failed reply.
+    expectHealthyAssistantReply(messages);
+
+    const reply = AiAgentChat.assistantText(messages);
 
     test.fail();
     expect(reply, `assistant reply: ${reply}`).toContain(marker);
