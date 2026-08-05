@@ -6293,7 +6293,7 @@ test.describe("GET /api/2.0/files/fileops/:operationType - getOperationStatusesB
 
   // BUG 82225: GET /api/2.0/files/fileops/:operationType - Convert (value=6) returns 400 instead of 200
   // Catches: bug where Convert type filter path is broken
-  test.fail(
+  test(
     "BUG 82225: GET /api/2.0/files/fileops/:operationType - operationType Convert" +
       " with no active operations returns 200 and empty array",
     async ({ apiSdk }) => {
@@ -6312,7 +6312,7 @@ test.describe("GET /api/2.0/files/fileops/:operationType - getOperationStatusesB
 
   // BUG 82225: GET /api/2.0/files/fileops/:operationType - Import (value=5) returns 400 instead of 200
   // Catches: bug where Import type filter path is broken
-  test.fail(
+  test(
     "BUG 82225: GET /api/2.0/files/fileops/:operationType - operationType Import" +
       " with no active operations returns 200 and empty array",
     async ({ apiSdk }) => {
@@ -6465,18 +6465,19 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
       });
       const file2Id = file2Data.response!.id!;
 
-      const { data: newBefore } = await userApi.rooms.getNewRoomItems({
-        id: roomId,
-      });
-      const itemsBefore = (newBefore.response ?? []).flatMap(
-        (g) => g.items ?? [],
-      );
-      expect(
-        itemsBefore.some((f) => f.title === "Autotest MarkAsRead File1.docx"),
-      ).toBe(true);
-      expect(
-        itemsBefore.some((f) => f.title === "Autotest MarkAsRead File2.docx"),
-      ).toBe(true);
+      let itemsBefore: { title?: string | null }[] = [];
+      await expect(async () => {
+        const { data: newBefore } = await userApi.rooms.getNewRoomItems({
+          id: roomId,
+        });
+        itemsBefore = (newBefore.response ?? []).flatMap((g) => g.items ?? []);
+        expect(
+          itemsBefore.some((f) => f.title === "Autotest MarkAsRead File1.docx"),
+        ).toBe(true);
+        expect(
+          itemsBefore.some((f) => f.title === "Autotest MarkAsRead File2.docx"),
+        ).toBe(true);
+      }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
       const { data, status } = await userApi.operations.markAsRead({
         baseBatchRequestDto: { fileIds: [file1Id as any, file2Id as any] },
@@ -8845,10 +8846,11 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
 
-    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
-      { id: operationId },
-    );
-    expect(statusData.response).toHaveLength(0);
+    await expect(async () => {
+      const { data: statusData } =
+        await ownerApi.operations.getOperationStatuses({ id: operationId });
+      expect(statusData.response).toHaveLength(0);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
   });
 
   test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate emptyTrash operation returns 200 and operation is no longer in active list", async ({

@@ -237,6 +237,16 @@ test.describe("PUT /api/2.0/portal/payment/updatewallet", () => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
+
+    await paymentsApi.refreshPaymentInfo();
+
     const { data, status } = await ownerApi.payment.updateWalletPayment({
       walletQuantityRequestDto: {
         quantity: { storage: 0 },
@@ -258,10 +268,21 @@ test.describe("PUT /api/2.0/portal/payment/updatewallet", () => {
 
     await ownerApi.payment.updateWalletPayment({
       walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
+
+    await paymentsApi.refreshPaymentInfo();
+
+    await ownerApi.payment.updateWalletPayment({
+      walletQuantityRequestDto: {
         quantity: { storage: 0 },
         productQuantityType: 0,
       },
     });
+
+    await paymentsApi.refreshPaymentInfo();
 
     const { data: cancelData, status: cancelStatus } =
       await ownerApi.payment.updateWalletPayment({
@@ -1042,18 +1063,31 @@ test.describe("GET /api/2.0/portal/payment/walletservices", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.getWalletServices();
-    console.log(data);
+
     expect(status).toBe(200);
-    expect(data.response?.length).toBe(3);
+    expect(data.response?.length).toBe(6);
 
     const serviceNames = data.response?.map((s) => s.serviceName);
-    // expect(serviceNames).toContain("ai-tools");
-    expect(serviceNames).toContain("backup");
     expect(serviceNames).toContain("disk-storage-1-hour");
+    expect(serviceNames).toContain("backup");
+    expect(serviceNames).toContain("ai-tools");
+    expect(serviceNames).toContain("docscloud");
+    expect(serviceNames).toContain("docscloud-devpack");
+    expect(serviceNames).toContain("ai-search");
+
+    const expectedPrices: Record<string, number> = {
+      "disk-storage-1-hour": 0.14,
+      backup: 10,
+      "ai-tools": 0,
+      docscloud: 8,
+      "docscloud-devpack": 12,
+      "ai-search": 0,
+    };
 
     for (const service of data.response ?? []) {
       expect(service.id).toBeDefined();
-      expect(service.price?.value).toBeGreaterThan(0);
+      expect(service.price?.value).toBe(expectedPrices[service.serviceName!]);
+      expect(service.price?.isoCurrencySymbol).toBe("USD");
       expect(service.features?.length).toBeGreaterThan(0);
     }
   });
@@ -1068,16 +1102,29 @@ test.describe("GET /api/2.0/portal/payment/walletservices", () => {
       .payment.getWalletServices();
 
     expect(status).toBe(200);
-    expect(data.response?.length).toBe(3);
+    expect(data.response?.length).toBe(6);
 
     const serviceNames = data.response?.map((s) => s.serviceName);
-    // expect(serviceNames).toContain("ai-tools");
-    expect(serviceNames).toContain("backup");
     expect(serviceNames).toContain("disk-storage-1-hour");
+    expect(serviceNames).toContain("backup");
+    expect(serviceNames).toContain("ai-tools");
+    expect(serviceNames).toContain("docscloud");
+    expect(serviceNames).toContain("docscloud-devpack");
+    expect(serviceNames).toContain("ai-search");
+
+    const expectedPrices: Record<string, number> = {
+      "disk-storage-1-hour": 0.14,
+      backup: 10,
+      "ai-tools": 0,
+      docscloud: 8,
+      "docscloud-devpack": 12,
+      "ai-search": 0,
+    };
 
     for (const service of data.response ?? []) {
       expect(service.id).toBeDefined();
-      expect(service.price?.value).toBeGreaterThan(0);
+      expect(service.price?.value).toBe(expectedPrices[service.serviceName!]);
+      expect(service.price?.isoCurrencySymbol).toBe("USD");
       expect(service.features?.length).toBeGreaterThan(0);
     }
   });
