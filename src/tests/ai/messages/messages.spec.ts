@@ -1311,7 +1311,7 @@ test.describe("AI Messages - the OpenAI-compatible stream", () => {
 });
 
 test.describe("AI Messages - one-shot inference", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send - the non-streaming path answers with an auth error while streaming works", async ({
+  test("BUG 82833: POST /api/2.0/ai/ai/send - the non-streaming path answers with an auth error while streaming works", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1380,7 +1380,7 @@ test.describe("AI Messages - one-shot inference", () => {
     ).toBeUndefined();
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send - an action type without its own binding returns 500 although resolution falls back to Default", async ({
+  test("BUG 82835: POST /api/2.0/ai/ai/send - an action type without its own binding returns 500 although resolution falls back to Default", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1429,7 +1429,7 @@ test.describe("AI Messages - one-shot inference", () => {
     ).not.toBe(500);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-custom - the streaming form answers with an auth error and the non-streaming form with 500", async ({
+  test("BUG 82836: POST /api/2.0/ai/ai/send-custom - the streaming form answers with an auth error and the non-streaming form with 500", async ({
     apiSdk,
     paymentsApi,
   }) => {

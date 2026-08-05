@@ -274,7 +274,7 @@ test.describe("AI Preferences - deep mode is per entity", () => {
 });
 
 test.describe("AI Preferences - deep mode validation", () => {
-  test("BUG XXXXX: PUT /api/2.0/ai/preferences/set-deep-mode - a string value is coerced instead of rejected", async ({
+  test("BUG 82813: PUT /api/2.0/ai/preferences/set-deep-mode - a string value is coerced instead of rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -308,7 +308,7 @@ test.describe("AI Preferences - deep mode validation", () => {
     expect(status, "a non-boolean value must be rejected with 400").toBe(400);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/preferences/set-deep-mode - an empty body wipes the stored value", async ({
+  test("BUG 82814: PUT /api/2.0/ai/preferences/set-deep-mode - an empty body wipes the stored value", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -333,7 +333,7 @@ test.describe("AI Preferences - deep mode validation", () => {
     expect(status, "an empty body must be rejected with 400").toBe(400);
   });
 
-  test("BUG XXXXX: DELETE /api/2.0/ai/preferences/clear-deep-mode - a bare entityId body reports success and clears nothing", async ({
+  test("BUG 82815: DELETE /api/2.0/ai/preferences/clear-deep-mode - a bare entityId body reports success and clears nothing", async ({
     apiSdk,
     paymentsApi,
   }) => {

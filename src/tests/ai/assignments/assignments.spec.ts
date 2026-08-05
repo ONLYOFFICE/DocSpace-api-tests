@@ -389,7 +389,7 @@ test.describe("AI Assignments - capability validation", () => {
     });
   }
 
-  test("BUG XXXXX: PUT /api/2.0/ai/assignments/assign - an image-generation profile is accepted as the Default fallback", async ({
+  test("BUG 82830: PUT /api/2.0/ai/assignments/assign - an image-generation profile is accepted as the Default fallback", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -560,7 +560,7 @@ test.describe("AI Assignments - bulk assignment", () => {
     ).toBe(text.id);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/assignments/bulk-assign - unknown action keys are silently dropped instead of rejected", async ({
+  test("BUG 82831: PUT /api/2.0/ai/assignments/bulk-assign - unknown action keys are silently dropped instead of rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -624,7 +624,7 @@ test.describe("AI Assignments - bulk assignment", () => {
     ).toBe(false);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/assignments/bulk-assign - a null value neither clears the binding nor is rejected", async ({
+  test("BUG 82831: PUT /api/2.0/ai/assignments/bulk-assign - a null value neither clears the binding nor is rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -853,7 +853,7 @@ test.describe("AI Assignments - entity scope", () => {
     expect(resolvedForAgent.data?.profileId).toBe(agentProfile.id);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/assignments/get-all-assignments - an unknown entityId falls back to the portal-wide assignments", async ({
+  test("BUG 82832: GET /api/2.0/ai/assignments/get-all-assignments - an unknown entityId falls back to the portal-wide assignments", async ({
     apiSdk,
     paymentsApi,
   }) => {

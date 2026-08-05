@@ -159,7 +159,7 @@ test.describe("AI Profiles - catalogue", () => {
 });
 
 test.describe("AI Profiles - catalogue bugs", () => {
-  test("BUG XXXXX: GET /api/2.0/ai/profiles/get-by-id - an unknown profile id returns 200 with a null body instead of 404", async ({
+  test("BUG 82818: GET /api/2.0/ai/profiles/get-by-id - an unknown profile id returns 200 with a null body instead of 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -182,7 +182,7 @@ test.describe("AI Profiles - catalogue bugs", () => {
     expect(status, "an unknown profile id must be 404").toBe(404);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/profiles/get-by-id - the response leaks the gateway's internal address", async ({
+  test("BUG 82821: GET /api/2.0/ai/profiles/get-by-id - the response leaks the gateway's internal address", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -212,7 +212,7 @@ test.describe("AI Profiles - catalogue bugs", () => {
     ).toBe(listed.baseUrl);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/profiles/list-models - a valid profile id returns 500", async ({
+  test("BUG 82823: GET /api/2.0/ai/profiles/list-models - a valid profile id returns 500", async ({
     apiSdk,
     paymentsApi,
   }) => {

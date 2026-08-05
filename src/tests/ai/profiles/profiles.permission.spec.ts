@@ -174,7 +174,7 @@ test.describe("AI Profiles - provider discovery permissions", () => {
     });
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - a Guest validates a provider key and makes the portal dial an external host", async ({
+  test("BUG 82824: POST /api/2.0/ai/profiles/list-provider-models - a Guest validates a provider key and makes the portal dial an external host", async ({
     apiSdk,
     paymentsApi,
   }) => {
