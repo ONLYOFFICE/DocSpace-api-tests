@@ -1116,7 +1116,7 @@ test.describe("AI Chat - room and folder entity context", () => {
     expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/threads/list - every non-agent entity shares one thread list", async ({
+  test("BUG 82855: GET /api/2.0/ai/threads/list - every non-agent entity shares one thread list", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1267,7 +1267,7 @@ test.describe("AI Chat - room context across users", () => {
     ]);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/threads/list - listing the threads of a room the user cannot see returns 500", async ({
+  test("BUG 82858: GET /api/2.0/ai/threads/list - listing the threads of a room the user cannot see returns 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1611,7 +1611,7 @@ test.describe("AI Chat - the model of one thread", () => {
     );
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a message with no profileId replaces the thread's chosen model", async ({
+  test("BUG 82860: POST /api/2.0/ai/ai/send-with-stream - a message with no profileId replaces the thread's chosen model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1790,7 +1790,7 @@ test.describe("AI Chat - the model of one thread", () => {
 const STREAM_CAP_MS = 45000;
 
 test.describe("AI Chat - image generation", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a request for an image hangs on an unresolved generate_image call", async ({
+  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a request for an image hangs on an unresolved generate_image call", async ({
     apiSdk,
     paymentsApi,
   }) => {

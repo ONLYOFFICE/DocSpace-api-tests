@@ -873,7 +873,7 @@ test.describe("MCP - the tool-call pause", () => {
     expect(AiAgentChat.messageText(replies[0])).toContain("21");
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - a structured tool result cannot be resumed", async ({
+  test("BUG 82862: POST /api/2.0/ai/ai/approve-tool-call - a structured tool result cannot be resumed", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1096,7 +1096,7 @@ test.describe("MCP - always-allow drives the pause", () => {
 const OTHER_CONFIG = { url: "https://mcp-other.example.invalid/sse" };
 
 test.describe("MCP - custom servers scoped to a room", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/tools/add-custom-server - a server registered for a room is readable by name but never listed", async ({
+  test("BUG 82863: POST /api/2.0/ai/tools/add-custom-server - a server registered for a room is readable by name but never listed", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1425,7 +1425,7 @@ test.describe("MCP - replace-all-custom-servers", () => {
     expect(scoped.data).toEqual({});
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/replace-all-custom-servers - a body without `map` wipes the scope instead of being rejected", async ({
+  test("BUG 82864: PUT /api/2.0/ai/tools/replace-all-custom-servers - a body without `map` wipes the scope instead of being rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
