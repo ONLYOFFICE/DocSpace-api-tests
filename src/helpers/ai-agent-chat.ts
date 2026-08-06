@@ -60,6 +60,12 @@ export type AgentDto = {
   title?: string;
   tags?: string[];
   roomType?: number;
+  /**
+   * The agent's fixed model. Absent from the SDK's own DTO, but the API does
+   * return it — it is where a composer reads the model it hides the picker in
+   * favour of. A roomType 9 room made through /files/rooms has no such field.
+   */
+  profileId?: string;
   chatSettings?: { prompt?: string };
 };
 
