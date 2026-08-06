@@ -189,7 +189,7 @@ test.describe("AI Web Search - room and folder scope", () => {
     expect((await webSearch.getActiveConfig("owner")).data).toBeNull();
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/web-search/is-configured - a room the caller cannot open is not access-checked", async ({
+  test("BUG 82901: GET /api/2.0/ai/web-search/is-configured - a room the caller cannot open is not access-checked", async ({
     apiSdk,
     paymentsApi,
   }) => {
