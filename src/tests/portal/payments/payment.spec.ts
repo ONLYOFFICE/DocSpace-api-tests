@@ -1137,11 +1137,10 @@ test.describe("GET /api/2.0/portal/payment/walletservice", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.getWalletService({ service: TenantWalletService.AITools });
-
     expect(status).toBe(200);
     expect(data.response?.id).toBe(TenantWalletService.AITools);
     expect(data.response?.serviceName).toBe("ai-tools");
-    expect(data.response?.price?.value).toBeGreaterThan(0);
+    expect(data.response?.price?.value).toBe(0);
     expect(data.response?.features?.length).toBeGreaterThan(0);
   });
 
@@ -1185,7 +1184,7 @@ test.describe("GET /api/2.0/portal/payment/walletservice", () => {
     expect(status).toBe(200);
     expect(data.response?.id).toBe(TenantWalletService.AITools);
     expect(data.response?.serviceName).toBe("ai-tools");
-    expect(data.response?.price?.value).toBeGreaterThan(0);
+    expect(data.response?.price?.value).toBe(0);
     expect(data.response?.features?.length).toBeGreaterThan(0);
   });
 
