@@ -326,3 +326,59 @@ test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
     },
   );
 });
+
+// Stored HTML injection in API key name — confirmed via email:
+// Key names containing HTML tags are stored as-is and rendered unescaped
+// in expiry notification emails, enabling phishing links, CSS injection,
+// and tracking pixels. All payloads fit within the 30-char name limit.
+// Fix: HTML-escape the name field before storing or before including it
+// in email templates.
+test.describe("POST /api/2.0/keys - HTML injection in name (security)", () => {
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/keys - Phishing link in name is stored unescaped",
+    async ({ apiSdk }) => {
+      const payload = "<a href=//evil.com>LINK</a>"; // 26 chars
+
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: { name: payload, expiresInDays: 1 },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.name).not.toContain("<");
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/keys - CSS injection in name is stored unescaped",
+    async ({ apiSdk }) => {
+      const payload = "<b style=color:red>TEST</b>"; // 27 chars
+
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: { name: payload, expiresInDays: 1 },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.name).not.toContain("<");
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: POST /api/2.0/keys - Tracking pixel in name is stored unescaped",
+    async ({ apiSdk }) => {
+      const payload = "<img src=//1.2.3.4>"; // 19 chars
+
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .apiKeys.createApiKey({
+          createApiKeyRequestDto: { name: payload, expiresInDays: 1 },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.name).not.toContain("<");
+    },
+  );
+});
