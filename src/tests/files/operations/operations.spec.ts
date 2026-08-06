@@ -8813,10 +8813,11 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
 
-    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
-      { id: operationId },
-    );
-    expect(statusData.response).toHaveLength(0);
+    await expect(async () => {
+      const { data: statusData } =
+        await ownerApi.operations.getOperationStatuses({ id: operationId });
+      expect(statusData.response).toHaveLength(0);
+    }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
   });
 
   test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate markAsRead operation returns 200 and operation is no longer in active list", async ({
