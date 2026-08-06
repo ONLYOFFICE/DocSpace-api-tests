@@ -2362,57 +2362,6 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
     expect(data.response).toBeDefined();
   });
 
-  test("PUT /api/2.0/files/settings/downloadtargz - RoomAdmin cannot change archive format", async ({
-    apiSdk,
-  }) => {
-    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-
-    const { data, status } = await apiSdk
-      .forRole("roomAdmin")
-      .filesSettings.changeDownloadZipFromBody({
-        displayRequestDto: { set: true },
-      });
-
-    expect(status).toBe(403);
-    expect((data as any).error?.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /api/2.0/files/settings/downloadtargz - User cannot change archive format", async ({
-    apiSdk,
-  }) => {
-    await apiSdk.addAuthenticatedMember("owner", "User");
-
-    const { data, status } = await apiSdk
-      .forRole("user")
-      .filesSettings.changeDownloadZipFromBody({
-        displayRequestDto: { set: true },
-      });
-
-    expect(status).toBe(403);
-    expect((data as any).error?.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
-  test("PUT /api/2.0/files/settings/downloadtargz - Guest cannot change archive format", async ({
-    apiSdk,
-  }) => {
-    await apiSdk.addAuthenticatedMember("owner", "Guest");
-
-    const { data, status } = await apiSdk
-      .forRole("guest")
-      .filesSettings.changeDownloadZipFromBody({
-        displayRequestDto: { set: true },
-      });
-
-    expect(status).toBe(403);
-    expect((data as any).error?.message).toBe(
-      "You don't have enough permission to perform the operation",
-    );
-  });
-
   test("PUT /api/2.0/files/settings/downloadtargz - Terminated DocSpaceAdmin cannot change archive format", async ({
     apiSdk,
   }) => {

@@ -2826,22 +2826,70 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
     expect(data.response?.downloadTarGz).toBe(false);
   });
 
-  test("PUT /api/2.0/files/settings/downloadtargz - Setting change by Owner is visible to DocSpaceAdmin", async ({
+  test("PUT /api/2.0/files/settings/downloadtargz - Setting is per-user and isolated between users", async ({
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
     const ownerApi = apiSdk.forRole("owner");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
 
     await ownerApi.filesSettings.changeDownloadZipFromBody({
       displayRequestDto: { set: true },
     });
+    await adminApi.filesSettings.changeDownloadZipFromBody({
+      displayRequestDto: { set: false },
+    });
+
+    const { data: ownerData } = await ownerApi.filesSettings.getFilesSettings();
+    const { data: adminData } = await adminApi.filesSettings.getFilesSettings();
+
+    expect(ownerData.response?.downloadTarGz).toBe(true);
+    expect(adminData.response?.downloadTarGz).toBe(false);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - RoomAdmin can change archive format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
     const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .filesSettings.getFilesSettings();
+      .forRole("roomAdmin")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
 
     expect(status).toBe(200);
-    expect(data.response?.downloadTarGz).toBe(true);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - User can change archive format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+  });
+
+  test("PUT /api/2.0/files/settings/downloadtargz - Guest can change archive format", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .filesSettings.changeDownloadZipFromBody({
+        displayRequestDto: { set: true },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
   });
 });
 
