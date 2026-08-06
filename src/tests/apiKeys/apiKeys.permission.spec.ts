@@ -335,7 +335,7 @@ test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
 // in email templates.
 test.describe("POST /api/2.0/keys - HTML injection in name (security)", () => {
   test.fail(
-    "BUG XXXXX: POST /api/2.0/keys - Phishing link in name is stored unescaped",
+    "BUG 82910: POST /api/2.0/keys - Phishing link in name is stored unescaped",
     async ({ apiSdk }) => {
       const payload = "<a href=//evil.com>LINK</a>"; // 26 chars
 
@@ -351,7 +351,7 @@ test.describe("POST /api/2.0/keys - HTML injection in name (security)", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/keys - CSS injection in name is stored unescaped",
+    "BUG 82910: POST /api/2.0/keys - CSS injection in name is stored unescaped",
     async ({ apiSdk }) => {
       const payload = "<b style=color:red>TEST</b>"; // 27 chars
 
@@ -367,7 +367,7 @@ test.describe("POST /api/2.0/keys - HTML injection in name (security)", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/keys - Tracking pixel in name is stored unescaped",
+    "BUG 82910: POST /api/2.0/keys - Tracking pixel in name is stored unescaped",
     async ({ apiSdk }) => {
       const payload = "<img src=//1.2.3.4>"; // 19 chars
 
