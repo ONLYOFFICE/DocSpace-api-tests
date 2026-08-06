@@ -2009,3 +2009,183 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     await attachments.expectAbsent("owner", MISSING_ID, "the inline id");
   });
 });
+
+// ---------------------------------------------------------------------------
+// The client-side rules, checked on the server.
+//
+// The chat UI enforces three things the drag-and-drop spec asks for: archives
+// cannot be attached, at most 5 files and 5 images ride on one message, and a
+// filename is just a label. None of them is a property of this API — save-file
+// is a draft store that keeps `title` and `content` as sent, with no upload, no
+// target folder and no DocSpace file behind them (a non-empty `path` is a 500,
+// BUG 82742). So the question these tests answer is not "does the rule work"
+// but "is the rule reachable around", and the answer is yes for all three.
+//
+// Worth being explicit about scope, because it is easy to file the whole
+// drag-and-drop section against this suite: "upload lands in the current folder
+// / falls back to My Documents / respects a read-only room" has no counterpart
+// here at all. Nothing in /ai/attachments creates a DocSpace file.
+
+/** The extensions the client refuses, one draft each. */
+const ARCHIVE_TITLES = [
+  "autotest.zip",
+  "autotest.rar",
+  "autotest.7z",
+  "autotest.tar",
+  "autotest.gz",
+  "autotest.tgz",
+  "autotest.tar.gz",
+];
+
+/** Well over the 5 files + 5 images the client allows on one message. */
+const OVER_LIMIT_ATTACHMENTS = 11;
+
+test.describe("AI Attachments - client-side rules on the server", () => {
+  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - every archive extension the client refuses is stored", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const accepted: string[] = [];
+    for (const title of ARCHIVE_TITLES) {
+      const { status, data } = await attachments.saveFile("owner", {
+        input: { title, content: "PK\u0003\u0004 not really an archive" },
+      });
+      if (status === 200 && data?.id) {
+        accepted.push(title);
+        // Not merely accepted — readable afterwards, so the draft is real and a
+        // client can put its id on a message.
+        const stored = await attachments.expectStored("owner", data.id, title);
+        expect(stored.title).toBe(title);
+      }
+    }
+
+    // The extension carries no meaning at all: the same bytes under a .txt name
+    // and an archive name are stored identically, so there is nothing here to
+    // sniff content with either.
+    const plainId = await attachments.saveFileId("owner", {
+      title: "autotest.txt",
+      content: "PK\u0003\u0004 not really an archive",
+    });
+    const plain = await attachments.expectStored("owner", plainId, "the .txt");
+    const archive = await attachments.expectStored(
+      "owner",
+      await attachments.saveFileId("owner", {
+        title: "autotest.zip",
+        content: "PK\u0003\u0004 not really an archive",
+      }),
+      "the .zip",
+    );
+    expect(archive.content).toEqual(plain.content);
+
+    test.fail();
+    expect(
+      accepted,
+      "archives are refused by the client only — the API stores them all",
+    ).toEqual([]);
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/threads/append-user-message - a message carries more attachments than the client allows", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The 5-files-and-5-images cap is a property of the composer. One request
+    // puts eleven real drafts on a single message and nothing objects.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Attachment Limit Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest attachment limit thread",
+      profileId,
+      agentId,
+    });
+
+    // Six files and five images — over the cap on both halves and over it in
+    // total, so no reading of "5 + 5" makes eleven legal.
+    const drafts: Array<Record<string, unknown>> = [];
+    for (let index = 0; index < 6; index++) {
+      const id = await attachments.saveFileId("owner", {
+        title: `autotest-file-${index}.txt`,
+        content: `file ${index}`,
+      });
+      drafts.push({ id, kind: "file", title: `autotest-file-${index}.txt` });
+    }
+    for (let index = 0; index < 5; index++) {
+      const id = await attachments.saveImageId("owner", {
+        name: `autotest-image-${index}.png`,
+        base64: PNG_1X1,
+      });
+      drafts.push({ id, kind: "image", title: `autotest-image-${index}.png` });
+    }
+    expect(drafts).toHaveLength(OVER_LIMIT_ATTACHMENTS);
+
+    const { status } = await attachments.rawRequest(
+      "owner",
+      "post",
+      "/api/2.0/ai/threads/append-user-message",
+      {
+        threadId,
+        profileId,
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "Autotest over-limit attachments" }],
+          attachments: drafts,
+        },
+      },
+    );
+    expect(status).toBe(200);
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    const stored = messages.data.find((message) => message.role === "user") as
+      | { attachments?: Array<Record<string, unknown>> }
+      | undefined;
+
+    test.fail();
+    expect(
+      stored?.attachments?.length ?? 0,
+      "a message must not carry more than the five files and five images the composer allows",
+    ).toBeLessThanOrEqual(10);
+  });
+
+  test("POST /api/2.0/ai/attachments/save-file - a title that looks like a path is stored as a label", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The reassuring half of the same design. Because there is no upload, a
+    // traversal-shaped filename has nothing to traverse: it is kept verbatim as
+    // a display label and no `path` appears on the draft. (The separate `path`
+    // field is the one that misbehaves — any non-empty value is a 500, BUG
+    // 82742 — but a client never sends it.)
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const titles = [
+      "../../../etc/passwd",
+      "..\\..\\windows\\win.ini",
+      "/etc/shadow",
+      "C:\\Users\\autotest\\secret.txt",
+      "отчёт 2026.txt",
+    ];
+
+    for (const title of titles) {
+      const id = await attachments.saveFileId("owner", {
+        title,
+        content: "autotest",
+      });
+      const stored = await attachments.expectStored("owner", id, title);
+      expect(stored.title, `title ${title}`).toBe(title);
+      expect(stored.path, `no path on the draft for ${title}`).toBeUndefined();
+    }
+  });
+});
