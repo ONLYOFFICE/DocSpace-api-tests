@@ -500,6 +500,95 @@ export class AiAgentChat extends AiHttp {
   }
 
   /**
+   * Sends and then cuts the HTTP request off after `afterMs`.
+   *
+   * This is the whole of "stop generation" as the product has it. The portal
+   * has no stop/cancel route — every spelling of one answers 404 — and the
+   * client library's `stopStreaming()` does not call one: it aborts the
+   * in-flight `send-with-stream` request. Hanging up is therefore the only stop
+   * gesture there is, which is what this does.
+   *
+   * The backend does not act on it — it finishes the answer and stores it, see
+   * the stop block in messages.spec.ts — so a test using this must not assume
+   * the reply is truncated.
+   *
+   * `aborted` is returned rather than assumed: a stream that happened to finish
+   * inside the window would otherwise let a stop test pass without ever having
+   * stopped anything.
+   */
+  async sendAndAbort(
+    role: AgentRole,
+    body: {
+      threadId: string;
+      profileId?: string;
+      agentId: number | string;
+      message: string;
+      instructions?: string;
+      tools?: HostTool[];
+      /** How long to let the reply stream before hanging up. */
+      afterMs?: number;
+    },
+  ): Promise<{ aborted: boolean }> {
+    const { afterMs, ...rest } = body;
+    try {
+      await this.sendMessage(role, { ...rest, timeoutMs: afterMs ?? 5000 });
+      return { aborted: false };
+    } catch {
+      // The request context threw on its own timeout — the connection is gone,
+      // which is exactly the event under test.
+      return { aborted: true };
+    }
+  }
+
+  /**
+   * Polls the newest assistant reply until its text has not grown for
+   * `quietMs`, and returns it with the length trajectory.
+   *
+   * A test around a dropped connection cannot just read the thread once: the
+   * generation carries on without the client and the reply keeps growing —
+   * measured at twenty seconds of further writing — so an immediate read
+   * catches a value that is about to change. Waiting for the text to go quiet
+   * is what tells "the backend is done with it" apart from "the rest has not
+   * been written yet".
+   */
+  async waitForStableAssistantText(
+    role: AgentRole,
+    threadId: string,
+    quietMs = 20000,
+    timeoutMs = 120000,
+  ): Promise<{
+    message?: AiThreadMessage;
+    text: string;
+    /** Every distinct length seen, in order — the growth curve. */
+    lengths: number[];
+  }> {
+    const deadline = Date.now() + timeoutMs;
+    const lengths: number[] = [];
+    let message: AiThreadMessage | undefined;
+    let text = "";
+    let lastChange = Date.now();
+
+    while (Date.now() < deadline) {
+      const { data } = await this.readMessages(role, threadId);
+      const replies = AiAgentChat.assistantMessages(data);
+      message = replies[replies.length - 1];
+      const current = message ? AiAgentChat.messageText(message) : "";
+
+      if (current.length !== text.length) {
+        lengths.push(current.length);
+        text = current;
+        lastChange = Date.now();
+      } else if (Date.now() - lastChange >= quietMs) {
+        return { message, text, lengths };
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    return { message, text, lengths };
+  }
+
+  /**
    * The frames of a `send-with-stream` / `regenerate-stream` response. The
    * protocol is newline-delimited JSON objects with a `type` discriminator
    * (`user-message-stored`, `message-start`, `message-end`, `error`), NOT the
@@ -853,11 +942,26 @@ export class AiAgentChat extends AiHttp {
     );
   }
 
-  async readMessages(role: AgentRole, threadId: string) {
+  /**
+   * The whole history of one thread. `count`/`cursor` are the paging parameters
+   * the client library's `enablePagination` expects here; the route takes them
+   * and ignores them, so they exist on this signature only for the test that
+   * pins that — see the paging block in messages.spec.ts.
+   */
+  async readMessages(
+    role: AgentRole,
+    threadId: string,
+    options?: { count?: number; cursor?: string },
+  ) {
+    const params = new URLSearchParams({ threadId });
+    if (options?.count !== undefined)
+      params.set("count", String(options.count));
+    if (options?.cursor !== undefined) params.set("cursor", options.cursor);
+
     const { status, data, error } = await this.call<AiThreadMessage[]>(
       role,
       "get",
-      `/api/2.0/ai/threads/read-messages?threadId=${threadId}`,
+      `/api/2.0/ai/threads/read-messages?${params}`,
     );
     return { status, error, data: Array.isArray(data) ? data : [] };
   }

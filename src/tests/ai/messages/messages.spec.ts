@@ -1285,8 +1285,347 @@ test.describe("AI Messages - per-message routes with AI Disabled", () => {
 //   * send-with-stream-openai streams OpenAI `data: {...}` chunks ending in
 //     `data: [DONE]` (`AiAgentChat.openAiStreamChunks`).
 //
-// There is no stop/cancel route anywhere on this surface, so all of section 9.3 is
-// a gap rather than a set of tests.
+// There is no stop/cancel route anywhere on this surface — but that does not
+// make section 9.3 unreachable, see the stop block below.
+
+// ---------------------------------------------------------------------------
+// Stopping a running generation.
+//
+// The route hunt came up empty (`/ai/ai/stop`, `/stop-stream`, `/cancel`,
+// `/abort`, `/threads/stop` are all 404) and that read as "nothing to cover".
+// It is not. The client's `stopStreaming()` does not call a route — it aborts
+// the in-flight `send-with-stream` request — so hanging up on the stream IS the
+// stop gesture, and what the backend does about it is testable.
+//
+// What it does about it, measured live on 2026-08-06: nothing. The growth curve
+// of the stored reply after cutting the connection at 5 s, against a prompt an
+// uninterrupted run needs 31 s to answer:
+//
+//   t=5.6s   no assistant message at all
+//   t=21.7s  3689 chars
+//   t=24.9s  7490 chars, ending in the sentinel — the complete answer
+//   t=132s   unchanged
+//
+// The model kept running for twenty seconds after the client was gone and the
+// whole answer was billed and stored. So "Stop generation" cannot be built on
+// the abort alone: it stops the *display*, not the generation. That is the bug
+// below, and it is also why there is no "was it marked as stopped?" test — the
+// reply is not stopped, it is complete.
+//
+// The sentinel is what makes completeness checkable without guessing at
+// lengths: the model is told to end with FINISHED, so the control run proves
+// the marker arrives on a finished answer and its presence after an abort means
+// the answer ran to its end anyway.
+
+const LONG_ANSWER_PROMPT =
+  "Write a detailed essay of at least 600 words about the history of typography. " +
+  "Number every paragraph. When the whole essay is done, end your answer with the exact word FINISHED.";
+
+const SENTINEL = "FINISHED";
+
+/** How long the reply is allowed to stream before the connection is cut. */
+const STOP_AFTER_MS = 5000;
+
+/** No growth for this long counts as "the backend has finished with it". */
+const QUIET_MS = 20000;
+
+test.describe("AI Messages - stopping a stream", () => {
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream does not stop the generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Stop Agent",
+      profileId,
+    });
+
+    // The positive control first. Without it the sentinel proves nothing — the
+    // model might simply never write it — and there is no evidence that the
+    // request is long enough to still be running at the cut-off.
+    let controlMs = 0;
+    await test.step("a stream nobody interrupts runs to the sentinel", async () => {
+      const threadId = await aiChat.createThreadId("owner", {
+        title: "Autotest control thread",
+        profileId,
+        agentId,
+      });
+      const startedAt = Date.now();
+      const sent = await aiChat.sendMessage("owner", {
+        threadId,
+        profileId,
+        agentId,
+        message: LONG_ANSWER_PROMPT,
+      });
+      expect(sent.status).toBe(200);
+      expect(sent.streamError).toBeUndefined();
+
+      const messages = await aiChat.waitForAssistantReply("owner", threadId);
+      expectHealthyAssistantReply(messages);
+      expect(
+        AiAgentChat.assistantText(messages),
+        "the uninterrupted answer reaches its end",
+      ).toContain(SENTINEL);
+      controlMs = Date.now() - startedAt;
+      expect(
+        controlMs,
+        `the answer took ${controlMs} ms — too fast to be interrupted at ${STOP_AFTER_MS} ms`,
+      ).toBeGreaterThan(STOP_AFTER_MS * 2);
+    });
+
+    await test.step("the same stream, hung up on after 5 s", async () => {
+      const threadId = await aiChat.createThreadId("owner", {
+        title: "Autotest stopped thread",
+        profileId,
+        agentId,
+      });
+
+      const { aborted } = await aiChat.sendAndAbort("owner", {
+        threadId,
+        profileId,
+        agentId,
+        message: LONG_ANSWER_PROMPT,
+        afterMs: STOP_AFTER_MS,
+      });
+      expect(
+        aborted,
+        `the connection was still open at ${STOP_AFTER_MS} ms — nothing was stopped`,
+      ).toBe(true);
+
+      // What the thread holds the moment the client is gone. The control needed
+      // far longer than the cap, so this cannot be the finished answer.
+      const atStop = await aiChat.readMessages("owner", threadId);
+      expect(atStop.status).toBe(200);
+      const partial = AiAgentChat.assistantText(atStop.data);
+      expect(partial, "the answer was still being written").not.toContain(
+        SENTINEL,
+      );
+
+      const settled = await aiChat.waitForStableAssistantText(
+        "owner",
+        threadId,
+        QUIET_MS,
+      );
+
+      // The reply grew after the client had gone: the model was still running
+      // with nobody listening, and the tokens were spent all the same.
+      expect(
+        settled.text.length,
+        `the stored reply after the disconnect: ${settled.lengths.join(" -> ")}`,
+      ).toBeGreaterThan(partial.length);
+
+      // The question is kept either way, so the turn can be retried.
+      expect(AiAgentChat.userMessages(atStop.data)).toHaveLength(1);
+
+      test.fail();
+      expect(
+        settled.text,
+        "a generation the user stopped must not run to its end",
+      ).not.toContain(SENTINEL);
+    });
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - the thread works again after the client hangs up", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The failure this rules out is a thread wedged by the dropped connection —
+    // the next question either never answered or answered into the abandoned
+    // reply. It is the half of the stop contract that does hold.
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Stop Resume Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest stop resume thread",
+      profileId,
+      agentId,
+    });
+
+    const { aborted } = await aiChat.sendAndAbort("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: LONG_ANSWER_PROMPT,
+      afterMs: STOP_AFTER_MS,
+    });
+    expect(aborted).toBe(true);
+
+    // The abandoned reply is allowed to land before the next turn — sending
+    // into a thread the backend is still writing to is a different test.
+    const abandoned = await aiChat.waitForStableAssistantText(
+      "owner",
+      threadId,
+      QUIET_MS,
+    );
+    expect(abandoned.text.length).toBeGreaterThan(0);
+
+    const resumed = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Reply with the single word OK.",
+    });
+    expect(resumed.status).toBe(200);
+    expect(resumed.streamError).toBeUndefined();
+    expect(AiAgentChat.frameTypes(resumed.text)).toContain("message-end");
+
+    const messages = await aiChat.waitForAssistantReplies("owner", threadId, 2);
+    expect(AiAgentChat.userMessages(messages)).toHaveLength(2);
+
+    const replies = AiAgentChat.assistantMessages(messages);
+    expect(replies).toHaveLength(2);
+
+    // The new answer is its own message, healthy, and did not overwrite or
+    // continue the abandoned one.
+    const second = replies[1];
+    expect(second.status?.error).toBeUndefined();
+    expect(AiAgentChat.messageText(second).length).toBeGreaterThan(0);
+    expect(second.id).not.toBe(abandoned.message?.id);
+    expect(
+      AiAgentChat.messageText(replies[0]),
+      "the abandoned reply is left as it was",
+    ).toBe(abandoned.text);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream - regenerating after a hang-up replaces the abandoned reply", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The recovery path a user takes after stopping by accident: ask again.
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Stop Regenerate Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest stop regenerate thread",
+      profileId,
+      agentId,
+    });
+
+    const { aborted } = await aiChat.sendAndAbort("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: LONG_ANSWER_PROMPT,
+      afterMs: STOP_AFTER_MS,
+    });
+    expect(aborted).toBe(true);
+    const abandoned = await aiChat.waitForStableAssistantText(
+      "owner",
+      threadId,
+      QUIET_MS,
+    );
+    expect(abandoned.text.length).toBeGreaterThan(0);
+
+    const { status, streamError } = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+    });
+    expect(status).toBe(200);
+    expect(streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    const replies = AiAgentChat.assistantMessages(messages);
+
+    // Regenerate replaces rather than appends, so the abandoned reply is gone
+    // and the one that took its place is a complete answer.
+    expect(replies).toHaveLength(1);
+    expect(replies[0].id).not.toBe(abandoned.message?.id);
+    expect(AiAgentChat.messageText(replies[0])).toContain(SENTINEL);
+    expect(AiAgentChat.userMessages(messages)).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Paging the history.
+//
+// The client library pages a thread's history in blocks of 100 through
+// `count`/`cursor` on read-messages, the same pair `threads/list` takes. Neither
+// route implements them: read-messages answers with the whole history whatever
+// is asked for, and `limit`/`startIndex` are not the spelling either. The
+// counterpart bug on the thread list is BUG 82825.
+//
+// Six messages are enough to show it — a parameter that does not narrow six
+// will not narrow a hundred, and `append-user-message` builds them without
+// spending an inference call per message.
+
+test.describe("AI Messages - paging the history", () => {
+  test("BUG XXXXX: GET /api/2.0/ai/threads/read-messages - count and cursor are accepted and ignored", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Paging Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest paging thread",
+      profileId,
+      agentId,
+    });
+
+    const texts = ["one", "two", "three", "four", "five", "six"];
+    for (const text of texts) {
+      const { status } = await aiChat.appendUserMessage("owner", {
+        threadId,
+        profileId,
+        text,
+      });
+      expect(status, `storing "${text}"`).toBe(200);
+    }
+
+    // The unpaged read is the baseline: everything, oldest first.
+    const all = await aiChat.readMessages("owner", threadId);
+    expect(all.status).toBe(200);
+    expect(all.data.map((message) => AiAgentChat.messageText(message))).toEqual(
+      texts,
+    );
+
+    // A first page of two comes back as all six, and so does the page after a
+    // cursor — there is no way for a client to fetch a window of a long thread.
+    const cursored = await aiChat.readMessages("owner", threadId, {
+      count: 2,
+      cursor: all.data[1].id,
+    });
+    expect(cursored.status).toBe(200);
+    expect(cursored.data).toHaveLength(texts.length);
+
+    const firstPage = await aiChat.readMessages("owner", threadId, {
+      count: 2,
+    });
+    expect(firstPage.status).toBe(200);
+
+    test.fail();
+    expect(
+      firstPage.data,
+      "count=2 has to return two messages, not the whole history",
+    ).toHaveLength(2);
+  });
+});
 
 test.describe("AI Messages - regenerate", () => {
   test("POST /api/2.0/ai/ai/regenerate-stream - replaces the last assistant reply and keeps the question", async ({

@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { RoomType } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { AiPreferences } from "@/src/helpers/ai-preferences";
@@ -271,6 +272,115 @@ test.describe("AI Preferences - deep mode is per entity", () => {
     expect(isSet.status).toBe(200);
     expect(isSet.data, "and it is reported as set").toBe(true);
   });
+});
+
+// A chat is no longer something only an agent has: it opens in any room and in
+// any folder, and the switches around it are resolved from the location the user
+// is in. An agent id is therefore not the only entity these routes have to key
+// on — a room or a folder id is what the client sends most of the time.
+//
+// Measured 2026-08-06: an agent id is still the only scope that works, and the
+// two location kinds fail differently.
+//
+//   * A ROOM id is accepted, answered `{success:true}` — and dropped. Both reads
+//     then serve the portal-wide fallback, so the client sees the value it just
+//     wrote only when the portal-wide one happens to match.
+//   * A FOLDER id is refused outright with 403, on the caller's own folder.
+//
+// Either way the reasoning switch cannot be turned on for a location, which is
+// what the widened chat context needs it to do. The same-shaped defect on the
+// thread surface is BUG 82855 (every non-agent entity collapses into one bucket).
+test.describe("AI Preferences - deep mode of a room or a folder", () => {
+  const LOCATIONS = [
+    { kind: "room", symptom: "reports success and stores nothing" },
+    { kind: "folder", symptom: "is refused with 403" },
+  ] as const;
+
+  for (const { kind, symptom } of LOCATIONS) {
+    test(`BUG XXXXX: PUT /api/2.0/ai/preferences/set-deep-mode - a ${kind} scope ${symptom}`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+      const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+      let entityId: number;
+      if (kind === "room") {
+        const { data: room } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Reasoning Room",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        entityId = room.response!.id!;
+      } else {
+        const { data: myFolder } = await ownerApi.folders.getMyFolder();
+        const { data: folder } = await ownerApi.folders.createFolder({
+          folderId: myFolder.response!.current!.id!,
+          createFolder: { title: "Autotest Reasoning Folder" },
+        });
+        entityId = folder.response!.id!;
+      }
+
+      // The portal-wide value is left unset on purpose: both reads fall back to
+      // it, so a portal-wide `true` would make "the location kept the value" and
+      // "the location inherited it" indistinguishable.
+      expect((await preferences.getDeepMode("owner")).data).toBe(false);
+      expect((await preferences.isDeepModeSet("owner")).data).toBe(false);
+
+      // Every call is made up front and asserted afterwards: the two locations
+      // break at different points, and a test.fail test stops at its first
+      // failed assertion — collecting the state first keeps both variants
+      // asserting the same, complete contract.
+      const written = await preferences.setDeepMode("owner", {
+        value: true,
+        entityId: String(entityId),
+      });
+      const readBack = await preferences.getDeepMode("owner", entityId);
+      const readBackIsSet = await preferences.isDeepModeSet("owner", entityId);
+
+      // Control: the identical call against an agent does store. So the route
+      // works and the body shape is right — it is the location scope that is
+      // being thrown away, not the request.
+      const catalogue = await profiles.catalogue("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "Autotest Reasoning Agent",
+        profileId: AiProfiles.byCapabilities(catalogue, AI_CAPS.textVisionTools)
+          .id,
+      });
+      const agentWrite = await preferences.setDeepMode("owner", {
+        value: true,
+        entityId: String(agentId),
+      });
+      expect(agentWrite.data?.success).toBe(true);
+      expect(
+        (await preferences.getDeepMode("owner", agentId)).data,
+        "an agent scope stores the value",
+      ).toBe(true);
+      expect((await preferences.isDeepModeSet("owner", agentId)).data).toBe(
+        true,
+      );
+
+      test.fail();
+      expect(written.status, `set-deep-mode on a ${kind}`).toBe(200);
+      expect(written.data?.success).toBe(true);
+      expect(readBack.status).toBe(200);
+      expect(readBack.data, `the ${kind} keeps what was written to it`).toBe(
+        true,
+      );
+      expect(readBackIsSet.data, `and reports the ${kind} as set`).toBe(true);
+    });
+  }
+
+  // Gaps that only open once the bug above is fixed, and that would pass for
+  // the wrong reason today (everything reads back as the portal-wide default):
+  //   * two locations holding different values at the same time;
+  //   * clearing one location leaving the others alone;
+  //   * two members of one room keeping separate values in it.
 });
 
 test.describe("AI Preferences - deep mode validation", () => {

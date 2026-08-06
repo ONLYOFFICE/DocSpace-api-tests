@@ -1,10 +1,12 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { FileShare } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import {
   AiAgentChat,
   AgentRole,
+  expectHealthyAssistantReply,
   inviteToAgent,
 } from "@/src/helpers/ai-agent-chat";
 import { ApiSDK, UserType } from "@/src/services/api-sdk";
@@ -547,6 +549,400 @@ test.describe("Threads - members without content access", () => {
   }
 });
 
+// Everything above is about an agent as the entity. The chat context is wider
+// now: `entityId` carries whichever room or folder the user has open, so the
+// same access questions have to be asked about an ordinary room and about a
+// folder — a scope the caller can name without being able to open it.
+//
+// Measured 2026-08-06, and the two halves come out differently:
+//
+//   * An entity the caller cannot open at all — someone else's room, someone
+//     else's folder — crashes the handler instead of refusing it. Same symptom
+//     and same root as BUG 82715 (a non-member naming an agent), so the tests
+//     below carry that number rather than a new one. Nothing is created, so the
+//     defect is the status alone.
+//   * Read access, which closes an agent off completely, does NOT close an
+//     ordinary room: a Read-level member starts a thread there and gets a real
+//     answer. That is the positive case for "chat is available in any room".
+//
+// The room cases reuse `expectNoThreadWasCreated`: the invite it performs is a
+// plain setRoomSecurity, which works on any room, and the list it then reads is
+// the caller's own — a thread the refused call had created would surface in it
+// (every non-agent entity shares one per-user bucket, BUG 82855), so the control
+// is if anything stronger here than for an agent.
+test.describe("Threads - access control on a room or folder entity", () => {
+  test("BUG 82715: POST /api/2.0/ai/threads/create - a User not in the room gets 500 instead of 403", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Private Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+    await aiChat.expectActingAs("user", memberId, "the non-member");
+
+    const { status, threadId } = await aiChat.createThread("user", {
+      title: "Outsider room thread",
+      profileId,
+      agentId: roomId,
+    });
+
+    // Whatever the status, the crash must not have left a thread behind.
+    expect(threadId).toBe("");
+    await expectNoThreadWasCreated(
+      apiSdk,
+      aiChat,
+      "user",
+      memberId,
+      roomId,
+      profileId,
+    );
+
+    // Refusing an outsider is a 403, not an Internal Server Error.
+    test.fail();
+    expect(status).toBe(403);
+  });
+
+  test("POST /api/2.0/ai/threads/create - a member invited at Read can start a thread in the room", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Read Only Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+
+    // Asserted inside the helper, so what follows is about the access level and
+    // not about an invitation that never landed.
+    await inviteToAgent(ownerApi.rooms, roomId, memberId, FileShare.Read);
+    await aiChat.expectActingAs("user", memberId, "the Read-level member");
+
+    // Read is the level that closes an *agent* off entirely ("members without
+    // content access" above). An ordinary room is not the agent's quota, and
+    // the chat opened next to it belongs to the user, so the same level is
+    // enough here.
+    const { status, threadId } = await aiChat.createThread("user", {
+      title: "Read-only member room thread",
+      profileId,
+      agentId: roomId,
+    });
+    expect(status).toBe(200);
+    expect(threadId).toBeTruthy();
+
+    const listed = await aiChat.listThreads("user", roomId);
+    expect(listed.status).toBe(200);
+    expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
+
+    // And it is a usable chat, not just a record: a Read-level member gets an
+    // actual answer in a room they can only look at.
+    const sent = await aiChat.sendMessage("user", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Reply with the single word OK.",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("user", threadId);
+    expectHealthyAssistantReply(messages);
+  });
+
+  test("BUG 82715: POST /api/2.0/ai/threads/create - another user's personal folder gets 500 instead of 403", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder();
+    const { data: folder } = await ownerApi.folders.createFolder({
+      folderId: myFolder.response!.current!.id!,
+      createFolder: { title: "Autotest Owner Private Folder" },
+    });
+    const folderId = folder.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await aiChat.expectActingAs(
+      "user",
+      memberData.response!.id!,
+      "the outsider",
+    );
+
+    // A folder in someone else's Documents is not a place this user can chat
+    // in, and the id is guessable — it is a small integer.
+    const { status, threadId } = await aiChat.createThread("user", {
+      title: "Outsider folder thread",
+      profileId,
+      agentId: folderId,
+    });
+
+    expect(threadId).toBe("");
+
+    // Positive control for "nothing was created". There is no invite that opens
+    // someone else's Documents, but there does not need to be: every non-agent
+    // entity a user names resolves to one shared per-user bucket (BUG 82855), so
+    // a thread the refused call had created would be listed under any scope this
+    // caller asks for — and a thread they create legitimately proves the list
+    // itself works.
+    const bucket = await aiChat.listThreads("user", "autotest-not-an-entity");
+    expect(bucket.status).toBe(200);
+    expect(bucket.data).toEqual([]);
+
+    const control = await aiChat.createThreadId("user", {
+      title: "Control thread",
+      profileId,
+      agentId: "autotest-not-an-entity",
+    });
+    const withControl = await aiChat.listThreads(
+      "user",
+      "autotest-not-an-entity",
+    );
+    expect(withControl.data.map((thread) => thread.threadId)).toEqual([
+      control,
+    ]);
+
+    // Refusing a folder the caller cannot open is a 403, not a crash.
+    test.fail();
+    expect(status).toBe(403);
+  });
+});
+
+// Access to a location is not granted once and for good: a member can be taken
+// out of the room after they have chatted in it. Measured 2026-08-06, the two
+// halves of the surface part ways at that point — the room-scoped routes stop
+// working (badly, with a 500) while the thread itself stays fully usable.
+//
+// The split below is deliberate. A thread is per-user and its content is the
+// caller's own writing, so keeping it is defensible; naming a room they can no
+// longer open is not, and that is the half asserted as a defect.
+test.describe("Threads - the room membership is revoked", () => {
+  /**
+   * Room + a member who chatted in it and was then removed. Every step is
+   * asserted here: a revoke that silently failed would make the whole block
+   * describe a membership that never ended.
+   */
+  async function chattedThenRemoved(
+    apiSdk: ApiSDK,
+    aiChat: AiAgentChat,
+    profileId: string,
+  ) {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Revoked Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const member = await apiSdk.addMember("owner", "RoomAdmin");
+    const memberId = member.data.response!.id!;
+    await inviteToAgent(ownerApi.rooms, roomId, memberId);
+
+    await apiSdk.authenticateMember(member.userData, "RoomAdmin");
+    await aiChat.expectActingAs("roomAdmin", memberId, "the member");
+
+    const threadId = await aiChat.createThreadId("roomAdmin", {
+      title: "Thread from when they were a member",
+      profileId,
+      agentId: roomId,
+    });
+    const stored = await aiChat.appendUserMessage("roomAdmin", {
+      threadId,
+      profileId,
+      text: "written while still a member",
+    });
+    expect(stored.status, "the member's message is stored").toBe(200);
+
+    // The owner keeps acting through the SDK client, which carries its own
+    // token and is not affected by the shared context's session cookie.
+    const revoked = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.None }],
+        notify: false,
+      },
+    });
+    expect(revoked.status, "removing the member from the room").toBe(200);
+
+    // The room itself is untouched — what changed is only this user's access.
+    const roomAfter = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(roomAfter.status, "the room still exists").toBe(200);
+
+    return { roomId, threadId };
+  }
+
+  test("BUG 82858: GET /api/2.0/ai/threads/list, POST /api/2.0/ai/threads/create - a removed member crashes both instead of being refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const { roomId } = await chattedThenRemoved(apiSdk, aiChat, profileId);
+
+    const listed = await aiChat.listThreads("roomAdmin", roomId);
+    const created = await aiChat.createThread("roomAdmin", {
+      title: "Thread from after they were removed",
+      profileId,
+      agentId: roomId,
+    });
+
+    // Control: the route still works for this caller on a scope they may name,
+    // so the failures above are about the room and not about a broken session.
+    const bucket = await aiChat.listThreads(
+      "roomAdmin",
+      "autotest-not-an-entity",
+    );
+    expect(bucket.status, "a scope the caller may name").toBe(200);
+
+    // Same defect as an outsider who never was a member: the access check
+    // crashes where it should refuse.
+    test.fail();
+    expect(listed.status, "listing the threads of a room they left").toBe(403);
+    expect(created.status).toBe(403);
+  });
+
+  test("GET|PUT|POST /api/2.0/ai/threads/* - a removed member keeps the thread they wrote in the room", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const { threadId } = await chattedThenRemoved(apiSdk, aiChat, profileId);
+
+    // The thread is the user's own writing, not the room's content, so losing
+    // the room does not take it away.
+    const info = await aiChat.getThread("roomAdmin", threadId);
+    expect(info.status).toBe(200);
+    expect(info.data?.threadId).toBe(threadId);
+
+    const read = await aiChat.readMessages("roomAdmin", threadId);
+    expect(read.status).toBe(200);
+    expect(
+      AiAgentChat.userMessages(read.data).map(AiAgentChat.messageText),
+    ).toEqual(["written while still a member"]);
+
+    const renamed = await aiChat.renameThread(
+      "roomAdmin",
+      threadId,
+      "Renamed after leaving",
+    );
+    expect(renamed.status).toBe(200);
+    expect((await aiChat.getThread("roomAdmin", threadId)).data?.title).toBe(
+      "Renamed after leaving",
+    );
+
+    const appended = await aiChat.appendUserMessage("roomAdmin", {
+      threadId,
+      profileId,
+      text: "written after leaving",
+    });
+    expect(appended.status).toBe(200);
+    expect(
+      (await aiChat.readMessages("roomAdmin", threadId)).data,
+    ).toHaveLength(2);
+
+    // Whether the model can still reach the room's own content through this
+    // thread is a separate question — it needs a vectorised room holding a file
+    // only members may read — and is not covered here.
+  });
+
+  test("BUG 82717: POST /api/2.0/ai/ai/send-with-stream - a removed member is blocked, but with a 200 instead of 403", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The important half is good news: losing the room really does stop the
+    // conversation from going any further. Nothing new is written and the model
+    // is never called, so a user who was taken out of a room cannot keep asking
+    // questions in its context — which is what the routes above, all still
+    // answering 200, might suggest.
+    //
+    // What is wrong is only how the refusal is delivered: HTTP 200 with
+    // `{"type":"error","message":"stream error"}` in the body, the same wrong
+    // response contract as BUG 82717 on another member's thread.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const { roomId, threadId } = await chattedThenRemoved(
+      apiSdk,
+      aiChat,
+      profileId,
+    );
+
+    const { status, streamError } = await aiChat.sendMessage("roomAdmin", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Reply with the single word OK.",
+    });
+
+    // The wait matters: a send that had gone through would store the user
+    // message at once and the reply seconds later, so looking straight away
+    // could mistake a slow write for no write at all.
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+    const after = await aiChat.readMessages("roomAdmin", threadId);
+    expect(after.status).toBe(200);
+
+    // The question itself is stored — writing into their own thread is still
+    // allowed, exactly as `append-user-message` is in the test above. What does
+    // not happen is the answer: the model is never reached.
+    expect(
+      AiAgentChat.assistantMessages(after.data),
+      "the model was never called for a user who left the room",
+    ).toEqual([]);
+    expect(streamError).toBe("stream error");
+
+    test.fail();
+    expect(status).toBe(403);
+  });
+});
+
 test.describe("Agent room membership", () => {
   const REFUSED_GUEST_LEVELS: Array<{ label: string; access: FileShare }> = [
     { label: "Editing", access: FileShare.Editing },
@@ -679,6 +1075,78 @@ test.describe("Threads - validation", () => {
 
     test.fail();
     expect(status).toBe(404);
+  });
+
+  // The same absence of validation, across the kinds of id the widened chat
+  // context makes reachable. There is no entity *type* in the protocol —
+  // `entityId` is one string, and rooms and folders share the files id space —
+  // so the only thing the backend could check is whether the id names a place
+  // this user can chat in. It checks nothing: a file (a different id space
+  // altogether), a room that has been deleted, the Trash root and out-of-range
+  // numbers are all accepted and all get a working thread.
+  //
+  // Every case is collected first and asserted as one list, so the failure diff
+  // names each kind and what it actually answered instead of stopping at the
+  // first one.
+  test("BUG 82719: POST /api/2.0/ai/threads/create - a file, a deleted room, Trash and out-of-range ids are all accepted as entities", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: file } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Entity Probe" },
+    });
+    const fileId = file.response!.id!;
+
+    const { data: doomed } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Doomed Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const deletedRoomId = doomed.response!.id!;
+    await ownerApi.rooms.deleteRoom({
+      id: deletedRoomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+    expect(
+      (await ownerApi.rooms.getRoomInfo({ id: deletedRoomId })).status,
+      "the room is really gone",
+    ).toBe(404);
+
+    const { data: trash } = await ownerApi.folders.getTrashFolder({});
+    const trashId = trash.response!.current!.id!;
+
+    // A file is not a folder, a deleted room is not a place, Trash is not a
+    // chat context, and 0 / -1 are not ids at all.
+    const KINDS: Array<{ kind: string; entityId: number; expected: number }> = [
+      { kind: "a file", entityId: fileId, expected: 403 },
+      { kind: "a deleted room", entityId: deletedRoomId, expected: 404 },
+      { kind: "the Trash root", entityId: trashId, expected: 403 },
+      { kind: "id 0", entityId: 0, expected: 400 },
+      { kind: "id -1", entityId: -1, expected: 400 },
+    ];
+
+    const results: Array<{ kind: string; status: number }> = [];
+    for (const { kind, entityId } of KINDS) {
+      const { status } = await aiChat.createThread("owner", {
+        title: `Thread on ${kind}`,
+        profileId,
+        agentId: entityId,
+      });
+      results.push({ kind, status });
+    }
+
+    test.fail();
+    expect(results).toEqual(
+      KINDS.map(({ kind, expected }) => ({ kind, status: expected })),
+    );
   });
 
   test("BUG 82720: POST /api/2.0/ai/ai/send-with-stream - an empty message is stored and forwarded to the model", async ({

@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
-import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
+import { RoomType, FileShare, FolderType } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import {
   AiAgentChat,
   AgentRole,
@@ -1199,6 +1200,151 @@ test.describe("AI Chat - room and folder entity context", () => {
   });
 });
 
+// A location is not permanent. A room gets archived, comes back, or is deleted
+// outright — and the conversations the user held in it have to end up somewhere
+// defined. Archive is the bin for rooms (there is no Trash for them) and delete
+// is irreversible, so these are the two shapes of "the place is gone".
+test.describe("AI Chat - the room a thread was started in goes away", () => {
+  test("GET /api/2.0/ai/threads/list, read-messages - a thread survives archiving its room and is still usable", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread before archiving",
+      profileId,
+      agentId: roomId,
+    });
+    const stored = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "written before archiving",
+    });
+    expect(stored.status).toBe(200);
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+    expect(
+      (await ownerApi.rooms.getRoomInfo({ id: roomId })).data.response
+        ?.rootFolderType,
+      "the room is in Archive",
+    ).toBe(FolderType.Archive);
+
+    // An archived room is read-only for its content, but a chat is not its
+    // content: the conversation is still listed, readable and answerable.
+    const listed = await aiChat.listThreads("owner", roomId);
+    expect(listed.status).toBe(200);
+    expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
+
+    const read = await aiChat.readMessages("owner", threadId);
+    expect(read.status).toBe(200);
+    expect(
+      AiAgentChat.userMessages(read.data).map(AiAgentChat.messageText),
+    ).toEqual(["written before archiving"]);
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Reply with the single word OK.",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    // And bringing the room back does not disturb any of it.
+    const unarchived = await ownerApi.rooms.unarchiveRoom({ id: roomId });
+    expect(unarchived.status).toBe(200);
+    await waitForOperation(ownerApi.operations);
+
+    const afterUnarchive = await aiChat.listThreads("owner", roomId);
+    expect(afterUnarchive.status).toBe(200);
+    expect(afterUnarchive.data.map((thread) => thread.threadId)).toContain(
+      threadId,
+    );
+    expect((await aiChat.readMessages("owner", threadId)).data.length).toBe(
+      read.data.length + 2,
+    );
+  });
+
+  test("GET /api/2.0/ai/threads/get-by-id, read-messages - deleting the room does not delete the conversations held in it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Doomed Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread in a doomed room",
+      profileId,
+      agentId: roomId,
+    });
+    const stored = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "written before the room was deleted",
+    });
+    expect(stored.status).toBe(200);
+
+    await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+    expect(
+      (await ownerApi.rooms.getRoomInfo({ id: roomId })).status,
+      "deleting a room is permanent",
+    ).toBe(404);
+
+    // The room is gone for good; what the user wrote is theirs and stays. This
+    // is the only defensible half — whether a thread whose location no longer
+    // exists should still be *listed* under that id is the shared-bucket
+    // question (BUG 82855), not this one.
+    const info = await aiChat.getThread("owner", threadId);
+    expect(info.status).toBe(200);
+    expect(info.data?.threadId).toBe(threadId);
+
+    const read = await aiChat.readMessages("owner", threadId);
+    expect(read.status).toBe(200);
+    expect(
+      AiAgentChat.userMessages(read.data).map(AiAgentChat.messageText),
+    ).toEqual(["written before the room was deleted"]);
+
+    const deleted = await aiChat.deleteThread("owner", threadId);
+    expect(deleted.status, "and it can still be cleaned up").toBe(200);
+    expect((await aiChat.getThread("owner", threadId)).data).toBeNull();
+  });
+});
+
 test.describe("AI Chat - room context across users", () => {
   test("GET /api/2.0/ai/threads/list, read-messages - a room member does not see the Owner's room thread", async ({
     apiSdk,
@@ -1433,6 +1579,59 @@ test.describe("AI Chat - the default model of a room", () => {
     expect(reply.status?.error).toBeUndefined();
     expect(AiAgentChat.messageText(reply).length).toBeGreaterThan(0);
   });
+
+  test("BUG XXXXX: GET /api/2.0/ai/assignments - the scope of a room the caller cannot open returns 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Third route in the same family: naming a room the caller has no access to
+    // crashes the access check instead of refusing it — `get-deep-mode` does it
+    // as BUG 82816, `threads/list` as BUG 82858, and this is /ai/assignments.
+    // A member of the room is answered normally (portal-wide fallback), so the
+    // 500 really is the access check and not a broken scope parameter.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const [, other] = twoTextProfiles(await aiChat.listProfiles("owner"));
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Private Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    // The owner binds Chat to a profile that is not the portal default, so a
+    // room-specific answer would be distinguishable if there were one.
+    const bound = await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: other.id,
+    });
+    expect(bound.data?.success).toBe(true);
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await aiChat.expectActingAs(
+      "user",
+      memberData.response!.id!,
+      "the non-member",
+    );
+
+    const scoped = await profiles.getAllAssignments("user", roomId);
+
+    // Control: without the room scope the same caller is answered, so the
+    // failure is about the room and not about this role or a dead route.
+    const own = await profiles.getAllAssignments("user");
+    expect(own.status, "the caller's own portal-wide read").toBe(200);
+
+    test.fail();
+    expect(scoped.status).toBe(403);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1482,6 +1681,11 @@ function twoTextProfiles(profiles: AiProfile[]): [AiProfile, AiProfile] {
 class ThreadRoutes extends AiHttp {
   put(role: AgentRole, path: string, body: unknown) {
     return this.call<unknown>(role, "put", path, body);
+  }
+
+  /** Raw create — the helper always fills `profileId` in, this one does not. */
+  post(role: AgentRole, path: string, body: unknown) {
+    return this.call<{ threadId?: string }>(role, "post", path, body);
   }
 }
 
@@ -1723,6 +1927,136 @@ test.describe("AI Chat - the model of one thread", () => {
     expect(after.data?.profileId).toBe(first.id);
   });
 
+  test("POST /api/2.0/ai/threads/create - a thread started without a profileId has no model at all", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // "A new conversation starts on the model of the place it was started in"
+    // has no create-time half: the field is optional, and leaving it out does
+    // not make the backend resolve anything — the thread simply has no model
+    // until a message brings one. Together with BUG 82860 (a message without a
+    // profileId wipes the thread's model) that makes the client the only thing
+    // holding the choice.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const routes = new ThreadRoutes(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Model Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    // The portal-wide binding is set to a real profile, so "no model" below
+    // cannot be "there was nothing to resolve to".
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const assigned = await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId,
+    });
+    expect(assigned.data?.success).toBe(true);
+
+    const created = await routes.post("owner", "/api/2.0/ai/threads/create", {
+      title: "Autotest thread with no model",
+      entityId: String(roomId),
+    });
+    expect(created.status).toBe(200);
+    const threadId = created.data?.threadId ?? "";
+    expect(threadId).toBeTruthy();
+
+    const read = await aiChat.getThread("owner", threadId);
+    expect(read.status).toBe(200);
+    expect(
+      read.data?.profileId,
+      "the thread carries no model of its own",
+    ).toBeUndefined();
+
+    const listed = await aiChat.listThreads("owner", roomId);
+    expect(
+      listed.data.find((thread) => thread.threadId === threadId)?.profileId,
+      "and the list the picker is drawn from carries none either",
+    ).toBeUndefined();
+
+    // Control: the field is not simply missing from the DTO — a message with a
+    // profile fills it in, on this very thread.
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Reply with the single word OK.",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    await aiChat.waitForAssistantReply("owner", threadId);
+
+    expect((await aiChat.getThread("owner", threadId)).data?.profileId).toBe(
+      profileId,
+    );
+  });
+
+  test("PUT /api/2.0/ai/assignments/assign - rebinding Chat does not move an existing thread onto the new model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The portal-wide binding is the only model setting an ordinary location
+    // has (`assign` drops an entityId, BUG 82832 / "the default model of a
+    // room"), so this is the one "the entity's setting changed" case that can
+    // be staged. It must not reach back into conversations already under way.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Model Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const bound = await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: first.id,
+    });
+    expect(bound.data?.success).toBe(true);
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread on the first model",
+      profileId: first.id,
+      agentId: roomId,
+    });
+    expect((await aiChat.getThread("owner", threadId)).data?.profileId).toBe(
+      first.id,
+    );
+
+    const rebound = await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: second.id,
+    });
+    expect(rebound.data?.success).toBe(true);
+    expect(
+      (await profiles.getAllAssignments("owner")).data?.Chat,
+      "the binding really changed",
+    ).toBe(second.id);
+
+    // The conversation keeps the model it was started on.
+    expect((await aiChat.getThread("owner", threadId)).data?.profileId).toBe(
+      first.id,
+    );
+    const listed = await aiChat.listThreads("owner", roomId);
+    expect(
+      listed.data.find((thread) => thread.threadId === threadId)?.profileId,
+    ).toBe(first.id);
+  });
+
   test("POST /api/2.0/ai/threads/create - the chosen profile is validated", async ({
     apiSdk,
     paymentsApi,
@@ -1901,5 +2235,395 @@ test.describe("AI Chat - image generation", () => {
     // The user's question is still in the thread — the failure costs the reply,
     // not the conversation.
     expect(AiAgentChat.userMessages(messages)).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Changing a thread while the model is still writing into it.
+//
+// This block only became reachable once it was established that hanging up on
+// `send-with-stream` does NOT stop the generation (see the stop block in
+// messages.spec.ts): the backend keeps writing for roughly twenty seconds after
+// the client is gone. That gives an API test a window in which the thread is
+// genuinely being written to by someone else, which is exactly the race a user
+// creates by renaming, clearing or deleting a chat mid-reply.
+//
+// The window is opened with `sendAndAbort` — the send hands back control at the
+// cap while the reply is still on its way — and the mutation is issued straight
+// afterwards. Each test then waits the whole generation out before looking, so
+// what it asserts is the settled state rather than a snapshot mid-flight.
+
+/** Comfortably longer than the ~25 s a full reply needs after the disconnect. */
+const GENERATION_WINDOW_MS = 60000;
+
+/** Long enough that the reply is certainly still being written at the cut. */
+const RACE_PROMPT =
+  "Write a detailed essay of at least 600 words about the history of typography. " +
+  "Number every paragraph.";
+
+const RACE_CUT_MS = 5000;
+
+async function settleGeneration(ms = GENERATION_WINDOW_MS) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+test.describe("AI Threads - mutated while the model is still writing", () => {
+  test("PUT /api/2.0/ai/threads/rename - a rename mid-reply survives the reply", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Race Rename Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest before rename",
+      profileId,
+      agentId,
+    });
+
+    const { aborted } = await aiChat.sendAndAbort("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: RACE_PROMPT,
+      afterMs: RACE_CUT_MS,
+    });
+    expect(aborted, "the reply was still being written").toBe(true);
+
+    const renamed = await aiChat.renameThread(
+      "owner",
+      threadId,
+      "Autotest renamed mid-reply",
+    );
+    expect(renamed.status).toBe(200);
+
+    // The reply lands after the rename; neither write loses to the other.
+    const settled = await aiChat.waitForStableAssistantText("owner", threadId);
+    expect(settled.text.length, "the reply still arrived").toBeGreaterThan(0);
+
+    const thread = await aiChat.getThread("owner", threadId);
+    expect(thread.status).toBe(200);
+    expect(thread.data?.title).toBe("Autotest renamed mid-reply");
+
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(
+      listed.data.find((entry) => entry.threadId === threadId)?.title,
+    ).toBe("Autotest renamed mid-reply");
+  });
+
+  test("DELETE /api/2.0/ai/threads/delete - a thread deleted mid-reply does not come back", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The failure this rules out: the in-flight reply is written after the
+    // delete and recreates the row, leaving a chat the user thought was gone.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Race Delete Agent",
+      profileId,
+    });
+    const doomed = await aiChat.createThreadId("owner", {
+      title: "Autotest deleted mid-reply",
+      profileId,
+      agentId,
+    });
+    // A second thread as the control: whatever happens to the deleted one, the
+    // list has to still work and still hold this.
+    const keeper = await aiChat.createThreadId("owner", {
+      title: "Autotest keeper",
+      profileId,
+      agentId,
+    });
+
+    const { aborted } = await aiChat.sendAndAbort("owner", {
+      threadId: doomed,
+      profileId,
+      agentId,
+      message: RACE_PROMPT,
+      afterMs: RACE_CUT_MS,
+    });
+    expect(aborted).toBe(true);
+
+    expect((await aiChat.deleteThread("owner", doomed)).status).toBe(200);
+    await settleGeneration();
+
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.status).toBe(200);
+    expect(
+      listed.data.map((entry) => entry.threadId),
+      "the deleted thread must not be resurrected by the late reply",
+    ).toEqual([keeper]);
+
+    const messages = await aiChat.readMessages("owner", doomed);
+    expect(messages.data, "and it holds no messages either").toEqual([]);
+  });
+
+  test("DELETE /api/2.0/ai/threads/clear-messages - clearing mid-reply does not bring the question back", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Race Clear Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest cleared mid-reply",
+      profileId,
+      agentId,
+    });
+
+    const { aborted } = await aiChat.sendAndAbort("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: RACE_PROMPT,
+      afterMs: RACE_CUT_MS,
+    });
+    expect(aborted).toBe(true);
+
+    expect((await aiChat.clearThreadMessages("owner", threadId)).status).toBe(
+      200,
+    );
+    await settleGeneration();
+
+    // Whether the late reply is dropped or lands in the emptied thread is the
+    // backend's choice; what must not happen is the cleared *question* coming
+    // back, because that is history the user asked to be gone.
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(messages.status).toBe(200);
+    expect(
+      AiAgentChat.userMessages(messages.data),
+      "the cleared question must stay cleared",
+    ).toEqual([]);
+
+    // The thread itself survives clearing, with its title.
+    const thread = await aiChat.getThread("owner", threadId);
+    expect(thread.status).toBe(200);
+    expect(thread.data?.title).toBe("Autotest cleared mid-reply");
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - two threads of one agent generate at the same time", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Concurrency inside a single entity: two replies in flight for the same
+    // user and agent must not be serialised into one another's thread.
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Concurrent Agent",
+      profileId,
+    });
+    const first = await aiChat.createThreadId("owner", {
+      title: "Autotest concurrent A",
+      profileId,
+      agentId,
+    });
+    const second = await aiChat.createThreadId("owner", {
+      title: "Autotest concurrent B",
+      profileId,
+      agentId,
+    });
+
+    const [sentA, sentB] = await Promise.all([
+      aiChat.sendMessage("owner", {
+        threadId: first,
+        profileId,
+        agentId,
+        message: "Reply with the single word ALPHA and nothing else.",
+      }),
+      aiChat.sendMessage("owner", {
+        threadId: second,
+        profileId,
+        agentId,
+        message: "Reply with the single word BETA and nothing else.",
+      }),
+    ]);
+    expect(sentA.status).toBe(200);
+    expect(sentA.streamError).toBeUndefined();
+    expect(sentB.status).toBe(200);
+    expect(sentB.streamError).toBeUndefined();
+
+    const messagesA = await aiChat.waitForAssistantReply("owner", first);
+    const messagesB = await aiChat.waitForAssistantReply("owner", second);
+    expectHealthyAssistantReply(messagesA);
+    expectHealthyAssistantReply(messagesB);
+
+    // Each answer went to its own thread — the give-away for a crossed stream
+    // is the other thread's word.
+    expect(AiAgentChat.assistantText(messagesA)).toContain("ALPHA");
+    expect(AiAgentChat.assistantText(messagesA)).not.toContain("BETA");
+    expect(AiAgentChat.assistantText(messagesB)).toContain("BETA");
+    expect(AiAgentChat.assistantText(messagesB)).not.toContain("ALPHA");
+
+    // And each holds exactly its own question.
+    expect(AiAgentChat.userMessages(messagesA)).toHaveLength(1);
+    expect(AiAgentChat.userMessages(messagesB)).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// State changed from outside the conversation.
+//
+// The client keeps a local copy of the threads, the profiles and the current
+// chat, and re-reads them when something says they are stale
+// (`updateThreads`, `updateProfiles`, `updateModelAssignment`, …). What the
+// backend owes it is that a plain re-read after somebody else changed something
+// tells the truth. These are the two cases the rest of the suite does not
+// already cover: the room-side ones — membership revoked, room archived, room
+// deleted — live in "the room a thread was started in goes away" and in
+// chat.permission.spec.ts.
+
+test.describe("AI Chat - state changed by another actor", () => {
+  test("PUT /api/2.0/ai/assignments/assign - a thread started after the rebinding takes the new model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The complement of "rebinding Chat does not move an existing thread":
+    // together they say the assignment is the default for *new* conversations
+    // and never a retroactive setting. Both halves matter to a client that
+    // re-reads assignments — moving old threads would rewrite history it has
+    // already rendered, and not applying to new ones would make the setting
+    // look broken.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Rebinding Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    expect(
+      (
+        await profiles.assign("owner", {
+          actionType: "Chat",
+          profileId: first.id,
+        })
+      ).data?.success,
+    ).toBe(true);
+
+    // A thread that takes the default rather than naming a model: the send
+    // carries no profileId, so what it runs on is whatever Chat is bound to.
+    const before = await aiChat.createThreadId("owner", {
+      title: "Autotest thread before the rebinding",
+      profileId: first.id,
+      agentId: roomId,
+    });
+
+    expect(
+      (
+        await profiles.assign("owner", {
+          actionType: "Chat",
+          profileId: second.id,
+        })
+      ).data?.success,
+    ).toBe(true);
+    expect(
+      (await profiles.getAllAssignments("owner")).data?.Chat,
+      "the binding really changed",
+    ).toBe(second.id);
+
+    const after = await aiChat.createThreadId("owner", {
+      title: "Autotest thread after the rebinding",
+      profileId: second.id,
+      agentId: roomId,
+    });
+
+    // Each thread kept the model it was started with, and one re-read of the
+    // list shows both — no stale copy, no retroactive rewrite.
+    const listed = await aiChat.listThreads("owner", roomId);
+    expect(listed.status).toBe(200);
+    const byId = new Map(
+      listed.data.map((thread) => [thread.threadId, thread.profileId]),
+    );
+    expect(byId.get(before)).toBe(first.id);
+    expect(byId.get(after)).toBe(second.id);
+  });
+
+  test("DELETE /api/2.0/ai/agents/{id} - deleting the agent takes its member's threads with it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The "selected agent is deleted" case. A client holding that agent's
+    // thread list has to find out by re-reading, so what matters is that the
+    // re-read is decisive — a 200 with the threads still in it would leave the
+    // member chatting into a room that no longer exists.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Vanishing Agent",
+      profileId,
+    });
+
+    const member = await apiSdk.addAuthenticatedMember("owner", "User");
+    const memberId = member.data.response!.id!;
+    await inviteToAgent(ownerApi.rooms, agentId, memberId);
+    await aiChat.expectActingAs("user", memberId, "the member");
+
+    const threadId = await aiChat.createThreadId("user", {
+      title: "Autotest member thread",
+      profileId,
+      agentId,
+    });
+    const stored = await aiChat.appendUserMessage("user", {
+      threadId,
+      profileId,
+      text: "written while the agent existed",
+    });
+    expect(stored.status).toBe(200);
+
+    // The other actor: the owner removes the agent underneath them.
+    await apiSdk.authenticateOwner();
+    expect((await aiChat.deleteAgent("owner", agentId)).status).toBe(200);
+    expect(await aiChat.waitForAgentDeleted("owner", agentId)).toBe(404);
+
+    // Now the member re-reads. Everything about the agent has to be refused or
+    // empty — and it is the *entity* that is gone, so a listing that still
+    // returned the thread would be the client's cue to keep showing it.
+    await apiSdk.authenticateMember(member.userData, "User");
+    await aiChat.expectActingAs("user", memberId, "the member again");
+
+    const listed = await aiChat.listThreads("user", agentId);
+    expect(listed.status).toBe(200);
+    expect(
+      listed.data.map((thread) => thread.threadId),
+      "the deleted agent lists no threads",
+    ).not.toContain(threadId);
+
+    const info = await aiChat.getAgentInfo("user", agentId);
+    expect(info.status, "and the agent itself is gone for them too").toBe(404);
   });
 });
