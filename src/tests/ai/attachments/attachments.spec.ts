@@ -2041,7 +2041,7 @@ const ARCHIVE_TITLES = [
 const OVER_LIMIT_ATTACHMENTS = 11;
 
 test.describe("AI Attachments - client-side rules on the server", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - every archive extension the client refuses is stored", async ({
+  test("BUG 82893: POST /api/2.0/ai/attachments/save-file - every archive extension the client refuses is stored", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2088,7 +2088,7 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     ).toEqual([]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/threads/append-user-message - a message carries more attachments than the client allows", async ({
+  test("BUG 82894: POST /api/2.0/ai/threads/append-user-message - a message carries more attachments than the client allows", async ({
     apiSdk,
     paymentsApi,
   }) => {

@@ -1330,7 +1330,7 @@ const STOP_AFTER_MS = 5000;
 const QUIET_MS = 20000;
 
 test.describe("AI Messages - stopping a stream", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream does not stop the generation", async ({
+  test("BUG 82898: POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream does not stop the generation", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1569,7 +1569,7 @@ test.describe("AI Messages - stopping a stream", () => {
 // spending an inference call per message.
 
 test.describe("AI Messages - paging the history", () => {
-  test("BUG XXXXX: GET /api/2.0/ai/threads/read-messages - count and cursor are accepted and ignored", async ({
+  test("BUG 82899: GET /api/2.0/ai/threads/read-messages - count and cursor are accepted and ignored", async ({
     apiSdk,
     paymentsApi,
   }) => {

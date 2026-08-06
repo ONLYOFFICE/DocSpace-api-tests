@@ -1580,7 +1580,7 @@ test.describe("AI Chat - the default model of a room", () => {
     expect(AiAgentChat.messageText(reply).length).toBeGreaterThan(0);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/assignments - the scope of a room the caller cannot open returns 500", async ({
+  test("BUG 82895: GET /api/2.0/ai/assignments - the scope of a room the caller cannot open returns 500", async ({
     apiSdk,
     paymentsApi,
   }) => {

@@ -297,7 +297,7 @@ test.describe("AI Preferences - deep mode of a room or a folder", () => {
   ] as const;
 
   for (const { kind, symptom } of LOCATIONS) {
-    test(`BUG XXXXX: PUT /api/2.0/ai/preferences/set-deep-mode - a ${kind} scope ${symptom}`, async ({
+    test(`BUG 82900: PUT /api/2.0/ai/preferences/set-deep-mode - a ${kind} scope ${symptom}`, async ({
       apiSdk,
       paymentsApi,
     }) => {
