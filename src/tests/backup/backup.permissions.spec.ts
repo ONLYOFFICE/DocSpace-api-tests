@@ -102,7 +102,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     expect(status).toBe(402);
     expect(data.statusCode).toBe(402);
     expect((data as any).error.message).toBe(
-      "The number of free backups should not exceed 0 within a month",
+      "Your pricing plan does not support this option",
     );
   });
 

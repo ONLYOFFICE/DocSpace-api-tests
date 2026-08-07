@@ -264,26 +264,6 @@ test.describe
 });
 
 test.describe("PUT /api/2.0/portal/payment/updatewallet - permissions", () => {
-  test("PUT /api/2.0/portal/payment/updatewallet - DocSpaceAdmin cannot update wallet payment", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .payment.updateWalletPayment({
-        walletQuantityRequestDto: {
-          quantity: { storage: 100 },
-          productQuantityType: 1,
-        },
-      });
-
-    expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
-  });
-
   test("PUT /api/2.0/portal/payment/updatewallet - RoomAdmin cannot update wallet payment", async ({
     apiSdk,
     paymentsApi,
@@ -374,26 +354,6 @@ test.describe("PUT /api/2.0/portal/payment/calculatewallet - permissions", () =>
     expect(status).toBe(401);
   });
 
-  test("PUT /api/2.0/portal/payment/calculatewallet - DocSpaceAdmin cannot calculate wallet payment when Owner is already the payer", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .payment.calculateWalletPayment({
-        walletQuantityRequestDto: {
-          quantity: { storage: 100 },
-          productQuantityType: 1,
-        },
-      });
-
-    expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
-  });
-
   test("PUT /api/2.0/portal/payment/calculatewallet - RoomAdmin cannot calculate wallet payment", async ({
     apiSdk,
     paymentsApi,
@@ -456,38 +416,6 @@ test.describe("PUT /api/2.0/portal/payment/calculatewallet - permissions", () =>
 });
 
 test.describe("PUT /api/2.0/portal/payment/calculatewallet - permissions when storage is disabled", () => {
-  test("PUT /api/2.0/portal/payment/calculatewallet - DocSpaceAdmin cannot calculate wallet payment when storage is disabled", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-    await apiSdk.forRole("owner").payment.updateWalletPayment({
-      walletQuantityRequestDto: {
-        quantity: { storage: 100 },
-        productQuantityType: 1,
-      },
-    });
-    await apiSdk.forRole("owner").payment.updateWalletPayment({
-      walletQuantityRequestDto: {
-        quantity: { storage: 0 },
-        productQuantityType: 0,
-      },
-    });
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .payment.calculateWalletPayment({
-        walletQuantityRequestDto: {
-          quantity: { storage: 100 },
-          productQuantityType: 1,
-        },
-      });
-
-    expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
-  });
-
   test("PUT /api/2.0/portal/payment/calculatewallet - RoomAdmin cannot calculate wallet payment when storage is disabled", async ({
     apiSdk,
     paymentsApi,
@@ -659,23 +587,6 @@ test.describe("POST /api/2.0/portal/payment/servicestate - permissions", () => {
       });
 
     expect(status).toBe(401);
-  });
-
-  test("POST /api/2.0/portal/payment/servicestate - DocSpaceAdmin cannot change wallet service state", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .payment.changeTenantWalletServiceState({
-        changeWalletServiceStateRequestDto: { service: -13, enabled: true },
-      });
-
-    expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
   });
 
   test("POST /api/2.0/portal/payment/servicestate - RoomAdmin cannot change wallet service state", async ({
@@ -2041,30 +1952,6 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .payment.setRestrictedAiModels({
-        setRestrictedAiModelsRequestDto: { models: new Set() },
-      });
-
-    expect(status).toBe(403);
-    expect((data as any)?.error?.message).toBe("Access denied");
-  });
-
-  test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin cannot deactivate Owner's ONLYOFFICE AI restrictions", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-
-    await apiSdk.forRole("owner").payment.setRestrictedAiModels({
-      setRestrictedAiModelsRequestDto: {
-        models: new Set(restrictableAiModelIds),
-      },
-    });
-
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
       .payment.setRestrictedAiModels({
         setRestrictedAiModelsRequestDto: { models: new Set() },
       });

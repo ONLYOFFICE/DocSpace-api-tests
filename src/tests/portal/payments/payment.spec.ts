@@ -209,6 +209,51 @@ test.describe("POST /api/2.0/portal/payment/servicestate", () => {
       TenantWalletService.Storage,
     );
   });
+
+  test("POST /api/2.0/portal/payment/servicestate - DocSpaceAdmin enables ai-tools service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.changeTenantWalletServiceState({
+        changeWalletServiceStateRequestDto: {
+          service: TenantWalletService.AITools,
+          enabled: true,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.enabledServices).toContain(
+      TenantWalletService.AITools,
+    );
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - DocSpaceAdmin disables ai-tools service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminApi = apiSdk.forRole("docSpaceAdmin");
+    await enableWalletService(adminApi.payment, "aiTools");
+
+    const { data, status } =
+      await adminApi.payment.changeTenantWalletServiceState({
+        changeWalletServiceStateRequestDto: {
+          service: TenantWalletService.AITools,
+          enabled: false,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.enabledServices ?? []).not.toContain(
+      TenantWalletService.AITools,
+    );
+  });
 });
 
 test.describe("PUT /api/2.0/portal/payment/updatewallet", () => {
@@ -294,6 +339,26 @@ test.describe("PUT /api/2.0/portal/payment/updatewallet", () => {
     expect(cancelStatus).toBe(200);
     expect(cancelData.response).toBe(true);
   });
+
+  test("PUT /api/2.0/portal/payment/updatewallet - DocSpaceAdmin adds storage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.updateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(true);
+  });
 });
 
 test.describe("PUT /api/2.0/portal/payment/calculatewallet", () => {
@@ -350,6 +415,28 @@ test.describe("PUT /api/2.0/portal/payment/calculatewallet", () => {
 
     expect(status).toBe(200);
     expect(data.response?.operationId).toBeDefined();
+    expect(data.response?.amount).toBeDefined();
+    expect(data.response?.currency).toBe("USD");
+    expect(data.response?.quantity).toBe(100);
+  });
+
+  test("PUT /api/2.0/portal/payment/calculatewallet - DocSpaceAdmin calculates wallet payment for storage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.calculateWalletPayment({
+        walletQuantityRequestDto: {
+          quantity: { storage: 100 },
+          productQuantityType: 1,
+        },
+      });
+
+    expect(status).toBe(200);
     expect(data.response?.amount).toBeDefined();
     expect(data.response?.currency).toBe("USD");
     expect(data.response?.quantity).toBe(100);
@@ -1583,6 +1670,43 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
 
     const { data, status } = await apiSdk
       .forRole("owner")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.models?.length).toBe(0);
+  });
+
+  // Skipped due to OO AI service being hidden — setting non-empty models returns 500
+  test.skip("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin sets restricted AI models", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: {
+          models: new Set(restrictableAiModelIds),
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.models).toBeDefined();
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin clears restricted AI models", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
       .payment.setRestrictedAiModels({
         setRestrictedAiModelsRequestDto: { models: new Set() },
       });

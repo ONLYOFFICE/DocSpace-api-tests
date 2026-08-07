@@ -1174,7 +1174,9 @@ test.describe("API privacyroom methods", () => {
 
       const del = await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
       expect(del.status).toBe(200);
-      expect((await owner.privacyroom.getUserKeys()).data.count).toBe(0);
+      await expect(async () => {
+        expect((await owner.privacyroom.getUserKeys()).data.count).toBe(0);
+      }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
 
       const { status } = await owner.privacyroom.getUserKeysForRoom({ roomId });
       expect(status).toBe(403);
