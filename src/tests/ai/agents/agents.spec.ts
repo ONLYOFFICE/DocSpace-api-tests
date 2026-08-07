@@ -1,8 +1,15 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import {
+  FileShare,
+  RoomType,
+  RoomsApi,
+  SearchArea,
+} from "@onlyoffice/docspace-api-sdk";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
+import { AiProfiles } from "@/src/helpers/ai-profiles";
+import { ApiSDK } from "@/src/services/api-sdk";
 
 // Driven through AiAgentChat rather than the SDK's AgentsApi: the SDK still
 // points at `/internal/ai/integration/agents`, which nginx answers with 405.
@@ -13,6 +20,12 @@ import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 //     GET /ai/profiles/list via a `profileId` UUID.
 //   * create takes a flat `prompt`; update takes a nested `chatSettings.prompt`.
 //   * errors are `{"error":"..."}` — no `statusCode`, no `error.message`.
+
+/**
+ * A well-formed UUID that is not in the profile catalogue. `threads/create`
+ * answers 404 for it (see chat.spec.ts); the agent routes do not.
+ */
+const UNKNOWN_PROFILE_ID = "019ed118-0000-0000-0000-0000000000ff";
 
 test.describe("POST /ai/agents - Create AI agent", () => {
   test("POST /ai/agents - Owner creates an agent", async ({
@@ -106,14 +119,132 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
-    const { status, error } = await aiChat.createAgent("owner", {
-      title: "Autotest Invalid Profile Agent",
-      profileId: "invalid-nonexistent-profile-123",
+    // The control comes first: it is what makes the empty reads below mean
+    // "nothing was created" rather than "this portal shows nothing", and its
+    // parentId is the only way to learn the id of the AI area an orphaned room
+    // would sit in.
+    const controlId = await aiChat.createAgentId("owner", {
+      title: "Autotest Control Agent",
+      profileId: await aiChat.defaultProfileId("owner"),
+    });
+    const aiRootId = await aiAreaId(ownerApi, controlId);
+
+    // An empty string is a string, so it clears the "required" check above and
+    // lands on the format one — same 400, different message than a missing key.
+    for (const [label, badProfileId] of [
+      ["an id that is not a UUID", "invalid-nonexistent-profile-123"],
+      ["an empty id", ""],
+    ]) {
+      const { status, error } = await aiChat.createAgent("owner", {
+        title: `Autotest Invalid Profile Agent - ${label}`,
+        profileId: badProfileId,
+        prompt: "You are a test assistant",
+      });
+
+      expect(error, label).toBe("profileId must be a UUID");
+      expect(status, label).toBe(400);
+    }
+
+    // A refused create builds nothing: no agent record, and no room in the AI
+    // area either — an agent is a room with Knowledge and Result Storage
+    // folders in it, so a half-finished one would be visible as a room even if
+    // the agents list never learned about it.
+    expect(
+      (await aiChat.getAgents("owner")).data?.response?.folders?.map(
+        (agent) => agent.id,
+      ),
+      "only the control agent exists",
+    ).toEqual([controlId]);
+    expect(
+      await roomsInAiArea(ownerApi, aiRootId),
+      "no room was left in the AI area",
+    ).toEqual([]);
+
+    // Positive control for that second read: it does report a room when there
+    // is one. (Agents made through /ai/agents are not children of this folder —
+    // rooms made with roomType 9 through the rooms API are, and an orphan of a
+    // half-done create is exactly the shape that would land here.)
+    const { data: stray } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Control AI Room",
+        roomType: RoomType.AiRoom,
+      },
+    });
+    expect(await roomsInAiArea(ownerApi, aiRootId)).toEqual([
+      stray.response!.id!,
+    ]);
+  });
+
+  // The catalogue is the only place an agent's model may come from, and the
+  // format check above is the only one there is: a well-formed UUID of no
+  // profile is accepted. Measured 2026-08-06 — what it builds is not a stub but
+  // a whole agent minus its model: roomType 9, both storage folders, listed in
+  // /ai/agents, and an assignment scope of `{}` (not even the portal-wide
+  // fallback an ordinary room gets), so a chat in it quietly runs on the portal
+  // Default. The same half-built object POST /files/rooms with roomType 9
+  // produces — see chat.spec.ts, "an AI room created through the rooms API" —
+  // reached through the agent factory itself.
+  //
+  // A well-formed unknown id is a dangling reference, which is not the same
+  // thing as a profile that was deleted after an agent was built on it: that
+  // lifecycle cannot be staged here, because the gateway catalogue is read-only
+  // (profiles/delete is 403 even for the Owner) and may well leave state of its
+  // own behind. Only the dangling-reference half is covered.
+  test("BUG XXXXX: POST /ai/agents - Owner cannot create an agent on a profile that is not in the catalogue", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // Control: the same call with a profile the catalogue does have returns an
+    // id and shows up in the list, so what is read below is about the unknown
+    // profile and not about the shape of the response.
+    const controlId = await aiChat.createAgentId("owner", {
+      title: "Autotest Control Agent",
+      profileId: await aiChat.defaultProfileId("owner"),
+    });
+    expect(
+      await storageFolders(ownerApi, controlId),
+      "a whole agent has both storage folders",
+    ).toEqual(["Knowledge", "Result Storage"]);
+
+    const created = await aiChat.createAgent("owner", {
+      title: "Autotest Unknown Profile Agent",
+      profileId: UNKNOWN_PROFILE_ID,
       prompt: "You are a test assistant",
     });
 
-    expect(error).toBe("profileId must be a UUID");
-    expect(status).toBe(400);
+    // Everything the create may have left behind, gathered the same way whether
+    // it was accepted or refused: an id it did not return cannot be read, and
+    // that absence is the passing shape.
+    const agentId = created.data?.response?.id;
+    const listed =
+      (await aiChat.getAgents("owner")).data?.response?.folders?.map(
+        (agent) => agent.id,
+      ) ?? [];
+    const room = agentId
+      ? (await ownerApi.rooms.getRoomInfo({ id: agentId })).status
+      : "no room to read";
+    const folders = agentId ? await storageFolders(ownerApi, agentId) : [];
+    const scope = agentId
+      ? (await profiles.getAllAssignments("owner", agentId)).data
+      : undefined;
+
+    test.fail();
+    expect(
+      { id: agentId, listed, room, folders, scope },
+      "a create on a profileId the catalogue does not have leaves nothing behind",
+    ).toEqual({
+      id: undefined,
+      listed: [controlId],
+      room: "no room to read",
+      folders: [],
+      scope: undefined,
+    });
   });
 
   test("POST /ai/agents - Owner cannot create an agent without a profileId", async ({
@@ -755,3 +886,281 @@ test.describe("PUT /ai/agents/:id - Update AI agent", () => {
     expect(response.status()).toBe(200);
   });
 });
+
+// An agent's model is the one thing about it a client cannot pick per message —
+// the composer hides the picker and draws the agent's own profile instead — so
+// every update has to leave the binding either intact or pointed at another
+// catalogue profile. There is no third valid outcome, and "no model at all" is
+// the one this endpoint can reach.
+test.describe("PUT /ai/agents/:id - the agent's profile binding", () => {
+  test("PUT /ai/agents/:id - an update that leaves profileId out keeps the agent's model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // A client that only renames an agent sends no profileId, and the binding
+    // has to survive that. Both places a composer reads the model from are
+    // checked, because they are stored separately and only agree by contract.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Bound Agent",
+      profileId,
+      prompt: "Original prompt",
+    });
+
+    const { status } = await aiChat.updateAgent("owner", agentId, {
+      title: "Autotest Renamed Agent",
+    });
+    expect(status).toBe(200);
+
+    const info = await aiChat.getAgentInfo("owner", agentId);
+    // The update really ran — otherwise "the model is unchanged" would be true
+    // of a request the API ignored.
+    expect(info.data?.response?.title).toBe("Autotest Renamed Agent");
+    expect(info.data?.response?.profileId).toBe(profileId);
+    expect(
+      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+    ).toBe(profileId);
+  });
+
+  test("PUT /ai/agents/:id - a malformed profileId is refused and the agent keeps its model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Bound Agent",
+      tags: ["original-tag"],
+      profileId,
+      prompt: "Original prompt",
+    });
+
+    for (const [label, badProfileId] of [
+      ["an id that is not a UUID", "autotest-not-a-profile"],
+      ["an empty id", ""],
+    ]) {
+      // Everything else in the request is valid, so a partial write would show
+      // as a renamed, re-tagged, re-prompted agent behind the 400.
+      const { status, error } = await aiChat.updateAgent("owner", agentId, {
+        title: "Autotest Renamed Agent",
+        tags: ["updated-tag"],
+        profileId: badProfileId,
+        prompt: "Updated prompt",
+      });
+
+      expect(error, label).toBe("profileId must be a UUID");
+      expect(status, label).toBe(400);
+
+      const info = await aiChat.getAgentInfo("owner", agentId);
+      expect(
+        {
+          title: info.data?.response?.title,
+          tags: info.data?.response?.tags,
+          prompt: info.data?.response?.chatSettings?.prompt,
+          profileId: info.data?.response?.profileId,
+          chat: (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+        },
+        `${label}: a refused update writes none of the request`,
+      ).toEqual({
+        title: "Autotest Bound Agent",
+        tags: ["original-tag"],
+        prompt: "Original prompt",
+        profileId,
+        chat: profileId,
+      });
+    }
+  });
+
+  // Measured 2026-08-06: this answers 200 and writes the request in halves. The
+  // title, the tags and the prompt all land, while the model is not replaced but
+  // *erased* — the agent record loses its `profileId` and its assignment scope
+  // goes back to `{}`. So a plain rename that happened to carry a stale id
+  // leaves an agent with no model at all, and the composer has nothing to show
+  // where the fixed model used to be. Either the whole request is refused or
+  // none of it is written; a half-applied PUT is neither.
+  //
+  // Threads made before the update are the one thing that survives — each keeps
+  // the profile it was stamped with — so the damage is to new conversations.
+  test("BUG XXXXX: PUT /ai/agents/:id - an unknown profileId is written in halves: the rename lands and the model is erased", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Bound Agent",
+      tags: ["original-tag"],
+      profileId,
+      prompt: "Original prompt",
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread from before the update",
+      profileId,
+      agentId,
+    });
+
+    // Setup premise: the agent really is bound before the update, so what is
+    // read after it can only have come from the update.
+    expect(
+      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      "the agent is bound to a catalogue profile",
+    ).toBe(profileId);
+
+    await aiChat.updateAgent("owner", agentId, {
+      title: "Autotest Renamed Agent",
+      tags: ["updated-tag"],
+      profileId: UNKNOWN_PROFILE_ID,
+      prompt: "Updated prompt",
+    });
+
+    const info = await aiChat.getAgentInfo("owner", agentId);
+    const scope = await profiles.getAllAssignments("owner", agentId);
+    const thread = await aiChat.getThread("owner", threadId);
+
+    test.fail();
+    expect(
+      {
+        title: info.data?.response?.title,
+        tags: info.data?.response?.tags,
+        prompt: info.data?.response?.chatSettings?.prompt,
+        profileId: info.data?.response?.profileId,
+        chat: scope.data?.Chat,
+        thread: thread.data?.profileId,
+      },
+      "an update that cannot take the new model writes none of itself",
+    ).toEqual({
+      title: "Autotest Bound Agent",
+      tags: ["original-tag"],
+      prompt: "Original prompt",
+      profileId,
+      chat: profileId,
+      thread: profileId,
+    });
+  });
+});
+
+// The third way a room-shaped object comes into being. If an agent could be
+// templated, a room made from that template would be an agent-shaped room whose
+// profile nothing guarantees — the rooms-API path all over again. It cannot:
+// the call is accepted and the operation settles without producing anything.
+test.describe("POST /files/roomtemplate - an agent as a template source", () => {
+  test("POST /files/roomtemplate - an agent cannot be turned into a room template", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Template Source Agent",
+      profileId: await aiChat.defaultProfileId("owner"),
+      prompt: "Original prompt",
+    });
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Template Source Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    // The call itself answers 200 — that it does so for a source it will not
+    // template is the already-pinned BUG 81691 family in rooms.spec.ts, so what
+    // is asserted here is only what did or did not get made.
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: { roomId: agentId, title: "Autotest Agent Template" },
+    });
+
+    // Let the attempt settle before the control starts: the creating status is
+    // a single per-user slot.
+    await expect(async () => {
+      const { data } = await ownerApi.rooms.getRoomTemplateCreatingStatus();
+      expect(data.response?.isCompleted).toBe(true);
+    }).toPass({ intervals: [1000, 2000, 5000], timeout: 30000 });
+
+    // Positive control: the same call on an ordinary room does produce a
+    // template, so the absence below is about the agent and not about templates
+    // being off on this portal.
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: room.response!.id!,
+        title: "Autotest Room Template",
+      },
+    });
+    await expect(async () => {
+      expect(await templateTitles(ownerApi.rooms)).toContain(
+        "Autotest Room Template",
+      );
+    }).toPass({ intervals: [1000, 2000, 5000], timeout: 30000 });
+
+    expect(await templateTitles(ownerApi.rooms)).not.toContain(
+      "Autotest Agent Template",
+    );
+  });
+});
+
+type OwnerApi = ReturnType<ApiSDK["forRole"]>;
+
+/**
+ * The AI area an agent's room sits in, read off an existing agent — the API
+ * publishes no route for the folder id itself.
+ *
+ * Measured 2026-08-06: agents made through POST /ai/agents are NOT children of
+ * it (they answer only to /ai/agents), while a roomType 9 room made through the
+ * rooms API is. The two listings are complements of each other, which is why an
+ * atomicity check has to read both.
+ */
+async function aiAreaId(api: OwnerApi, agentId: number): Promise<number> {
+  const { data, status } = await api.rooms.getRoomInfo({ id: agentId });
+  const parentId = (data.response as { parentId?: number })?.parentId;
+
+  if (status !== 200 || parentId === undefined) {
+    throw new Error(
+      `getRoomInfo(${agentId}) gave no parentId: ${status} ${JSON.stringify(data)}`,
+    );
+  }
+  return parentId;
+}
+
+async function roomsInAiArea(
+  api: OwnerApi,
+  aiRootId: number,
+): Promise<number[]> {
+  const { data } = await api.folders.getFolders({ folderId: aiRootId });
+  return ((data.response ?? []) as Array<{ id?: number }>).map(
+    (folder) => folder.id!,
+  );
+}
+
+/** The folders an agent is built with: Knowledge and Result Storage. */
+async function storageFolders(
+  api: OwnerApi,
+  agentId: number,
+): Promise<string[]> {
+  const { data } = await api.folders.getFolders({ folderId: agentId });
+  return ((data.response ?? []) as Array<{ title?: string }>)
+    .map((folder) => folder.title ?? "")
+    .sort();
+}
+
+async function templateTitles(rooms: RoomsApi): Promise<string[]> {
+  const { data } = await rooms.getRoomsFolder({
+    searchArea: SearchArea.Templates,
+  });
+  return (data.response?.folders ?? []).map(
+    (folder) => (folder as { title?: string }).title ?? "",
+  );
+}

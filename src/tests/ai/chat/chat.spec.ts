@@ -2504,6 +2504,117 @@ test.describe("AI Chat - the model of an agent room", () => {
     });
   }
 
+  // The catalogue an agent's model is picked from has image profiles in it, and
+  // the agent factory takes one without a word. What comes out is an agent
+  // nobody can talk to: the model refuses every turn with `model_not_found`,
+  // "400 model is not a chat model" — the same refusal the image block further
+  // down measures from a room, except that in a room the user picked the profile
+  // and can pick another one, while in an agent the model is fixed and the
+  // picker is hidden. Every conversation in such an agent is dead on arrival.
+  test("BUG XXXXX: POST /api/2.0/ai/agents - an agent can be built on an image profile and then cannot chat at all", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const imageProfile = AiProfiles.byCapabilities(
+      await profiles.catalogue("owner"),
+      AI_CAPS.imageOnly,
+    );
+
+    const created = await aiChat.createAgent("owner", {
+      title: "Autotest Image Model Agent",
+      profileId: imageProfile.id,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+
+    // Everything below runs only while the create is accepted, so a fix that
+    // refuses it reports an unexpected pass instead of failing on setup.
+    const agentId = created.data?.response?.id;
+    let chatFailedWith: string | undefined;
+
+    if (agentId) {
+      expect(
+        (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+        "the image profile really is what the agent is bound to",
+      ).toBe(imageProfile.id);
+
+      const threadId = await aiChat.createThreadId("owner", {
+        title: "Autotest image agent thread",
+        profileId: imageProfile.id,
+        agentId,
+      });
+      // Sent the way a client with a hidden picker sends: no profileId, so the
+      // model is whatever the agent was built on.
+      await aiChat.sendMessage("owner", {
+        threadId,
+        agentId,
+        message: "Reply with the single word OK.",
+      });
+      const reply = AiAgentChat.assistantMessages(
+        await aiChat.waitForAssistantReply("owner", threadId),
+      )[0];
+      chatFailedWith = reply?.status?.error?.code;
+    }
+
+    test.fail();
+    expect(
+      { agentCreated: agentId !== undefined, chatFailedWith },
+      "an agent is not built on a model that cannot hold a conversation",
+    ).toEqual({ agentCreated: false, chatFailedWith: undefined });
+  });
+
+  // The same hole on the other endpoint, and the one that matters even after
+  // the create is fixed: a working agent, built on a text model and already in
+  // use, is moved onto the image profile by an ordinary update. It is accepted,
+  // both reads of the model follow it, and from then on the agent answers
+  // nothing — see the test above for what a chat in it looks like.
+  test("BUG XXXXX: PUT /api/2.0/ai/agents/{id} - a working agent can be moved onto an image profile", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [textProfile] = twoTextProfiles(catalogue);
+    const imageProfile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.imageOnly,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Capability Agent",
+      profileId: textProfile.id,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+
+    // Setup premise: the agent is on a model that can chat before the update.
+    expect(
+      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      "the agent starts on a text profile",
+    ).toBe(textProfile.id);
+
+    await aiChat.updateAgent("owner", agentId, {
+      title: "Autotest Capability Agent",
+      profileId: imageProfile.id,
+    });
+
+    const info = await aiChat.getAgentInfo("owner", agentId);
+    const scope = await profiles.getAllAssignments("owner", agentId);
+
+    test.fail();
+    expect(
+      { profileId: info.data?.response?.profileId, chat: scope.data?.Chat },
+      "an agent is not moved onto a model that cannot hold a conversation",
+    ).toEqual({ profileId: textProfile.id, chat: textProfile.id });
+  });
+
   test("BUG 82895: GET /api/2.0/ai/assignments/* - the scope of an agent the caller is not in returns 500", async ({
     apiSdk,
     paymentsApi,
