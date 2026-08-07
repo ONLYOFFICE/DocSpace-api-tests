@@ -2389,7 +2389,7 @@ test.describe("AI Chat - the model of an agent room", () => {
     { label: "Owner", role: "owner", type: undefined },
     { label: "a member", role: "user", type: "User" },
   ] as Array<{ label: string; role: AgentRole; type?: UserType }>) {
-    test(`BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - ${label} can override the fixed model of an agent room`, async ({
+    test(`BUG 82914: POST /api/2.0/ai/ai/send-with-stream - ${label} can override the fixed model of an agent room`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -2449,7 +2449,7 @@ test.describe("AI Chat - the model of an agent room", () => {
       ).not.toBe(second.id);
     });
 
-    test(`BUG XXXXX: POST /api/2.0/ai/threads/create - ${label} can start a thread in an agent room on another model`, async ({
+    test(`BUG 82915: POST /api/2.0/ai/threads/create - ${label} can start a thread in an agent room on another model`, async ({
       apiSdk,
       paymentsApi,
     }) => {
