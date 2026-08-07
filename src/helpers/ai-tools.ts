@@ -25,10 +25,46 @@ import { AiHttp, AgentRole } from "./ai-http";
 // through get-custom-server but missing from list-custom-servers — see
 // the room-scope block of mcp/mcp.spec.ts.
 //
+// Reads and writes disagree about what a valid `entityId` is. A read accepts
+// anything and falls back to the portal scope when the entity is unknown or
+// already deleted; `add-custom-server` and `replace-all-custom-servers` answer a
+// hard 404 instead, and `remove-custom-server` validates nothing at all and
+// reports `{success:true}`. An agent nobody invited the caller to is 403 on every
+// route, reads included.
+//
+// This is the ONLY place MCP servers live. `/ai/agents` has no servers field: an
+// `mcpServers` map in the create/update body is dropped like any unknown field,
+// `attachDefaultTools` (the SDK's one MCP-shaped agent field) leaves no
+// observable trace, and no agent edit disturbs the map. See the agent-body block
+// of mcp/mcp.spec.ts.
+//
 // Error style is mixed and matters for assertions: most failures come back as
-// HTTP 200 with `{success:false, error:{field, message}}`, while a missing
-// `config` on add is a real 400. Assert `data.success` / `data.error.message`,
-// not just the status.
+// HTTP 200 with `{success:false, error:{field, message}}` — `replace-all` uses
+// `errors: [{name, error}]` and rejects the whole map atomically. Assert
+// `data.success` / `data.error.message`, not just the status. The hard 400s are
+// the exceptions: a name over 128 characters or made only of whitespace, and any
+// `config` the binder reads as absent — `{}`, `null`, a number, or nothing at all
+// — which is also the "copy the portal-level server of this name into this
+// entity" path when such a server does exist.
+//
+// A stored config is whatever was sent, minus nothing, as long as it is an object
+// carrying `url` (HTTP) or `command` (stdio); update replaces it wholesale rather
+// than merging.
+//
+// Names are the map keys and carry most of the sharp edges. `_` is banned
+// anywhere in a name ("reserved for tool-token format" — the engine addresses a
+// tool as `server_tool`, e.g. `docspace_generate_docx`). The duplicate check is
+// case-insensitive while the key keeps its original casing, names are not trimmed
+// and not Unicode-normalised, and 128 characters is the cap. Open bugs, all in
+// the names block of mcp/mcp.spec.ts: `/`, `.` and `..` register and list but are
+// unreachable by name afterwards; an emoji answers 500; `constructor`/`toString`
+// are refused as if their config were broken, which is what gives away that the
+// map is a bare JS object; and `replace-all` skips the duplicate check, storing
+// two case-variants of one name of which only one can ever be read.
+//
+// Nothing here reaches the model. A real, credentialed, reachable MCP server
+// registered on an agent is not offered to it — see the conversation block of
+// mcp/mcp.spec.ts.
 
 export type McpToolDto = {
   name?: string;
@@ -72,11 +108,17 @@ export class AiTools extends AiHttp {
     );
   }
 
-  listSystemTools(role: AgentRole) {
+  /**
+   * The built-in tool catalogue. `agentId` maps to the `entityId` the SDK
+   * declares as REQUIRED on this route — and passing it answers `{}` instead of
+   * the catalogue, so the SDK's own signature cannot list anything. See the
+   * scoped-catalogue bug in mcp/mcp.spec.ts.
+   */
+  listSystemTools(role: AgentRole, agentId?: number | string) {
     return this.call<Record<string, McpToolDto[]>>(
       role,
       "get",
-      "/api/2.0/ai/tools/list-system-tools",
+      `/api/2.0/ai/tools/list-system-tools${this.scope(agentId)}`,
     );
   }
 
