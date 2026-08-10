@@ -36,9 +36,8 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner updates TFA settings", () =>
 
   // Docs: PUT /settings/tfaapp returns 405 "SMS settings are not available"
   // when no SMS provider is configured. Live API returns 403 instead.
-  // TODO: add bug number once filed.
   test.fail(
-    "BUG TBD: PUT /api/2.0/settings/tfaapp - should return 405 when no SMS provider is configured, but API returns 403",
+    "BUG 82970: PUT /api/2.0/settings/tfaapp - should return 405 when no SMS provider is configured, but API returns 403",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -117,9 +116,10 @@ test.describe("PUT /api/2.0/settings/tfaapp - Enabling TFA App invalidates the c
 
 test.describe("GET /api/2.0/settings/tfaapp/setup - Owner generates a TFA app setup code", () => {
   // Docs: 405 "TFA application settings are not available" when TFA App is
-  // disabled. Live API returns 403 instead. TODO: add bug number once filed.
+  // disabled. Live API returns 403 instead - here with an empty body, unlike
+  // the other doc-mismatch cases below, which return the exception message.
   test.fail(
-    "BUG TBD: GET /api/2.0/settings/tfaapp/setup - should return 405 while TFA App is disabled, but API returns 403",
+    "BUG 82972: GET /api/2.0/settings/tfaapp/setup - should return 405 while TFA App is disabled, but API returns 403",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -161,9 +161,9 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - Owner updates TFA settings
   });
 
   // Docs: 405 "SMS settings are not available" when no SMS provider is
-  // configured. Live API returns 403 instead. TODO: add bug number once filed.
+  // configured. Live API returns 403 instead.
   test.fail(
-    "BUG TBD: PUT /api/2.0/settings/tfaappwithlink - should return 405 when no SMS provider is configured, but API returns 403",
+    "BUG 82974: PUT /api/2.0/settings/tfaappwithlink - should return 405 when no SMS provider is configured, but API returns 403",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -225,9 +225,9 @@ test.describe("GET+PUT /api/2.0/settings/tfaappcodes|tfaappnewcodes - Owner mana
   });
 
   // Docs: 405 "TFA application settings are not available" when TFA App is
-  // disabled. Live API returns 403 instead. TODO: add bug number once filed.
+  // disabled. Live API returns 403 instead.
   test.fail(
-    "BUG TBD: GET /api/2.0/settings/tfaappcodes - should return 405 while TFA App is disabled, but API returns 403",
+    "BUG 82976: GET /api/2.0/settings/tfaappcodes - should return 405 while TFA App is disabled, but API returns 403",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -237,9 +237,9 @@ test.describe("GET+PUT /api/2.0/settings/tfaappcodes|tfaappnewcodes - Owner mana
     },
   );
 
-  // Same doc/behavior mismatch as above. TODO: add bug number once filed.
+  // Same doc/behavior mismatch as above.
   test.fail(
-    "BUG TBD: PUT /api/2.0/settings/tfaappnewcodes - should return 405 while TFA App is disabled, but API returns 403",
+    "BUG 82978: PUT /api/2.0/settings/tfaappnewcodes - should return 405 while TFA App is disabled, but API returns 403",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -272,9 +272,9 @@ test.describe("GET+PUT /api/2.0/settings/tfaappcodes|tfaappnewcodes - Owner mana
 
 test.describe("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks another user's TFA app", () => {
   // Docs: 405 "TFA application settings are not available" when TFA App is
-  // disabled. Live API returns 403 instead. TODO: add bug number once filed.
+  // disabled. Live API returns 403 instead.
   test.fail(
-    "BUG TBD: PUT /api/2.0/settings/tfaappnewapp - should return 405 while TFA App is disabled, but API returns 403",
+    "BUG 82983: PUT /api/2.0/settings/tfaappnewapp - should return 405 while TFA App is disabled, but API returns 403",
     async ({ apiSdk }) => {
       const created = await apiSdk.addMember("owner", "User");
       const userId = created.data.response!.id!;
