@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { TfaRequestsDtoType } from "@onlyoffice/docspace-api-sdk";
 import { enableTfaApp, linkTfaApp, resetTfaAfterTest } from "@/src/helpers/tfa";
+import config from "@/config";
 
 test.afterEach(async ({ apiSdk }) => {
   await resetTfaAfterTest(apiSdk);
@@ -46,6 +47,108 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner updates TFA settings", () =>
         });
 
       expect(status).toBe(405);
+    },
+  );
+});
+
+test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values", () => {
+  test("PUT /api/2.0/settings/tfaapp - an out-of-range type is ignored, not applied", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: { type: 99 as TfaRequestsDtoType },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/settings/tfaapp - a non-existent mandatoryUsers id is ignored, not applied", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: {
+          type: TfaRequestsDtoType.None,
+          mandatoryUsers: ["00000000-0000-0000-0000-000000000000"],
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/settings/tfaapp - a non-existent mandatoryGroups id is ignored, not applied", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: {
+          type: TfaRequestsDtoType.None,
+          mandatoryGroups: ["00000000-0000-0000-0000-000000000000"],
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response).toBe(false);
+  });
+
+  test("PUT /api/2.0/settings/tfaapp - a malformed mandatoryUsers id is rejected with a validation error", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: {
+          type: TfaRequestsDtoType.None,
+          mandatoryUsers: ["not-a-guid"],
+        },
+      });
+
+    expect(status).toBe(400);
+    expect(
+      (data as any).response?.errors?.["$.mandatoryUsers[0]"],
+    ).toBeTruthy();
+  });
+
+  // BUG TBD: a malformed trustedIps entry is accepted with no format
+  // validation (200) and stored as-is. Every subsequent login attempt by any
+  // user on the portal then crashes with 500 (System.FormatException) when
+  // TfaEnabledForUserAsync tries to parse it as an IP. Confirmed: strings with
+  // no IP shape at all (e.g. "not-an-ip") crash it; a numeric-but-out-of-range
+  // string ("999.999.999.999") does not.
+  //
+  // This test's portal can't be cleaned up afterwards: resetTfaAfterTest's own
+  // recovery login hits the exact same crash, since the bad trustedIps entry
+  // is still there. That's the bug demonstrating itself, not a regression.
+  test.fail(
+    "BUG TBD: a malformed trustedIps entry should be rejected or ignored, not crash every subsequent login with 500",
+    async ({ apiSdk }) => {
+      const enable = await apiSdk
+        .forRole("owner")
+        .tfaSettings.updateTfaSettings({
+          tfaRequestsDto: {
+            type: TfaRequestsDtoType.App,
+            trustedIps: ["not-an-ip"],
+          },
+        });
+      expect(enable.status).toBe(200);
+
+      const { status } = await apiSdk
+        .forRole("owner")
+        .authentication.authenticateMe({
+          authRequestsDto: {
+            userName: config.DOCSPACE_OWNER_EMAIL,
+            password: config.DOCSPACE_OWNER_PASSWORD,
+            session: true,
+          },
+        });
+
+      expect(status).toBe(200);
     },
   );
 });
@@ -286,6 +389,28 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks another user's
       expect(status).toBe(405);
     },
   );
+
+  test("PUT /api/2.0/settings/tfaappnewapp - a malformed id is rejected with a validation error", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: "not-a-guid" } });
+
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.["$.id"]).toBeTruthy();
+  });
+
+  test("PUT /api/2.0/settings/tfaappnewapp - an empty id is rejected with a validation error", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: "" } });
+
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.["$.id"]).toBeTruthy();
+  });
 
   test("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks a TFA app previously linked by another user", async ({
     apiSdk,
