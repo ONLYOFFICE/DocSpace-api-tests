@@ -260,12 +260,26 @@ export class AiAgentChat extends AiHttp {
       tags?: string[];
       color?: string;
       cover?: string;
+      /**
+       * "Attach the default DocSpace MCP tool server" per the SDK's own
+       * AiAgentsCreateRequest. Accepted in every spelling and, as of 2026-08-07,
+       * with no observable effect — see the agent-body block of mcp/mcp.spec.ts.
+       */
+      attachDefaultTools?: boolean;
+      /**
+       * Extra body fields, for the tests that send what the composer does not —
+       * e.g. an `mcpServers` map, to pin that the agent body is not where MCP
+       * servers are stored.
+       */
+      extra?: Record<string, unknown>;
     },
   ) {
+    const { extra, ...rest } = body;
     return this.call<Envelope<AgentDto>>(role, "post", "/api/2.0/ai/agents", {
       color: "FF5733",
       cover: "layers",
-      ...body,
+      ...rest,
+      ...extra,
     });
   }
 
@@ -299,9 +313,11 @@ export class AiAgentChat extends AiHttp {
       tags?: string[];
       profileId?: string;
       prompt?: string;
+      /** Raw extra body fields — see `createAgent`. Overrides the above. */
+      extra?: Record<string, unknown>;
     },
   ) {
-    const { prompt, ...rest } = body;
+    const { prompt, extra, ...rest } = body;
     return this.call<Envelope<AgentDto>>(
       role,
       "put",
@@ -309,6 +325,7 @@ export class AiAgentChat extends AiHttp {
       {
         ...rest,
         ...(prompt === undefined ? {} : { chatSettings: { prompt } }),
+        ...extra,
       },
     );
   }

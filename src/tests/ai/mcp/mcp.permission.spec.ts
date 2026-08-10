@@ -9,27 +9,31 @@ import { ApiSDK, UserType } from "@/src/services/api-sdk";
 import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
 
 // Measured on an agent the member has been invited to (ContentCreator, except
-// Guest which tops out at Read). Every one of the twelve `/ai/tools/*` routes
+// Guest which tops out at Read). Every one of the thirteen `/ai/tools/*` routes
 // is covered, for every role:
 //
-//                        owner  DSAdmin  RoomAdmin  User  Guest  anon
-//   list-system-tools      200    200      200      200    200   401
-//   list-custom-servers    200    200      200      200    403   401
-//   get-custom-server      200    200      200      200    403   401
-//   get-disabled           200    200      200      200    403   401
-//   is-tool-disabled       200    200      200      200    403   401
-//   get-allow-always       200    200      200      200    403   401
-//   is-allow-always        200    200      200      200    403   401
-//   set-disabled           200    200      200      200    403   401
-//   set-allow-always       200    200      200      200    403   401
-//   add-custom-server      200    200      403      403    403   401
-//   update-custom-server   200    200      403      403    403   401
-//   remove-custom-server   200    200      403      403    403   401
+//                            owner  DSAdmin  RoomAdmin  User  Guest  anon
+//   list-system-tools          200    200      200      200    200   401
+//   list-custom-servers        200    200      200      200    403   401
+//   get-custom-server          200    200      200      200    403   401
+//   get-disabled               200    200      200      200    403   401
+//   is-tool-disabled           200    200      200      200    403   401
+//   get-allow-always           200    200      200      200    403   401
+//   is-allow-always            200    200      200      200    403   401
+//   set-disabled               200    200      200      200    403   401
+//   set-allow-always           200    200      200      200    403   401
+//   add-custom-server          200    200      403      403    403   401
+//   update-custom-server       200    200      403      403    403   401
+//   remove-custom-server       200    200      403      403    403   401
+//   replace-all-custom-servers 200    200      403      403    403   401
 //
 // So registering MCP servers is admin-only, while reading them and toggling
 // individual tools is open to any non-guest member. `list-system-tools` is the
 // only route with no membership requirement at all — but it still needs a
 // session, so anonymous is 401 across the board.
+//
+// A DocSpaceAdmin's 200s are membership, not rank: the same admin outside the
+// agent is 403 on every route, reads included — see the last block of this file.
 //
 // The Guest column measures "Guest at Read", not "Guest": the agent room caps
 // Guests at Read and Read cannot use the agent, so the two cannot be separated
@@ -189,6 +193,23 @@ const MANAGE_OPS: ManageOp[] = [
       } else {
         expect(Object.keys(list)).toContain(OWNERS_SERVER);
       }
+    },
+  },
+  {
+    // The bulk route rewrites a whole scope in one call, so it is the most
+    // damaging thing a member could be allowed to do by accident — and it was
+    // missing from this matrix while the twelve single-server routes were covered.
+    label: "PUT /api/2.0/ai/tools/replace-all-custom-servers",
+    run: (tools, role, agentId) =>
+      tools.replaceAllCustomServers(role, {
+        map: { [`${role}-replaced`]: UPDATED_CONFIG },
+        agentId,
+      }),
+    verify: async (tools, role, agentId, allowed) => {
+      const { data: list } = await tools.listCustomServers("owner", agentId);
+      expect(Object.keys(list)).toEqual(
+        allowed ? [`${role}-replaced`] : [OWNERS_SERVER],
+      );
     },
   },
 ];
@@ -447,6 +468,13 @@ test.describe("MCP - Anonymous access", () => {
       "remove-custom-server",
       (t) => t.removeCustomServer("anonymous", { name: OWNERS_SERVER }),
     ],
+    [
+      "replace-all-custom-servers",
+      (t) =>
+        t.replaceAllCustomServers("anonymous", {
+          map: { "anon-server": SERVER_CONFIG },
+        }),
+    ],
   ];
 
   for (const [label, call] of ANONYMOUS_CALLS) {
@@ -607,6 +635,287 @@ test.describe("MCP - Custom server validation", () => {
 
     expect(status).toBe(200);
     expect(Object.keys(data)).toContain("portal-server");
+  });
+
+  test("POST|PUT|DELETE /api/2.0/ai/tools/*-custom-server - an unknown agent id is a 404 for writes", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The reads above fall back to the portal scope; the writes do not follow
+    // them there. `add` and `replace-all` answer a hard 404 and leave the portal
+    // scope alone — `remove` is the exception that validates nothing at all and
+    // reports success for an entity that does not exist.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    await aiTools.addCustomServer("owner", {
+      name: "portal-server",
+      config: SERVER_CONFIG,
+    });
+
+    const added = await aiTools.addCustomServer("owner", {
+      name: "unknown-entity-server",
+      config: UPDATED_CONFIG,
+      agentId: 999999999,
+    });
+    const replaced = await aiTools.replaceAllCustomServers("owner", {
+      map: { "unknown-entity-server": UPDATED_CONFIG },
+      agentId: 999999999,
+    });
+    const removed = await aiTools.removeCustomServer("owner", {
+      name: "portal-server",
+      agentId: 999999999,
+    });
+
+    const { data: portal } = await aiTools.listCustomServers("owner");
+    expect(portal, "the portal scope is neither written nor emptied").toEqual({
+      "portal-server": SERVER_CONFIG,
+    });
+
+    expect(added.error).toBe("Not Found");
+    expect(added.status).toBe(404);
+    expect(replaced.error).toBe("Not Found");
+    expect(replaced.status).toBe(404);
+    expect(removed.data?.success).toBe(true);
+    expect(removed.status).toBe(200);
+  });
+
+  test("GET /api/2.0/ai/tools/get-custom-server - an unregistered name answers 200 with null", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Not a 404 and not an error envelope — a bare `null` body. Worth pinning
+    // because "the server is gone" is asserted this way all over this suite.
+    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
+
+    await aiTools.addCustomServer("owner", {
+      name: "registered-server",
+      config: SERVER_CONFIG,
+      agentId,
+    });
+
+    const missing = await aiTools.getCustomServer(
+      "owner",
+      "never-existed",
+      agentId,
+    );
+    const present = await aiTools.getCustomServer(
+      "owner",
+      "registered-server",
+      agentId,
+    );
+
+    expect(missing.data).toBeNull();
+    expect(missing.status).toBe(200);
+    // Positive control: the same call does return a config when there is one.
+    expect(present.data).toEqual(SERVER_CONFIG);
+  });
+});
+
+test.describe("MCP - Custom server config validation", () => {
+  // The config is stored transport-agnostically, but not blindly: it has to be an
+  // object carrying `url` (HTTP) or `command` (stdio). The refusals split two
+  // ways, and the split is the point of these tests — anything the binder reads
+  // as "no config at all" is a hard 400 with the portal-fallback message, while a
+  // config that is present but unusable is the usual soft `{success:false}`.
+  for (const { name, config, message } of [
+    {
+      name: "an object naming no transport",
+      config: { foo: 1 },
+      message:
+        "Server config requires either 'url' (HTTP) or 'command' (STDIO)",
+    },
+    {
+      name: "an array",
+      config: [1, 2],
+      message:
+        "Server config requires either 'url' (HTTP) or 'command' (STDIO)",
+    },
+    {
+      name: "a bare string",
+      config: "https://mcp.example.invalid/sse",
+      message: "Server config must be an object",
+    },
+  ]) {
+    test(`POST /api/2.0/ai/tools/add-custom-server - rejects ${name}`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
+
+      const { data, status } = await aiTools.addCustomServer("owner", {
+        name: "bad-config",
+        config,
+        agentId,
+      });
+
+      const { data: stored } = await aiTools.getCustomServer(
+        "owner",
+        "bad-config",
+        agentId,
+      );
+      expect(stored, "nothing is registered").toBeNull();
+
+      expect(data?.success).toBe(false);
+      expect(data?.error?.field).toBe("url");
+      expect(data?.error?.message).toBe(message);
+      expect(status).toBe(200);
+    });
+  }
+
+  for (const { name, config } of [
+    { name: "an empty object", config: {} },
+    { name: "null", config: null },
+    { name: "a number", config: 42 },
+  ]) {
+    test(`POST /api/2.0/ai/tools/add-custom-server - ${name} is treated as no config at all`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      // Same 400 as omitting `config` entirely: the route looks for a portal-level
+      // server of that name to copy and finds none.
+      const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
+
+      const { status, error } = await aiTools.addCustomServer("owner", {
+        name: "empty-config",
+        config,
+        agentId,
+      });
+
+      const { data: stored } = await aiTools.getCustomServer(
+        "owner",
+        "empty-config",
+        agentId,
+      );
+      expect(stored).toBeNull();
+
+      expect(error).toBe(
+        'No config provided and no portal-level server named "empty-config"',
+      );
+      expect(status).toBe(400);
+    });
+  }
+});
+
+test.describe("MCP - Custom server name validation", () => {
+  test("POST /api/2.0/ai/tools/add-custom-server - a name of 128 characters is the limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // 128 is accepted, 129 is a hard 400 with no body of its own — a model-binding
+    // refusal, unlike the soft `{success:false}` an empty name gets.
+    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
+
+    const atLimit = "n".repeat(128);
+    const overLimit = "n".repeat(129);
+
+    const accepted = await aiTools.addCustomServer("owner", {
+      name: atLimit,
+      config: SERVER_CONFIG,
+      agentId,
+    });
+    const refused = await aiTools.addCustomServer("owner", {
+      name: overLimit,
+      config: SERVER_CONFIG,
+      agentId,
+    });
+
+    const { data: list } = await aiTools.listCustomServers("owner", agentId);
+    expect(Object.keys(list)).toEqual([atLimit]);
+
+    expect(accepted.data?.success).toBe(true);
+    expect(accepted.status).toBe(200);
+    expect(refused.error).toBe("Bad Request");
+    expect(refused.status).toBe(400);
+  });
+
+  test("POST /api/2.0/ai/tools/add-custom-server - a whitespace-only name is a hard 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // An empty name is a soft `{success:false, error:{message:"Server name is
+    // required"}}` (above); a name made of spaces never reaches that check.
+    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
+
+    const { status, error } = await aiTools.addCustomServer("owner", {
+      name: "   ",
+      config: SERVER_CONFIG,
+      agentId,
+    });
+
+    const { data: list } = await aiTools.listCustomServers("owner", agentId);
+    expect(list).toEqual({});
+
+    expect(error).toBe("Bad Request");
+    expect(status).toBe(400);
+  });
+});
+
+test.describe("MCP - Access to another user's agent scope", () => {
+  test("GET|POST|DELETE /api/2.0/ai/tools/*-custom-server - a DocSpaceAdmin who is not in the agent is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The role matrix at the top of this file is measured on an agent the member
+    // was invited to. Membership is what carries it: the same DocSpaceAdmin, not
+    // invited, is refused every route that names the agent — reads included. So
+    // `entityId` is an authorisation boundary, not just a partition key.
+    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
+
+    const registered = await aiTools.addCustomServer("owner", {
+      name: OWNERS_SERVER,
+      config: SERVER_CONFIG,
+      agentId,
+    });
+    expect(registered.data?.success, "the owner's server is registered").toBe(
+      true,
+    );
+
+    const { data: memberData, userData } = await apiSdk.addMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    await apiSdk.authenticateMember(userData, "DocSpaceAdmin");
+    // The shared request context's cookie beats the bearer token, so pin who the
+    // refused calls are really coming from.
+    await aiTools.expectActingAs(
+      "docSpaceAdmin",
+      memberData.response!.id!,
+      "the outsider DocSpaceAdmin",
+    );
+
+    const list = await aiTools.listCustomServers("docSpaceAdmin", agentId);
+    const get = await aiTools.getCustomServer(
+      "docSpaceAdmin",
+      OWNERS_SERVER,
+      agentId,
+    );
+    const add = await aiTools.addCustomServer("docSpaceAdmin", {
+      name: "outsider-server",
+      config: UPDATED_CONFIG,
+      agentId,
+    });
+    const remove = await aiTools.removeCustomServer("docSpaceAdmin", {
+      name: OWNERS_SERVER,
+      agentId,
+    });
+
+    await apiSdk.authenticateOwner();
+    const { data: after } = await aiTools.listCustomServers("owner", agentId);
+    expect(after, "the outsider changed nothing").toEqual({
+      [OWNERS_SERVER]: SERVER_CONFIG,
+    });
+
+    for (const [label, call] of [
+      ["list-custom-servers", list],
+      ["get-custom-server", get],
+      ["add-custom-server", add],
+      ["remove-custom-server", remove],
+    ] as const) {
+      expect(call.error, label).toBe("Forbidden");
+      expect(call.status, label).toBe(403);
+    }
   });
 });
 

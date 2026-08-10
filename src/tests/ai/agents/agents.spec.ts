@@ -190,7 +190,7 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
   // lifecycle cannot be staged here, because the gateway catalogue is read-only
   // (profiles/delete is 403 even for the Owner) and may well leave state of its
   // own behind. Only the dangling-reference half is covered.
-  test("BUG XXXXX: POST /ai/agents - Owner cannot create an agent on a profile that is not in the catalogue", async ({
+  test("BUG 82922: POST /ai/agents - Owner cannot create an agent on a profile that is not in the catalogue", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -990,7 +990,7 @@ test.describe("PUT /ai/agents/:id - the agent's profile binding", () => {
   //
   // Threads made before the update are the one thing that survives — each keeps
   // the profile it was stamped with — so the damage is to new conversations.
-  test("BUG XXXXX: PUT /ai/agents/:id - an unknown profileId is written in halves: the rename lands and the model is erased", async ({
+  test("BUG 82925: PUT /ai/agents/:id - an unknown profileId is written in halves: the rename lands and the model is erased", async ({
     apiSdk,
     paymentsApi,
   }) => {

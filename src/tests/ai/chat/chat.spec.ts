@@ -2511,7 +2511,7 @@ test.describe("AI Chat - the model of an agent room", () => {
   // down measures from a room, except that in a room the user picked the profile
   // and can pick another one, while in an agent the model is fixed and the
   // picker is hidden. Every conversation in such an agent is dead on arrival.
-  test("BUG XXXXX: POST /api/2.0/ai/agents - an agent can be built on an image profile and then cannot chat at all", async ({
+  test("BUG 82926: POST /api/2.0/ai/agents - an agent can be built on an image profile and then cannot chat at all", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2572,7 +2572,7 @@ test.describe("AI Chat - the model of an agent room", () => {
   // use, is moved onto the image profile by an ordinary update. It is accepted,
   // both reads of the model follow it, and from then on the agent answers
   // nothing — see the test above for what a chat in it looks like.
-  test("BUG XXXXX: PUT /api/2.0/ai/agents/{id} - a working agent can be moved onto an image profile", async ({
+  test("BUG 82927: PUT /api/2.0/ai/agents/{id} - a working agent can be moved onto an image profile", async ({
     apiSdk,
     paymentsApi,
   }) => {
