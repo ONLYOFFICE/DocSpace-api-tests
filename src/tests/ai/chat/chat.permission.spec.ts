@@ -715,28 +715,19 @@ test.describe("Threads - access control on a room or folder entity", () => {
 
     expect(threadId).toBe("");
 
-    // Positive control for "nothing was created". There is no invite that opens
-    // someone else's Documents, but there does not need to be: every non-agent
-    // entity a user names resolves to one shared per-user bucket (BUG 82855), so
-    // a thread the refused call had created would be listed under any scope this
-    // caller asks for — and a thread they create legitimately proves the list
-    // itself works.
-    const bucket = await aiChat.listThreads("user", "autotest-not-an-entity");
-    expect(bucket.status).toBe(200);
-    expect(bucket.data).toEqual([]);
-
-    const control = await aiChat.createThreadId("user", {
+    // Positive control: the very same caller can open a thread on a folder that
+    // IS theirs, so the refusal above is about this folder's owner and not about
+    // the route being closed to them.
+    const { data: memberFolder } = await apiSdk
+      .forRole("user")
+      .folders.getMyFolder();
+    const control = await aiChat.createThread("user", {
       title: "Control thread",
       profileId,
-      agentId: "autotest-not-an-entity",
+      agentId: memberFolder.response!.current!.id!,
     });
-    const withControl = await aiChat.listThreads(
-      "user",
-      "autotest-not-an-entity",
-    );
-    expect(withControl.data.map((thread) => thread.threadId)).toEqual([
-      control,
-    ]);
+    expect(control.status, "the caller's own Documents").toBe(200);
+    expect(control.threadId).toBeTruthy();
 
     // Refusing a folder the caller cannot open is a 403, not a crash.
     test.fail();
@@ -1013,7 +1004,7 @@ test.describe("Threads - validation", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG 82718: GET /api/2.0/ai/threads/get-by-id - an unknown threadId returns 200 with a null body instead of 404", async ({
+  test("BUG 82718: GET /api/2.0/ai/threads/get-by-id - an unknown threadId is a 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1022,30 +1013,24 @@ test.describe("Threads - validation", () => {
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
-    const { status, data, text } = await aiChat.getThread(
+    // It used to answer a bare `null` under a 200, which a caller could not tell
+    // from "a thread with no fields".
+    const { status, error } = await aiChat.getThread(
       "owner",
       "019f0000-0000-7000-8000-000000000000",
     );
+    expect(status).toBe(404);
+    expect(error).toBe("thread not found");
 
-    // Pinned so a partial fix cannot keep passing as "the same known bug": if
-    // the body ever stops being a bare `null` — say it starts returning someone
-    // else's thread — this fails loudly instead of staying an expected failure.
-    expect(text).toBe("null");
-    expect(data).toBeNull();
-
-    // read-messages, on the same unknown id, does get this right — which is why
-    // 404 is the expectation here rather than a matter of taste.
+    // read-messages, on the same unknown id, agrees.
     const messages = await aiChat.readMessages(
       "owner",
       "019f0000-0000-7000-8000-000000000000",
     );
     expect(messages.status).toBe(404);
-
-    test.fail();
-    expect(status).toBe(404);
   });
 
-  test("BUG 82719: POST /api/2.0/ai/threads/create - a non-existent agent id creates an orphan thread", async ({
+  test("BUG 82719: POST /api/2.0/ai/threads/create - a non-existent agent id is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1056,39 +1041,34 @@ test.describe("Threads - validation", () => {
     const profileId = await aiChat.defaultProfileId("owner");
     const fakeAgentId = 999999999;
 
-    const { status, threadId } = await aiChat.createThread("owner", {
+    // It used to be accepted and really persisted: the thread was readable and
+    // listed under the entity id of an agent that does not exist.
+    const { status, threadId, error } = await aiChat.createThread("owner", {
       title: "Orphan thread",
       profileId,
       agentId: fakeAgentId,
     });
 
-    // Not merely "accepted": the thread is really persisted and readable, and
-    // it is listed under the entity id of an agent that does not exist.
-    expect(threadId).toBeTruthy();
-    const thread = await aiChat.getThread("owner", threadId);
-    expect(thread.status).toBe(200);
-    expect(thread.data?.title).toBe("Orphan thread");
-
-    const list = await aiChat.listThreads("owner", fakeAgentId);
-    expect(list.status).toBe(200);
-    expect(list.data.map((entry) => entry.threadId)).toContain(threadId);
-
-    test.fail();
     expect(status).toBe(404);
+    expect(error).toBe(`Entity "${fakeAgentId}" not found`);
+    expect(threadId, "and no thread came back").toBe("");
   });
 
-  // The same absence of validation, across the kinds of id the widened chat
-  // context makes reachable. There is no entity *type* in the protocol —
-  // `entityId` is one string, and rooms and folders share the files id space —
-  // so the only thing the backend could check is whether the id names a place
-  // this user can chat in. It checks nothing: a file (a different id space
-  // altogether), a room that has been deleted, the Trash root and out-of-range
-  // numbers are all accepted and all get a working thread.
+  // The rest of the kinds of id the widened chat context makes reachable. There
+  // is no entity *type* in the protocol — `entityId` is one string, and rooms
+  // and folders share the files id space — so the only thing the backend can
+  // check is whether the id names a place this user can chat in.
+  //
+  // Since the fix above it does check, and answers 404 for an id that resolves
+  // to nothing: a file, a deleted room and out-of-range numbers are all refused
+  // now. What is left is the Trash root, which resolves to a real folder and is
+  // accepted, and the status codes — a file that exists but is not a place is a
+  // 404 like an id that does not exist at all.
   //
   // Every case is collected first and asserted as one list, so the failure diff
   // names each kind and what it actually answered instead of stopping at the
   // first one.
-  test("BUG 82719: POST /api/2.0/ai/threads/create - a file, a deleted room, Trash and out-of-range ids are all accepted as entities", async ({
+  test("BUG 82719: POST /api/2.0/ai/threads/create - the Trash root is still accepted as an entity", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1149,7 +1129,7 @@ test.describe("Threads - validation", () => {
     );
   });
 
-  test("BUG 82720: POST /api/2.0/ai/ai/send-with-stream - an empty message is stored and forwarded to the model", async ({
+  test("BUG 82720: POST /api/2.0/ai/ai/send-with-stream - an empty message is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1168,27 +1148,21 @@ test.describe("Threads - validation", () => {
       agentId,
     });
 
-    const { status } = await aiChat.sendMessage("owner", {
+    // It used to be accepted with a 200 — persisted as a real user message and
+    // handed to the provider. Validation belongs at the edge.
+    const { status, error } = await aiChat.sendMessage("owner", {
       threadId,
       profileId,
       agentId,
       message: "",
     });
-
-    // "Accepted" here means more than HTTP 200: the empty message is persisted
-    // as a real user message and handed to the provider. What the provider then
-    // does with it is not a stable contract — some models answer it, others
-    // refuse with `status.error.code === "bad_request"` — so the assertions stop
-    // at the part the portal itself is responsible for.
-    const messages = await aiChat.waitForAssistantReply("owner", threadId);
-    const asked = AiAgentChat.userMessages(messages);
-    expect(asked).toHaveLength(1);
-    expect(AiAgentChat.messageText(asked[0])).toBe("");
-    expect(AiAgentChat.assistantMessages(messages)).toHaveLength(1);
-
-    // Validation belongs at the edge: an empty message should never be stored.
-    test.fail();
     expect(status).toBe(400);
+    expect(error).toBe("userMessage must contain non-empty text content");
+
+    // And nothing was written: the thread is still empty on both sides.
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(AiAgentChat.userMessages(messages.data)).toEqual([]);
+    expect(AiAgentChat.assistantMessages(messages.data)).toEqual([]);
   });
 
   test("BUG 82723: POST /api/2.0/ai/ai/send-with-stream - an unknown thread reports the failure inside a 200", async ({

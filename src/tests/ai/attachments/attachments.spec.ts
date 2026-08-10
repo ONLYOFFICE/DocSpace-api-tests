@@ -1,11 +1,35 @@
 import { expect } from "@playwright/test";
-import { FileType } from "@onlyoffice/docspace-api-sdk";
+import {
+  FileShare,
+  FileType,
+  FolderType,
+  RoomType,
+  VectorizationStatus,
+} from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import {
   AiAgentChat,
   expectHealthyAssistantReply,
 } from "@/src/helpers/ai-agent-chat";
+import { AiSettings } from "@/src/helpers/ai-settings";
+import { ApiSDK } from "@/src/services/api-sdk";
+import { createPng } from "@/src/utils/test-image";
+import { listDocxEntries } from "@/src/helpers/docx";
+import {
+  listFolderFiles,
+  waitForExportedFile,
+} from "@/src/helpers/text-to-docx";
+import { waitForVectorization } from "@/src/helpers/ai-vectorization";
+import {
+  agentStorageFolderId,
+  attachDocSpaceFile,
+  createGzipArchive,
+  createZipArchive,
+  downloadFile,
+  expectDeviceFileStored,
+  uploadDeviceFile,
+} from "@/src/helpers/device-upload";
 import {
   AiAttachments,
   ATTACHMENTS_BASE,
@@ -361,14 +385,18 @@ test.describe("AI Attachments - save-file", () => {
   test("BUG 82739: POST /api/2.0/ai/attachments/save-file - the request body the SDK documents is rejected with 500", async ({
     apiSdk,
   }) => {
-    // `NewAiAttachmentsSaveFileRequestInput` declares path + content + type
+    // `AiAttachmentsSaveFileRequestInput` declares path + content + type
     // required and title optional, so this is the body a client generated from
     // the SDK sends. It answers 500.
     //
-    // This test is about the DTO mismatch only, and it says nothing about which
-    // field is at fault: `path` alone is enough to cause a 500 (next test), and
-    // so is the absence of `title` (test after that). Filing them separately
-    // matters because they may well be two different defects.
+    // The cause is the DTO's description of `path` — "Storage path/key of the
+    // file". It is not a path at all: `path` is the DocSpace **file id** as a
+    // string, and the server resolves it, checks access and extracts the text
+    // itself (see the "attaching a stored file by id" describe at the end of
+    // this file). A path-shaped string resolves to
+    // nothing, and an id that resolves to nothing crashes the request — that is
+    // BUG 82742, below. So this test is about the documented body being
+    // unusable; it does not mean `path` itself is broken.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
     const { status } = await attachments.saveFile("owner", {
@@ -383,26 +411,25 @@ test.describe("AI Attachments - save-file", () => {
     expect(status).toBe(200);
   });
 
-  test("BUG 82740: POST /api/2.0/ai/attachments/save-file - omitting the optional title returns 500", async ({
+  test("BUG 82740: POST /api/2.0/ai/attachments/save-file - the optional title may be omitted", async ({
     apiSdk,
   }) => {
-    // `title` is optional in the DTO, so a body without it should be accepted.
-    // The endpoint requires it in practice — an undocumented required field —
-    // and signals that with a 500 rather than a 400.
-    //
-    // Sent without `path` on purpose, so the failure cannot be attributed to
-    // the separate `path` defect.
+    // `title` is optional in the DTO, so a body without it has to be accepted.
+    // The endpoint used to require it in practice — an undocumented required
+    // field — and signalled that with a 500 rather than a 400.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const name = "Autotest untitled.docx";
+    const path = String(await attachments.backingFileId("owner", name, "x"));
 
-    const { status } = await attachments.saveFile("owner", {
-      input: { content: "x", type: FileType.Document },
+    const { status, data } = await attachments.saveFile("owner", {
+      input: { path, content: "", type: FileType.Document },
     });
 
-    test.fail();
     expect(status).toBe(200);
+    expect(data?.title, "the title comes from the file").toBe(name);
   });
 
-  test("BUG 82741: POST /api/2.0/ai/attachments/save-file - a malformed body returns 500 instead of 400", async ({
+  test("BUG 82741: POST /api/2.0/ai/attachments/save-file - a malformed body is a 400", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -417,45 +444,82 @@ test.describe("AI Attachments - save-file", () => {
       ["inputs[] instead of input", { inputs: [{ title: "a.docx" }] }],
     ];
 
+    // Every one of these used to be a 500.
     const statuses: Array<[string, number]> = [];
     for (const [label, body] of bodies) {
       const { status } = await attachments.saveFileRaw("owner", body);
       statuses.push([label, status]);
     }
 
-    test.fail();
     expect(statuses).toEqual(bodies.map(([label]) => [label, 400]));
   });
 
-  test("BUG 82742: POST /api/2.0/ai/attachments/save-file - a non-empty path returns 500 even with every other field present", async ({
+  test("BUG 82742: POST /api/2.0/ai/attachments/save-file - a path that resolves to no file returns 500 instead of 404", async ({
     apiSdk,
   }) => {
-    // Isolates `path` from the missing-title case: everything the endpoint
-    // actually needs is supplied, so the only difference between the accepted
-    // call and the 500 is a non-empty `path`.
+    // Re-measured 2026-08-10. This test used to claim that any non-empty `path`
+    // is a 500; that was wrong, and it hid what the field is for. `path` is the
+    // DocSpace **file id** as a string — a resolvable one answers 200 with the
+    // file's text extracted server-side, which is how "Add files from DocSpace"
+    // and the attach step of "Upload from device" work. The full contract, with
+    // the access check and the format rule, is in the "attaching a stored file
+    // by id" describe at the end of this file.
+    //
+    // What is left of the defect: an id that resolves to nothing crashes the
+    // request instead of answering a client error. Both shapes of "nothing" are
+    // here so a fix for one does not leave the other silently red.
+    const ownerApi = apiSdk.forRole("owner");
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
-    const accepted = await attachments.saveFile("owner", {
+    // Control: a real file id is accepted, so the 500s below are about the id
+    // resolving to nothing and not about the request shape. `content` and `type`
+    // are required by the validator and their values are discarded — the server
+    // answers with the text it extracted.
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const stored = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      myFolder.response!.current!.id!,
+      "autotest-path-control.txt",
+      Buffer.from("control body", "utf8"),
+      "text/plain",
+    );
+    const resolvable = await attachments.saveFile("owner", {
       input: {
-        title: "a.docx",
-        content: "x",
+        title: stored.title,
+        path: String(stored.id),
+        content: "",
         type: FileType.Document,
-        path: "",
       },
     });
-    expect(accepted.status, "path: '' is accepted").toBe(200);
+    expect(resolvable.status, "a path that is a real file id").toBe(200);
+    expect(
+      resolvable.data?.content,
+      "and the server extracted the file's text",
+    ).toBe("control body");
 
-    const { status } = await attachments.saveFile("owner", {
+    const missingId = await attachments.saveFile("owner", {
       input: {
         title: "a.docx",
-        content: "x",
+        path: "999999999",
+        content: "",
         type: FileType.Document,
+      },
+    });
+    const pathShaped = await attachments.saveFile("owner", {
+      input: {
+        title: "a.docx",
         path: "My Documents/a.docx",
+        content: "",
+        type: FileType.Document,
       },
     });
 
     test.fail();
-    expect(status).toBe(200);
+    expect(
+      [missingId.status, pathShaped.status],
+      "an id that resolves to nothing is a client error, not a crash",
+    ).toEqual([404, 404]);
   });
 
   test("BUG 82743: POST /api/2.0/ai/attachments/save-file - a type outside the FileType enum is accepted", async ({
@@ -465,13 +529,25 @@ test.describe("AI Attachments - save-file", () => {
     // accepted legitimately — see "every FileType is stored as sent" — so there
     // is no contradiction in requiring these to be refused: they are values the
     // enum does not define at all.
+    //
+    // Every body here carries a resolvable `path`, so a 400 could only be about
+    // `type`. Without one the request is refused for the missing path and the
+    // test would pass without measuring anything.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const path = String(
+      await attachments.backingFileId("owner", "Autotest type.docx", "x"),
+    );
     const types = [999, -1, 8];
 
     const statuses: number[] = [];
     for (const type of types) {
       const { status, data } = await attachments.saveFile("owner", {
-        input: { title: "Autotest undefined type.bin", content: "x", type },
+        input: {
+          path,
+          title: "Autotest undefined type.docx",
+          content: "",
+          type,
+        },
       });
       statuses.push(status);
       // Not merely accepted — echoed back unchanged, so the stored record
@@ -485,82 +561,106 @@ test.describe("AI Attachments - save-file", () => {
     expect(statuses).toEqual(types.map(() => 400));
   });
 
-  test("BUG 82745: POST /api/2.0/ai/attachments/save-file - a type of the wrong JSON kind is accepted", async ({
+  test("BUG 82745: POST /api/2.0/ai/attachments/save-file - a fractional type is accepted", async ({
     apiSdk,
   }) => {
     // Separate from the enum-range case: these are not out-of-range integers but
     // values that are not integers at all, which a DTO binder would normally
-    // reject before any range check.
+    // reject before any range check. A boolean, an object and an array are now
+    // refused — a number that is not whole still is not.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const path = String(
+      await attachments.backingFileId("owner", "Autotest mistyped.docx", "x"),
+    );
     const types: unknown[] = [1.5, true, { value: 7 }, [7]];
 
-    const statuses: number[] = [];
+    const statuses: Array<[unknown, number]> = [];
     for (const type of types) {
       const { status } = await attachments.saveFile("owner", {
-        input: { title: "Autotest mistyped.bin", content: "x", type },
+        input: { path, title: "Autotest mistyped.docx", content: "", type },
       });
-      statuses.push(status);
+      statuses.push([type, status]);
     }
 
     test.fail();
-    expect(statuses).toEqual(types.map(() => 400));
+    expect(statuses).toEqual(types.map((type) => [type, 400]));
   });
 
-  test("BUG 82746: POST /api/2.0/ai/attachments/save-file - a numeric string type is stored as a string instead of being coerced", async ({
+  test("BUG 82746: POST /api/2.0/ai/attachments/save-file - a numeric string type is coerced", async ({
     apiSdk,
   }) => {
-    // Kept apart from both cases above because accepting `"7"` is defensible on
-    // its own — a model binder coercing a numeric string to the enum is normal.
-    // What is not defensible is the result: the value comes back as the string
-    // "7", so the stored record's `type` has a different JSON type from every
-    // other record's, and no consumer reading it as a number will match it.
+    // Accepting `"7"` is defensible on its own — a model binder coercing a
+    // numeric string to the enum is normal. What was not defensible was the
+    // result: the value came back as the string "7", so the stored record's
+    // `type` had a different JSON type from every other record's and no consumer
+    // reading it as a number would match it.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
-    const { status, data } = await attachments.saveFile("owner", {
-      input: { title: "Autotest string type.bin", content: "x", type: "7" },
-    });
-    expect(status).toBe(200);
-
-    test.fail();
-    expect(data?.type, "a numeric string type").toBe(FileType.Document);
-  });
-
-  test("BUG 82748: POST /api/2.0/ai/attachments/save-file - a blank or non-string title is accepted", async ({
-    apiSdk,
-  }) => {
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    const titles: unknown[] = ["", "   ", 123, true];
-
-    const statuses: number[] = [];
-    for (const title of titles) {
-      const { status } = await attachments.saveFile("owner", {
-        input: { title, content: "x", type: FileType.Document },
-      });
-      statuses.push(status);
-    }
-
-    test.fail();
-    expect(statuses).toEqual(titles.map(() => 400));
-  });
-
-  test("BUG 82749: POST /api/2.0/ai/attachments/save-file - non-string content is accepted", async ({
-    apiSdk,
-  }) => {
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const path = String(
+      await attachments.backingFileId(
+        "owner",
+        "Autotest string type.docx",
+        "x",
+      ),
+    );
 
     const { status, data } = await attachments.saveFile("owner", {
       input: {
+        path,
+        title: "Autotest string type.docx",
+        content: "",
+        type: "7",
+      },
+    });
+    expect(status).toBe(200);
+    expect(data?.type, "a numeric string type").toBe(FileType.Document);
+  });
+
+  test("BUG 82748: POST /api/2.0/ai/attachments/save-file - a blank or non-string title is refused or ignored", async ({
+    apiSdk,
+  }) => {
+    // No draft can carry a blank or non-string title any more, by two different
+    // routes: a title that is not a string is a 400, and a blank one is accepted
+    // but never used — the title of a draft comes from the file behind `path`.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const name = "Autotest titled.docx";
+    const path = String(await attachments.backingFileId("owner", name, "x"));
+
+    for (const title of [123, true]) {
+      const { status, error } = await attachments.saveFile("owner", {
+        input: { path, title, content: "", type: FileType.Document },
+      });
+      expect(status, `title ${JSON.stringify(title)}`).toBe(400);
+      expect(error).toBe("input.title must be a string when present");
+    }
+
+    for (const title of ["", "   "]) {
+      const { status, data } = await attachments.saveFile("owner", {
+        input: { path, title, content: "", type: FileType.Document },
+      });
+      expect(status, `title ${JSON.stringify(title)}`).toBe(200);
+      expect(data?.title, "the file's name is used instead").toBe(name);
+    }
+  });
+
+  test("BUG 82749: POST /api/2.0/ai/attachments/save-file - non-string content is refused", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const path = String(
+      await attachments.backingFileId("owner", "Autotest typed.docx", "x"),
+    );
+
+    const { status, error } = await attachments.saveFile("owner", {
+      input: {
+        path,
         title: "Autotest typed.docx",
         content: 123,
         type: FileType.Document,
       },
     });
-    if (status === 200) {
-      expect(data?.content).toBe(123);
-    }
 
-    test.fail();
     expect(status).toBe(400);
+    expect(error).toBe("input.content is required and must be a string");
   });
 
   test("POST /api/2.0/ai/attachments/save-file - source, canAnalyze and formKeys are not accepted from a client", async ({
@@ -669,11 +769,11 @@ test.describe("AI Attachments - save-image", () => {
     expect(oversized.status).toBe(413);
   });
 
-  test("BUG 82751: POST /api/2.0/ai/attachments/save-image - an image draft with no payload at all is accepted", async ({
+  test("BUG 82751: POST /api/2.0/ai/attachments/save-image - an image draft with no payload at all is refused", async ({
     apiSdk,
   }) => {
-    // `{ input: {} }` and even `{ input: "some string" }` create a record: an
-    // image attachment with neither a name nor any image data.
+    // `{ input: {} }` and even `{ input: "some string" }` used to create a
+    // record: an image attachment with neither a name nor any image data.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
     const empty = await attachments.saveImage("owner", { input: {} });
@@ -681,15 +781,10 @@ test.describe("AI Attachments - save-image", () => {
       input: "not-an-object",
     });
 
-    if (empty.status === 200) {
-      expect(
-        empty.data?.base64,
-        "an empty input creates a payload-less record",
-      ).toBeUndefined();
-    }
-
-    test.fail();
     expect([empty.status, asString.status]).toEqual([400, 400]);
+    expect(empty.error).toBe(
+      "input.name is required and must be a non-empty string",
+    );
   });
 
   test("BUG 82752: POST /api/2.0/ai/attachments/save-image - base64 is stored without any validation", async ({
@@ -723,18 +818,18 @@ test.describe("AI Attachments - save-image", () => {
     expect(statuses).toEqual(payloads.map(() => 400));
   });
 
-  test("BUG 82753: POST /api/2.0/ai/attachments/save-image - a malformed body returns 500 instead of 400", async ({
+  test("BUG 82753: POST /api/2.0/ai/attachments/save-image - a malformed body is a 400", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const bodies: unknown[] = [undefined, {}, { input: null }];
 
+    // Every one of these used to be a 500.
     const statuses: number[] = [];
     for (const body of bodies) {
       statuses.push((await attachments.saveImageRaw("owner", body)).status);
     }
 
-    test.fail();
     expect(statuses).toEqual(bodies.map(() => 400));
   });
 
@@ -884,33 +979,40 @@ test.describe("AI Attachments - batch saves", () => {
     expect([missing.status, nulled.status]).toEqual([400, 400]);
   });
 
-  test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - one invalid element makes the whole batch return 500", async ({
+  test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - one invalid element is a 400 naming it", async ({
     apiSdk,
   }) => {
-    // An element without a title takes the batch down with a 500 rather than a
-    // 400, and the error payload names neither the bad element nor the ids of
-    // the good ones — so a caller cannot tell whether its siblings were
-    // stored. There is no list route, which is why this test cannot check that.
+    // An invalid element used to take the batch down with a 500 whose payload
+    // named neither the bad element nor the ids of the good ones, so a caller
+    // could not tell whether its siblings were stored. There is no list route,
+    // which is why this test cannot check that either — what it can check is
+    // that the refusal now points at the element to fix.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const path = String(
+      await attachments.backingFileId("owner", "good.docx", "a"),
+    );
 
-    const { status } = await attachments.saveFilesMany("owner", {
+    const { status, error } = await attachments.saveFilesMany("owner", {
       inputs: [
-        { title: "good-1.docx", content: "a", type: FileType.Document },
-        { content: "no title here", type: FileType.Document },
-        { title: "good-2.docx", content: "c", type: FileType.Document },
+        { path, title: "good-1.docx", content: "", type: FileType.Document },
+        { path, title: "no content here.docx", type: FileType.Document },
+        { path, title: "good-2.docx", content: "", type: FileType.Document },
       ],
     });
 
-    test.fail();
     expect(status).toBe(400);
+    expect(error).toBe(
+      "inputs[1]: input.content is required and must be a string",
+    );
   });
 
-  test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - a non-array inputs value returns 500 instead of 400", async ({
+  test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - a non-array inputs value is a 400", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const values: unknown[] = ["a string", [null], ["a string element"]];
 
+    // Every one of these used to be a 500.
     const statuses: number[] = [];
     for (const inputs of values) {
       statuses.push(
@@ -918,26 +1020,23 @@ test.describe("AI Attachments - batch saves", () => {
       );
     }
 
-    test.fail();
     expect(statuses).toEqual(values.map(() => 400));
   });
 
-  test("BUG 82755: POST /api/2.0/ai/attachments/save-images-many - an element with no payload is still stored", async ({
+  test("BUG 82755: POST /api/2.0/ai/attachments/save-images-many - an element with no payload is refused", async ({
     apiSdk,
   }) => {
+    // The empty element used to become a record of its own.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
-    const { status, data } = await attachments.saveImagesMany("owner", {
+    const { status, error } = await attachments.saveImagesMany("owner", {
       inputs: [{ name: "ok.png", base64: PNG_1X1 }, {}],
     });
 
-    if (status === 200) {
-      expect(data, "the empty element became a record").toHaveLength(2);
-      expect(data![1]?.base64).toBeUndefined();
-    }
-
-    test.fail();
     expect(status).toBe(400);
+    expect(error).toBe(
+      "inputs[1]: input.name is required and must be a non-empty string",
+    );
   });
 });
 
@@ -1010,17 +1109,20 @@ test.describe("AI Attachments - get", () => {
     }
   });
 
-  test("BUG 82756: POST /api/2.0/ai/attachments/get - an empty id answers 405 Method Not Allowed", async ({
+  test("BUG 82756: POST /api/2.0/ai/attachments/get - an empty id is a 400 like every other malformed one", async ({
     apiSdk,
   }) => {
-    // Every other malformed id is a 400; an empty string uniquely reports that
-    // POST is not allowed, on a route that accepts nothing but POST.
+    // An empty string used to report uniquely that POST is not allowed, on a
+    // route that accepts nothing but POST.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
-    const { status } = await attachments.getRaw("owner", JSON.stringify(""));
+    const { status, error } = await attachments.getRaw(
+      "owner",
+      JSON.stringify(""),
+    );
 
-    test.fail();
     expect(status).toBe(400);
+    expect(error).toBe("id is required");
   });
 });
 
@@ -1116,33 +1218,27 @@ test.describe("AI Attachments - get-many", () => {
     expect(wrapped.status, "{ ids: [uuid] }").toBe(200);
   });
 
-  test("BUG 82763: POST /api/2.0/ai/attachments/get-many - a missing body returns 500 instead of 400", async ({
+  test("BUG 82763: POST /api/2.0/ai/attachments/get-many - a missing body is a 400", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
-    const { status } = await attachments.getManyRaw("owner", undefined);
+    // It used to be a 500.
+    const { status, error } = await attachments.getManyRaw("owner", undefined);
 
-    test.fail();
     expect(status).toBe(400);
+    expect(error).toBe("ids is required and must be a non-empty array");
   });
 });
 
-test.describe("AI Attachments - intermittent reads and deletes", () => {
-  // The defect that shapes this whole suite, stated as the symptom only: after a
-  // 200 on save, a draft is readable on some calls and not others, and after a
-  // `{success:true}` on delete it keeps being served to some reads.
-  //
-  // The cause is not established. An unreplicated per-instance store fits (each
-  // request would see only the instance that served it), but so would eventual
-  // consistency, a read cache, or an asynchronous write — and a plain eventual
-  // consistency model does not explain a deleted record reappearing. Naming the
-  // mechanism would need confirmation from the developers or the infrastructure,
-  // so these tests are named after what they measure.
+test.describe("AI Attachments - reads and deletes take effect at once", () => {
+  // The defect that used to shape this whole suite: after a 200 on save a draft
+  // was readable on some calls and not others, and after a `{success:true}` on
+  // delete it kept being served to some reads. Both are now immediate.
   //
   // Both are written over ten independent drafts rather than ten reads of one
   // draft: a single draft can be readable by luck, ten in a row cannot.
-  test("BUG 82764: POST /api/2.0/ai/attachments/get-many - a freshly saved draft is intermittently unavailable on an immediate read", async ({
+  test("BUG 82764: POST /api/2.0/ai/attachments/get-many - a freshly saved draft is available on an immediate read", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -1161,24 +1257,23 @@ test.describe("AI Attachments - intermittent reads and deletes", () => {
       }
     }
 
-    // The drafts are not lost — polling finds every one of them, which is what
-    // shows the read path rather than the write path is at fault.
+    // A miss is not a lost draft — polling used to find every one of them, which
+    // is what showed the read path rather than the write path was at fault.
     for (const missed of misses) {
       await attachments.expectStored("owner", missed, "a missed draft");
     }
 
-    test.fail();
     expect(
       misses,
       "drafts invisible to the read right after their save",
     ).toEqual([]);
   });
 
-  test("BUG 82767: DELETE /api/2.0/ai/attachments/delete - a deleted draft remains intermittently readable after the delete reported success", async ({
+  test("BUG 82767: DELETE /api/2.0/ai/attachments/delete - one delete removes the draft", async ({
     apiSdk,
   }) => {
     // The same symptom on the write side, and the more dangerous half: a client
-    // that deleted an attachment is told `{success:true}` while the record keeps
+    // that deleted an attachment was told `{success:true}` while the record kept
     // being served to later reads.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
@@ -1198,7 +1293,6 @@ test.describe("AI Attachments - intermittent reads and deletes", () => {
       }
     }
 
-    test.fail();
     expect(
       survivors,
       "drafts still readable after a delete that reported success",
@@ -1383,9 +1477,10 @@ test.describe("AI Attachments - link-to-message", () => {
     ).toBe(true);
   });
 
-  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an empty body reports success", async ({
+  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an empty body is refused", async ({
     apiSdk,
   }) => {
+    // All three used to answer 200 {success:true}.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
     const noBody = await attachments.linkToMessageRaw("owner", undefined);
@@ -1396,10 +1491,12 @@ test.describe("AI Attachments - link-to-message", () => {
       threadId: MISSING_ID,
     });
 
-    test.fail();
     expect([noBody.status, emptyObject.status, nullIds.status]).toEqual([
       400, 400, 400,
     ]);
+    expect(noBody.error).toBe(
+      "ids (non-empty array), messageId (string) and threadId (string) are required",
+    );
   });
 
   test("POST /api/2.0/ai/attachments/link-to-message - a non-array ids value is rejected", async ({
@@ -2011,20 +2108,26 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The client-side rules, checked on the server.
+// The composer's rules, checked against the inline-content shape.
 //
-// The chat UI enforces three things the drag-and-drop spec asks for: archives
-// cannot be attached, at most 5 files and 5 images ride on one message, and a
-// filename is just a label. None of them is a property of this API — save-file
-// is a draft store that keeps `title` and `content` as sent, with no upload, no
-// target folder and no DocSpace file behind them (a non-empty `path` is a 500,
-// BUG 82742). So the question these tests answer is not "does the rule work"
-// but "is the rule reachable around", and the answer is yes for all three.
+// Scope, corrected 2026-08-07 — read this before adding to the block.
 //
-// Worth being explicit about scope, because it is easy to file the whole
-// drag-and-drop section against this suite: "upload lands in the current folder
-// / falls back to My Documents / respects a read-only room" has no counterpart
-// here at all. Nothing in /ai/attachments creates a DocSpace file.
+// save-file has two shapes. `{ path: "<fileId>" }` is the one the product uses:
+// the server resolves the id, checks access and extracts the text, and it DOES
+// enforce the archive rule (a .zip or .tgz is refused with 400). That contract
+// is the "attaching a stored file by id" describe further down.
+//
+// `{ title, content }` — the shape below — carries a caller-supplied blob with a
+// caller-supplied label. The tests here are about that shape only, so an
+// archive-looking `title` on a text blob says nothing about whether archives can
+// be attached: nothing here is an archive. What they do show is that the
+// per-message count limit and the label handling have no server-side counterpart
+// in this shape.
+//
+// Still out of scope, and easy to file here by mistake: "upload lands in the
+// current folder / falls back to My Documents / respects a read-only room". The
+// destination choice has no route at all — see the "destination of a device
+// file" describe further down.
 
 /** The extensions the client refuses, one draft each. */
 const ARCHIVE_TITLES = [
@@ -2041,26 +2144,32 @@ const ARCHIVE_TITLES = [
 const OVER_LIMIT_ATTACHMENTS = 11;
 
 test.describe("AI Attachments - client-side rules on the server", () => {
-  test("BUG 82893: POST /api/2.0/ai/attachments/save-file - every archive extension the client refuses is stored", async ({
+  test("POST /api/2.0/ai/attachments/save-file - in the inline-content shape an archive extension is only a label", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Filed as BUG 82893 and withdrawn on 2026-08-07: it was measuring the wrong
+    // shape. A real archive is attached through `path`, and it IS refused there
+    // with 400 — see the format matrix further down. What this shape takes is
+    // a caller-supplied text blob under a caller-supplied name, and a name is not
+    // an archive: the same bytes stored as `.txt` and as `.zip` come back
+    // identical, so there is nothing for an extension check to protect here and
+    // nothing to sniff.
+    //
+    // Kept rather than deleted because it documents the difference between the
+    // two shapes, which is what made the original reading look like a missing
+    // check.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
-    const accepted: string[] = [];
     for (const title of ARCHIVE_TITLES) {
       const { status, data } = await attachments.saveFile("owner", {
         input: { title, content: "PK\u0003\u0004 not really an archive" },
       });
-      if (status === 200 && data?.id) {
-        accepted.push(title);
-        // Not merely accepted — readable afterwards, so the draft is real and a
-        // client can put its id on a message.
-        const stored = await attachments.expectStored("owner", data.id, title);
-        expect(stored.title).toBe(title);
-      }
+      expect(status, `a text blob named ${title}`).toBe(200);
+      const stored = await attachments.expectStored("owner", data!.id!, title);
+      expect(stored.title).toBe(title);
     }
 
     // The extension carries no meaning at all: the same bytes under a .txt name
@@ -2079,13 +2188,10 @@ test.describe("AI Attachments - client-side rules on the server", () => {
       }),
       "the .zip",
     );
-    expect(archive.content).toEqual(plain.content);
-
-    test.fail();
     expect(
-      accepted,
-      "archives are refused by the client only — the API stores them all",
-    ).toEqual([]);
+      archive.content,
+      "the extension changes nothing about what is stored",
+    ).toEqual(plain.content);
   });
 
   test("BUG 82894: POST /api/2.0/ai/threads/append-user-message - a message carries more attachments than the client allows", async ({
@@ -2163,9 +2269,9 @@ test.describe("AI Attachments - client-side rules on the server", () => {
   }) => {
     // The reassuring half of the same design. Because there is no upload, a
     // traversal-shaped filename has nothing to traverse: it is kept verbatim as
-    // a display label and no `path` appears on the draft. (The separate `path`
-    // field is the one that misbehaves — any non-empty value is a 500, BUG
-    // 82742 — but a client never sends it.)
+    // a display label and no `path` appears on the draft. (`path` is a separate
+    // field and a different thing entirely — the DocSpace file id the draft was
+    // made from — so a traversal string in `title` never reaches it.)
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2187,5 +2293,1085 @@ test.describe("AI Attachments - client-side rules on the server", () => {
       expect(stored.title, `title ${title}`).toBe(title);
       expect(stored.path, `no path on the draft for ${title}`).toBeUndefined();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Upload from device, and attaching a file that already lives in DocSpace.
+
+// "Upload from device" and "Add files from DocSpace" in an agent chat.
+//
+// Both features end in the same place, and it is not the one the save-file
+// tests above originally assumed. Measured on a live portal 2026-08-07:
+//
+//   `save-file`'s `path` is the DocSpace FILE ID, as a string. The server
+//   resolves it, checks the caller's access, extracts the text itself and hands
+//   back a draft whose `path` is `"<fileId>/<title>"`.
+//
+// So a chat attachment is a reference to a stored file, not a copy of its bytes,
+// and three conclusions that look obvious from the outside are wrong:
+//
+//   * there is no 128 KB ceiling on attaching a document. The cap is on the
+//     request body, and with `path` the payload never travels in the request — a
+//     240 KB file attaches whole. A client that inlines the extracted text into
+//     `content` will hit 413, but that is a malformed request, not a limit of
+//     the feature.
+//   * the archive rule is NOT client-only. `path` to a `.zip` or `.tgz` is
+//     refused with 400 while `.txt`, `.csv`, `.md`, `.png` and a real `.docx`
+//     are accepted. The composer's toast has a server-side counterpart exactly
+//     where it belongs — at attach time, not at upload time. `POST
+//     /files/{id}/upload` storing an archive is correct behaviour for a file
+//     storage and is not a defect.
+//   * the DocSpace file and the chat attachment ARE linked, through that id.
+//
+// What has no server-side representation is the DESTINATION CHOICE. There is no
+// upload route anywhere under `/api/2.0/ai/` (every candidate answers 404, see
+// the test that pins the list), so "into the current area, or My Documents when
+// the user cannot write there" is a decision the client makes before it calls
+// `POST /files/{folderId}/upload`. This suite therefore cannot prove the client
+// branches correctly — that needs a UI test. What it can and does prove is that
+// the two signals the branch depends on are correct: the target folder reports
+// `security.Create` truthfully, and it matches what an upload to that folder
+// actually does.
+//
+// Ordering rule for every test with a member in it: all owner-side setup happens
+// before `addAuthenticatedMember`, because `apiSdk.request`'s session cookie
+// beats the bearer token. Uploads go through the axios adapter, which sends
+// `Cookie: ""`, so they keep the identity of the token they carry.
+
+const DEVICE_TEXT = "Autotest device file. Line two.\nLine three.";
+
+/** Comfortably past the ~128 KB cap on a request body. */
+const LARGE_FILE_TEXT = "lorem ipsum ".repeat(20000);
+
+/**
+ * Every route a chat upload could plausibly live at. All 404 — kept as a list so
+ * that the day one of them appears, the test that says "the client chooses"
+ * fails and is rewritten instead of quietly staying true.
+ */
+const CANDIDATE_UPLOAD_ROUTES = [
+  "/api/2.0/ai/attachments/upload",
+  "/api/2.0/ai/attachments/save-file-from-docspace",
+  "/api/2.0/ai/attachments/from-file",
+  "/api/2.0/ai/attachments/save-docspace-file",
+  "/api/2.0/ai/files/upload",
+  "/api/2.0/ai/upload",
+];
+
+type Agent = {
+  aiChat: AiAgentChat;
+  profileId: string;
+  agentId: number;
+  knowledgeId: number;
+  resultStorageId: number;
+};
+
+/** An agent plus the ids of the two folders inside it that accept files. */
+async function createAgentWithStorage(
+  apiSdk: ApiSDK,
+  title: string,
+): Promise<Agent> {
+  const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+  const profileId = await aiChat.defaultProfileId("owner");
+  const agentId = await aiChat.createAgentId("owner", { title, profileId });
+
+  const ownerApi = apiSdk.forRole("owner");
+  return {
+    aiChat,
+    profileId,
+    agentId,
+    knowledgeId: await agentStorageFolderId(
+      ownerApi,
+      agentId,
+      FolderType.Knowledge,
+    ),
+    resultStorageId: await agentStorageFolderId(
+      ownerApi,
+      agentId,
+      FolderType.ResultStorage,
+    ),
+  };
+}
+
+test.describe("AI Attachments - attaching a stored file by id", () => {
+  test("POST /api/2.0/ai/attachments/save-file - path is the DocSpace file id and the server extracts the text itself", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The mechanism both "Upload from device" and "Add files from DocSpace" end
+    // in. The client sends an id and no payload; everything else on the draft is
+    // produced server-side.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const stored = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      myFolder.response!.current!.id!,
+      `autotest-source-${apiSdk.faker.generateString(6)}.txt`,
+      Buffer.from(DEVICE_TEXT, "utf8"),
+      "text/plain",
+    );
+
+    const { status, data } = await attachDocSpaceFile(
+      attachments,
+      "owner",
+      stored.id,
+      stored.title,
+    );
+
+    expect(status).toBe(200);
+    expect(
+      data?.content,
+      "the server read the file and extracted its text",
+    ).toBe(DEVICE_TEXT);
+    expect(
+      data?.path,
+      "the draft points back at the file it was made from",
+    ).toBe(`${stored.id}/${stored.title}`);
+    expect(data?.kind).toBe("file");
+
+    // The id has to be a string. A JSON number is refused outright, which is
+    // worth pinning because the field is called `path` and typed as a string.
+    expect(
+      (
+        await attachments.saveFile("owner", {
+          input: {
+            path: stored.id,
+            title: stored.title,
+            content: "",
+            type: FileType.Document,
+          },
+        })
+      ).status,
+      "the same id sent as a number",
+    ).toBe(400);
+
+    // And the reference wins over anything the client supplies with it. `content`
+    // is a required field whose value is discarded — the server always answers
+    // with what it extracted from the file.
+    const both = await attachments.saveFile("owner", {
+      input: {
+        path: String(stored.id),
+        content: "CLIENT SUPPLIED TEXT",
+        type: FileType.Document,
+        title: stored.title,
+      },
+    });
+    expect(both.status).toBe(200);
+    expect(
+      both.data?.content,
+      "content sent next to a path is ignored in favour of the real file",
+    ).toBe(DEVICE_TEXT);
+
+    // `title` is the only optional field of the three: the server takes it from
+    // the file when it is missing.
+    const untitled = await attachments.saveFile("owner", {
+      input: {
+        path: String(stored.id),
+        content: "",
+        type: FileType.Document,
+      },
+    });
+    expect(untitled.status).toBe(200);
+    expect(untitled.data?.title, "the title comes from the file").toBe(
+      stored.title,
+    );
+  });
+
+  test("POST /api/2.0/ai/attachments/save-file - attaching by id is checked against the caller's access to the file", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The route reads a file on the caller's behalf, so the interesting question
+    // is whose files it will read. Both directions are here: a stranger is
+    // refused, and a room member who may only view the file can still attach it.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const secret = `OWNER-SECRET-${apiSdk.faker.generateString(6).toUpperCase()}`;
+    const privateFile = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      myFolder.response!.current!.id!,
+      "autotest-owner-private.txt",
+      Buffer.from(`Confidential. ${secret}`, "utf8"),
+      "text/plain",
+    );
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Attach By Id Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const roomFile = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      roomId,
+      "autotest-room-file.txt",
+      Buffer.from(DEVICE_TEXT, "utf8"),
+      "text/plain",
+    );
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    // The conclusion depends on who is on the wire, so pin it.
+    await attachments.expectActingAs("user", memberId, "User");
+
+    // Control: the member really has no access to the owner's private file.
+    expect(
+      (
+        await apiSdk
+          .forRole("user")
+          .files.getFileInfo({ fileId: privateFile.id })
+      ).status,
+      "the member cannot read the owner's file directly",
+    ).toBe(403);
+
+    const refused = await attachDocSpaceFile(
+      attachments,
+      "user",
+      privateFile.id,
+      "stolen.txt",
+    );
+    expect(refused.status, "attaching a file the caller cannot read").toBe(403);
+    expect(
+      JSON.stringify(refused.data ?? ""),
+      "and no part of the file came back",
+    ).not.toContain(secret);
+
+    // Positive control: Read is enough to attach a file from a room, so the 403
+    // above is about access to that file and not about members at all.
+    const allowed = await attachDocSpaceFile(
+      attachments,
+      "user",
+      roomFile.id,
+      roomFile.title,
+    );
+    expect(allowed.status, "a Read-level member attaching a room file").toBe(
+      200,
+    );
+    expect(allowed.data?.content).toBe(DEVICE_TEXT);
+  });
+
+  test("POST /api/2.0/ai/attachments/save-file - archives are refused at attach time while documents and images are accepted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The requirement's second half, and it holds. The composer's "unsupported
+    // type" toast has a server-side counterpart, and it sits at attach time
+    // rather than at upload time — `POST /files/{id}/upload` storing a .zip is
+    // correct for a file storage and is deliberately not treated as a defect
+    // here (the upload half is pinned as a control below).
+    //
+    // Real archives, not renamed text, so a refusal cannot be attributed to the
+    // bytes and an acceptance cannot be explained away either.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Attach Formats Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const cases: Array<{
+      label: string;
+      name: string;
+      bytes: Buffer;
+      mime: string;
+      attachable: boolean;
+    }> = [
+      {
+        label: "txt",
+        name: "autotest.txt",
+        bytes: Buffer.from(DEVICE_TEXT, "utf8"),
+        mime: "text/plain",
+        attachable: true,
+      },
+      {
+        label: "csv",
+        name: "autotest.csv",
+        bytes: Buffer.from("a,b\n1,2\n", "utf8"),
+        mime: "text/csv",
+        attachable: true,
+      },
+      {
+        label: "md",
+        name: "autotest.md",
+        bytes: Buffer.from("# Heading\n\nbody", "utf8"),
+        mime: "text/markdown",
+        attachable: true,
+      },
+      {
+        label: "png",
+        name: "autotest.png",
+        bytes: createPng(2, 2),
+        mime: "image/png",
+        attachable: true,
+      },
+      {
+        label: "zip",
+        name: "autotest.zip",
+        bytes: createZipArchive([
+          { name: "inner.txt", content: "inside the archive" },
+        ]),
+        mime: "application/zip",
+        attachable: false,
+      },
+      {
+        label: "tgz",
+        name: "autotest.tgz",
+        bytes: createGzipArchive(DEVICE_TEXT),
+        mime: "application/gzip",
+        attachable: false,
+      },
+    ];
+
+    for (const { label, name, bytes, mime, attachable } of cases) {
+      // Control for every case: the file storage takes all of them, so the
+      // difference below is the attachment rule and nothing else.
+      const stored = await expectDeviceFileStored(
+        apiSdk,
+        "owner",
+        roomId,
+        name,
+        bytes,
+        mime,
+      );
+
+      const { status } = await attachDocSpaceFile(
+        attachments,
+        "owner",
+        stored.id,
+        name,
+      );
+      expect(status, `attaching a .${label}`).toBe(attachable ? 200 : 400);
+    }
+  });
+
+  test("POST /api/2.0/ai/attachments/save-file - a real .docx is extracted and an empty one is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The format a user is most likely to attach, and the one case where a 400
+    // is about the file being empty rather than about its type — worth splitting
+    // out so that "docx is rejected" never gets recorded from the empty case.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    const marker = `DOCX-${apiSdk.faker.generateString(6).toUpperCase()}`;
+    const title = `Autotest Docx ${apiSdk.faker.generateString(6)}`;
+    const exported = await aiSettings.textToDocx("owner", {
+      title,
+      content: `Document body. ${marker}`,
+      folderId,
+    });
+    expect(exported.status).toBe(202);
+    const docx = await waitForExportedFile(ownerApi, folderId, `${title}.docx`);
+    expect(docx, "the .docx the portal was asked to build").toBeDefined();
+
+    const attached = await attachDocSpaceFile(
+      attachments,
+      "owner",
+      docx!.id,
+      `${title}.docx`,
+    );
+    expect(attached.status).toBe(200);
+    expect(
+      String(attached.data?.content),
+      "the document's own text, not its raw bytes",
+    ).toContain(marker);
+
+    const { data: empty } = await ownerApi.files.createFile({
+      folderId,
+      createFileJsonElement: { title: "autotest-empty.docx" },
+    });
+    expect(
+      (
+        await attachDocSpaceFile(
+          attachments,
+          "owner",
+          empty.response!.id!,
+          "autotest-empty.docx",
+        )
+      ).status,
+      "an empty document has nothing to extract",
+    ).toBe(400);
+  });
+
+  test("POST /api/2.0/ai/attachments/save-file - a file far larger than the request-body limit attaches whole", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Attaching by id has no size ceiling, because the payload never travels in
+    // the request — so the ~128 KB body cap that the "large content body" test
+    // above measures does not apply to a document of any size. A client that
+    // extracted the text itself and inlined it would still hit that cap, which
+    // is a property of its request and not a limit of the feature.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const content = Buffer.from(LARGE_FILE_TEXT, "utf8");
+    expect(content.length).toBeGreaterThan(200_000);
+
+    const stored = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      myFolder.response!.current!.id!,
+      `autotest-large-${apiSdk.faker.generateString(6)}.txt`,
+      content,
+      "text/plain",
+    );
+    expect(stored.pureContentLength).toBe(content.length);
+
+    const byReference = await attachDocSpaceFile(
+      attachments,
+      "owner",
+      stored.id,
+      stored.title,
+    );
+    expect(byReference.status, "attaching the large file by id").toBe(200);
+    expect(
+      String(byReference.data?.content).length,
+      "the whole document came through",
+    ).toBeGreaterThan(200_000);
+  });
+
+  // An id that resolves to nothing crashes the request instead of answering a
+  // client error. That is what is left of BUG 82742, and it is pinned with the
+  // other save-file validation bugs in the "save-file" describe above rather
+  // than duplicated here.
+});
+
+test.describe("AI Attachments - the destination of a device file", () => {
+  test("POST /api/2.0/ai/* - the portal exposes no chat upload route, so the destination is chosen by the client", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The honest boundary of this suite. "Into the current area, or My Documents
+    // when the user cannot write there" is a branch, and there is nothing on the
+    // server to send it to: the whole AI surface has no multipart route and no
+    // route that takes a folder plus a file. Every plausible name answers 404,
+    // so the branch runs in the client and only a UI test can show it is taken.
+    //
+    // What is asserted instead is the input the branch is entitled to rely on:
+    // the target folder's `security.Create` must be the truth, because a client
+    // that trusts it and a client that tries the upload have to reach the same
+    // conclusion.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const base = apiSdk.tokenStore.portalBaseUrl;
+    const headers = {
+      Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+      Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+      "Content-Type": "application/json",
+    };
+    for (const route of CANDIDATE_UPLOAD_ROUTES) {
+      const response = await apiSdk.request.post(`${base}${route}`, {
+        headers,
+        data: {},
+      });
+      expect(response.status(), `POST ${route}`).toBe(404);
+    }
+
+    const { agentId, resultStorageId } = await createAgentWithStorage(
+      apiSdk,
+      "Autotest Destination Agent",
+    );
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const myFolderId = myFolder.response!.current!.id!;
+
+    const content = Buffer.from(DEVICE_TEXT, "utf8");
+    for (const { label, folderId, writable } of [
+      { label: "the agent room root", folderId: agentId, writable: false },
+      {
+        label: "the agent's Result Storage",
+        folderId: resultStorageId,
+        writable: true,
+      },
+      { label: "My Documents", folderId: myFolderId, writable: true },
+    ]) {
+      const { data: folder } = await ownerApi.folders.getFolderByFolderId({
+        folderId,
+      });
+      const advertised = (
+        folder.response?.current as unknown as {
+          security?: { Create?: boolean };
+        }
+      )?.security?.Create;
+      const actual = await uploadDeviceFile(
+        apiSdk,
+        "owner",
+        folderId,
+        `autotest-probe-${apiSdk.faker.generateString(6)}.txt`,
+        content,
+        "text/plain",
+      );
+
+      expect(advertised, `${label} advertises security.Create`).toBe(writable);
+      expect(actual.status, `uploading into ${label}`).toBe(
+        writable ? 200 : 403,
+      );
+    }
+  });
+
+  test("POST /api/2.0/files/{agentId}/upload - the agent room root holds no files at all, its subfolders do", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Why the destination for an agent chat cannot simply be "the room". The
+    // root refuses both routes that could create a file, to the portal owner as
+    // much as to anyone, while an ordinary Custom room takes the same request.
+    // The portal's own export route resolves an agent room id to Result Storage
+    // for exactly this reason.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { agentId } = await createAgentWithStorage(
+      apiSdk,
+      "Autotest Room Root Agent",
+    );
+
+    expect(
+      (
+        await ownerApi.files.createFile({
+          folderId: agentId,
+          createFileJsonElement: { title: "autotest.docx" },
+        })
+      ).status,
+      "creating a file in the agent room",
+    ).toBe(403);
+    expect(
+      await listFolderFiles(ownerApi, agentId),
+      "the agent room root stays empty",
+    ).toEqual([]);
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Root Control Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    expect(
+      (
+        await uploadDeviceFile(
+          apiSdk,
+          "owner",
+          roomData.response!.id!,
+          "autotest-control.txt",
+          Buffer.from(DEVICE_TEXT, "utf8"),
+          "text/plain",
+        )
+      ).status,
+      "the same upload into a Custom room",
+    ).toBe(200);
+  });
+
+  test("POST /api/2.0/files/{roomId}/upload - a room created as RoomType.AiRoom refuses a device file at its root as well", async ({
+    apiSdk,
+  }) => {
+    // The other way to get an AI room. It is not an agent — it never appears in
+    // /ai/agents — but it draws the same line, so the rule belongs to the room
+    // type rather than to the /ai/agents plumbing.
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData, status } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest AI Room Device Upload",
+        roomType: RoomType.AiRoom,
+      },
+    });
+    expect(status).toBe(200);
+
+    expect(
+      (
+        await uploadDeviceFile(
+          apiSdk,
+          "owner",
+          roomData.response!.id!,
+          "autotest-device.txt",
+          Buffer.from(DEVICE_TEXT, "utf8"),
+          "text/plain",
+        )
+      ).status,
+    ).toBe(403);
+  });
+
+  test("POST /api/2.0/files/{resultStorageId}/upload - Result Storage takes a device file and keeps it out of the agent's index", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The writable place inside an agent that does not change what the agent
+    // knows. The file is real — the bytes come back — and it carries no
+    // vectorization status, the field only Knowledge files get.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { knowledgeId, resultStorageId } = await createAgentWithStorage(
+      apiSdk,
+      "Autotest Result Storage Agent",
+    );
+
+    const fileName = `autotest-device-${apiSdk.faker.generateString(6)}.txt`;
+    const content = Buffer.from(DEVICE_TEXT, "utf8");
+    const file = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      resultStorageId,
+      fileName,
+      content,
+      "text/plain",
+    );
+
+    expect(file.folderId).toBe(resultStorageId);
+    expect(file.pureContentLength).toBe(content.length);
+    expect(
+      (await downloadFile(apiSdk, "owner", file.id)).toString("utf8"),
+    ).toBe(DEVICE_TEXT);
+    expect(
+      (await listFolderFiles(ownerApi, knowledgeId)).map(
+        (entry) => entry.title,
+      ),
+      "a chat attachment must not appear in the agent's Knowledge",
+    ).not.toContain(fileName);
+
+    const { data: info, status } = await ownerApi.files.getFileInfo({
+      fileId: file.id,
+    });
+    expect(status).toBe(200);
+    expect(
+      (info.response as { vectorizationStatus?: number })?.vectorizationStatus,
+      "a file outside Knowledge is never queued for indexing",
+    ).toBeUndefined();
+  });
+
+  test("POST /api/2.0/files/{knowledgeId}/upload - a device file put in Knowledge instead is indexed as permanent agent knowledge", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Why the choice between the two writable folders matters. Knowledge
+    // auto-vectorizes everything that lands in it with no further call, so a
+    // client that treated it as "the current area" would turn every one-off chat
+    // attachment into part of the agent's permanent knowledge base.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { knowledgeId } = await createAgentWithStorage(
+      apiSdk,
+      "Autotest Knowledge Upload Agent",
+    );
+
+    const file = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      knowledgeId,
+      `autotest-device-${apiSdk.faker.generateString(6)}.txt`,
+      Buffer.from(DEVICE_TEXT, "utf8"),
+      "text/plain",
+    );
+
+    expect(file.folderId).toBe(knowledgeId);
+    expect(
+      await waitForVectorization(ownerApi, file.id),
+      "an uploaded Knowledge file is indexed without anyone asking",
+    ).toBe(VectorizationStatus.Completed);
+  });
+});
+
+/**
+ * Levels in an agent room that do not carry the right to create files.
+ *
+ * There is exactly one. In an ordinary room `Editing` would be the other, but an
+ * agent room refuses to grant it at all — pinned by the access-level test below
+ * — so `Read` is the whole list.
+ */
+const NO_CREATE_ACCESS: Array<{ label: string; access: FileShare }> = [
+  { label: "Viewer", access: FileShare.Read },
+];
+
+test.describe("AI Attachments - who can store a device file inside an agent", () => {
+  // These are the permission facts the client's destination choice rests on:
+  // which members would be refused by the area, and whether the fallback target
+  // exists for them. They do not show that the client falls back — see the
+  // "destination" describe above for why nothing on the server can.
+  for (const { label, access } of NO_CREATE_ACCESS) {
+    test(`POST /api/2.0/files/{resultStorageId}/upload - a ${label} in the agent room is refused there but can write to their own My Documents`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const { agentId, resultStorageId } = await createAgentWithStorage(
+        apiSdk,
+        `Autotest Fallback Agent ${label}`,
+      );
+
+      // Positive control for the 403 below: this folder does accept uploads.
+      await expectDeviceFileStored(
+        apiSdk,
+        "owner",
+        resultStorageId,
+        `autotest-owner-control-${apiSdk.faker.generateString(6)}.txt`,
+        Buffer.from(DEVICE_TEXT, "utf8"),
+        "text/plain",
+      );
+
+      const { data: memberData, api: memberApi } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      await ownerApi.rooms.setRoomSecurity({
+        id: agentId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
+
+      // Premise: the invitation took effect. Without it the 403 could just as
+      // well be "not a member at all", which is a different rule.
+      expect(
+        (await memberApi.folders.getFolders({ folderId: agentId })).status,
+        `a ${label} can see the agent room`,
+      ).toBe(200);
+
+      const fileName = `autotest-device-${apiSdk.faker.generateString(6)}.txt`;
+      const content = Buffer.from(DEVICE_TEXT, "utf8");
+
+      expect(
+        (
+          await uploadDeviceFile(
+            apiSdk,
+            "user",
+            resultStorageId,
+            fileName,
+            content,
+            "text/plain",
+          )
+        ).status,
+        `a ${label} storing a device file inside the agent`,
+      ).toBe(403);
+      expect(
+        (await listFolderFiles(ownerApi, resultStorageId)).map(
+          (entry) => entry.title,
+        ),
+        "and nothing was created behind the refusal",
+      ).not.toContain(fileName);
+
+      const { data: myFolder } = await memberApi.folders.getMyFolder({});
+      const memberFolderId = myFolder.response!.current!.id!;
+      const stored = await expectDeviceFileStored(
+        apiSdk,
+        "user",
+        "@my",
+        fileName,
+        content,
+        "text/plain",
+      );
+      expect(
+        stored.folderId,
+        "the target a client would fall back to exists and is writable",
+      ).toBe(memberFolderId);
+    });
+  }
+
+  test("PUT /api/2.0/files/rooms/{agentId}/share - an agent room does not offer Editing, so Viewer is the only level without the right to create files", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Why the loop above has one entry. In an ordinary room the levels that
+    // cannot create a file are Viewer and Editor; an agent room refuses to grant
+    // Editing at all, to a plain User as much as to a Guest. A matrix copied
+    // from another room type would be testing a state that cannot exist.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { agentId } = await createAgentWithStorage(
+      apiSdk,
+      "Autotest Agent Access Levels",
+    );
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+
+    const grant = (access: FileShare) =>
+      ownerApi.rooms.setRoomSecurity({
+        id: agentId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberId, access }],
+          notify: false,
+        },
+      });
+
+    // Controls first: the request shape is accepted for the levels the room does
+    // support, so the refusal below is about `Editing` and nothing else.
+    expect((await grant(FileShare.Read)).status, "granting Read").toBe(200);
+    expect(
+      (await grant(FileShare.ContentCreator)).status,
+      "granting ContentCreator",
+    ).toBe(200);
+    expect((await grant(FileShare.Editing)).status, "granting Editing").toBe(
+      403,
+    );
+  });
+
+  test("POST /api/2.0/files/{resultStorageId}/upload - a ContentCreator in the agent room stores a device file there", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The positive half of the matrix: with the right to create files the
+    // member's file stays inside the agent, so the refusals above are about the
+    // access level and not about members being shut out of an agent altogether.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { agentId, resultStorageId } = await createAgentWithStorage(
+      apiSdk,
+      "Autotest Fallback Agent ContentCreator",
+    );
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await ownerApi.rooms.setRoomSecurity({
+      id: agentId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: memberData.response!.id!, access: FileShare.ContentCreator },
+        ],
+        notify: false,
+      },
+    });
+
+    const fileName = `autotest-device-${apiSdk.faker.generateString(6)}.txt`;
+    const file = await expectDeviceFileStored(
+      apiSdk,
+      "user",
+      resultStorageId,
+      fileName,
+      Buffer.from(DEVICE_TEXT, "utf8"),
+      "text/plain",
+    );
+
+    expect(file.folderId).toBe(resultStorageId);
+    expect(
+      (await listFolderFiles(ownerApi, resultStorageId)).map(
+        (entry) => entry.title,
+      ),
+      "the member's device file is inside the agent",
+    ).toContain(fileName);
+  });
+
+  test("GET /api/2.0/files/@my - a Guest in an agent room has nowhere at all to put a device file", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // A Guest can only ever hold Read in an agent room, and Read cannot create
+    // files — so the agent is closed to them. The target a client would fall
+    // back to does not exist either: a Guest has no personal folder. For a Guest
+    // the feature has no landing place on the server at all.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { agentId, resultStorageId } = await createAgentWithStorage(
+      apiSdk,
+      "Autotest Guest Fallback Agent",
+    );
+
+    // Positive control: the target folder is writable, so the Guest's 403 is
+    // about the Guest.
+    await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      resultStorageId,
+      `autotest-owner-control-${apiSdk.faker.generateString(6)}.txt`,
+      Buffer.from(DEVICE_TEXT, "utf8"),
+      "text/plain",
+    );
+
+    const { data: guestData, api: guestApi } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    await ownerApi.rooms.setRoomSecurity({
+      id: agentId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    expect(
+      (await guestApi.folders.getFolders({ folderId: agentId })).status,
+      "the Guest can see the agent room",
+    ).toBe(200);
+
+    const fileName = `autotest-guest-${apiSdk.faker.generateString(6)}.txt`;
+    const content = Buffer.from(DEVICE_TEXT, "utf8");
+
+    expect(
+      (
+        await uploadDeviceFile(
+          apiSdk,
+          "guest",
+          resultStorageId,
+          fileName,
+          content,
+          "text/plain",
+        )
+      ).status,
+      "a Guest storing a device file inside the agent",
+    ).toBe(403);
+    expect(
+      (await guestApi.folders.getMyFolder({})).status,
+      "a Guest has no My Documents",
+    ).toBe(404);
+    expect(
+      (
+        await uploadDeviceFile(
+          apiSdk,
+          "guest",
+          "@my",
+          fileName,
+          content,
+          "text/plain",
+        )
+      ).status,
+      "a Guest falling back to a My Documents that does not exist",
+    ).not.toBe(200);
+  });
+});
+
+test.describe("AI Attachments - the whole path, end to end", () => {
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a device file uploaded, attached by id and carried on the message still never reaches the model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The strongest form of the bug, and the reason this file exists. Every
+    // earlier version of it could be dismissed as the wrong request shape: the
+    // draft was built from text the test invented, and passed by bare id. Here
+    // the file is a real DocSpace file, the attachment is created the way the
+    // product creates it — by reference, with the server doing the extraction —
+    // and the draft demonstrably holds the file's text. The model is still told
+    // there is no attachment.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const { aiChat, profileId, agentId, resultStorageId } =
+      await createAgentWithStorage(apiSdk, "Autotest End To End Agent");
+
+    const marker = `PINEAPPLE-${apiSdk.faker.generateString(6).toUpperCase()}`;
+    const fileName = `autotest-device-${apiSdk.faker.generateString(6)}.txt`;
+    const uploaded = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      resultStorageId,
+      fileName,
+      Buffer.from(`The code word is ${marker}. Nothing else matters.`, "utf8"),
+      "text/plain",
+    );
+
+    const attached = await attachDocSpaceFile(
+      attachments,
+      "owner",
+      uploaded.id,
+      uploaded.title,
+      String(agentId),
+    );
+    expect(attached.status).toBe(200);
+    const draftId = attached.data!.id!;
+    // The draft really does carry the file's text, so a model that does not see
+    // the code word was not given something empty.
+    expect(String(attached.data?.content)).toContain(marker);
+    expect(attached.data?.path).toBe(`${uploaded.id}/${uploaded.title}`);
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest device upload thread",
+      profileId,
+      agentId,
+    });
+    const sent = await attachments.rawRequest(
+      "owner",
+      "post",
+      "/api/2.0/ai/ai/send-with-stream",
+      {
+        threadId,
+        entityId: String(agentId),
+        profileId,
+        userMessage: {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "The attached file contains one code word. Reply with that code word and nothing else.",
+            },
+          ],
+          attachments: [{ id: draftId }],
+        },
+      },
+    );
+    // Asserted before test.fail(), so a dead gateway or a broken send is a real
+    // red failure rather than this test's expected one.
+    expect(sent.status).toBe(200);
+    expect(sent.text, "the stream did not carry an error").not.toContain(
+      "stream error",
+    );
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    const carried = messages.data.find(
+      (message) => message.role === "user",
+    ) as unknown as { attachments?: Array<{ id?: string }> } | undefined;
+    expect(
+      carried?.attachments?.map((attachment) => attachment.id),
+      "the message carries the attachment",
+    ).toContain(draftId);
+
+    const reply = AiAgentChat.assistantMessages(messages.data)
+      .map((message) => AiAgentChat.messageText(message))
+      .join("\n");
+    expect(reply.length, "the assistant answered at all").toBeGreaterThan(0);
+
+    test.fail();
+    expect(reply, `assistant reply: ${reply}`).toContain(marker);
+  });
+
+  test("the archive these tests upload really is an archive", async () => {
+    // Guard for the test data. The 400 on a .zip only means "archives are
+    // refused" if the bytes are a genuine archive, and the zip reader that
+    // proves it already exists for the .docx tests.
+    const archive = createZipArchive([
+      { name: "notes.txt", content: DEVICE_TEXT },
+      { name: "inner/second.txt", content: "second member" },
+    ]);
+
+    expect(archive.subarray(0, 2).toString("latin1")).toBe("PK");
+    expect(listDocxEntries(archive)).toEqual(["notes.txt", "inner/second.txt"]);
   });
 });

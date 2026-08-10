@@ -256,7 +256,7 @@ test.describe("AI Web Search - provider names", () => {
     }
   });
 
-  test("BUG 82811: POST /api/2.0/ai/web-search/test-connection - no web-search provider is recognised, Exa and ONLYOFFICE included", async ({
+  test("BUG 82811: POST /api/2.0/ai/web-search/test-connection - Exa and ONLYOFFICE are recognised", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -277,17 +277,32 @@ test.describe("AI Web Search - provider names", () => {
       }
     }
 
-    // Every candidate the product documents or the client sends is unknown, so
-    // there is no name a caller could configure.
-    expect(rejected, "providers the portal refused to recognise").toEqual([
-      ...WEB_SEARCH_PROVIDER_CANDIDATES,
-    ]);
+    // Every candidate the product documents or the client sends used to be
+    // unknown, so there was no name a caller could configure. The two the
+    // product ships with are now understood; the rest are still not names this
+    // portal knows, which is the intended answer for them.
+    expect(rejected, "providers the portal refuses to recognise").toEqual(
+      WEB_SEARCH_PROVIDER_CANDIDATES.filter(
+        (provider) => provider !== "exa" && provider !== "onlyoffice",
+      ),
+    );
 
-    test.fail();
-    expect(
-      rejected,
-      "at least one web-search provider must be recognised",
-    ).not.toContain("exa");
+    // Exa is not merely a known name: the key is really taken to the provider
+    // and comes back validated.
+    const exa = await webSearch.testConnection("owner", {
+      provider: "exa",
+      key: config.EXA_API_KEY,
+    });
+    expect(exa.data, "a valid Exa key validates").toBe(true);
+
+    // ONLYOFFICE is recognised too, and asks for the field it still needs.
+    const onlyoffice = await webSearch.testConnection("owner", {
+      provider: "onlyoffice",
+      key: config.EXA_API_KEY,
+    });
+    expect(onlyoffice.data?.message).toBe(
+      "Base URL is required for cloud provider",
+    );
   });
 });
 

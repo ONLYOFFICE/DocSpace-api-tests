@@ -886,7 +886,7 @@ test.describe("MCP - the tool-call pause", () => {
     expect(AiAgentChat.messageText(replies[0])).toContain("21");
   });
 
-  test("BUG 82862: POST /api/2.0/ai/ai/approve-tool-call - a structured tool result cannot be resumed", async ({
+  test("BUG 82862: POST /api/2.0/ai/ai/approve-tool-call - a structured tool result resumes the reply", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -920,17 +920,16 @@ test.describe("MCP - the tool-call pause", () => {
     const messages = await aiChat.readMessages("owner", threadId);
     const reply = AiAgentChat.assistantMessages(messages.data)[0];
 
-    // The result is stored, so the failure is not in accepting it: the gateway
-    // refuses the CONTINUATION request, with
+    // The object is serialised on the way in, which is what makes the
+    // continuation request bindable — it used to be forwarded as an object and
+    // the gateway refused it with
     //   400 invalid request: bind "messages.content" from body: json: cannot
     //   unmarshal object into Go struct field ChatMessage.messages.content
-    // and the reply is abandoned half-written.
-    expect(AiAgentChat.toolCalls(reply)[0].result).toEqual({
-      temperature: "21C",
-      conditions: "sunny",
-    });
+    // leaving the reply abandoned half-written.
+    expect(AiAgentChat.toolCalls(reply)[0].result).toBe(
+      JSON.stringify({ temperature: "21C", conditions: "sunny" }),
+    );
 
-    test.fail();
     expect(reply.status?.error).toBeUndefined();
     expect(AiAgentChat.frameTypes(approve.text)).toContain("message-end");
   });
@@ -1109,7 +1108,7 @@ test.describe("MCP - always-allow drives the pause", () => {
 const OTHER_CONFIG = { url: "https://mcp-other.example.invalid/sse" };
 
 test.describe("MCP - custom servers scoped to a room", () => {
-  test("BUG 82863: POST /api/2.0/ai/tools/add-custom-server - a server registered for a room is readable by name but never listed", async ({
+  test("BUG 82863: POST /api/2.0/ai/tools/add-custom-server - a server registered for a room is listed for it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1143,16 +1142,56 @@ test.describe("MCP - custom servers scoped to a room", () => {
     expect(single.status).toBe(200);
     expect(single.data).toEqual(SERVER_CONFIG);
 
-    // It is not in the portal-wide scope either, so it is not simply misfiled.
-    const portalWide = await aiTools.listCustomServers("owner");
-    expect(portalWide.status).toBe(200);
-    expect(Object.keys(portalWide.data)).not.toContain("autotest-room-server");
-
+    // It used to be reachable by name and absent from every listing.
     const listed = await aiTools.listCustomServers("owner", roomId);
     expect(listed.status).toBe(200);
+    expect(Object.keys(listed.data)).toContain("autotest-room-server");
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/tools/add-custom-server - a server registered for a room is also served portal-wide", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The other half of what a room id does to the scope. An AGENT id keeps its
+    // servers to itself — "the portal-wide scope is untouched" in the CRUD block
+    // above is a passing test. A ROOM id does not: the entry comes back for the
+    // room AND for every caller who lists the portal-wide scope, so naming a room
+    // is indistinguishable from registering the server for the whole portal.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest MCP Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const added = await aiTools.addCustomServer("owner", {
+      name: "autotest-room-server",
+      config: SERVER_CONFIG,
+      agentId: roomId,
+    });
+    expect(added.status).toBe(200);
+    expect(added.data?.success).toBe(true);
+
+    const scoped = await aiTools.listCustomServers("owner", roomId);
+    expect(
+      Object.keys(scoped.data),
+      "the write reached the room scope",
+    ).toContain("autotest-room-server");
+
+    const portalWide = await aiTools.listCustomServers("owner");
+    expect(portalWide.status).toBe(200);
 
     test.fail();
-    expect(Object.keys(listed.data)).toContain("autotest-room-server");
+    expect(
+      Object.keys(portalWide.data),
+      "a room's server must not appear in the portal-wide scope",
+    ).not.toContain("autotest-room-server");
   });
 
   test("PUT|DELETE /api/2.0/ai/tools/*-custom-server - a room-scoped server can be updated and removed by name", async ({
@@ -1438,14 +1477,14 @@ test.describe("MCP - replace-all-custom-servers", () => {
     expect(scoped.data).toEqual({});
   });
 
-  test("BUG 82864: PUT /api/2.0/ai/tools/replace-all-custom-servers - a body without `map` wipes the scope instead of being rejected", async ({
+  test("BUG 82864: PUT /api/2.0/ai/tools/replace-all-custom-servers - a body without `map` is rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // `map` is required by the contract, and the field name is easy to get wrong
     // — the SDK's own model for the neighbouring routes calls this kind of
-    // payload `servers`. Sending anything but `map` is not a no-op and not a
-    // 400: the scope is emptied, silently, with `{success:true}`.
+    // payload `servers`. Sending anything but `map` used to empty the scope
+    // silently, with `{success:true}`.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -1471,7 +1510,6 @@ test.describe("MCP - replace-all-custom-servers", () => {
 
     const after = await aiTools.listCustomServers("owner", agentId);
 
-    test.fail();
     expect(status).toBe(400);
     expect(
       Object.keys(after.data),
@@ -1528,13 +1566,13 @@ test.describe("MCP - replace-all-custom-servers", () => {
     expect(status).toBe(200);
   });
 
-  test("BUG 82864: PUT /api/2.0/ai/tools/replace-all-custom-servers - a null map wipes the scope instead of being rejected", async ({
+  test("BUG 82864: PUT /api/2.0/ai/tools/replace-all-custom-servers - a null map is rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The same defect as the missing-`map` case above, through the spelling a
+    // The same case as the missing-`map` one above, through the spelling a
     // client is most likely to produce by accident: a state variable that has not
-    // been populated yet serialises to `null`, and the scope is emptied with
+    // been populated yet serialises to `null`. It used to empty the scope with
     // `{success:true}`.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -1559,7 +1597,6 @@ test.describe("MCP - replace-all-custom-servers", () => {
     });
     const after = await aiTools.listCustomServers("owner", agentId);
 
-    test.fail();
     expect(status).toBe(400);
     expect(
       Object.keys(after.data),

@@ -560,7 +560,7 @@ test.describe("AI Assignments - bulk assignment", () => {
     ).toBe(text.id);
   });
 
-  test("BUG 82831: PUT /api/2.0/ai/assignments/bulk-assign - unknown action keys are silently dropped instead of rejected", async ({
+  test("BUG 82831: PUT /api/2.0/ai/assignments/bulk-assign - an unknown action key is rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -574,27 +574,23 @@ test.describe("AI Assignments - bulk assignment", () => {
 
     // The reference: on the single-assignment route the very same unknown action
     // type is a hard 400, so an unknown key is not a thing the API tolerates by
-    // design.
+    // design. The batch route used to answer it with `success:true` and store
+    // nothing.
     const single = await profiles.assign("owner", {
       actionType: "NotAnAction",
       profileId: text.id,
     });
     expect(single.status).toBe(400);
 
-    // In a batch it is accepted and reported as a success, having stored nothing.
     const unknownOnly = await profiles.bulkAssign("owner", {
       NotAnAction: text.id,
     });
-    expect(unknownOnly.status).toBe(200);
-    expect(unknownOnly.data?.success, "an unknown key reports success").toBe(
-      true,
-    );
-    expect(unknownOnly.data?.errors).toBeUndefined();
+    expect(unknownOnly.status, "an unknown key in a batch").toBe(400);
 
-    // A wrong-cased action name is treated the same way — the enum is
-    // case-sensitive and the miss is silent.
+    // The enum is case-sensitive, and a wrong-cased action name is an unknown
+    // key like any other rather than a silent miss.
     const wrongCase = await profiles.bulkAssign("owner", { chat: other.id });
-    expect(wrongCase.data?.success).toBe(true);
+    expect(wrongCase.status, "a wrong-cased action name").toBe(400);
 
     const afterUnknown = await profiles.getAllAssignments("owner");
     expect(Object.keys(afterUnknown.data!), "nothing was stored").not.toContain(
@@ -602,29 +598,20 @@ test.describe("AI Assignments - bulk assignment", () => {
     );
     expect(afterUnknown.data!.Chat).toBeUndefined();
 
-    // And in a mixed batch the unknown key is dropped rather than failing the
-    // batch: the valid entry IS applied. That is the opposite of the atomic
-    // behaviour a capability mismatch produces, so "success:true" carries no
-    // information about how much of the payload was understood.
+    // A mixed batch is refused whole — the valid half must not be applied on its
+    // way past the unknown key.
     const mixed = await profiles.bulkAssign("owner", {
       Chat: text.id,
       NotAnAction: other.id,
     });
-    expect(mixed.status).toBe(200);
-    expect(mixed.data?.success).toBe(true);
+    expect(mixed.status, "a batch carrying one unknown key").toBe(400);
     expect(
       (await profiles.getAssignment("owner", "Chat")).data,
-      "the valid half of the mixed batch was applied",
-    ).toBe(text.id);
-
-    test.fail();
-    expect(
-      unknownOnly.data?.success,
-      "an unknown action type must be rejected in a batch as it is on assign",
-    ).toBe(false);
+      "the valid half of the refused batch was not applied",
+    ).toBeFalsy();
   });
 
-  test("BUG 82831: PUT /api/2.0/ai/assignments/bulk-assign - a null value neither clears the binding nor is rejected", async ({
+  test("BUG 82831: PUT /api/2.0/ai/assignments/bulk-assign - a null value is rejected and leaves the binding alone", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -644,21 +631,16 @@ test.describe("AI Assignments - bulk assignment", () => {
     );
 
     // Section 5.2 allows either reading of a null: clear the binding, or refuse
-    // it. This does neither — it reports success and leaves the binding in place.
-    const { status, data } = await profiles.bulkAssign("owner", {
+    // it. It used to do neither — report success and leave the binding in place.
+    const { status } = await profiles.bulkAssign("owner", {
       Translation: null,
     });
-    expect(status).toBe(200);
-    expect(data?.success, "the call reports success").toBe(true);
+    expect(status, "a null value must be rejected").toBe(400);
 
     const read = await profiles.getAssignment("owner", "Translation");
-    expect(read.data, "the binding is untouched").toBe(text.id);
-
-    test.fail();
-    expect(
-      read.data,
-      "a null value must either clear the binding or be rejected",
-    ).toBeNull();
+    expect(read.data, "the binding the refused write did not touch").toBe(
+      text.id,
+    );
   });
 });
 
@@ -853,7 +835,7 @@ test.describe("AI Assignments - entity scope", () => {
     expect(resolvedForAgent.data?.profileId).toBe(agentProfile.id);
   });
 
-  test("BUG 82832: GET /api/2.0/ai/assignments/get-all-assignments - an unknown entityId falls back to the portal-wide assignments", async ({
+  test("BUG 82832: GET /api/2.0/ai/assignments/get-all-assignments - an unknown entityId is a 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -870,18 +852,14 @@ test.describe("AI Assignments - entity scope", () => {
     });
     expect(assigned?.success).toBe(true);
 
+    // The scope used to be dropped silently, so a caller could not tell "this
+    // entity has no overrides" from "this entity is not a thing" — the
+    // portal-wide binding came back either way.
     const { status, data } = await profiles.getAllAssignments("owner", 999999);
-    expect(status).toBe(200);
-
-    // The scope is silently dropped instead of answering 404 for an entity that
-    // does not exist, so a caller cannot tell "this entity has no overrides" from
-    // "this entity is not a thing".
-    expect(data!.Summarization).toBe(text.id);
-
-    test.fail();
+    expect(status, "an unknown entity id").toBe(404);
     expect(
-      data,
-      "an unknown entity must not answer with the portal-wide assignments",
-    ).toEqual({});
+      data?.Summarization,
+      "and it does not answer with the portal-wide assignments",
+    ).toBeUndefined();
   });
 });
