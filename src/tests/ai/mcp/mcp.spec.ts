@@ -828,7 +828,10 @@ test.describe("MCP - the tool-call pause", () => {
     const toolCalls = AiAgentChat.toolCalls(reply);
     expect(toolCalls).toHaveLength(1);
     expect(toolCalls[0].toolName).toBe("get_weather");
-    expect(toolCalls[0].args).toEqual({ city: "Paris" });
+    // `toMatchObject`, not `toEqual`: the engine adds an `aiChatIntent` string
+    // of its own to the arguments the model chose, and it is prose — pinning it
+    // would make this test depend on the model's wording.
+    expect(toolCalls[0].args).toMatchObject({ city: "Paris" });
     expect(toolCalls[0].toolCallId).toBeTruthy();
     expect(
       toolCalls[0].result,
@@ -1604,14 +1607,14 @@ test.describe("MCP - replace-all-custom-servers", () => {
     ).toEqual(["autotest-keep-me"]);
   });
 
-  test("PUT /api/2.0/ai/tools/replace-all-custom-servers - an array is read as a map with index keys", async ({
+  test("PUT /api/2.0/ai/tools/replace-all-custom-servers - the SDK-shaped array payload is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The SDK-shaped `[{name, config}]` payload is not rejected as the wrong type:
-    // the array is bound as a map whose keys are "0", "1", … and whose values are
-    // the array elements, so the per-entry error names an index. Nothing is
-    // written, and the previous state survives.
+    // The SDK-shaped `[{name, config}]` payload used to be bound as a map whose
+    // keys were "0", "1", … so the per-entry error named an index. It is now
+    // rejected as the wrong type. Either way nothing is written and the previous
+    // state survives, which is the part that matters to a caller.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -1629,22 +1632,14 @@ test.describe("MCP - replace-all-custom-servers", () => {
       agentId,
     });
 
-    const { data, status } = await aiTools.replaceAllCustomServers("owner", {
+    const { status } = await aiTools.replaceAllCustomServers("owner", {
       map: [{ name: "autotest-array", config: SERVER_CONFIG }],
       agentId,
     });
 
     const after = await aiTools.listCustomServers("owner", agentId);
     expect(after.data).toEqual({ "autotest-keep-me": SERVER_CONFIG });
-
-    expect(data?.success).toBe(false);
-    expect(
-      (data as { errors?: Array<{ name?: string }> })?.errors?.map(
-        (entry) => entry.name,
-      ),
-      "the array index became the server name",
-    ).toEqual(["0"]);
-    expect(status).toBe(200);
+    expect(status).toBe(400);
   });
 
   test("BUG XXXXX: PUT /api/2.0/ai/tools/replace-all-custom-servers - two names differing only in case are both stored and one becomes unreachable", async ({
@@ -2300,14 +2295,19 @@ test.describe("MCP - a deleted agent's server map", () => {
     expect(scoped.status).toBe(200);
   });
 
-  test("POST|DELETE /api/2.0/ai/tools/*-custom-server - a write against a deleted agent is a 404, a remove is a silent success", async ({
+  test("BUG XXXXX: POST|DELETE /api/2.0/ai/tools/*-custom-server - a write against a deleted agent lands portal-wide", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Reads fall back to the portal scope (above); writes do not. `add` and
-    // `replace-all` refuse an entity that no longer exists, which is what keeps
-    // the fallback from turning into "the client wrote portal-wide by accident".
-    // `remove` is the hole in that: it validates nothing and reports success.
+    // Reads fall back to the portal scope (above), and writes now follow them
+    // there. `add` and `replace-all` used to refuse an entity that no longer
+    // exists, which is what kept the fallback from turning into "the client
+    // wrote portal-wide by accident"; they no longer do. `remove` has always
+    // been the hole in that: it validates nothing and reports success.
+    //
+    // Same defect as the unknown-agent case in mcp.permission.spec.ts and the
+    // room-scoped write above: an entityId the tools routes cannot resolve to an
+    // agent is treated as "no scope" instead of being refused.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2341,18 +2341,18 @@ test.describe("MCP - a deleted agent's server map", () => {
       agentId,
     });
 
-    // Nothing the three calls did may show up portal-wide.
     const portal = await aiTools.listCustomServers("owner");
-    expect(portal.data).toEqual({ "autotest-portal-server": SERVER_CONFIG });
 
-    expect(added.error).toBe("Not Found");
-    expect(added.status).toBe(404);
-    expect(replaced.error).toBe("Not Found");
-    expect(replaced.status).toBe(404);
     expect(removed.data?.success, "remove does not check the entity").toBe(
       true,
     );
     expect(removed.status).toBe(200);
+
+    test.fail();
+    // Nothing the three calls did may show up portal-wide.
+    expect(portal.data).toEqual({ "autotest-portal-server": SERVER_CONFIG });
+    expect(added.status).toBe(404);
+    expect(replaced.status).toBe(404);
   });
 });
 

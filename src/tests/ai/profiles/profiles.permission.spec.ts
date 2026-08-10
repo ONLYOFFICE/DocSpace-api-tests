@@ -135,11 +135,45 @@ test.describe("AI Profiles - catalogue read permissions", () => {
     const single = await profiles.getProfileById("guest", profile.id);
     expect(single.status).toBe(403);
 
-    const models = await profiles.listModels("guest", profile.id);
-    expect(models.status).toBe(403);
-
+    // list-models is deliberately absent: it answers this Guest a 400 rather
+    // than a 403, which is its own defect below.
     const connection = await profiles.testConnection("guest", profile.id);
     expect(connection.status).toBe(403);
+  });
+
+  test("BUG XXXXX: GET /api/2.0/ai/profiles/list-models - a Guest gets the provider error instead of 403", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The provider-key failure is raised ahead of the role check, so the one
+    // route in this controller that reaches outward is also the one that does
+    // not refuse a Guest first. Its three neighbours — list, get-by-id and
+    // test-connection — all answer 403, which is what makes this an ordering
+    // defect rather than the intended contract.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    await profiles.expectActingAs("guest", guestData.response!.id!, "Guest");
+
+    const { status, error } = await profiles.listModels("guest", profile.id);
+    expect(error).toBe("Invalid API key for the AI provider");
+
+    test.fail();
+    expect(
+      status,
+      "a Guest must be refused before the provider is dialled",
+    ).toBe(403);
   });
 });
 

@@ -637,14 +637,19 @@ test.describe("MCP - Custom server validation", () => {
     expect(Object.keys(data)).toContain("portal-server");
   });
 
-  test("POST|PUT|DELETE /api/2.0/ai/tools/*-custom-server - an unknown agent id is a 404 for writes", async ({
+  test("BUG XXXXX: POST|PUT|DELETE /api/2.0/ai/tools/*-custom-server - an unknown agent id writes into the portal scope", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The reads above fall back to the portal scope; the writes do not follow
-    // them there. `add` and `replace-all` answer a hard 404 and leave the portal
-    // scope alone — `remove` is the exception that validates nothing at all and
-    // reports success for an entity that does not exist.
+    // The reads above fall back to the portal scope, and the writes now follow
+    // them there: `add` and `replace-all` used to answer a hard 404 and leave the
+    // portal scope alone, and instead they land in it — `replace-all` replacing
+    // everything the portal had. `remove` has always validated nothing and
+    // reported success for an entity that does not exist.
+    //
+    // Same defect as the room-scoped write in mcp.spec.ts: any entityId the
+    // tools routes cannot resolve to an agent is silently treated as "no scope"
+    // rather than refused.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -669,16 +674,16 @@ test.describe("MCP - Custom server validation", () => {
     });
 
     const { data: portal } = await aiTools.listCustomServers("owner");
+
+    expect(removed.data?.success).toBe(true);
+    expect(removed.status).toBe(200);
+
+    test.fail();
     expect(portal, "the portal scope is neither written nor emptied").toEqual({
       "portal-server": SERVER_CONFIG,
     });
-
-    expect(added.error).toBe("Not Found");
     expect(added.status).toBe(404);
-    expect(replaced.error).toBe("Not Found");
     expect(replaced.status).toBe(404);
-    expect(removed.data?.success).toBe(true);
-    expect(removed.status).toBe(200);
   });
 
   test("GET /api/2.0/ai/tools/get-custom-server - an unregistered name answers 200 with null", async ({
