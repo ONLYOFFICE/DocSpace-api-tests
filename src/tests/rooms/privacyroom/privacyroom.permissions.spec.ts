@@ -852,7 +852,9 @@ test.describe("GET /files/rooms - private room visibility", () => {
       });
       const roomId = room.response!.id! as number;
 
-      const { data, status } = await apiSdk.forRole("owner").rooms.getRoomsFolder({});
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.getRoomsFolder({});
 
       expect(status).toBe(200);
       expect(folderIds(data)).not.toContain(roomId);
