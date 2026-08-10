@@ -36,9 +36,10 @@ test.describe("AI Profiles - AI Disabled", () => {
     expect(readStatus).toBe(200);
     expect(enabled).toBe(false);
 
+    // list-models is deliberately absent: it answers the provider error rather
+    // than the gate, which is its own defect below.
     const calls: Array<[string, Promise<{ status: number }>]> = [
       ["get-by-id", profiles.getProfileById("owner", profile.id)],
-      ["list-models", profiles.listModels("owner", profile.id)],
       ["test-connection", profiles.testConnection("owner", profile.id)],
       [
         "create",
@@ -67,6 +68,35 @@ test.describe("AI Profiles - AI Disabled", () => {
       const { status } = await call;
       expect(status, `${label} with AI access disabled`).toBe(403);
     }
+  });
+
+  test("BUG XXXXX: GET /api/2.0/ai/profiles/list-models - the provider error is raised before the AI switch is checked", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The same ordering defect as the Guest case in profiles.permission.spec.ts,
+    // through the other gate. `create` on this controller does check the switch
+    // first (the test below), and so do get-by-id and test-connection in the
+    // sweep above — list-models is the one route that answers outward-facing
+    // detail on a portal where AI is off.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const { enabled } = await setPortalAiAccess(ownerApi, false);
+    expect(enabled).toBe(false);
+
+    const { status, error } = await profiles.listModels("owner", profile.id);
+    expect(error).toBe("Invalid API key for the AI provider");
+
+    test.fail();
+    expect(status, "the AI switch must be checked first").toBe(403);
   });
 
   test("POST /api/2.0/ai/profiles/create - the AI switch is checked before the provider type is resolved", async ({

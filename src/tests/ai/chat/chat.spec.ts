@@ -851,7 +851,7 @@ test.describe("AI Threads - open-or-create", () => {
     expect(listed.data.map((thread) => thread.threadId)).toEqual([threadId]);
   });
 
-  test("POST /api/2.0/ai/threads/open-or-create - the profile id alone is enough to open a thread", async ({
+  test("POST /api/2.0/ai/threads/open-or-create - the whole profile object is required, not just its id", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -876,13 +876,27 @@ test.describe("AI Threads - open-or-create", () => {
       agentId,
     });
 
-    // The SDK types make the whole `AiProfile` object a required field, but the
-    // open path binds on `profileId` alone. Worth pinning: it means the 500 in the
-    // create case below is about the missing threadId, not about the body being
-    // short of a profile.
-    const { status, data } = await aiChat.openOrCreateThread("owner", {
+    // The SDK types make the whole `AiProfile` object a required field, and the
+    // route agrees: `profileId` alone used to bind on the open path and no
+    // longer does. Worth pinning, because it is what tells the 500 in the create
+    // case below apart from a body the validator never accepted.
+    const short = await aiChat.openOrCreateThread("owner", {
       threadId,
       profileId: profile.id,
+      entityId: String(agentId),
+      firstMessage: {
+        role: "user",
+        content: [{ type: "text", text: "hello" }],
+      },
+    });
+    expect(short.status, "profileId on its own").toBe(404);
+    expect(short.error).toBe(
+      "an AI profile is required to open or create a thread",
+    );
+
+    const { status, data } = await aiChat.openOrCreateThread("owner", {
+      threadId,
+      profile,
       entityId: String(agentId),
       firstMessage: {
         role: "user",
@@ -1345,7 +1359,7 @@ test.describe("AI Chat - the room a thread was started in goes away", () => {
 
     const deleted = await aiChat.deleteThread("owner", threadId);
     expect(deleted.status, "and it can still be cleaned up").toBe(200);
-    expect((await aiChat.getThread("owner", threadId)).data).toBeNull();
+    expect((await aiChat.getThread("owner", threadId)).status).toBe(404);
   });
 });
 
@@ -2763,10 +2777,15 @@ test.describe("AI Chat - an AI room created through the rooms API", () => {
     expectHealthyAssistantReply(
       await aiChat.waitForAssistantReply("owner", threadId),
     );
+    // The thread keeps the model it was opened on rather than the room's, which
+    // is the point: the room has none to impose. What the room resolves to is
+    // the portal default, asserted above — a client that hid its picker on the
+    // room type has nothing of the room's to hide it in favour of.
+    expect(portalDefault).not.toBe(profileId);
     expect(
       (await aiChat.getThread("owner", threadId)).data?.profileId,
-      "the send resolved the portal default, not a model of the room",
-    ).toBe(portalDefault);
+      "no model of the room's overrode the thread's own",
+    ).toBe(profileId);
   });
 });
 
