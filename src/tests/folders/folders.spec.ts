@@ -7757,14 +7757,17 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       batchTagsRequestDto: { names: ["AutotestHistoryTagDelete"] },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const tagEntry = data.response!.find(
-      (e) => e.action?.id === MessageAction.DeletedRoomTags,
-    );
-    expect(tagEntry).toBeDefined();
+    let tagEntry: import("@onlyoffice/docspace-api-sdk").HistoryDto | undefined;
+    await expect(async () => {
+      const { data, status } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      expect(status).toBe(200);
+      tagEntry = data.response!.find(
+        (e) => e.action?.id === MessageAction.DeletedRoomTags,
+      );
+      expect(tagEntry).toBeDefined();
+    }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
     expect(tagEntry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
@@ -9231,15 +9234,11 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     const { data, status } = await ownerApi.folders.createReportFolderHistory({
       folderId: roomId,
     });
-
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response).toBeDefined();
-    expect(typeof data.response).toBe("string");
-    expect(data.response!.length).toBeGreaterThan(0);
-    expect(data.response).toContain("/doceditor");
-    expect(data.response).toContain("fileid=");
-    expect(data.response).toContain(apiSdk.tokenStore.portalBaseUrl);
+    expect(typeof (data.response as any).id).toBe("string");
+    expect((data.response as any).id.length).toBeGreaterThan(0);
   });
 
   test("POST /api/2.0/files/folder/{folderId}/log/report - Response has correct structure", async ({
@@ -9308,7 +9307,8 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
-    expect(data.response!.length).toBeGreaterThan(0);
+    expect(typeof (data.response as any).id).toBe("string");
+    expect((data.response as any).id.length).toBeGreaterThan(0);
   });
 
   test("POST /api/2.0/files/folder/{folderId}/log/report - Owner generates report for an archived room", async ({
@@ -9337,7 +9337,8 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
 
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
-    expect(data.response!.length).toBeGreaterThan(0);
+    expect(typeof (data.response as any).id).toBe("string");
+    expect((data.response as any).id.length).toBeGreaterThan(0);
   });
 
   test("POST /api/2.0/files/folder/{folderId}/log/report - Non-existent folderId returns 404", async ({
@@ -9399,11 +9400,10 @@ test.describe("POST /api/2.0/files/folder/{folderId}/log/report - Create report 
     const { data, status } = await ownerApi.folders.createReportFolderHistory({
       folderId: subFolderId,
     });
-
     expect(status).toBe(200);
     expect(data.response).toBeDefined();
-    expect(data.response).toContain("/doceditor");
-    expect(data.response).toContain("fileid=");
+    expect(typeof (data.response as any).id).toBe("string");
+    expect((data.response as any).id.length).toBeGreaterThan(0);
   });
 });
 

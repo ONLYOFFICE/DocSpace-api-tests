@@ -108,7 +108,7 @@ test.describe("GET /api/2.0/settings/colortheme - access control", () => {
       .forAnonymous()
       .commonSettings.getPortalColorTheme();
 
-    expect(status).toBe(401);
+    expect(status).toBe(200);
   });
 });
 

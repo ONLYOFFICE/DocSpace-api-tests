@@ -56,6 +56,16 @@ export async function createPrivateRoom(
   });
 }
 
+/**
+ * How many of the rooms created by createAllRoomTypes the DEFAULT rooms view
+ * (searchArea=Active) lists.
+ *
+ * Form filling rooms moved out of the Active area: they now live under their own
+ * root (FolderType.Forms) and GET /files/rooms only returns them for
+ * searchArea=SearchArea.Forms. searchArea=Any still lists all five.
+ */
+export const activeAreaRoomCount = 4;
+
 export async function createAllRoomTypes(apiSdk: ApiSDK, role: Role) {
   const configs = [
     { title: "Autotest Custom", roomType: RoomType.CustomRoom },
@@ -77,4 +87,67 @@ export async function createAllRoomTypes(apiSdk: ApiSDK, role: Role) {
     });
   }
   return rooms;
+}
+
+/**
+ * Room types the standard Rooms section (searchArea=Active) is expected to list.
+ * FillingFormsRoom is deliberately absent: it belongs to the Forms section.
+ * AiRoom is excluded too - it has its own AiAgents area and its own suite.
+ */
+export const roomsAreaRoomTypes = [
+  { label: "Custom", roomType: RoomType.CustomRoom },
+  { label: "Collaboration", roomType: RoomType.EditingRoom },
+  { label: "Public", roomType: RoomType.PublicRoom },
+  { label: "VDR", roomType: RoomType.VirtualDataRoom },
+] as const;
+
+/**
+ * FolderContentDtoInteger.folders is typed as FileEntryBaseDto[], which drops
+ * roomType/rootFolderType. These readers keep the casts in one place.
+ */
+type FolderContentResponse = {
+  response?: {
+    folders?: unknown[] | null;
+    files?: unknown[] | null;
+  } | null;
+};
+
+export function folderIds(data: FolderContentResponse): number[] {
+  return ((data.response?.folders ?? []) as { id: number }[]).map((f) => f.id);
+}
+
+export function folderTitles(data: FolderContentResponse): string[] {
+  return ((data.response?.folders ?? []) as { title: string }[]).map(
+    (f) => f.title,
+  );
+}
+
+export function folderRoomTypes(data: FolderContentResponse): number[] {
+  return ((data.response?.folders ?? []) as { roomType: number }[]).map(
+    (f) => f.roomType,
+  );
+}
+
+export function fileTitles(data: FolderContentResponse): string[] {
+  return ((data.response?.files ?? []) as { title: string }[]).map(
+    (f) => f.title,
+  );
+}
+
+/** Creates a room and returns its id, asserting the create succeeded. */
+export async function createRoomOfType(
+  apiSdk: ApiSDK,
+  role: Role,
+  title: string,
+  roomType: RoomType,
+): Promise<number> {
+  const { data, status } = await apiSdk.forRole(role).rooms.createRoom({
+    createRoomRequestDto: { title, roomType },
+  });
+  if (status !== 200 || !data.response?.id) {
+    throw new Error(
+      `createRoom(${title}, type=${roomType}) failed: ${status} ${JSON.stringify(data)}`,
+    );
+  }
+  return data.response.id;
 }

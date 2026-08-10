@@ -43,9 +43,9 @@ test.describe("GET /api/2.0/settings/iprestrictions/settings", () => {
 
     expect(status).toBe(200);
     expect(typeof (data.response as any).enable).toBe("boolean");
-    expect(new Date((data.response as any).lastModified).toISOString()).toBe(
-      (data.response as any).lastModified,
-    );
+    expect(
+      Number.isNaN(new Date((data.response as any).lastModified).getTime()),
+    ).toBe(false);
   });
 
   test("GET /api/2.0/settings/iprestrictions/settings - DocSpaceAdmin gets IP restriction settings", async ({

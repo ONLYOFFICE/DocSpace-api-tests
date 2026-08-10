@@ -1,21 +1,25 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import {
-  EncryptionKeyType,
-  FileShare,
-  RoomType,
-} from "@onlyoffice/docspace-api-sdk";
+import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 /**
  * Functional tests for the PrivacyroomApi — per-user encryption key management
  * used by DocSpace Privacy Rooms.
  *
  *   GET    /api/2.0/privacyroom/keys           - getUserKeys
- *   GET    /api/2.0/privacyroom/keys/filter    - getUserKeysByFilter
  *   GET    /api/2.0/privacyroom/{roomId}/access- getUserKeysForRoom
  *   POST   /api/2.0/privacyroom/keys           - setKeys
  *   PUT    /api/2.0/privacyroom/keys           - replaceKey
  *   DELETE /api/2.0/privacyroom/keys/{id}      - deleteKeys
+ *
+ * There is no filter endpoint any more. SDK 3.7.0 dropped getUserKeysByFilter
+ * along with the EncryptionKeyType / EncryptionKeyWrapper models, and the route
+ * is gone from the portal too: GET /privacyroom/keys/filter answers 405 (the
+ * path only matches DELETE /keys/{id}) and GET /privacyroom/keys ignores every
+ * query parameter, so filtering cannot be exercised at all. The tests that
+ * covered it — and BUGS 82523 / 82549 / 82550, which described only its defects
+ * — were removed on 2026-08-04.
  *
  * Observed contract (verified against a live portal):
  *  - A user may hold MULTIPLE keys, each identified by its `id`. The request DTO
@@ -30,16 +34,30 @@ import {
  *    (or a silent no-op) for all of these today.
  *  - replaceKey updates the key whose id matches (in place, leaving the others
  *    untouched); with no matching id it is a 200 no-op that creates nothing.
+ *  - replaceKey is an unvalidated FULL overwrite: any field missing from the
+ *    request is erased from the stored key, so an empty/absent body destroys the
+ *    caller's key material (BUG 82802). Only the client holds the plaintext
+ *    private key, so a wiped privateKeyEnc cannot be restored and every private
+ *    room it protects becomes undecryptable.
+ *  - Neither setKeys nor replaceKey bounds the key length. A publicKey of 8192
+ *    chars is stored; at 65536 the call still answers 200 but nothing is saved —
+ *    and on replaceKey the caller's ENTIRE key set disappears (BUG 82800).
  *  - deleteKeys removes only the key with the given id.
  *  - There is no "active" key on the backend: which key is active is tracked
  *    only on the client, so it is not (and cannot be) covered here.
- *  - getUserKeysByFilter returns a single key (response is an object, not array);
- *    id + publicKey + privateKeyEnc are matched with AND semantics; publicKey
- *    matching is case-insensitive; type never matches (keys carry no type).
  *  - Encrypted rooms ARE supported: createRoom({ private: true }) after setKeys
  *    creates a private room, and getUserKeysForRoom returns the caller's access
  *    keys for it. A NON-private room has no encryption, so getUserKeysForRoom
- *    returns 415 for it.
+ *    returns 400 for it.
+ *  - getUserKeysForRoom is a LIVE view of the key rows of every room member, not
+ *    a snapshot: it lists all of the caller's own keys plus one entry per other
+ *    member, and it follows later replace/delete calls. Holding no key at all is
+ *    403 — including for the room creator after deleting their own keys.
+ *  - Membership in a private room requires the invitee to already hold a key:
+ *    setRoomSecurity answers 403 "The user does not have an encryption key"
+ *    otherwise. Guests can never join, since setKeys is denied for them
+ *    (BUG 82524). Room-type coverage for createRoom({ private: true }) lives in
+ *    rooms.spec.ts; this file always uses CustomRoom.
  */
 const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
@@ -79,6 +97,54 @@ test.describe("API privacyroom methods", () => {
       expect(key.privateKeyEnc).toBe(privateKeyEnc);
       expect(key.userId).toBeDefined();
       expect(key.date).toBeDefined();
+    });
+
+    test("GET /api/2.0/privacyroom/keys - Every field of the key DTO is filled in correctly", async ({
+      apiSdk,
+    }) => {
+      // The metadata fields are only ever checked with toBeDefined() elsewhere.
+      // Pin them: the wrapper's count must match the array, userId must be the
+      // CALLER (not some other user), date must be a real timestamp, and every
+      // key must report the same crypto engine.
+      const owner = apiSdk.forRole("owner");
+      const self = await owner.profiles.getSelfProfile();
+      const selfId = self.data.response!.id;
+      const before = Date.now();
+
+      const idA = "b0b0b0b0-0000-0000-0000-00000000000a";
+      const idB = "b0b0b0b0-0000-0000-0000-00000000000b";
+      for (const id of [idA, idB]) {
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: {
+            id,
+            publicKey: "pk-" + id,
+            privateKeyEnc: "prv-" + id,
+          },
+        });
+      }
+
+      const { data, status } = await owner.privacyroom.getUserKeys();
+      expect(status).toBe(200);
+      expect(data.statusCode).toBe(200);
+      expect(data.count).toBe(2);
+      expect(data.count).toBe(data.response!.length);
+
+      for (const key of data.response!) {
+        expect(key.userId).toBe(selfId);
+        const date = Date.parse(key.date!);
+        expect(Number.isNaN(date)).toBe(false);
+        // Created during this test, so within its own time window (1 min of
+        // slack for portal/client clock drift).
+        expect(date).toBeGreaterThan(before - 60_000);
+        // A braced GUID identifying the crypto engine, e.g.
+        // "{DC522726-5E0E-43E5-AA02-8EA156BECBC5}".
+        expect(key.cryptoEngineId).toMatch(
+          /^\{[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\}$/,
+        );
+      }
+      // The engine is portal-wide, so it is identical for all of a user's keys.
+      const engines = new Set(data.response!.map((k) => k.cryptoEngineId));
+      expect(engines.size).toBe(1);
     });
 
     test("GET /api/2.0/privacyroom/keys - Keys are isolated per user", async ({
@@ -351,6 +417,52 @@ test.describe("API privacyroom methods", () => {
       });
     }
 
+    test("POST /api/2.0/privacyroom/keys - A long publicKey is stored intact", async ({
+      apiSdk,
+    }) => {
+      // Positive control for the oversized case below: 8192 chars round-trips
+      // byte-for-byte, so a rejection at a larger size is a length limit and not
+      // a general failure to handle long values.
+      const owner = apiSdk.forRole("owner");
+      const publicKey = "x".repeat(8192);
+
+      const { status } = await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv" },
+      });
+      expect(status).toBe(200);
+
+      const after = await owner.privacyroom.getUserKeys();
+      expect(after.data.count).toBe(1);
+      expect(after.data.response![0].publicKey).toBe(publicKey);
+    });
+
+    test("POST /api/2.0/privacyroom/keys - An oversized publicKey is silently dropped instead of rejected", async ({
+      apiSdk,
+    }) => {
+      // A publicKey too large to persist must be refused with 400. Actual: the
+      // call answers 200 with a success-shaped body (a non-zero `count`), yet
+      // nothing is stored — the client is told its key was created when it never
+      // was, so it will encrypt against a key the portal does not have.
+      test.fail(
+        true,
+        "BUG 82800: setKeys with an oversized publicKey returns a success-shaped 200 and stores nothing instead of 400",
+      );
+      const owner = apiSdk.forRole("owner");
+
+      const { status } = await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: {
+          publicKey: "x".repeat(65536),
+          privateKeyEnc: "prv",
+        },
+      });
+
+      // Side-effect check first: nothing was persisted (the 8192 test above is
+      // the positive control proving long values CAN be stored).
+      const after = await owner.privacyroom.getUserKeys();
+      expect(after.data.count).toBe(0);
+      expect(status).toBe(400);
+    });
+
     test("POST /api/2.0/privacyroom/keys - Malformed id is rejected with 400", async ({
       apiSdk,
     }) => {
@@ -401,9 +513,11 @@ test.describe("API privacyroom methods", () => {
       expect(after.data.response![0].publicKey).toBe(newPublicKey);
     });
 
-    test("PUT /api/2.0/privacyroom/keys - After replace the old key is gone and the new key is found by filter", async ({
+    test("PUT /api/2.0/privacyroom/keys - After replace the old key value is gone", async ({
       apiSdk,
     }) => {
+      // Replace overwrites in place: the old public key must not survive
+      // anywhere in the caller's key set, and no second key is left behind.
       const owner = apiSdk.forRole("owner");
       const oldPk = "old-" + apiSdk.faker.generateString(12);
       const newPk = "new-" + apiSdk.faker.generateString(12);
@@ -415,20 +529,13 @@ test.describe("API privacyroom methods", () => {
         encryptionKeyRequestDto: { publicKey: newPk, privateKeyEnc: "newprv" },
       });
 
-      const byOld = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: oldPk,
-      });
-      expect(byOld.data.count).toBe(0);
-
-      const byNew = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: newPk,
-      });
-      expect(byNew.data.count).toBe(1);
-      expect(byNew.data.response?.publicKey).toBe(newPk);
-
       const all = await owner.privacyroom.getUserKeys();
+      expect(all.status).toBe(200);
       expect(all.data.count).toBe(1);
-      expect(all.data.response![0].publicKey).toBe(newPk);
+      const pks = all.data.response!.map((k) => k.publicKey);
+      expect(pks).toEqual([newPk]);
+      expect(pks).not.toContain(oldPk);
+      expect(all.data.response![0].privateKeyEnc).toBe("newprv");
     });
 
     test("PUT /api/2.0/privacyroom/keys - replaceKey without an existing key is rejected", async ({
@@ -535,7 +642,7 @@ test.describe("API privacyroom methods", () => {
       apiSdk,
     }) => {
       // A malformed id is validated on replaceKey (400), consistent with setKeys
-      // and getUserKeysByFilter (and unlike deleteKeys, which returns 404).
+      // (and unlike deleteKeys, which returns 404).
       const owner = apiSdk.forRole("owner");
       const { status } = await owner.privacyroom.replaceKey({
         encryptionKeyRequestDto: {
@@ -546,495 +653,194 @@ test.describe("API privacyroom methods", () => {
       });
       expect(status).toBe(400);
     });
-  });
 
-  test.describe("GET /api/2.0/privacyroom/keys/filter - getUserKeysByFilter", () => {
-    test("GET /api/2.0/privacyroom/keys/filter - Filter by id returns the matching key", async ({
+    // replaceKey validates nothing beyond the id format AND behaves as a full
+    // overwrite: whatever the request omits or blanks out is written over the
+    // stored key. Every case below answers 200 and destroys key material that
+    // only the client can regenerate, so each must be a 400 that leaves the
+    // stored key untouched. The DTO carries no id, so all of them target the
+    // caller's existing zero-GUID key.
+    const destructivePutInputs: {
+      label: string;
+      dto: {
+        publicKey?: string | null;
+        privateKeyEnc?: string | null;
+      };
+      // What the endpoint does today, for the bug report.
+      damage: string;
+    }[] = [
+      {
+        label: "Empty publicKey",
+        dto: { publicKey: "", privateKeyEnc: "prv-new" },
+        damage: "publicKey is overwritten with an empty string",
+      },
+      {
+        label: "Empty privateKeyEnc",
+        dto: { publicKey: "pk-new", privateKeyEnc: "" },
+        damage: "privateKeyEnc is overwritten with an empty string",
+      },
+      {
+        label: "Whitespace-only publicKey",
+        dto: { publicKey: "   ", privateKeyEnc: "prv-new" },
+        damage: "publicKey is overwritten with whitespace",
+      },
+      {
+        label: "Whitespace-only privateKeyEnc",
+        dto: { publicKey: "pk-new", privateKeyEnc: "   " },
+        damage: "privateKeyEnc is overwritten with whitespace",
+      },
+      {
+        label: "Missing publicKey",
+        dto: { privateKeyEnc: "prv-new" },
+        damage: "publicKey is erased",
+      },
+      {
+        label: "Missing privateKeyEnc",
+        dto: { publicKey: "pk-new" },
+        damage: "privateKeyEnc is erased",
+      },
+      {
+        label: "Empty DTO",
+        dto: {},
+        damage: "both key fields are erased",
+      },
+      {
+        label: "null key values",
+        dto: { publicKey: null, privateKeyEnc: null },
+        damage: "both key fields are erased",
+      },
+    ];
+    for (const { label, dto, damage } of destructivePutInputs) {
+      test(`PUT /api/2.0/privacyroom/keys - ${label} must not overwrite the stored key`, async ({
+        apiSdk,
+      }) => {
+        test.fail(
+          true,
+          `BUG 82802: replaceKey performs no input validation and overwrites in full — ${damage} and the call returns 200 instead of 400`,
+        );
+        const owner = apiSdk.forRole("owner");
+        const publicKey = "orig-pk-" + apiSdk.faker.generateString(12);
+        const privateKeyEnc = "orig-prv-" + apiSdk.faker.generateString(12);
+        const created = await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey, privateKeyEnc },
+        });
+        // Pin the premise: the key the test is about really exists.
+        expect(created.data.count).toBe(1);
+
+        const { status } = await owner.privacyroom.replaceKey({
+          encryptionKeyRequestDto: dto,
+        });
+
+        // Side-effect check first: the stored key must survive intact.
+        const after = await owner.privacyroom.getUserKeys();
+        expect(after.data.count).toBe(1);
+        expect(after.data.response![0].publicKey).toBe(publicKey);
+        expect(after.data.response![0].privateKeyEnc).toBe(privateKeyEnc);
+        expect(status).toBe(400);
+      });
+    }
+
+    test("PUT /api/2.0/privacyroom/keys - A body-less request must not wipe the stored key", async ({
       apiSdk,
     }) => {
-      const owner = apiSdk.forRole("owner");
-      const publicKey = "pk-" + apiSdk.faker.generateString(16);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-      });
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(1);
-      expect(data.response?.id).toBe(ZERO_GUID);
-      expect(data.response?.publicKey).toBe(publicKey);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - No filter match returns empty result", async ({
-      apiSdk,
-    }) => {
-      const owner = apiSdk.forRole("owner");
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc: "prv-enc",
-        },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter();
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Filter by the key's type returns the matching key", async ({
-      apiSdk,
-    }) => {
-      // The filter accepts a `type` (EncryptionKeyType is a first-class SDK enum),
-      // so filtering by the type of an existing key should return that key. In
-      // practice the type filter is non-functional: the create DTO has no type
-      // field, the stored/returned key omits type entirely (verified: even a
-      // raw `type` on create is dropped), and filtering by ANY type returns 0.
-      // A positive match therefore cannot be produced. Assert the intended
-      // behavior and keep test.fail until keys carry a matchable type.
+      // Calling replaceKey with no DTO at all sends an empty body, which binds to
+      // a default DTO: the zero-GUID key is found and both of its key fields are
+      // erased. A request that supplies no data must not be able to destroy data.
       test.fail(
         true,
-        "BUG 82549: getUserKeysByFilter type filter never matches — keys expose no type and it cannot be set",
+        "BUG 82802: replaceKey with no request body returns 200 and erases both key fields of the zero-GUID key instead of 400",
       );
       const owner = apiSdk.forRole("owner");
-      const publicKey = "pk-" + apiSdk.faker.generateString(16);
-
+      const publicKey = "orig-pk-" + apiSdk.faker.generateString(12);
+      const privateKeyEnc = "orig-prv-" + apiSdk.faker.generateString(12);
       await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
+        encryptionKeyRequestDto: { publicKey, privateKeyEnc },
       });
 
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        type: EncryptionKeyType.Crypt,
-      });
+      const { status } = await owner.privacyroom.replaceKey();
 
-      expect(status).toBe(200);
-      expect(data.count).toBe(1);
-      expect(data.response?.publicKey).toBe(publicKey);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Filter by the key's version returns the matching key", async ({
-      apiSdk,
-    }) => {
-      // Like `type`, `version` is a declared filter parameter with no backing on
-      // the key: the create DTO has no version field and the returned key omits
-      // it, so filtering by version alone always returns 0 (a positive match
-      // cannot be built). Assert the intended behavior; keep test.fail until keys
-      // carry a matchable version.
-      test.fail(
-        true,
-        "BUG 82549: getUserKeysByFilter version filter never matches — keys expose no version and it cannot be set",
-      );
-      const owner = apiSdk.forRole("owner");
-      const publicKey = "pk-" + apiSdk.faker.generateString(16);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        version: "1",
-      });
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(1);
-      expect(data.response?.publicKey).toBe(publicKey);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Combined id + version applies AND (a non-matching version excludes the key)", async ({
-      apiSdk,
-    }) => {
-      // With AND semantics, a correct id plus a version the key does not have
-      // must return nothing. Actual: `version` is ignored entirely, so the key is
-      // still returned (count 1) regardless of the version value — proving the
-      // parameter is dead. Remove test.fail once version participates in the filter.
-      test.fail(
-        true,
-        "BUG 82549: getUserKeysByFilter ignores `version` — id + any version still returns the key instead of applying AND",
-      );
-      const owner = apiSdk.forRole("owner");
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc: "prv-enc",
-        },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        version: "999999",
-      });
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Filter by publicKey returns the matching key", async ({
-      apiSdk,
-    }) => {
-      const owner = apiSdk.forRole("owner");
-      const publicKey = "pk-" + apiSdk.faker.generateString(16);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        publicKey,
-      });
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(1);
-      expect(data.response?.publicKey).toBe(publicKey);
-      expect(data.response?.id).toBe(ZERO_GUID);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - publicKey filter is case-sensitive", async ({
-      apiSdk,
-    }) => {
-      // A public key is a case-sensitive value (e.g. Base64), so a differently
-      // cased query must NOT match. Actual: the filter matches case-insensitively
-      // (an uppercased query still returns the key), which is likely a DB
-      // collation defect rather than intended behavior.
-      test.fail(
-        true,
-        "BUG 82550: publicKey filter matches case-insensitively (should be exact/case-sensitive)",
-      );
-      const owner = apiSdk.forRole("owner");
-      const publicKey = "AbCdEf-" + apiSdk.faker.generateString(16);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: publicKey.toUpperCase(),
-      });
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Non-matching publicKey returns empty result", async ({
-      apiSdk,
-    }) => {
-      const owner = apiSdk.forRole("owner");
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc: "prv-enc",
-        },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: "does-not-exist-" + apiSdk.faker.generateString(8),
-      });
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - publicKey filter matches exactly, not by substring", async ({
-      apiSdk,
-    }) => {
-      // The match is on the full value: a prefix/substring/suffix must not match.
-      const owner = apiSdk.forRole("owner");
-      const publicKey = "PKEXACT" + apiSdk.faker.generateString(10);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
-      });
-
-      const prefix = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: publicKey.slice(0, 6),
-      });
-      expect(prefix.status).toBe(200);
-      expect(prefix.data.count).toBe(0);
-
-      const substring = await owner.privacyroom.getUserKeysByFilter({
-        publicKey: publicKey.slice(3, 9),
-      });
-      expect(substring.status).toBe(200);
-      expect(substring.data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Filter by privateKeyEnc returns the matching key", async ({
-      apiSdk,
-    }) => {
-      // SECURITY / API-DESIGN NOTE (behavior confirmed, not asserted here):
-      //  - the endpoint returns `privateKeyEnc` in the response body (expected:
-      //    it is the caller's OWN encrypted private key, retrieved over an
-      //    authenticated request so the client can decrypt locally);
-      //  - BUT the SDK transmits it as a URL QUERY PARAMETER on a GET, so the
-      //    encrypted private key can leak into access logs, proxies and browser
-      //    history. Filtering a secret via the query string is a design smell
-      //    worth raising with the API team (prefer a POST body, or drop the
-      //    param). This test only verifies the documented SDK contract works.
-      //  - matching is exact (see substring test above) but case-INSENSITIVE
-      //    (see the privateKeyEnc case-sensitive test below, marked test.fail).
-      const owner = apiSdk.forRole("owner");
-      const privateKeyEnc = "prv-" + apiSdk.faker.generateString(16);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc,
-        },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        privateKeyEnc,
-      });
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(1);
-      expect(data.response?.privateKeyEnc).toBe(privateKeyEnc);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - privateKeyEnc filter is case-sensitive", async ({
-      apiSdk,
-    }) => {
-      // Same as publicKey: the encrypted private key is a case-sensitive value,
-      // so a differently cased query must NOT match. Actual: matches
-      // case-insensitively (likely the same DB collation defect).
-      test.fail(
-        true,
-        "BUG 82550: privateKeyEnc filter matches case-insensitively (should be exact/case-sensitive)",
-      );
-      const owner = apiSdk.forRole("owner");
-      const privateKeyEnc = "XyZ123-" + apiSdk.faker.generateString(16);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc,
-        },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        privateKeyEnc: privateKeyEnc.toUpperCase(),
-      });
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Non-existent id returns empty result", async ({
-      apiSdk,
-    }) => {
-      const owner = apiSdk.forRole("owner");
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc: "prv-enc",
-        },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        id: "11111111-1111-1111-1111-111111111111",
-      });
-
-      expect(status).toBe(200);
-      expect(data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Malformed id returns 400", async ({
-      apiSdk,
-    }) => {
-      const owner = apiSdk.forRole("owner");
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc: "prv-enc",
-        },
-      });
-
-      const { status } = await owner.privacyroom.getUserKeysByFilter({
-        id: "not-a-guid",
-      });
-
+      const after = await owner.privacyroom.getUserKeys();
+      expect(after.data.count).toBe(1);
+      expect(after.data.response![0].publicKey).toBe(publicKey);
+      expect(after.data.response![0].privateKeyEnc).toBe(privateKeyEnc);
       expect(status).toBe(400);
     });
 
-    test("GET /api/2.0/privacyroom/keys/filter - Combined id + publicKey use AND semantics", async ({
+    test("PUT /api/2.0/privacyroom/keys - Updating only publicKey must not erase privateKeyEnc", async ({
       apiSdk,
     }) => {
-      const owner = apiSdk.forRole("owner");
-      const publicKey = "pk-" + apiSdk.faker.generateString(16);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
-      });
-
-      const bothMatch = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey,
-      });
-      expect(bothMatch.status).toBe(200);
-      expect(bothMatch.data.count).toBe(1);
-
-      // Correct id but wrong publicKey -> no match (AND, not OR).
-      const oneWrong = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey: "wrong-value",
-      });
-      expect(oneWrong.status).toBe(200);
-      expect(oneWrong.data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - All matching functional filters return the key", async ({
-      apiSdk,
-    }) => {
-      // The filter's functional fields are id + publicKey + privateKeyEnc; when
-      // all three match, the key is returned.
-      const owner = apiSdk.forRole("owner");
-      const publicKey = "pk-" + apiSdk.faker.generateString(16);
-      const privateKeyEnc = "prv-" + apiSdk.faker.generateString(16);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc },
-      });
-
-      const functional = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey,
-        privateKeyEnc,
-      });
-      expect(functional.status).toBe(200);
-      expect(functional.data.count).toBe(1);
-      expect(functional.data.response?.publicKey).toBe(publicKey);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - A non-matching type/version must exclude an otherwise-matching key", async ({
-      apiSdk,
-    }) => {
-      // If type/version are supplied they should participate in the AND: a key
-      // matched by id + publicKey + privateKeyEnc must still be excluded when the
-      // supplied type/version do not match. Actual: type/version are ignored, so
-      // the key is returned anyway (count 1). Remove test.fail once type/version
-      // participate in the filter.
+      // A caller rotating just the public half loses the private half: the field
+      // it did not mention is dropped from the stored key. Either the endpoint
+      // must merge (leaving privateKeyEnc intact) or it must reject a partial
+      // body with 400 — silently discarding the private key is neither.
       test.fail(
         true,
-        "BUG 82549: getUserKeysByFilter ignores type/version — a non-matching type/version does not exclude a key matched by id+publicKey+privateKeyEnc",
+        "BUG 82802: replaceKey with only publicKey supplied returns 200 and erases the stored privateKeyEnc",
       );
       const owner = apiSdk.forRole("owner");
-      const publicKey = "pk-" + apiSdk.faker.generateString(16);
-      const privateKeyEnc = "prv-" + apiSdk.faker.generateString(16);
-
+      const privateKeyEnc = "orig-prv-" + apiSdk.faker.generateString(12);
       await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc },
+        encryptionKeyRequestDto: { publicKey: "orig-pk", privateKeyEnc },
       });
 
-      // The stored key carries no type/version, so these values cannot match.
-      const everything = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey,
-        privateKeyEnc,
-        type: EncryptionKeyType.Sign,
-        version: "999999",
-      });
-      expect(everything.status).toBe(200);
-      expect(everything.data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - One mismatching filter among matching ones returns empty", async ({
-      apiSdk,
-    }) => {
-      // id + publicKey match but privateKeyEnc does not -> AND excludes the key.
-      const owner = apiSdk.forRole("owner");
-      const publicKey = "pk-" + apiSdk.faker.generateString(16);
-      const privateKeyEnc = "prv-" + apiSdk.faker.generateString(16);
-
-      await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc },
-      });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
-        publicKey,
-        privateKeyEnc: "wrong-" + apiSdk.faker.generateString(8),
+      const newPublicKey = "pk-rotated-" + apiSdk.faker.generateString(12);
+      const { status } = await owner.privacyroom.replaceKey({
+        encryptionKeyRequestDto: { publicKey: newPublicKey },
       });
       expect(status).toBe(200);
-      expect(data.count).toBe(0);
+
+      const after = await owner.privacyroom.getUserKeys();
+      expect(after.data.count).toBe(1);
+      // The half that was sent is applied...
+      expect(after.data.response![0].publicKey).toBe(newPublicKey);
+      // ...and the half that was not sent must still be there.
+      expect(after.data.response![0].privateKeyEnc).toBe(privateKeyEnc);
     });
 
-    test("GET /api/2.0/privacyroom/keys/filter - Combined publicKey + version applies AND (a non-matching version excludes the key)", async ({
+    test("PUT /api/2.0/privacyroom/keys - An oversized publicKey must not destroy the caller's key set", async ({
       apiSdk,
     }) => {
-      // Same defect as id + version, via a different functional field: a correct
-      // publicKey plus a version the key does not have must return nothing, but
-      // `version` is ignored so the key is still returned (count 1). Guards
-      // against the parameter being dropped only for certain field combinations.
+      // The worst of the replaceKey cases: a publicKey too large to persist takes
+      // out EVERY key the caller holds, including keys the request never named.
+      // Expected: 400 with both keys left alone.
       test.fail(
         true,
-        "BUG 82549: getUserKeysByFilter ignores `version` — publicKey + any version still returns the key instead of applying AND",
+        "BUG 82800: replaceKey with an oversized publicKey returns 200 and deletes the caller's entire key set, including untargeted keys",
       );
       const owner = apiSdk.forRole("owner");
-      const publicKey = "pk-" + apiSdk.faker.generateString(16);
-
+      const otherId = "aaaa0000-0000-0000-0000-000000000001";
+      const otherPk = "other-pk-" + apiSdk.faker.generateString(10);
       await owner.privacyroom.setKeys({
-        encryptionKeyRequestDto: { publicKey, privateKeyEnc: "prv-enc" },
+        encryptionKeyRequestDto: { publicKey: "zero-pk", privateKeyEnc: "zp" },
       });
-
-      const { data, status } = await owner.privacyroom.getUserKeysByFilter({
-        publicKey,
-        version: "999999",
-      });
-      expect(status).toBe(200);
-      expect(data.count).toBe(0);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Returns 200 when the user has no keys", async ({
-      apiSdk,
-    }) => {
-      // BUG: the endpoint throws ArgumentNullException (leaks a .NET stack trace)
-      // and returns 400 when the user has no keys yet. It should return a clean
-      // 200 empty result. Remove test.fail once the server bug is fixed.
-      test.fail(
-        true,
-        "BUG 82523: getUserKeysByFilter returns 400 (ArgumentNullException) when the user has no keys",
-      );
-
-      const { status } = await apiSdk
-        .forRole("owner")
-        .privacyroom.getUserKeysByFilter();
-
-      expect(status).toBe(200);
-    });
-
-    test("GET /api/2.0/privacyroom/keys/filter - Does not crash after the last key is deleted", async ({
-      apiSdk,
-    }) => {
-      // Distinct from BUG 82523: once the key store has been initialised (a key
-      // was created and then deleted) the filter returns a clean 200 empty result
-      // instead of the ArgumentNullException seen for brand-new users.
-      const owner = apiSdk.forRole("owner");
-
       await owner.privacyroom.setKeys({
         encryptionKeyRequestDto: {
-          publicKey: "pk-" + apiSdk.faker.generateString(16),
-          privateKeyEnc: "prv-enc",
+          id: otherId,
+          publicKey: otherPk,
+          privateKeyEnc: "op",
         },
       });
-      await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
+      const before = await owner.privacyroom.getUserKeys();
+      expect(before.data.count).toBe(2);
 
-      const noArg = await owner.privacyroom.getUserKeysByFilter();
-      expect(noArg.status).toBe(200);
-      expect(noArg.data.count).toBe(0);
-
-      const byId = await owner.privacyroom.getUserKeysByFilter({
-        id: ZERO_GUID,
+      const { status } = await owner.privacyroom.replaceKey({
+        encryptionKeyRequestDto: {
+          id: ZERO_GUID,
+          publicKey: "x".repeat(65536),
+          privateKeyEnc: "bp",
+        },
       });
-      expect(byId.status).toBe(200);
-      expect(byId.data.count).toBe(0);
+
+      // Side-effect check first: both keys must still be there, and the key that
+      // the request did not target must be byte-identical.
+      const after = await owner.privacyroom.getUserKeys();
+      expect(after.data.count).toBe(2);
+      const byId = new Map(
+        after.data.response!.map((k) => [k.id, k.publicKey]),
+      );
+      expect(byId.get(otherId)).toBe(otherPk);
+      expect(byId.get(ZERO_GUID)).toBe("zero-pk");
+      expect(status).toBe(400);
     });
   });
 
@@ -1089,13 +895,13 @@ test.describe("API privacyroom methods", () => {
       apiSdk,
     }) => {
       // A malformed (non-GUID) id is a bad request and should be rejected with
-      // 400 — the same way getUserKeysByFilter already rejects a malformed id.
+      // 400 — the same way setKeys and replaceKey already reject a malformed id.
       // Actual: delete returns 404 (looks like a {id:guid} route-constraint miss),
-      // which is inconsistent with the filter endpoint. Remove test.fail once the
-      // two endpoints agree on 400.
+      // which is inconsistent with the other two. Remove test.fail once they all
+      // agree on 400.
       test.fail(
         true,
-        "BUG 82553: deleteKeys returns 404 for a malformed id instead of 400 (getUserKeysByFilter returns 400 for the same input)",
+        "BUG 82553: deleteKeys returns 404 for a malformed id instead of 400 (setKeys/replaceKey return 400 for the same input)",
       );
       const { status } = await apiSdk
         .forRole("owner")
@@ -1212,19 +1018,286 @@ test.describe("API privacyroom methods", () => {
       expect(data.response?.map((k) => k.publicKey)).toContain(ownerPk);
     });
 
+    test("GET /api/2.0/privacyroom/{roomId}/access - Every key the caller holds is returned, not just one", async ({
+      apiSdk,
+    }) => {
+      // A user may hold several keys and the room does not pin one of them: the
+      // response is a live view of the caller's whole key set. Pinning this is
+      // what makes the rotation and deletion tests below meaningful.
+      const owner = apiSdk.forRole("owner");
+      const keys = [
+        { id: ZERO_GUID, pk: "pk-zero-" + apiSdk.faker.generateString(8) },
+        {
+          id: "c0c0c0c0-0000-0000-0000-00000000000a",
+          pk: "pk-a-" + apiSdk.faker.generateString(8),
+        },
+        {
+          id: "c0c0c0c0-0000-0000-0000-00000000000b",
+          pk: "pk-b-" + apiSdk.faker.generateString(8),
+        },
+      ];
+      for (const { id, pk } of keys) {
+        await owner.privacyroom.setKeys({
+          encryptionKeyRequestDto: { id, publicKey: pk, privateKeyEnc: "prv" },
+        });
+      }
+      const { data: room } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+
+      const { data, status } = await owner.privacyroom.getUserKeysForRoom({
+        roomId,
+      });
+      expect(status).toBe(200);
+      expect(data.count).toBe(3);
+      expect(data.response!.map((k) => k.publicKey).sort()).toEqual(
+        keys.map((k) => k.pk).sort(),
+      );
+    });
+
+    test("GET /api/2.0/privacyroom/{roomId}/access - Rotating one of several keys is reflected, the others are not touched", async ({
+      apiSdk,
+    }) => {
+      // Complements the "Replacing the active key" test below, which only covers
+      // the default zero-GUID key: here a NON-default key is rotated while other
+      // keys are present.
+      const owner = apiSdk.forRole("owner");
+      const idA = "d0d0d0d0-0000-0000-0000-00000000000a";
+      const pkA = "pk-a-" + apiSdk.faker.generateString(8);
+      const pkARotated = "pk-a-rotated-" + apiSdk.faker.generateString(8);
+      const pkZero = "pk-zero-" + apiSdk.faker.generateString(8);
+
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: { publicKey: pkZero, privateKeyEnc: "zp" },
+      });
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: {
+          id: idA,
+          publicKey: pkA,
+          privateKeyEnc: "ap",
+        },
+      });
+      const { data: room } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+
+      const rotate = await owner.privacyroom.replaceKey({
+        encryptionKeyRequestDto: {
+          id: idA,
+          publicKey: pkARotated,
+          privateKeyEnc: "ap2",
+        },
+      });
+      expect(rotate.status).toBe(200);
+
+      const { data, status } = await owner.privacyroom.getUserKeysForRoom({
+        roomId,
+      });
+      expect(status).toBe(200);
+      const pks = data.response!.map((k) => k.publicKey);
+      expect(pks.sort()).toEqual([pkARotated, pkZero].sort());
+      expect(pks).not.toContain(pkA);
+    });
+
+    test("GET /api/2.0/privacyroom/{roomId}/access - Deleting one of several keys drops only that key", async ({
+      apiSdk,
+    }) => {
+      const owner = apiSdk.forRole("owner");
+      const idA = "d1d1d1d1-0000-0000-0000-00000000000a";
+      const pkA = "pk-a-" + apiSdk.faker.generateString(8);
+      const pkZero = "pk-zero-" + apiSdk.faker.generateString(8);
+
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: { publicKey: pkZero, privateKeyEnc: "zp" },
+      });
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: {
+          id: idA,
+          publicKey: pkA,
+          privateKeyEnc: "ap",
+        },
+      });
+      const { data: room } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+      const before = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      expect(before.data.count).toBe(2);
+
+      await owner.privacyroom.deleteKeys({ id: idA });
+
+      const { data, status } = await owner.privacyroom.getUserKeysForRoom({
+        roomId,
+      });
+      expect(status).toBe(200);
+      expect(data.count).toBe(1);
+      expect(data.response!.map((k) => k.publicKey)).toEqual([pkZero]);
+    });
+
+    test("GET /api/2.0/privacyroom/{roomId}/access - The room's creator is denied after deleting all of their keys", async ({
+      apiSdk,
+    }) => {
+      // Access is gated on the caller actually holding a key: once the creator
+      // deletes their last key they are denied their OWN private room with 403,
+      // even though the room itself is untouched and still listed as private.
+      const owner = apiSdk.forRole("owner");
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: {
+          publicKey: "pk-" + apiSdk.faker.generateString(12),
+          privateKeyEnc: "op",
+        },
+      });
+      const { data: room } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+      const before = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      expect(before.status).toBe(200);
+
+      const del = await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
+      expect(del.status).toBe(200);
+      await expect(async () => {
+        expect((await owner.privacyroom.getUserKeys()).data.count).toBe(0);
+      }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
+
+      const { status } = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      expect(status).toBe(403);
+
+      // The room survives the key loss — only the key material is gone.
+      const info = await owner.rooms.getRoomInfo({ id: roomId });
+      expect(info.status).toBe(200);
+      expect(info.data.response!.private).toBe(true);
+    });
+
+    test("GET /api/2.0/privacyroom/{roomId}/access - A wiped key must not be reported as room access", async ({
+      apiSdk,
+    }) => {
+      // Follow-through on the destructive replaceKey bug: after an empty-body PUT
+      // erases the key material the row still exists, so the endpoint answers 200
+      // with an entry that carries NO publicKey — the caller is told it has
+      // access to a room it can no longer decrypt. Deleting the key outright is
+      // reported honestly (403, see the test above); wiping it is not.
+      test.fail(
+        true,
+        "BUG 82804: after replaceKey erases the key material, getUserKeysForRoom returns 200 with a key entry that has no publicKey/privateKeyEnc",
+      );
+      const owner = apiSdk.forRole("owner");
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: {
+          publicKey: "pk-" + apiSdk.faker.generateString(12),
+          privateKeyEnc: "op",
+        },
+      });
+      const { data: room } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+
+      await owner.privacyroom.replaceKey({ encryptionKeyRequestDto: {} });
+
+      const { data } = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      // Whatever the endpoint reports, it must never present a key entry without
+      // key material.
+      for (const key of data.response ?? []) {
+        expect(key.publicKey).toBeTruthy();
+      }
+    });
+
+    test("GET /api/2.0/privacyroom/{roomId}/access - Archived private room still returns the access keys", async ({
+      apiSdk,
+    }) => {
+      const owner = apiSdk.forRole("owner");
+      const ownerPk = "owner-" + apiSdk.faker.generateString(12);
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
+      });
+      const { data: room } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+
+      const archive = await owner.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      expect(archive.status).toBe(200);
+      const operation = await waitForOperation(owner.operations);
+      expect(operation.finished).toBe(true);
+
+      const { data, status } = await owner.privacyroom.getUserKeysForRoom({
+        roomId,
+      });
+      expect(status).toBe(200);
+      expect(data.response!.map((k) => k.publicKey)).toEqual([ownerPk]);
+    });
+
+    test("GET /api/2.0/privacyroom/{roomId}/access - Deleted private room returns 404", async ({
+      apiSdk,
+    }) => {
+      // Once the room is in Trash its keys are gone from the endpoint's point of
+      // view, so it answers like a room that never existed.
+      const owner = apiSdk.forRole("owner");
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: {
+          publicKey: "owner-" + apiSdk.faker.generateString(12),
+          privateKeyEnc: "op",
+        },
+      });
+      const { data: room } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+      const before = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      expect(before.status).toBe(200);
+
+      await owner.rooms.deleteRoom({
+        id: roomId,
+        deleteRoomRequest: { deleteAfter: false },
+      });
+      const operation = await waitForOperation(owner.operations);
+      expect(operation.finished).toBe(true);
+
+      const { status } = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      expect(status).toBe(404);
+    });
+
     test("GET /api/2.0/privacyroom/{roomId}/access - Non-private room is rejected with a clean client error", async ({
       apiSdk,
     }) => {
-      // A non-encrypted room has no access keys, so the endpoint should reject
-      // the call with a clear client error (400). Instead it leaks a raw .NET
-      // NotSupportedException as HTTP 415 with the generic body message
-      // "Specified method is not supported." — a misused status (415 is
-      // Unsupported Media Type) and an unhandled exception, not a designed
-      // contract. Remove test.fail once it returns a proper client error.
-      test.fail(
-        true,
-        'BUG 82543: getUserKeysForRoom on a non-private room leaks a 415 NotSupportedException ("Specified method is not supported.") instead of a clean 400',
-      );
+      // A non-encrypted room has no access keys, so the endpoint rejects the call
+      // with 400. It used to leak a raw .NET NotSupportedException as HTTP 415
+      // ("Specified method is not supported."); that is BUG 82543, fixed —
+      // verified on a live portal on 2026-08-04.
       const owner = apiSdk.forRole("owner");
       const { data: room } = await owner.rooms.createRoom({
         createRoomRequestDto: {
@@ -1273,7 +1346,7 @@ test.describe("API privacyroom methods", () => {
   });
 
   test.describe("End-to-end key lifecycle", () => {
-    test("Full lifecycle of a single key: set -> get -> filter -> replace -> delete", async ({
+    test("Full lifecycle of a single key: set -> get -> replace -> delete", async ({
       apiSdk,
     }) => {
       const owner = apiSdk.forRole("owner");
@@ -1293,17 +1366,10 @@ test.describe("API privacyroom methods", () => {
         expect(data.response![0].publicKey).toBe(pk);
       });
 
-      await test.step("getUserKeys and filter both return it", async () => {
+      await test.step("getUserKeys returns it", async () => {
         const list = await owner.privacyroom.getUserKeys();
         expect(list.data.count).toBe(1);
-        const byId = await owner.privacyroom.getUserKeysByFilter({
-          id: ZERO_GUID,
-        });
-        expect(byId.data.response?.publicKey).toBe(pk);
-        const byPk = await owner.privacyroom.getUserKeysByFilter({
-          publicKey: pk,
-        });
-        expect(byPk.data.count).toBe(1);
+        expect(list.data.response?.[0]?.publicKey).toBe(pk);
       });
 
       await test.step("replaceKey swaps the value", async () => {
@@ -1447,6 +1513,87 @@ test.describe("API privacyroom methods", () => {
       const pks = after.data.response?.map((k) => k.publicKey) ?? [];
       expect(pks).toContain(newPk);
       expect(pks).not.toContain(oldPk);
+    });
+
+    test("PUT /files/rooms/{id}/share - A user without encryption keys cannot be invited to a private room", async ({
+      apiSdk,
+    }) => {
+      // The room key is wrapped for each member's public key, so a keyless user
+      // cannot be added at all: the invite itself is refused. The positive
+      // control matters here — the SAME invite of the SAME user succeeds as soon
+      // as they hold a key, which proves the 403 is about the missing key and not
+      // about the user, the access level or the room.
+      const owner = apiSdk.forRole("owner");
+      const ownerPk = "owner-" + apiSdk.faker.generateString(12);
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
+      });
+      const { data: room } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+
+      const { data: memberData, userData } = await apiSdk.addMember(
+        "owner",
+        "User",
+      );
+      const userId = memberData.response!.id as string;
+      const invitation = {
+        invitations: [{ id: userId, access: FileShare.ContentCreator }],
+        notify: false,
+      };
+
+      const memberApi = await apiSdk.authenticateMember(userData, "User");
+      const userPk = "user-" + apiSdk.faker.generateString(12);
+
+      await test.step("without a key the invite is refused", async () => {
+        const denied = await owner.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: invitation,
+        });
+        expect(denied.status).toBe(403);
+        expect(
+          (denied.data as unknown as { error?: { message?: string } }).error
+            ?.message,
+        ).toContain("does not have an encryption key");
+
+        // Nothing was granted: the user is not in the room's key set.
+        const ownerView = await owner.privacyroom.getUserKeysForRoom({
+          roomId,
+        });
+        expect(ownerView.data.response!.map((k) => k.publicKey)).toEqual([
+          ownerPk,
+        ]);
+        const memberView = await memberApi.privacyroom.getUserKeysForRoom({
+          roomId,
+        });
+        expect(memberView.status).toBe(403);
+      });
+
+      await test.step("with a key the same invite succeeds", async () => {
+        const setKeys = await memberApi.privacyroom.setKeys({
+          encryptionKeyRequestDto: { publicKey: userPk, privateKeyEnc: "up" },
+        });
+        expect(setKeys.data.count).toBe(1);
+
+        const granted = await owner.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: invitation,
+        });
+        expect(granted.status).toBe(200);
+
+        const memberView = await memberApi.privacyroom.getUserKeysForRoom({
+          roomId,
+        });
+        expect(memberView.status).toBe(200);
+        expect(
+          memberView.data.response!.map((k) => k.publicKey).sort(),
+        ).toEqual([ownerPk, userPk].sort());
+      });
     });
 
     // Two scenarios are intentionally NOT covered here, per the backend team:

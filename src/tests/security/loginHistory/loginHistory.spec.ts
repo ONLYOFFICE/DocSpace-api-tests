@@ -14,8 +14,9 @@ test.describe("POST /api/2.0/security/audit/login/report", () => {
       .loginHistory.createLoginHistoryReport();
 
     expect(status).toBe(200);
-    expect(typeof data.response).toBe("string");
-    expect(data.response).toContain("doceditor");
+    expect(data.response).toBeDefined();
+    expect(typeof (data.response as any).id).toBe("string");
+    expect((data.response as any).id.length).toBeGreaterThan(0);
   });
 
   test("POST /api/2.0/security/audit/login/report - DocSpaceAdmin creates login history report", async ({
@@ -30,8 +31,9 @@ test.describe("POST /api/2.0/security/audit/login/report", () => {
       .loginHistory.createLoginHistoryReport();
 
     expect(status).toBe(200);
-    expect(typeof data.response).toBe("string");
-    expect(data.response).toContain("doceditor");
+    expect(data.response).toBeDefined();
+    expect(typeof (data.response as any).id).toBe("string");
+    expect((data.response as any).id.length).toBeGreaterThan(0);
   });
 });
 

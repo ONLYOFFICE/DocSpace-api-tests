@@ -15,7 +15,9 @@ test.describe("POST /api/2.0/security/audit/events/report", () => {
 
     expect(status).toBe(200);
     expect(data.count).toBe(1);
-    expect(data.response).toContain("/doceditor?fileid=");
+    expect(data.response).toBeDefined();
+    expect(typeof (data.response as any).id).toBe("string");
+    expect((data.response as any).id.length).toBeGreaterThan(0);
   });
 
   test("POST /api/2.0/security/audit/events/report - DocSpaceAdmin generates audit trail report", async ({
@@ -31,7 +33,9 @@ test.describe("POST /api/2.0/security/audit/events/report", () => {
 
     expect(status).toBe(200);
     expect(data.count).toBe(1);
-    expect(data.response).toContain("/doceditor?fileid=");
+    expect(data.response).toBeDefined();
+    expect(typeof (data.response as any).id).toBe("string");
+    expect((data.response as any).id.length).toBeGreaterThan(0);
   });
 });
 

@@ -1126,13 +1126,15 @@ test.describe("GET /api/2.0/files/rooms/news - Core semantics", () => {
       createFileJsonElement: { title: "Autotest Rooms News Multi File 3.docx" },
     });
 
-    const { data, status } = await userApi.rooms.getRoomsNewItems();
-
-    expect(status).toBe(200);
-    const titles = roomsNewTitlesOf(data.response);
-    expect(titles).toContain("Autotest Rooms News Multi File 1.docx");
-    expect(titles).toContain("Autotest Rooms News Multi File 2.docx");
-    expect(titles).toContain("Autotest Rooms News Multi File 3.docx");
+    let titles: (string | null | undefined)[] = [];
+    await expect(async () => {
+      const { data, status } = await userApi.rooms.getRoomsNewItems();
+      expect(status).toBe(200);
+      titles = roomsNewTitlesOf(data.response);
+      expect(titles).toContain("Autotest Rooms News Multi File 1.docx");
+      expect(titles).toContain("Autotest Rooms News Multi File 2.docx");
+      expect(titles).toContain("Autotest Rooms News Multi File 3.docx");
+    }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
   });
 
   test("GET /files/rooms/news - Mixed own and others files - only others appear", async ({
