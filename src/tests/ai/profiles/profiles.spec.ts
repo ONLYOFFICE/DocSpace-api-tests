@@ -159,7 +159,7 @@ test.describe("AI Profiles - catalogue", () => {
 });
 
 test.describe("AI Profiles - catalogue bugs", () => {
-  test("BUG 82818: GET /api/2.0/ai/profiles/get-by-id - an unknown profile id returns 200 with a null body instead of 404", async ({
+  test("BUG 82818: GET /api/2.0/ai/profiles/get-by-id - an unknown profile id is a 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -169,17 +169,15 @@ test.describe("AI Profiles - catalogue bugs", () => {
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
 
     // Well-formed but never issued — a UUIDv7 from a different portal's run.
-    const { status, data } = await profiles.getProfileById(
+    const { status, error } = await profiles.getProfileById(
       "owner",
       "019fcc1d-2c4d-7557-b8d2-6b4f1be1b212",
     );
 
-    // The body really is empty, so the caller cannot tell "no such profile" from
-    // "a profile with no fields" other than by the null itself.
-    expect(data).toBeNull();
-
-    test.fail();
     expect(status, "an unknown profile id must be 404").toBe(404);
+    // It used to answer 200 with a null body, which a caller could not tell from
+    // "a profile with no fields".
+    expect(error, "and say so").toBe("Profile not found");
   });
 
   test("BUG 82821: GET /api/2.0/ai/profiles/get-by-id - the response leaks the gateway's internal address", async ({
@@ -212,7 +210,7 @@ test.describe("AI Profiles - catalogue bugs", () => {
     ).toBe(listed.baseUrl);
   });
 
-  test("BUG 82823: GET /api/2.0/ai/profiles/list-models - a valid profile id returns 500", async ({
+  test("BUG 82823: GET /api/2.0/ai/profiles/list-models - a valid profile id no longer crashes", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -226,16 +224,17 @@ test.describe("AI Profiles - catalogue bugs", () => {
       AI_CAPS.textVisionTools,
     );
 
-    // A malformed id is handled properly, so the 500 below is not "the route is
-    // missing" — it is the happy path that breaks.
     const malformed = await profiles.listModels("owner", "not-a-guid");
     expect(malformed.status).toBe(400);
 
+    // Used to be a 500 for any real profile id. It is now a client error naming
+    // the reason: on the "ONLYOFFICE AI" gateway a profile carries no provider
+    // key of its own, so the outbound listing has nothing to authenticate with.
+    // The 200 path is therefore not reachable from a gateway portal and is not
+    // asserted here.
     const { status, error } = await profiles.listModels("owner", profile.id);
-    expect(error).toBe("Internal server error");
-
-    test.fail();
-    expect(status, "listing a profile's models must not be 500").toBe(200);
+    expect(status, "listing a profile's models must not crash").toBe(400);
+    expect(error).toBe("Invalid API key for the AI provider");
   });
 });
 

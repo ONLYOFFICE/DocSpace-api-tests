@@ -981,8 +981,9 @@ test.describe("AI Threads - regenerate-title", () => {
     const messages = await aiChat.waitForAssistantReply("owner", threadId);
     expect(AiAgentChat.assistantMessages(messages).length).toBeGreaterThan(0);
 
-    // Both shapes fail: the full profile object the SDK types ask for, and the
-    // profileId a caller would try next.
+    // The full profile object the SDK types ask for is the shape the route
+    // accepts, and it crashes. The `profileId` a caller would try next does not
+    // even get that far — the body validator wants a `profile` object.
     const withProfile = await aiChat.regenerateThreadTitle("owner", {
       threadId,
       profile,
@@ -994,7 +995,10 @@ test.describe("AI Threads - regenerate-title", () => {
       profileId: profile.id,
       entityId: String(agentId),
     });
-    expect(withProfileId.status).toBe(500);
+    expect(withProfileId.status).toBe(400);
+    expect(withProfileId.error).toBe(
+      "threadId (string) and profile (object) are required",
+    );
 
     // The title is untouched, so nothing half-applied.
     const thread = await aiChat.getThread("owner", threadId);
@@ -1413,7 +1417,7 @@ test.describe("AI Chat - room context across users", () => {
     ]);
   });
 
-  test("BUG 82858: GET /api/2.0/ai/threads/list - listing the threads of a room the user cannot see returns 500", async ({
+  test("BUG 82858: GET /api/2.0/ai/threads/list - listing the threads of a room the user cannot see is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1440,11 +1444,9 @@ test.describe("AI Chat - room context across users", () => {
     const nonsense = await aiChat.listThreads("user", "autotest-not-an-entity");
     expect(nonsense.status, "listing threads for a made-up entity").toBe(200);
 
+    // A room the caller cannot open is refused the way read-messages refuses
+    // another user's thread. It used to crash with a 500.
     const listed = await aiChat.listThreads("user", roomId);
-
-    // A room the caller cannot open should be refused, the way read-messages
-    // refuses another user's thread — instead the request crashes.
-    test.fail();
     expect(listed.status).toBe(403);
   });
 });
@@ -1828,14 +1830,14 @@ test.describe("AI Chat - the model of one thread", () => {
     );
   });
 
-  test("BUG 82860: POST /api/2.0/ai/ai/send-with-stream - a message with no profileId replaces the thread's chosen model", async ({
+  test("BUG 82860: POST /api/2.0/ai/ai/send-with-stream - a message with no profileId keeps the thread's chosen model", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // A client that lets the user pick a model once and then sends plain
-    // messages loses the choice on the first of them: with no `profileId` in the
-    // body the backend resolves the entity's model and writes THAT onto the
-    // thread, instead of using the one the thread already carries.
+    // messages used to lose the choice on the first of them: with no `profileId`
+    // in the body the backend resolved the entity's model and wrote THAT onto
+    // the thread, instead of using the one the thread already carries.
     //
     // A room, because a room is where the choice is the user's to make. The same
     // resolution in an agent is not this bug but the intended fixation — the
@@ -1890,8 +1892,6 @@ test.describe("AI Chat - the model of one thread", () => {
     await aiChat.waitForAssistantReply("owner", threadId);
 
     const kept = (await aiChat.getThread("owner", threadId)).data?.profileId;
-
-    test.fail();
     expect(kept, "the thread keeps the model it was created with").toBe(
       second.id,
     );

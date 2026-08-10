@@ -261,14 +261,12 @@ test.describe("AI Messages - text-to-docx export", () => {
     expect(landed).toEqual(expect.arrayContaining(Object.values(expected)));
   });
 
-  test("BUG 82712: POST /api/2.0/ai/text-to-docx - whitespace-only content is accepted instead of rejected", async ({
+  test("BUG 82712: POST /api/2.0/ai/text-to-docx - whitespace-only content is rejected", async ({
     apiSdk,
   }) => {
-    // A whitespace-only *title* is refused with the same 400 as an empty one, so
-    // the endpoint does trim before validating — it just does not do it for the
-    // content, and builds a blank document instead. Asserting the 202 would
-    // freeze that as the contract, so the expectation here is the 400 the title
-    // already gets, and the test is marked as failing until it arrives.
+    // A whitespace-only *title* is refused with the same 400 as an empty one.
+    // The content used not to be trimmed before validating, and a blank document
+    // was built instead.
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
@@ -282,10 +280,8 @@ test.describe("AI Messages - text-to-docx export", () => {
       folderId,
     });
 
-    test.fail();
-    // Currently a blank .docx really is produced — waited for in full and
-    // asserted first, so the document, not just the status code, is what this
-    // records.
+    // The document, not just the status code, is what this records: a blank
+    // .docx used to be produced.
     expect(
       await waitForExportedFile(ownerApi, folderId, `${title}.docx`),
     ).toBeUndefined();
@@ -1863,7 +1859,7 @@ test.describe("AI Messages - the OpenAI-compatible stream", () => {
 });
 
 test.describe("AI Messages - one-shot inference", () => {
-  test("BUG 82833: POST /api/2.0/ai/ai/send - the non-streaming path answers with an auth error while streaming works", async ({
+  test("BUG 82833: POST /api/2.0/ai/ai/send - the non-streaming path reaches the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1919,20 +1915,17 @@ test.describe("AI Messages - one-shot inference", () => {
 
     expect(status).toBe(200);
 
-    // The reply is an empty assistant message carrying a gateway auth failure.
+    // The reply used to be an empty assistant message carrying a gateway auth
+    // failure, on a portal where the streamed control above answers normally.
     expect(data?.role).toBe("assistant");
-    expect(data?.content).toBe("");
-    expect(data?.status?.reason).toBe("error");
-    expect(data?.status?.error?.code).toBe("auth");
-
-    test.fail();
     expect(
       data?.status?.error,
       "one-shot inference must not fail authentication when streaming succeeds",
     ).toBeUndefined();
+    expect(JSON.stringify(data?.content), "the model's answer").toContain("OK");
   });
 
-  test("BUG 82835: POST /api/2.0/ai/ai/send - an action type without its own binding returns 500 although resolution falls back to Default", async ({
+  test("BUG 82835: POST /api/2.0/ai/ai/send - an action type without its own binding resolves through Default", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1960,7 +1953,7 @@ test.describe("AI Messages - one-shot inference", () => {
       "Vision resolves through Default",
     ).toBeTruthy();
 
-    const { status, error } = await aiChat.send("owner", {
+    const { status, data } = await aiChat.send("owner", {
       actionType: "Vision",
       entityId: String(agentId),
       userMessage: {
@@ -1969,19 +1962,17 @@ test.describe("AI Messages - one-shot inference", () => {
       },
     });
 
-    // `send` nevertheless crashes: it only reaches the model for an action type
-    // that has an explicit assignment, and it reports the difference as a 500
-    // rather than as a "no model configured for this action" error.
-    expect(error).toBe("Internal server error");
-
-    test.fail();
+    // `send` used to crash here: it only reached the model for an action type
+    // with an explicit assignment, and reported the difference as a 500 rather
+    // than as a "no model configured for this action" error.
     expect(
       status,
       "an action type that resolves through Default must not answer 500",
-    ).not.toBe(500);
+    ).toBe(200);
+    expect(data?.status?.error).toBeUndefined();
   });
 
-  test("BUG 82836: POST /api/2.0/ai/ai/send-custom - the streaming form answers with an auth error and the non-streaming form with 500", async ({
+  test("BUG 82836: POST /api/2.0/ai/ai/send-custom - both forms reach the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1994,30 +1985,41 @@ test.describe("AI Messages - one-shot inference", () => {
       content: [{ type: "text", text: "What is 2+2?" }],
     };
 
-    // isStream:false does not even get as far as the model.
+    // Both used to fail, each in its own way: isStream:false did not get as far
+    // as the model at all — a plain 500 — and isStream:true was answered with an
+    // empty assistant message carrying a gateway auth failure, on a portal where
+    // send-with-stream works.
     const nonStreaming = await aiChat.sendCustom("owner", {
       isStream: false,
       systemPrompt: "Answer with a single word.",
       userMessage,
     });
-    expect(nonStreaming.status).toBe(500);
-    expect(nonStreaming.error).toBe("Internal server error");
+    expect(nonStreaming.status).toBe(200);
+    expect(nonStreaming.data?.role).toBe("assistant");
+    expect(nonStreaming.data?.status?.error).toBeUndefined();
+    expect(
+      JSON.stringify(nonStreaming.data?.content),
+      "the model's answer, unstreamed",
+    ).toContain("4");
 
-    // isStream:true is answered, but the answer is an empty assistant message
-    // carrying a gateway auth failure — on a portal where send-with-stream works.
     const streaming = await aiChat.sendCustom("owner", {
       isStream: true,
       systemPrompt: "Answer with a single word.",
       userMessage,
     });
     expect(streaming.status).toBe(200);
-    expect(streaming.data?.isEnd).toBe(true);
-    expect(streaming.data?.responseMessage?.status?.error?.code).toBe("auth");
 
-    test.fail();
+    // NDJSON rather than one object: the message, then the closing envelope.
+    const frames = AiAgentChat.sendCustomFrames(streaming.text);
+    const last = frames[frames.length - 1];
+    expect(last?.isEnd, "the stream closes").toBe(true);
     expect(
-      streaming.data?.responseMessage?.status?.error,
+      last?.responseMessage?.status?.error,
       "send-custom must not fail authentication",
     ).toBeUndefined();
+    expect(
+      JSON.stringify(last?.responseMessage?.content),
+      "the model's answer, streamed",
+    ).toContain("4");
   });
 });

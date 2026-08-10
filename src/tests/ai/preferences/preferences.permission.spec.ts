@@ -159,7 +159,7 @@ test.describe("AI Preferences - per-user isolation", () => {
     ).toBe(true);
   });
 
-  test("BUG 82816: GET /api/2.0/ai/preferences/get-deep-mode - reading an entity the caller has no access to returns 500", async ({
+  test("BUG 82816: GET /api/2.0/ai/preferences/get-deep-mode - reading an entity the caller has no access to is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -190,10 +190,7 @@ test.describe("AI Preferences - per-user isolation", () => {
     // normally, so this is not a blanket refusal of the route.
     expect((await preferences.getDeepMode("user")).status).toBe(200);
 
-    const { status, error } = await preferences.getDeepMode("user", agentId);
-    expect(error).toBe("Internal server error");
-
-    test.fail();
+    const { status } = await preferences.getDeepMode("user", agentId);
     expect(
       status,
       "an entity the caller cannot see must be refused, not crash",

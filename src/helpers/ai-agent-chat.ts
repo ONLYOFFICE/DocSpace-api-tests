@@ -875,12 +875,34 @@ export class AiAgentChat extends AiHttp {
     );
   }
 
-  /** Single-shot inference against a caller-supplied system prompt. */
+  /**
+   * Single-shot inference against a caller-supplied system prompt.
+   *
+   * The two stream modes answer differently, and only one of them is JSON:
+   * `isStream:false` is the assistant message itself, while `isStream:true` is
+   * NDJSON — the message, then a `{isEnd, responseMessage}` frame. So `data` is
+   * undefined for the streamed form and `sendCustomFrames` is what reads it.
+   */
   sendCustom(role: AgentRole, body: Record<string, unknown>) {
-    return this.call<{
+    return this.call<AiThreadMessage & { status?: AiThreadMessageStatus }>(
+      role,
+      "post",
+      "/api/2.0/ai/ai/send-custom",
+      body,
+    );
+  }
+
+  /** The NDJSON frames of a streamed `send-custom`, in order. */
+  static sendCustomFrames(text: string): Array<
+    {
       isEnd?: boolean;
       responseMessage?: AiThreadMessage & { status?: AiThreadMessageStatus };
-    }>(role, "post", "/api/2.0/ai/ai/send-custom", body);
+    } & AiThreadMessage
+  > {
+    return text
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line));
   }
 
   /** OpenAI-compatible SSE variant: `data: {...}` frames ending in `data: [DONE]`. */

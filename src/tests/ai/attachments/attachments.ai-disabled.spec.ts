@@ -301,9 +301,12 @@ test.describe("AI Attachments - AI access disabled", () => {
     const off = await setPortalAiAccess(ownerApi, false);
     expect(off.enabled).toBe(false);
 
+    const path = String(
+      await attachments.backingFileId("owner", "off-batch.docx", "x"),
+    );
     const files = await attachments.saveFilesMany("owner", {
       inputs: [
-        { title: "off-batch.docx", content: "x", type: FileType.Document },
+        { path, title: "off-batch.docx", content: "", type: FileType.Document },
       ],
     });
     const images = await attachments.saveImagesMany("owner", {
@@ -315,14 +318,15 @@ test.describe("AI Attachments - AI access disabled", () => {
     expect(images.data).toHaveLength(1);
   });
 
-  test("BUG 82759: POST /api/2.0/ai/attachments/get - the same call answers both 200 and 403 for one portal state", async ({
+  test("BUG 82759: POST /api/2.0/ai/attachments/get - answers one status for one portal state", async ({
     apiSdk,
   }) => {
-    // This one is filed, and the claim is not "it should be 403". The scope of
-    // the switch is not defined for the read routes, so either answer could be
-    // the intended one — but not both. link-to-message, delete and delete-many
-    // settle on 403; get keeps alternating indefinitely, so whether a draft is
-    // readable on an AI-disabled portal is decided per request.
+    // The claim was never "it should be 403". The scope of the switch is not
+    // defined for the read routes, so either answer could be the intended one —
+    // but not both, and `get` used to alternate indefinitely, so whether a draft
+    // was readable on an AI-disabled portal was decided per request. Which of
+    // the two it settled on is left to the assertion below rather than pinned
+    // here, for the same reason.
     const ownerApi = apiSdk.forRole("owner");
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const draftId = await attachments.saveFileId("owner", {
@@ -344,14 +348,13 @@ test.describe("AI Attachments - AI access disabled", () => {
       true,
     );
 
-    test.fail();
     expect(
       new Set(statuses),
       `get answered ${statuses.join(",")} for one unchanged portal state`,
     ).toHaveProperty("size", 1);
   });
 
-  test("BUG 82766: POST /api/2.0/ai/attachments/get-many - the same call answers both 200 and 403 for one portal state", async ({
+  test("BUG 82766: POST /api/2.0/ai/attachments/get-many - answers one status for one portal state", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -373,7 +376,6 @@ test.describe("AI Attachments - AI access disabled", () => {
       true,
     );
 
-    test.fail();
     expect(
       new Set(statuses),
       `get-many answered ${statuses.join(",")} for one unchanged portal state`,

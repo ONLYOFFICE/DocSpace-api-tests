@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { FileType } from "@onlyoffice/docspace-api-sdk";
 import { AiHttp, AgentRole } from "./ai-http";
 import { AiAgentChat } from "./ai-agent-chat";
 
@@ -14,37 +15,45 @@ import { AiAgentChat } from "./ai-agent-chat";
 //   DELETE /api/2.0/ai/attachments/delete             { id }
 //   DELETE /api/2.0/ai/attachments/delete-many        ["<id>", …]
 //
-// Measured against a live portal on 2026-08-03. Where the SDK
+// Measured against a live portal on 2026-08-03 and re-measured on 2026-08-10,
+// when the whole write side was given real validation. Where the SDK
 // (dist/api/new-ai/attachments-api.d.ts) disagrees, the SDK is wrong:
 //
 //   * The SDK generates every route under `/api/2.0/new-ai/…`, which is a 404
 //     HTML error page. The live prefix is `/api/2.0/ai/…`, like the rest of the
 //     rewritten AI stack.
-//   * `NewAiAttachmentsSaveFileRequestInput` declares `path`, `content` and
-//     `type` required and `title` optional. It is the exact inverse: `title` is
-//     the only field that must be present, `content`/`type` are optional
-//     passthrough, and any NON-EMPTY `path` makes the call 500.
 //   * `get` is typed as returning `NewAiAttachment`; it answers `200 null` for
 //     anything it cannot find.
 //
-// Three behaviours shape every test in the suite:
+// What shapes every test in the suite:
 //
-//   * Reads and deletes are INTERMITTENT. Measured: 4 of 8 single reads right
-//     after a save came back empty, the draft survived 4 of 8 single deletes, and
-//     0 of 8 after six deletes in a row. So a read used as setup is always a poll
-//     (`findAttachment`, `expectStored`) and a deletion a test needs to be real is
-//     always a `purge`.
-//
-//     The cause is not established. An unreplicated per-instance store fits, but
-//     so would eventual consistency, a read cache or an asynchronous write, and
-//     plain eventual consistency does not explain a deleted record coming back.
-//     Tests are therefore named after the symptom, not the mechanism.
-//   * A write that returns `{success:true}` proves nothing. `link-to-message`
-//     answers 200 to an empty body, to unknown ids and to a message/thread
-//     mismatch alike, and never actually attaches anything.
+//   * A FILE DRAFT IS A REFERENCE TO A DOCSPACE FILE. `input.path` is required
+//     and is the file's **id as a string** — not a path, whatever the DTO's
+//     "Storage path/key of the file" says. The server resolves it, checks the
+//     caller's access, extracts the text itself and answers with THAT: the
+//     `content` a client sends is required to be a string and then discarded,
+//     and the draft's `title` comes from the file, not from the body. `path: ""`
+//     is accepted and gives back a record that was never stored. So a test that
+//     needs a draft holding particular text uploads a file holding it —
+//     `saveFileId` does this for a body with no `path` of its own.
+//   * The extension of that file decides whether the attach works at all:
+//     `.docx` and `.txt` are extracted, `.bin` and a name with no extension are
+//     a 400, and an archive is a 400 as well.
+//   * A write that returns `{success:true}` proves nothing on the linking side.
+//     `link-to-message` does now reject an empty body, unknown ids and a
+//     message/thread mismatch, but a link it accepts still attaches nothing.
 //   * The request body limit is about 128 KB and applies to the whole body, not
 //     to any one field: 100 KB of `content` is accepted, 120 KB is 413, and a
-//     100 KB `title` is fine on its own because nothing else is in the body.
+//     100 KB `title` is fine on its own because nothing else is in the body. It
+//     does not apply to the file behind `path`, which never travels in the
+//     request.
+//
+// Reads and deletes used to be INTERMITTENT — 4 of 8 single reads right after a
+// save came back empty, and a draft survived 4 of 8 single deletes. Re-measured
+// on 2026-08-10 both are now reliable, 8 of 8 either way. The polling reads
+// (`findAttachment`, `expectStored`) and the repeating `purge` below are kept:
+// they cost one round trip when the store answers first time, and they are what
+// the two tests that pin the flapping (BUG 82764, BUG 82767) measure with.
 export type AiAttachment = {
   id?: string;
   kind?: "file" | "image";
@@ -68,17 +77,21 @@ export type AiAttachment = {
 
 export type AiAttachmentMutation = { success?: boolean };
 
-/** A file draft. `title` is the only field the endpoint requires. */
+/**
+ * A file draft. `path`, `content` and `type` are required and `title` is
+ * optional — exactly what the SDK documents, and the inverse of what the route
+ * used to accept.
+ */
 export type FileInput = {
   title?: unknown;
   content?: unknown;
   type?: unknown;
-  /** Present only to prove that any non-empty value 500s. */
+  /** The DocSpace file id, as a string. */
   path?: unknown;
   [key: string]: unknown;
 };
 
-/** An image draft. No field is required — `{}` is accepted. */
+/** An image draft. `name` and a valid base64 `base64` are both required. */
 export type ImageInput = {
   name?: unknown;
   base64?: unknown;
@@ -303,21 +316,104 @@ export class AiAttachments extends AiHttp {
   // ------------------------------------------------------- setup convenience
 
   /**
-   * Setup-only: throws unless a draft really came back, so a test asserting on
-   * a draft never carries an empty id into its assertions.
+   * A real DocSpace file in the caller's My Documents holding `content`, whose
+   * id is what `save-file`'s `path` wants. Uploaded by hand rather than through
+   * the SDK for the reason `upload-file.ts` gives: the SDK's `uploadFile` sends
+   * JSON and the server answers "No input files".
+   *
+   * The name matters — the extension decides whether the portal will extract
+   * text at all, and `.bin` or no extension is a 400 on the attach that follows.
+   */
+  async backingFileId(role: AgentRole, name: string, content: string) {
+    const cacheKey = `${role} ${name} ${content}`;
+    const cached = this.backingFiles.get(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const headers: Record<string, string> = {
+      Origin: `http://${this.tokenStore.newTenantDomain}`,
+    };
+    if (role !== "anonymous") {
+      headers.Authorization = `Bearer ${this.tokenStore.getToken(role)}`;
+    }
+
+    const response = await this.request.post(
+      `${this.tokenStore.portalBaseUrl}/api/2.0/files/@my/upload`,
+      {
+        headers,
+        multipart: {
+          file: {
+            name,
+            mimeType: "text/plain",
+            buffer: Buffer.from(content, "utf8"),
+          },
+        },
+      },
+    );
+    const body = (await response.json()) as {
+      response?: Array<{ id?: number }> | { id?: number };
+    };
+    const entry = Array.isArray(body.response)
+      ? body.response[0]
+      : body.response;
+    if (response.status() !== 200 || entry?.id === undefined) {
+      throw new Error(
+        `uploading the backing file ${name} failed: ${response.status()}`,
+      );
+    }
+
+    this.backingFiles.set(cacheKey, entry.id);
+    return entry.id;
+  }
+
+  private readonly backingFiles = new Map<string, number>();
+
+  /**
+   * Setup-only: a stored draft carrying `content`, addressed by its id. Throws
+   * unless a draft really came back, so a test asserting on a draft never
+   * carries an empty id into its assertions.
+   *
+   * An input with no `path` of its own is backed by a real DocSpace file that
+   * this mints — see the note on the class about what `path` is. That is not a
+   * convenience: a draft with no resolvable `path` cannot be stored at all any
+   * more, so "give me a draft holding this text" *means* "upload a file holding
+   * this text and attach it". The backing file is named after the title,
+   * because the server takes the draft's title from the file too.
+   *
+   * Tests measuring save-file's own validation must use `saveFile` /
+   * `saveFileRaw` and build the body themselves; this helper exists for the
+   * drafts a test needs to have around.
    */
   async saveFileId(
     role: AgentRole,
     input: FileInput,
     entityId?: string,
   ): Promise<string> {
+    let body = input;
+    if (input.path === undefined) {
+      const title =
+        typeof input.title === "string" ? input.title : "autotest.txt";
+      const fileId = await this.backingFileId(
+        role,
+        title,
+        typeof input.content === "string" ? input.content : "",
+      );
+      body = {
+        ...input,
+        path: String(fileId),
+        content: "",
+        type: input.type ?? FileType.Document,
+      };
+    }
+
     const { status, data, error } = await this.saveFile(role, {
-      input,
+      input: body,
       ...(entityId === undefined ? {} : { entityId }),
     });
     if (status !== 200 || !data?.id) {
       throw new Error(
-        `save-file failed for ${JSON.stringify(input)}: ${status} ${error ?? "(no id)"}`,
+        `save-file failed for ${JSON.stringify(body)}: ${status} ${error ?? "(no id)"}`,
       );
     }
     return data.id;

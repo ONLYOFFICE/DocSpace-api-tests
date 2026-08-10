@@ -384,7 +384,7 @@ test.describe("AI Preferences - deep mode of a room or a folder", () => {
 });
 
 test.describe("AI Preferences - deep mode validation", () => {
-  test("BUG 82813: PUT /api/2.0/ai/preferences/set-deep-mode - a string value is coerced instead of rejected", async ({
+  test("BUG 82813: PUT /api/2.0/ai/preferences/set-deep-mode - a non-boolean value is rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -393,32 +393,27 @@ test.describe("AI Preferences - deep mode validation", () => {
 
     const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
 
-    // Start from an explicitly chosen "off", so a coercion to true is visible as a
-    // change rather than as the default.
+    // Start from an explicitly chosen "off", so a coercion to true would be
+    // visible as a change rather than as the default.
     const { data: chosen } = await preferences.setDeepMode("owner", {
       value: false,
     });
     expect(chosen?.success).toBe(true);
     expect((await preferences.getDeepMode("owner")).data).toBe(false);
 
-    const { status, data } = await preferences.setDeepMode("owner", {
+    const { status } = await preferences.setDeepMode("owner", {
       value: "yes",
     });
-    expect(status).toBe(200);
-    expect(data?.success, "the call reports success").toBe(true);
+    expect(status, "a non-boolean value must be rejected with 400").toBe(400);
 
-    // The string was taken as truthy and written through, so a client sending the
-    // wrong type silently turns reasoning on for the user.
+    // The refusal leaves the chosen value alone rather than half-writing it.
     expect(
       (await preferences.getDeepMode("owner")).data,
-      "the stored value after a string was sent",
-    ).toBe(true);
-
-    test.fail();
-    expect(status, "a non-boolean value must be rejected with 400").toBe(400);
+      "the stored value after a string was refused",
+    ).toBe(false);
   });
 
-  test("BUG 82814: PUT /api/2.0/ai/preferences/set-deep-mode - an empty body wipes the stored value", async ({
+  test("BUG 82814: PUT /api/2.0/ai/preferences/set-deep-mode - an empty body is rejected and keeps the stored value", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -432,15 +427,15 @@ test.describe("AI Preferences - deep mode validation", () => {
     });
     expect(enabled?.success).toBe(true);
 
-    // The same shape as BUG 82725 on PUT /ai/config/user: a body with no `value`
-    // is treated as "set it to false" rather than as a bad request.
-    const { status, data } = await preferences.setDeepMode("owner", {});
-    expect(status).toBe(200);
-    expect(data?.success).toBe(true);
-    expect((await preferences.getDeepMode("owner")).data).toBe(false);
-
-    test.fail();
+    // A body with no `value` used to be taken as "set it to false" — the same
+    // shape as BUG 82725 on PUT /ai/config/user. It is now a bad request.
+    const { status } = await preferences.setDeepMode("owner", {});
     expect(status, "an empty body must be rejected with 400").toBe(400);
+
+    expect(
+      (await preferences.getDeepMode("owner")).data,
+      "the value chosen before the refused write",
+    ).toBe(true);
   });
 
   test("BUG 82815: DELETE /api/2.0/ai/preferences/clear-deep-mode - a bare entityId body reports success and clears nothing", async ({
