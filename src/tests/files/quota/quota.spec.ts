@@ -321,6 +321,118 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
   });
 });
 
+test.describe("Room quota exhaustion - file upload behavior", () => {
+  test("POST /api/2.0/files/{folderId}/file - Returns error when room quota is exhausted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await enableRoomQuota(apiSdk);
+
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Quota Exhausted Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.roomQuota.updateRoomsQuota({
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [roomId] as any,
+        quota: 1,
+      },
+    });
+
+    const { status } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Quota File.docx" },
+    });
+
+    expect(status).not.toBe(200);
+  });
+
+  test("GET /api/2.0/rooms/{id} - Room info reflects quotaLimit and usedSpace after quota is set", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await enableRoomQuota(apiSdk);
+
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Quota Info Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.roomQuota.updateRoomsQuota({
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [roomId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
+    });
+
+    await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Quota Info File.docx" },
+    });
+
+    const { data, status } = await ownerApi.rooms.getRoomInfo({
+      id: roomId as any,
+    });
+
+    expect(status).toBe(200);
+    expect((data.response as any).quotaLimit).toBe(QUOTA_MINIMAL_BYTES);
+    expect(typeof (data.response as any).usedSpace).toBe("number");
+    expect((data.response as any).usedSpace).toBeGreaterThanOrEqual(0);
+  });
+
+  test("PUT /api/2.0/files/rooms/roomquota - Room usedSpace stays within quota after createFile", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await enableRoomQuota(apiSdk);
+
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Quota Used Space Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.roomQuota.updateRoomsQuota({
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [roomId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
+    });
+
+    await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Quota Track File.docx" },
+    });
+
+    const { data } = await ownerApi.rooms.getRoomInfo({
+      id: roomId as any,
+    });
+
+    const usedSpace = (data.response as any).usedSpace as number;
+    const quotaLimit = (data.response as any).quotaLimit as number;
+
+    expect(usedSpace).toBeLessThanOrEqual(quotaLimit);
+  });
+});
+
 test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
   test("PUT /api/2.0/files/rooms/resetquota - Owner resets quota for a room", async ({
     apiSdk,
