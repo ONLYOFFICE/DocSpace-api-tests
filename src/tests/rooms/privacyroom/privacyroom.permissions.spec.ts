@@ -798,7 +798,7 @@ test.describe("Cross-user E2E key isolation", () => {
 
 test.describe("GET /files/rooms - private room visibility", () => {
   test.fail(
-    "BUG XXXXX: GET /files/rooms - DocSpaceAdmin must not see a private room they are not a member of",
+    "BUG 82956: GET /files/rooms - DocSpaceAdmin must not see a private room they are not a member of",
     async ({ apiSdk }) => {
       // Owner creates a private room. DocSpaceAdmin is never invited.
       // The room must be invisible to the admin because E2E rooms are only
@@ -830,7 +830,7 @@ test.describe("GET /files/rooms - private room visibility", () => {
   );
 
   test.fail(
-    "BUG XXXXX: GET /files/rooms - Owner must not see a private room they are not a member of",
+    "BUG 82956: GET /files/rooms - Owner must not see a private room they are not a member of",
     async ({ apiSdk }) => {
       // RoomAdmin creates a private room. Owner is never invited.
       // Owner must not see the room in their room list — being the portal owner
