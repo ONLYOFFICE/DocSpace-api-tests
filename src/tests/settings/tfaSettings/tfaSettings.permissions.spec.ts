@@ -1,7 +1,14 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { TfaRequestsDtoType } from "@onlyoffice/docspace-api-sdk";
-import { linkTfaApp } from "@/src/helpers/tfa";
+import { linkTfaApp, resetTfaAfterTest } from "@/src/helpers/tfa";
+
+// See tfaSettings.spec.ts for why this is needed: enabling TFA App can
+// invalidate owner's token, which would otherwise break the fixture's
+// portal-cleanup re-login.
+test.afterEach(async ({ apiSdk }) => {
+  await resetTfaAfterTest(apiSdk);
+});
 
 test.describe("PUT /api/2.0/settings/tfaapp - access control", () => {
   test("PUT /api/2.0/settings/tfaapp - Anonymous cannot update TFA settings", async ({

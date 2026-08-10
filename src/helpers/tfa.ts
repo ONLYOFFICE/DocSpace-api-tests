@@ -49,7 +49,10 @@ export async function linkTfaApp(
   },
 ): Promise<string> {
   if (role === "owner") {
-    await enableTfaApp(apiSdk, role);
+    // Best-effort: if TFA App is already enabled and owner's token is stale
+    // (e.g. a previous enable already invalidated it), this 401s - fine, the
+    // login below authenticates via credentials in the body, not this token.
+    await enableTfaApp(apiSdk, role).catch(() => {});
   }
 
   const { data: login, status: loginStatus } = await apiSdk
@@ -78,4 +81,27 @@ export async function linkTfaApp(
   apiSdk.tokenStore.setToken(role, token);
 
   return secret;
+}
+
+/**
+ * Disables TFA App as owner, for use in test.afterEach so the fixture's own
+ * owner-password re-login (which cleans up the portal) can succeed. If the
+ * test left TFA enabled without ever completing the login flow, owner's
+ * token is stale and this first attempt 401s - fall back to completing the
+ * TFA login (linkTfaApp) to get a working token, then disable again.
+ * Best-effort throughout: if the fallback also fails, the portal stays
+ * orphaned, same as before this helper existed.
+ */
+export async function resetTfaAfterTest(apiSdk: ApiSDK) {
+  const disable = () =>
+    apiSdk.forRole("owner").tfaSettings.updateTfaSettings({
+      tfaRequestsDto: { type: TfaRequestsDtoType.None },
+    });
+
+  const { status } = await disable().catch(() => ({ status: 0 }));
+  if (status === 200) return;
+
+  await linkTfaApp(apiSdk, "owner")
+    .then(disable)
+    .catch(() => {});
 }

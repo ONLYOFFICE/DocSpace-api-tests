@@ -1,11 +1,13 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { TfaRequestsDtoType } from "@onlyoffice/docspace-api-sdk";
-import { enableTfaApp, linkTfaApp } from "@/src/helpers/tfa";
+import { enableTfaApp, linkTfaApp, resetTfaAfterTest } from "@/src/helpers/tfa";
 
 // Enabling TFA App makes the fixture's own owner-password re-login (used to
 // clean up the portal after each test) return a tfaKey instead of a token, so
-// the portal never gets deleted. Best-effort disable it again before teardown.
+// the portal never gets deleted. resetTfaAfterTest disables TFA again before
+// teardown, completing the TFA login first if the test left owner's token
+// stale (e.g. it enabled TFA but never linked/logged back in).
 //
 // Note on "not available" cases below (SMS with no provider, actions while
 // TFA App is disabled/not linked): the official docs say these return 405,
@@ -14,12 +16,7 @@ import { enableTfaApp, linkTfaApp } from "@/src/helpers/tfa";
 // 405, until this is confirmed as intended and the docs are updated, or fixed
 // and a bug number is filed.
 test.afterEach(async ({ apiSdk }) => {
-  await apiSdk
-    .forRole("owner")
-    .tfaSettings.updateTfaSettings({
-      tfaRequestsDto: { type: TfaRequestsDtoType.None },
-    })
-    .catch(() => {});
+  await resetTfaAfterTest(apiSdk);
 });
 
 test.describe("PUT /api/2.0/settings/tfaapp - Owner updates TFA settings", () => {
