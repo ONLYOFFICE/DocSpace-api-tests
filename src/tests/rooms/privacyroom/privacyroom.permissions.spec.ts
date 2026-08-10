@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "@/src/services/api-sdk";
-import { roomAccesses } from "@/src/helpers/rooms";
+import { folderIds, roomAccesses } from "@/src/helpers/rooms";
 
 /**
  * Access control for the PrivacyroomApi.
@@ -794,4 +794,70 @@ test.describe("Cross-user E2E key isolation", () => {
     const ownerKeys = await owner.privacyroom.getUserKeys();
     expect(ownerKeys.data.response!.map((k) => k.publicKey)).toEqual([ownerPk]);
   });
+});
+
+test.describe("GET /files/rooms - private room visibility", () => {
+  test.fail(
+    "BUG XXXXX: GET /files/rooms - DocSpaceAdmin must not see a private room they are not a member of",
+    async ({ apiSdk }) => {
+      // Owner creates a private room. DocSpaceAdmin is never invited.
+      // The room must be invisible to the admin because E2E rooms are only
+      // visible to their members — admin role must not bypass that.
+      const owner = apiSdk.forRole("owner");
+      await owner.privacyroom.setKeys({
+        encryptionKeyRequestDto: {
+          publicKey: "owner-" + apiSdk.faker.generateString(12),
+          privateKeyEnc: "op",
+        },
+      });
+      const { data: room } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+      const { data, status } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .rooms.getRoomsFolder({});
+
+      expect(status).toBe(200);
+      expect(folderIds(data)).not.toContain(roomId);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: GET /files/rooms - Owner must not see a private room they are not a member of",
+    async ({ apiSdk }) => {
+      // RoomAdmin creates a private room. Owner is never invited.
+      // Owner must not see the room in their room list — being the portal owner
+      // must not grant visibility into E2E rooms one is not a member of.
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+      const roomAdmin = apiSdk.forRole("roomAdmin");
+      await roomAdmin.privacyroom.setKeys({
+        encryptionKeyRequestDto: {
+          publicKey: "ra-" + apiSdk.faker.generateString(12),
+          privateKeyEnc: "rap",
+        },
+      });
+      const { data: room } = await roomAdmin.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Privacy Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+          private: true,
+        },
+      });
+      const roomId = room.response!.id! as number;
+
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.getRoomsFolder({});
+
+      expect(status).toBe(200);
+      expect(folderIds(data)).not.toContain(roomId);
+    },
+  );
 });
