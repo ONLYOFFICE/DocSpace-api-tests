@@ -1151,7 +1151,7 @@ test.describe("MCP - custom servers scoped to a room", () => {
     expect(Object.keys(listed.data)).toContain("autotest-room-server");
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/tools/add-custom-server - a server registered for a room is also served portal-wide", async ({
+  test("BUG 82975: POST /api/2.0/ai/tools/add-custom-server - a server registered for a room is also served portal-wide", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1642,7 +1642,7 @@ test.describe("MCP - replace-all-custom-servers", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/replace-all-custom-servers - two names differing only in case are both stored and one becomes unreachable", async ({
+  test("BUG 82984: PUT /api/2.0/ai/tools/replace-all-custom-servers - two names differing only in case are both stored and one becomes unreachable", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2295,7 +2295,7 @@ test.describe("MCP - a deleted agent's server map", () => {
     expect(scoped.status).toBe(200);
   });
 
-  test("BUG XXXXX: POST|DELETE /api/2.0/ai/tools/*-custom-server - a write against a deleted agent lands portal-wide", async ({
+  test("BUG 82975: POST|DELETE /api/2.0/ai/tools/*-custom-server - a write against a deleted agent lands portal-wide", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2719,7 +2719,7 @@ test.describe("MCP - server names as map keys", () => {
     { label: "a single dot", name: "." },
     { label: "two dots", name: ".." },
   ]) {
-    test(`BUG XXXXX: POST /api/2.0/ai/tools/add-custom-server - a server named with ${label} can be registered but never read, edited or removed`, async ({
+    test(`BUG 82985: POST /api/2.0/ai/tools/add-custom-server - a server named with ${label} can be registered but never read, edited or removed`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -2882,7 +2882,7 @@ test.describe("MCP - server names as map keys", () => {
     ).toEqual([{ name: "my_server", error: { field: "name", message } }]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/tools/add-custom-server - a server named after an Object.prototype member is rejected as if its config were broken", async ({
+  test("BUG 82986: POST /api/2.0/ai/tools/add-custom-server - a server named after an Object.prototype member is rejected as if its config were broken", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2984,7 +2984,7 @@ test.describe("MCP - server names as map keys", () => {
     expect(second.data?.success).toBe(true);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/tools/add-custom-server - an emoji in the server name answers 500", async ({
+  test("BUG 82987: POST /api/2.0/ai/tools/add-custom-server - an emoji in the server name answers 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3094,7 +3094,7 @@ test.describe("MCP - a registered server and the conversation", () => {
     expectHealthyAssistantReply(messages);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a registered MCP server's tools never reach the model", async ({
+  test("BUG 82989: POST /api/2.0/ai/ai/send-with-stream - a registered MCP server's tools never reach the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3177,7 +3177,7 @@ test.describe("MCP - a registered server and the conversation", () => {
     ).toBe(true);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a portal-wide MCP server does not reach the model either", async ({
+  test("BUG 82990: POST /api/2.0/ai/ai/send-with-stream - a portal-wide MCP server does not reach the model either", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3240,7 +3240,7 @@ test.describe("MCP - a registered server and the conversation", () => {
     ).toBe(true);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/tools/list-system-tools - the catalogue is empty when scoped to an entity", async ({
+  test("BUG 82991: GET /api/2.0/ai/tools/list-system-tools - the catalogue is empty when scoped to an entity", async ({
     apiSdk,
     paymentsApi,
   }) => {

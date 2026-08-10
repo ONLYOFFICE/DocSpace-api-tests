@@ -70,7 +70,7 @@ test.describe("AI Profiles - AI Disabled", () => {
     }
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/profiles/list-models - the provider error is raised before the AI switch is checked", async ({
+  test("BUG 82971: GET /api/2.0/ai/profiles/list-models - the provider error is raised before the AI switch is checked", async ({
     apiSdk,
     paymentsApi,
   }) => {
