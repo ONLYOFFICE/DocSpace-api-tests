@@ -3077,7 +3077,7 @@ test.describe("AI Messages - copying a message", () => {
 
     // Markdown in both directions, so the comparison is not made on a plain
     // one-liner that no formatting step could disturb.
-    const question = "Format check: **bold**, _under_, `code`, 🙂 — тире.";
+    const question = "Format check: **bold**, _under_, `code`, 🙂 — dash.";
 
     const sent = await aiChat.sendMessage("owner", {
       threadId,
@@ -3134,16 +3134,16 @@ test.describe("AI Messages - copying a message", () => {
 
     const { aiChat, profileId, threadId } = await setupThread(apiSdk);
 
-    // Markdown, cyrillic, an emoji, a fenced block, and the two trailing spaces
-    // that markdown reads as a hard line break — the one piece of formatting a
+    // Markdown, an emoji, a fenced block, and the two trailing spaces that
+    // markdown reads as a hard line break — the one piece of formatting a
     // careless trim destroys without leaving a trace.
     const own = [
-      "# Моя заметка",
+      "# My note",
       "",
       "**BOLDWORD**, _under_, `code`, 2 * 3 = 6",
       "",
-      "- пункт один",
-      "- пункт два 🙂",
+      "- item one",
+      "- item two 🙂",
       "",
       "```sql",
       "select 1;",
@@ -3180,7 +3180,7 @@ test.describe("AI Messages - copying a message", () => {
 
     // An edited message is copied the same way, so the rewrite must not
     // normalise anything either.
-    const edited = own.replace("# Моя заметка", "# Моя правленая заметка ✅");
+    const edited = own.replace("# My note", "# My edited note ✅");
     const update = await aiChat.updateMessage("owner", {
       messageId: messageId!,
       message: { role: "user", content: [{ type: "text", text: edited }] },
@@ -3494,7 +3494,7 @@ const WRITE_PATH_CASES: Array<{
       "[QUERYLINK](https://example.invalid/search?a=1&b=2&utm_source=x)",
       "[ANCHORLINK](https://example.invalid/doc#section-2)",
       "[TITLEDLINK](https://example.invalid/t 'A title')",
-      "[UNICODELINK](https://example.invalid/поиск?q=тест%20файл)",
+      "[UNICODELINK](https://example.invalid/search-🙂?q=%D1%82%D0%B5%D1%81%D1%82%20file)",
       "[PARENLINK](<https://example.invalid/a(b)c>)",
       "[SPACELINK](<https://example.invalid/a b c>)",
       "[MAILLINK](mailto:someone@example.invalid)",
@@ -3511,7 +3511,7 @@ const WRITE_PATH_CASES: Array<{
     fragments: [
       "https://example.invalid/search?a=1&b=2&utm_source=x",
       "https://example.invalid/doc#section-2",
-      "https://example.invalid/поиск?q=тест%20файл",
+      "https://example.invalid/search-🙂?q=%D1%82%D0%B5%D1%81%D1%82%20file",
       "[PARENLINK](<https://example.invalid/a(b)c>)",
       "<https://example.invalid/autolink>",
       "https://example.invalid/bare-url?x=1&y=2",
