@@ -15,36 +15,34 @@ import {
 // /api/2.0/ai/attachments/* with the portal AI switch off
 // (PUT /api/2.0/settings/ai-access, enabled: false).
 //
-// Measured on a live portal on 2026-08-03, ten calls per route after a warm-up
-// that lets the setting propagate:
+// Re-measured on 2026-08-10, after the write side was reworked:
 //
-//   save-file            403 in  0/10
-//   save-files-many      403 in  0/10
-//   save-image           403 in  0/10
-//   save-images-many     403 in  0/10
-//   get                  403 in  8/10
-//   get-many             403 in  5/10
-//   link-to-message      403 in 10/10
-//   delete               403 in 10/10
-//   delete-many          403 in 10/10
+//   save-file            403
+//   save-files-many      403
+//   save-image           200
+//   save-images-many     200
+//   get                  403, consistently
+//   get-many             403, consistently
+//   link-to-message      403
+//   delete               403
+//   delete-many          403
 //
 // Three groups, and each is tested differently:
 //
-//   * The four save-* routes ignore the switch. Recorded as plain tests, NOT as
-//     defects: storing a draft involves no model call, the composer fills the
-//     store before any message is sent, and no requirement says the switch has to
-//     cover all of /ai/attachments/*. A bug here needs that requirement first.
+//   * The FILE half of the write side is now behind the switch and the IMAGE half
+//     is not. Recorded as plain tests rather than as a defect: no requirement says
+//     how far the switch reaches into /ai/attachments/*, and the split is the
+//     thing to notice — a bug report needs that requirement first. (Until this
+//     re-measurement all four save-* routes ignored the switch.)
 //   * link-to-message, delete and delete-many honour it — but only once it has
 //     propagated, and propagation is not instant: a 200 still slips through after
 //     the first 403. `expectRefusedOnceSettled` waits for a short run of refusals
 //     before requiring the rest of the calls to be refused too. The mutating
 //     versions aim at a non-existent id, so the calls that slip through cannot
 //     destroy a draft the test still needs.
-//   * get and get-many never settle: they keep answering both 200 and 403 for one
-//     unchanged portal state. That is what those two tests assert — a
-//     disagreement, not a particular status — because the intended scope of the
-//     switch over the read routes is not defined anywhere, and either answer
-//     could be the right one. Both cannot.
+//   * get and get-many used to answer both 200 and 403 for one unchanged portal
+//     state, indefinitely. They now settle (BUG 82759, BUG 82766), and the two
+//     tests that measured the disagreement assert consistency instead.
 //
 // setPortalAiAccess reads the flag back after writing it, so no test here can be
 // green because the disable call quietly failed.
@@ -237,37 +235,34 @@ test.describe("AI Attachments - AI access disabled", () => {
     expect(status).toBe(401);
   });
 
-  test("POST /api/2.0/ai/attachments/save-file - a draft can still be created when AI access is disabled", async ({
+  test("POST /api/2.0/ai/attachments/save-file - the file routes are gated when AI access is disabled", async ({
     apiSdk,
   }) => {
-    // Recorded, not reported as a defect. Storing a draft needs no model call, and
-    // the composer fills the store before a message is ever sent, so a switch that
-    // only blocks *using* AI leaving this route open is a legitimate design. There
-    // is no requirement stating the switch must cover all of /ai/attachments/*, so
-    // there is nothing to file until one exists.
+    // This used to be the other way round — the whole store stayed open, on the
+    // reading that filling a draft needs no model call. The file half is now
+    // behind the switch and the image half is not, which is the split the batch
+    // test below measures as well.
     const ownerApi = apiSdk.forRole("owner");
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    // Uploaded while AI is still on, so the 403 below cannot be the upload.
+    const path = String(
+      await attachments.backingFileId(
+        "owner",
+        "Autotest off.docx",
+        "created with AI off",
+      ),
+    );
 
     const off = await setPortalAiAccess(ownerApi, false);
     expect(off.enabled).toBe(false);
 
-    const { status, data } = await attachments.saveFile("owner", {
-      input: {
-        title: "Autotest off.docx",
-        content: "created with AI off",
-        type: FileType.Document,
-      },
+    const { status, error } = await attachments.saveFile("owner", {
+      input: { path, content: "", type: FileType.Document },
     });
 
-    expect(status).toBe(200);
-    expect(data?.id).toBeTruthy();
-    // And it is really stored, not merely acknowledged.
-    const stored = await attachments.expectStored(
-      "owner",
-      data!.id!,
-      "a draft created with AI off",
-    );
-    expect(stored.content).toBe("created with AI off");
+    expect(status).toBe(403);
+    expect(error).toBe("Forbidden");
   });
 
   test("POST /api/2.0/ai/attachments/save-image - an image draft can still be created when AI access is disabled", async ({
@@ -292,7 +287,7 @@ test.describe("AI Attachments - AI access disabled", () => {
     expect(stored.base64).toBe(PNG_1X1);
   });
 
-  test("POST /api/2.0/ai/attachments/save-files-many - batches can still be stored when AI access is disabled", async ({
+  test("POST /api/2.0/ai/attachments/save-files-many, save-images-many - only the file batch is gated when AI access is disabled", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -313,8 +308,11 @@ test.describe("AI Attachments - AI access disabled", () => {
       inputs: [{ name: "off-batch.png", base64: PNG_1X1 }],
     });
 
-    expect([files.status, images.status]).toEqual([200, 200]);
-    expect(files.data).toHaveLength(1);
+    // The two batch routes part ways under the switch: the file one is gated and
+    // the image one is not. `save-file` and `save-image` are both still open (the
+    // tests above), so this is not "batches are gated" either — it is one route.
+    expect([files.status, images.status]).toEqual([403, 200]);
+    expect(files.error).toBe("Forbidden");
     expect(images.data).toHaveLength(1);
   });
 
@@ -420,12 +418,15 @@ test.describe("AI Attachments - AI Tools wallet service not paid for", () => {
     );
 
     const draftId = await test.step("save-file", async () => {
+      const path = String(
+        await attachments.backingFileId(
+          "owner",
+          "Autotest unpaid-wallet.docx",
+          "stored with AI Tools unpaid",
+        ),
+      );
       const { status, data } = await attachments.saveFile("owner", {
-        input: {
-          title: "Autotest unpaid-wallet.docx",
-          content: "stored with AI Tools unpaid",
-          type: FileType.Document,
-        },
+        input: { path, content: "", type: FileType.Document },
         entityId: String(agentId),
       });
       expect(status).toBe(200);

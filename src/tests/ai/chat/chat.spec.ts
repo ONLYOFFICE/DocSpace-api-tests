@@ -1600,11 +1600,12 @@ test.describe("AI Chat - the default model of a room", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    // Third route in the same family: naming a room the caller has no access to
-    // crashes the access check instead of refusing it — `get-deep-mode` does it
-    // as BUG 82816, `threads/list` as BUG 82858, and this is /ai/assignments.
-    // A member of the room is answered normally (portal-wide fallback), so the
-    // 500 really is the access check and not a broken scope parameter.
+    // Third route in the same family, and the last one still doing it: naming a
+    // room the caller has no access to crashes the access check instead of
+    // refusing it. `get-deep-mode` (BUG 82816) and `threads/list` (BUG 82858)
+    // both answer 403 now; this is /ai/assignments. A member of the room is
+    // answered normally (portal-wide fallback), so the 500 really is the access
+    // check and not a broken scope parameter.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 

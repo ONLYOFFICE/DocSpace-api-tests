@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
-import { FileShare, FileType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, FileType, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
+import { expectDeviceFileStored } from "@/src/helpers/device-upload";
 import { AiAgentChat, inviteToAgent } from "@/src/helpers/ai-agent-chat";
 import { AgentRole } from "@/src/helpers/ai-http";
 import { UserType } from "@/src/services/api-sdk";
@@ -56,29 +57,112 @@ const MEMBER_TYPES: Array<{ type: UserType; role: AgentRole }> = [
   { type: "Guest", role: "guest" },
 ];
 
+/**
+ * The member types that have a Documents folder of their own to upload into. A
+ * file draft is a reference to a stored file the caller can read, so a Guest —
+ * who has no personal storage — needs a file shared with them instead, and is
+ * covered by its own test below.
+ */
+const TYPES_WITH_STORAGE = MEMBER_TYPES.filter(
+  (entry) => entry.type !== "Guest",
+);
+
 test.describe("AI Attachments - who may create a draft", () => {
-  for (const { type, role } of MEMBER_TYPES) {
+  for (const { type, role } of TYPES_WITH_STORAGE) {
     test(`POST /api/2.0/ai/attachments/save-file - ${role} saves a file draft`, async ({
       apiSdk,
     }) => {
-      // Not gated by user type, and not gated by agent membership either: a
-      // Guest who belongs to nothing can still create a draft.
+      // Not gated by user type, and not gated by agent membership either.
+      //
+      // The backing file is uploaded AS THE MEMBER, into their own Documents —
+      // `save-file` resolves `path` against the caller's access, so an owner's
+      // file would make this a test of the access check instead.
       const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
       await apiSdk.addAuthenticatedMember("owner", type);
 
+      const path = String(
+        await attachments.backingFileId(
+          role,
+          `Autotest ${role}.docx`,
+          `saved by ${role}`,
+        ),
+      );
       const { status, data } = await attachments.saveFile(role, {
-        input: {
-          title: `Autotest ${role}.docx`,
-          content: `saved by ${role}`,
-          type: FileType.Document,
-        },
+        input: { path, content: "", type: FileType.Document },
       });
 
       expect(status).toBe(200);
       expect(data?.id).toBeTruthy();
       await attachments.expectStored(role, data!.id!, `${role}'s own draft`);
     });
+  }
 
+  test("POST /api/2.0/ai/attachments/save-file - a Guest attaches a file shared with them", async ({
+    apiSdk,
+  }) => {
+    // A Guest is not refused by user type — but they have no Documents of their
+    // own, and a file draft has to reference a file the caller can read. So the
+    // only file a Guest can attach is one shared with them, and that is what this
+    // measures: the room membership, not the user type, is what makes it possible.
+    const ownerApi = apiSdk.forRole("owner");
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Guest Share Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const shared = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      roomId,
+      "Autotest shared.docx",
+      Buffer.from("shared with a guest", "utf8"),
+      "text/plain",
+    );
+
+    const { data: guestData, userData } = await apiSdk.addMember(
+      "owner",
+      "Guest",
+    );
+    const invited = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestData.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    // The premise of the whole test: without the invite a 403 below would look
+    // like a rule about Guests.
+    expect(invited.status, "the owner shares the room with the Guest").toBe(
+      200,
+    );
+
+    await apiSdk.authenticateMember(userData, "Guest");
+    await attachments.expectActingAs(
+      "guest",
+      guestData.response!.id!,
+      "the Guest",
+    );
+
+    const { status, data } = await attachments.saveFile("guest", {
+      input: {
+        path: String(shared.id),
+        content: "",
+        type: FileType.Document,
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data?.content, "the Guest gets the file's text").toBe(
+      "shared with a guest",
+    );
+    await attachments.expectStored("guest", data!.id!, "the Guest's draft");
+  });
+
+  for (const { type, role } of MEMBER_TYPES) {
     test(`POST /api/2.0/ai/attachments/save-image - ${role} saves an image draft`, async ({
       apiSdk,
     }) => {

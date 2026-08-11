@@ -637,7 +637,7 @@ test.describe("MCP - Custom server validation", () => {
     expect(Object.keys(data)).toContain("portal-server");
   });
 
-  test("BUG XXXXX: POST|PUT|DELETE /api/2.0/ai/tools/*-custom-server - an unknown agent id writes into the portal scope", async ({
+  test("BUG 82975: POST|PUT|DELETE /api/2.0/ai/tools/*-custom-server - an unknown agent id writes into the portal scope", async ({
     apiSdk,
     paymentsApi,
   }) => {

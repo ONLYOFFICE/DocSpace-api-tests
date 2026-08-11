@@ -218,8 +218,8 @@ test.describe("AI Web Search - room and folder scope", () => {
 
     // `entityId` is a location the caller names, so it has to be checked against
     // what they can open — the way `get-deep-mode` (BUG 82816) and `threads/list`
-    // (BUG 82858) try to, even though both crash doing it. Here there is no check
-    // at all: the scope of a room the user cannot see is answered like any other.
+    // (BUG 82858) now do, both answering 403. Here there is no check at all: the
+    // scope of a room the user cannot see is answered like any other.
     //
     // Nothing leaks today only because no provider can be saved (BUG 82812). Once
     // `configure` works, this same read hands out another room's search

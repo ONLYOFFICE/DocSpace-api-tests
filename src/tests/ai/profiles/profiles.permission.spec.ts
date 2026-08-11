@@ -141,7 +141,7 @@ test.describe("AI Profiles - catalogue read permissions", () => {
     expect(connection.status).toBe(403);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/profiles/list-models - a Guest gets the provider error instead of 403", async ({
+  test("BUG 82971: GET /api/2.0/ai/profiles/list-models - a Guest gets the provider error instead of 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
