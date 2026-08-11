@@ -1252,23 +1252,17 @@ test.describe("MCP - custom servers scoped to a room", () => {
     expect(afterRemove.data ?? {}).toEqual({});
   });
 
-  // OPEN QUESTION — do not turn this into a passing test either way until the
-  // developers answer it.
+  // A folder is a legitimate tools scope: chat itself IS available in a folder —
+  // threads/create takes a folder id and the conversation works
+  // (chat/chat.spec.ts) — and the tools scope is meant to follow the entity the
+  // user is looking at. So a user who chats in a folder has no way to give that
+  // conversation their own MCP servers.
   //
   // Measured 2026-08-05: `entityId` = a folder the Owner owns is refused with
   // 403 on add-custom-server AND on get-custom-server, while the same call for a
-  // room succeeds. Whether that is the contract is not ours to decide:
-  //
-  //   * Chat itself IS available in a folder — threads/create takes a folder id
-  //     and the conversation works (chat/chat.spec.ts).
-  //   * The tools scope is meant to follow the entity the user is looking at.
-  //
-  // If both hold, a folder must be able to carry tools and the 403 is a defect;
-  // if the per-entity tool scope is deliberately limited to agents and rooms,
-  // the 403 is correct and this becomes a negative test. Written as the
-  // folder-is-supported case so that answer only has to flip fixme → test, or
-  // the assertions to 403.
-  test.fixme("POST /api/2.0/ai/tools/add-custom-server - a folder carries its own tools", async ({
+  // room succeeds and an id that resolves to nothing at all is silently served
+  // the portal-wide scope (BUG 82975 above).
+  test("BUG XXXXX: POST /api/2.0/ai/tools/add-custom-server - a folder cannot carry its own tools", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1279,11 +1273,17 @@ test.describe("MCP - custom servers scoped to a room", () => {
 
     const { data: myFolder } = await ownerApi.folders.getMyFolder();
     const myDocsId = myFolder.response!.current!.id!;
-    const { data: folder } = await ownerApi.folders.createFolder({
-      folderId: myDocsId,
-      createFolder: { title: "Autotest MCP Folder" },
-    });
+    const { data: folder, status: created } =
+      await ownerApi.folders.createFolder({
+        folderId: myDocsId,
+        createFolder: { title: "Autotest MCP Folder" },
+      });
+    // Asserted before test.fail() is armed: a folder that was never created
+    // must surface as a real failure, not as the expected 403.
+    expect(created, "creating the folder to scope the server to").toBe(200);
     const folderId = folder.response!.id!;
+
+    test.fail();
 
     // The Owner owns the folder, so this is about what kind of entity may
     // carry tools, not about access.

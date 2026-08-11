@@ -182,7 +182,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(stored.type).toBeUndefined();
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - the type a draft was saved with is not readable afterwards", async ({
+  test("BUG 83003: POST /api/2.0/ai/attachments/save-file - the type a draft was saved with is not readable afterwards", async ({
     apiSdk,
   }) => {
     // `type` is echoed by the save and then absent from every read of the same
