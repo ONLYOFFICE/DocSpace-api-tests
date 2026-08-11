@@ -5,7 +5,6 @@ import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
 import {
   unsafeSchemeUrls,
   nonResolvingAttackerUrls,
-  forbiddenSpecialUrls,
   ATTACKER_HOST,
 } from "@/src/helpers/ssrf-payloads";
 import config from "@/config";
@@ -565,18 +564,15 @@ test.describe("AI Profiles - provider model discovery", () => {
   }
 
   // ------------------------------------------------------------------------
-  // Loopback / private / link-local / metadata targets.
+  // Loopback / private / link-local / metadata targets (BUG 83005).
   //
-  // Unlike the OpenAI proxy — which is inert 404 for the gateway provider, so the
-  // providers suite can run `specialAddressPayloads` safely — this route really
-  // performs the outbound request (the 502 above proves it). Pointing it at a
-  // real internal address on shared infrastructure would therefore connect to
-  // that address. These stay `test.fixme` until an isolated canary stand exists;
-  // `forbiddenSpecialUrls` holds the payloads to use then.
+  // BUG 83005 confirmed this route has NO pre-connection egress guard: a closed
+  // loopback port answers 502 (connection refused) and a filtered private host
+  // hangs for the full 30s connect timeout, so `forbiddenSpecialUrls` really are
+  // dialled rather than rejected. There is deliberately no test here — running
+  // those payloads on shared infrastructure would connect to internal addresses
+  // (and the metadata targets could return credentials). The safe half of the
+  // egress contract is already covered by the `nonResolvingAttackerUrls` loop
+  // above, which never leaves a `.invalid` host.
   // ------------------------------------------------------------------------
-  for (const { name, url } of forbiddenSpecialUrls) {
-    test.fixme(`POST /api/2.0/ai/profiles/list-provider-models - ${name} must be refused without connecting`, async () => {
-      void url;
-    });
-  }
 });
