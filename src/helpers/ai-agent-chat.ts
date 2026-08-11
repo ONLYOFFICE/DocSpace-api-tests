@@ -1138,6 +1138,33 @@ export class AiAgentChat extends AiHttp {
 }
 
 /**
+ * Two different usable text profiles, deterministically ordered.
+ *
+ * Every "which model answered / which model is stored" test needs a pair: with
+ * one profile "the model did not change" and "it was replaced by the one it
+ * already had" are the same observation. Sorted by `modelId` rather than taken
+ * from the catalogue order, which is not a contract.
+ */
+export function twoTextProfiles(profiles: AiProfile[]): [AiProfile, AiProfile] {
+  const usable = profiles
+    .filter(
+      (profile) =>
+        profile.canUseTool === true &&
+        !!profile.modelId &&
+        !AiAgentChat.NON_TEXT_MODEL_MARKERS.some((marker) =>
+          profile.modelId.toLowerCase().includes(marker),
+        ),
+    )
+    .sort((a, b) => a.modelId.localeCompare(b.modelId));
+
+  expect(
+    usable.length,
+    "the catalogue has at least two usable text profiles",
+  ).toBeGreaterThan(1);
+  return [usable[0], usable[1]];
+}
+
+/**
  * Invites a member into the agent room. An invitation that silently failed
  * makes the following 403 look like a permission contract instead of broken
  * setup, so the status is asserted here once for every caller.
