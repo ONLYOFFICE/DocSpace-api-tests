@@ -1769,6 +1769,40 @@ async function waitForReplacedReply(
 }
 
 /**
+ * Polls until some assistant reply other than `oldId` is in the thread, then
+ * returns the history.
+ *
+ * The replace-neutral form of `waitForReplacedReply`, for the places that only
+ * need "a generation happened" and must not care whether the old reply was
+ * dropped: after an edit a regenerate appends rather than replaces (see
+ * "an edited question moves to the end of the transcript"), so waiting for the
+ * old reply to disappear there would only ever time out.
+ */
+async function waitForNewReply(
+  aiChat: AiAgentChat,
+  threadId: string,
+  oldId: string,
+  timeoutMs = 90000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  let messages = (await aiChat.readMessages("owner", threadId)).data;
+
+  while (Date.now() < deadline) {
+    if (
+      AiAgentChat.assistantMessages(messages).some(
+        (reply) => reply.id !== oldId,
+      )
+    ) {
+      return messages;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    messages = (await aiChat.readMessages("owner", threadId)).data;
+  }
+
+  return messages;
+}
+
+/**
  * How long a refused regenerate is watched before the thread is called
  * unchanged. An accepted one lands in a few seconds, so a read taken straight
  * after the refusal would report "nothing was generated" for a generation that
@@ -2200,15 +2234,21 @@ test.describe("AI Messages - the model a regenerate runs on", () => {
     ).toBe(first.id);
   });
 
-  test("BUG 82914: POST /api/2.0/ai/ai/regenerate-stream - a regenerate can move an agent thread onto another model", async ({
+  test("POST /api/2.0/ai/ai/regenerate-stream - a profileId in a regenerate does not move the thread off the agent's model", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The send half of this hole is BUG 82914 / 82915 in chat.spec.ts. Regenerate
-    // takes the same `profileId`, so the same override is available from the
-    // button: "generate it again on the same model" is a promise only the client
-    // keeps. Either shape of a fix — refusing the profile or ignoring it —
-    // reports an unexpected pass.
+    // The send half of the same body IS a hole — BUG 82914 / 82915 in
+    // chat.spec.ts, where a `profileId` naming another model is written onto the
+    // thread and every following turn uses it. Regenerate takes the same field
+    // and does not: the stream completes normally, and the thread is still on
+    // the agent's own model afterwards. Worth its own test precisely because the
+    // neighbouring route is broken — this is the boundary of that bug.
+    //
+    // Scope of the claim: WHICH model produced the text is not observable, the
+    // stored reply carries no marker of it (see "the model of one thread" in
+    // chat.spec.ts). What is asserted is the durable part — the model the
+    // conversation is left on, which is what every following turn runs on.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2238,22 +2278,29 @@ test.describe("AI Messages - the model a regenerate runs on", () => {
     });
     expect(sent.status).toBe(200);
     expect(sent.streamError).toBeUndefined();
-    await aiChat.waitForAssistantReply("owner", threadId);
+    const before = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(before);
+    const firstReply = AiAgentChat.assistantMessages(before)[0];
 
-    // Nothing between here and test.fail() may assert, or a fix that refuses the
-    // regenerate would keep this red instead of reporting an unexpected pass.
-    await aiChat.regenerateStream("owner", {
+    const { status, streamError } = await aiChat.regenerateStream("owner", {
       threadId,
       entityId: String(agentId),
       profileId: second.id,
     });
-    const stored = (await aiChat.getThread("owner", threadId)).data?.profileId;
 
-    test.fail();
+    // The foreign profile is not refused — it is accepted and ignored, so the
+    // regenerate has to be shown to have actually run. Without this a backend
+    // that started answering 403 would keep the assertion below true for the
+    // wrong reason.
+    expect(status).toBe(200);
+    expect(streamError).toBeUndefined();
+    const after = await waitForReplacedReply(aiChat, threadId, firstReply.id);
+    expectHealthyAssistantReply(after);
+
     expect(
-      stored,
-      "a regenerate does not move the conversation off the agent's model",
-    ).not.toBe(second.id);
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "the regenerate left the conversation on the agent's own model",
+    ).toBe(first.id);
   });
 });
 
@@ -2318,6 +2365,12 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
 
     // The positive control: the thread was perfectly able to produce a new
     // answer, the edit just is not what asks for one.
+    //
+    // Deliberately neutral about replace-vs-append. On an unedited thread a
+    // regenerate replaces the last reply (see "AI Messages - regenerate"), but
+    // the edit above moves the question to the end of the transcript, and a
+    // regenerate on a trailing question appends instead — the test.fail below.
+    // All this control needs is that generation happened at all.
     const regenerated = await aiChat.regenerateStream("owner", {
       threadId,
       entityId: String(agentId),
@@ -2326,23 +2379,102 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
     expect(regenerated.status).toBe(200);
     expect(regenerated.streamError).toBeUndefined();
 
-    const afterRegenerate = await waitForReplacedReply(
-      aiChat,
-      threadId,
-      reply.id,
+    const afterRegenerate = await waitForNewReply(aiChat, threadId, reply.id);
+    const newReplies = AiAgentChat.assistantMessages(afterRegenerate).filter(
+      (message) => message.id !== reply.id,
     );
-    const finalReplies = AiAgentChat.assistantMessages(afterRegenerate);
-    expect(finalReplies).toHaveLength(1);
-    expect(finalReplies[0].id).not.toBe(reply.id);
-    expectHealthyAssistantReply(afterRegenerate);
+    expect(
+      newReplies,
+      "the regenerate produced the answer the edit did not",
+    ).toHaveLength(1);
+    // Health checked on the new reply alone, for the same reason the count above
+    // is: whether the old one is still there is the test.fail below, not this.
+    expectHealthyAssistantReply(newReplies);
+  });
+
+  test("BUG XXXXX: PUT /api/2.0/ai/threads/update-message - an edited question moves to the end of the transcript", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // `update-message` keeps the message id but stamps `createdAt` with the time
+    // of the edit, and `read-messages` is ordered by `createdAt`. So editing the
+    // question of an answered turn leaves the conversation reading
+    //
+    //   assistant "ONE"                      <- the answer
+    //   user      "Reply with … TWO."        <- the question that produced it
+    //
+    // The question now sits after its own answer. "update-message - rewrites the
+    // content in place" does not catch this: it reads the message back by id,
+    // never looking at the order.
+    //
+    // The knock-on effect is what made this visible: with the question trailing,
+    // `regenerate-stream` sees a thread whose last message is unanswered and
+    // appends a second reply instead of replacing the first, so the button under
+    // an answer stops replacing it for the rest of that conversation.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, agentId, threadId } = await setupThread(apiSdk);
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Reply with the single word ONE.",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    const before = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(before);
+
+    // The premise: before the edit the transcript is in the only order that
+    // makes sense, so the one below can only have come from the edit.
+    expect(
+      before.map((message) => message.role),
+      "the question comes before its answer to begin with",
+    ).toEqual(["user", "assistant"]);
+    const question = AiAgentChat.userMessages(before)[0];
+
+    const edited = await aiChat.updateMessage("owner", {
+      messageId: question.id,
+      message: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word TWO." }],
+      },
+    });
+    expect(edited.status).toBe(200);
+
+    const afterEdit = (await aiChat.readMessages("owner", threadId)).data;
+    // The edit landed — otherwise an unchanged order below would prove nothing.
+    expect(
+      AiAgentChat.messageText(AiAgentChat.userMessages(afterEdit)[0]),
+      "the edit was stored",
+    ).toBe("Reply with the single word TWO.");
+    expect(
+      AiAgentChat.userMessages(afterEdit)[0].id,
+      "and it is the same message, not a new one",
+    ).toBe(question.id);
+
+    test.fail();
+    expect(
+      afterEdit.map((message) => message.role),
+      "an edit must not move the question after the answer it produced",
+    ).toEqual(["user", "assistant"]);
   });
 });
 
 test.describe("AI Messages - regenerate someone else's reply", () => {
-  test("POST /api/2.0/ai/ai/regenerate-stream - a non-member cannot regenerate in another user's thread", async ({
+  test("BUG 82717: POST /api/2.0/ai/ai/regenerate-stream - a non-member is blocked in another user's thread, but with a 200 instead of 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // The regenerate half of BUG 82717 — the same wrong response contract the
+    // send half has on someone else's thread (see chat.permission.spec.ts).
+    // Access itself is fine: nothing is generated and the owner's reply is the
+    // object it was, which the assertions below establish before the status is
+    // looked at. What is wrong is that the refusal arrives as HTTP 200 with
+    // `{"type":"error","message":"stream error"}` in the body — a status a client
+    // reads as success and a message it cannot act on.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2368,7 +2500,7 @@ test.describe("AI Messages - regenerate someone else's reply", () => {
     );
     await aiChat.expectActingAs("user", memberData.response!.id!, "User");
 
-    const { status } = await aiChat.regenerateStream("user", {
+    const { status, streamError } = await aiChat.regenerateStream("user", {
       threadId,
       entityId: String(agentId),
       profileId,
@@ -2385,18 +2517,23 @@ test.describe("AI Messages - regenerate someone else's reply", () => {
     expect(replies[0].id, "and it is the same reply").toBe(reply.id);
     expect(AiAgentChat.messageText(replies[0])).toBe(replyText);
 
-    // The refusal itself. Every non-streaming route into someone else's thread is
-    // a clean 403 (see "cross-user access to one message" above).
+    // What the endpoint actually does today.
+    expect(streamError).toBe("stream error");
+
+    // What it should do: refuse the way every non-streaming route into someone
+    // else's thread does (see "cross-user access to one message" above).
+    test.fail();
     expect(status).toBe(403);
   });
 
-  test("POST /api/2.0/ai/ai/regenerate-stream - a member of the agent cannot regenerate in another member's thread", async ({
+  test("BUG 82717: POST /api/2.0/ai/ai/regenerate-stream - a member of the agent is blocked in another member's thread, but with a 200 instead of 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // Membership buys the agent, not other people's conversations — threads are
     // per user. Worth its own case because the entityId in the body IS a room the
     // caller belongs to, so a check that only looked at the entity would pass it.
+    // The block holds; as above, only the way it is reported is wrong.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2425,7 +2562,7 @@ test.describe("AI Messages - regenerate someone else's reply", () => {
       "RoomAdmin",
     );
 
-    const { status } = await aiChat.regenerateStream("roomAdmin", {
+    const { status, streamError } = await aiChat.regenerateStream("roomAdmin", {
       threadId,
       entityId: String(agentId),
       profileId,
@@ -2442,17 +2579,26 @@ test.describe("AI Messages - regenerate someone else's reply", () => {
     );
     expect(AiAgentChat.messageText(replies[0])).toBe(replyText);
 
+    expect(streamError).toBe("stream error");
+
+    test.fail();
     expect(status).toBe(403);
   });
 });
 
 test.describe("AI Messages - regenerate with AI Disabled", () => {
-  test("POST /api/2.0/ai/ai/regenerate-stream - the portal AI switch stops the regenerate", async ({
+  test("BUG 82724: POST /api/2.0/ai/ai/regenerate-stream - the portal AI switch stops the regenerate, but reports it inside a 200", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // An enabled -> disabled transition rather than an end state: the regenerate
     // that worked before the flip is what makes the one after it mean something.
+    //
+    // The regenerate half of BUG 82724 (the send half is in
+    // chat.ai-disabled.spec.ts). Inference really is stopped — nothing is
+    // generated, which the assertions below establish first — the defect is that
+    // the refusal comes back as HTTP 200 with an opaque "stream error" while
+    // every non-streaming route answers a clean 403.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2513,8 +2659,11 @@ test.describe("AI Messages - regenerate with AI Disabled", () => {
     expect(replies[0].id).toBe(survivor.id);
     expect(AiAgentChat.messageText(replies[0])).toBe(survivorText);
 
-    // 403 is what every neighbouring route answers with the switch off; the
-    // streamed ones answer 200 with an `error` frame instead (BUG 82723).
+    // What the endpoint actually does today.
+    expect(refused.streamError).toBe("stream error");
+
+    // 403 is what every neighbouring route answers with the switch off.
+    test.fail();
     expect(refused.status).toBe(403);
   });
 });
