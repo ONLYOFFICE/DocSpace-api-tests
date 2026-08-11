@@ -56,6 +56,8 @@ export class AiHttp {
     error?: string;
     /** Raw body — the only way to see inside a streamed (non-JSON) response. */
     text: string;
+    /** Lower-cased header names, as Playwright hands them over. */
+    headers: Record<string, string>;
   }> {
     const response = await this.request[method](
       `${this.tokenStore.portalBaseUrl}${path}`,
@@ -84,6 +86,7 @@ export class AiHttp {
       data: parsed as T | undefined,
       error,
       text,
+      headers: response.headers(),
     };
   }
 

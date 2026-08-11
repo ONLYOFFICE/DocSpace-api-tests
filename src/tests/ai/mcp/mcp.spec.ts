@@ -1262,7 +1262,7 @@ test.describe("MCP - custom servers scoped to a room", () => {
   // 403 on add-custom-server AND on get-custom-server, while the same call for a
   // room succeeds and an id that resolves to nothing at all is silently served
   // the portal-wide scope (BUG 82975 above).
-  test("BUG XXXXX: POST /api/2.0/ai/tools/add-custom-server - a folder cannot carry its own tools", async ({
+  test("BUG 83007: POST /api/2.0/ai/tools/add-custom-server - a folder cannot carry its own tools", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3271,5 +3271,215 @@ test.describe("MCP - a registered server and the conversation", () => {
     test.fail();
     expect(scoped.status).toBe(200);
     expect(Object.keys(scoped.data ?? {})).toEqual(["docspace"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The other half of set-disabled: "Disabled tools are hidden from the AI model".
+//
+// The block near the top of this file pins set-disabled as stored state — the
+// map, the per-agent scoping, is-tool-disabled. None of that says the model is
+// told anything, and the model is the whole point of the setting.
+//
+// The subject is a built-in tool the agent demonstrably has. That is not the
+// same list as `list-system-tools`, which publishes `create_room`,
+// `delete_file`, `get_all_people` and 20 more that the model does not have —
+// asked to create a room it answers "I do not have a create_room tool". Asked
+// what it can call, it answers:
+//
+//   docspace_generate_docx, docspace_generate_presentation,
+//   docspace_generate_form, generate_image
+//
+// so `docspace_generate_docx` is the one tool that is both really offered and
+// really named after a `serverType`/`toolName` pair — the `server_tool` token
+// the engine builds from them. Whether the catalogue route should publish these
+// is BUG 82991's business, not this block's.
+//
+// Image generation is deliberately not the subject: asking for one hangs
+// (BUG 82861), so a test built on it could not tell "the tool was withheld"
+// apart from "the tool ran and never came back".
+
+const BUILT_IN_DOC_TOOL = "generate_docx";
+/** What the model sees, and what set-disabled's two fields spell out together. */
+const BUILT_IN_DOC_TOOL_TOKEN = `docspace_${BUILT_IN_DOC_TOOL}`;
+
+const ASK_FOR_DOCX =
+  "Generate a .docx document titled ProbeDoc containing the single sentence 'hello probe'. " +
+  `If you have no tool for that, reply with exactly: ${NO_TOOL_SENTINEL}`;
+
+/**
+ * Asks for a document in a thread of its own and reports which tools the model
+ * reached for. A fresh thread per turn keeps each answer independent of the
+ * refusal or the tool call in the one before it.
+ */
+async function askForDocument(
+  aiChat: AiAgentChat,
+  chat: { profileId: string; agentId: number; title: string },
+) {
+  const threadId = await aiChat.createThreadId("owner", {
+    title: chat.title,
+    profileId: chat.profileId,
+    agentId: chat.agentId,
+  });
+
+  const sent = await aiChat.sendMessage("owner", {
+    threadId,
+    profileId: chat.profileId,
+    agentId: chat.agentId,
+    message: ASK_FOR_DOCX,
+  });
+  expect(sent.status).toBe(200);
+  expect(sent.streamError).toBeUndefined();
+
+  const { data: messages } = await aiChat.readMessages("owner", threadId);
+  const calledTools = AiAgentChat.assistantMessages(messages)
+    .flatMap((message) => AiAgentChat.toolCalls(message))
+    .map((call) => call.toolName ?? "");
+
+  return {
+    threadId,
+    calledTools,
+    reply: AiAgentChat.assistantText(messages),
+    frames: AiAgentChat.frameTypes(sent.text),
+  };
+}
+
+test.describe("MCP - disabling a tool the model really has", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream - a built-in tool is offered to the model and called", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The positive control the two tests below rest on, kept separate so that a
+    // day when the model stops being offered its built-in tools at all shows up
+    // as a red test rather than as an expected failure inside the bug test.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId } = await setupChat(
+      aiChat,
+      "Autotest Built-in Tool Agent",
+    );
+
+    const asked = await askForDocument(aiChat, {
+      profileId,
+      agentId,
+      title: "Built-in tool enabled",
+    });
+
+    expect(
+      asked.calledTools,
+      `the model answered "${asked.reply.slice(0, 120)}"; frames were ${asked.frames.join(", ")}`,
+    ).toContain(BUILT_IN_DOC_TOOL_TOKEN);
+    // A server-executed tool pauses the stream the same way a host tool does.
+    expect(asked.frames).toContain("tool-call-pending");
+  });
+
+  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - a disabled built-in tool is still offered to the model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // set-disabled stores the setting, is-tool-disabled reads it back, and the
+    // model is never told: the same prompt still produces the same tool call.
+    //
+    // Both spellings of the name are disabled, so the finding does not rest on
+    // guessing which one the engine matches — the bare `generate_docx` that
+    // list-system-tools' own entries are named like, and the full
+    // `docspace_generate_docx` token the model sees. Both scopes are written too:
+    // the agent's and the portal's.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId } = await setupChat(
+      aiChat,
+      "Autotest Disabled Tool Agent",
+    );
+
+    const toolNames = [BUILT_IN_DOC_TOOL, BUILT_IN_DOC_TOOL_TOKEN];
+    for (const scope of [{ agentId }, {}]) {
+      const { data } = await aiTools.setDisabledTools("owner", {
+        serverType: "docspace",
+        toolNames,
+        ...scope,
+      });
+      expect(data?.success, "the tool is disabled").toBe(true);
+    }
+
+    // The setting really is in force before the question is asked — otherwise a
+    // tool call below would say nothing about disabling.
+    const { data: stored } = await aiTools.getDisabledTools("owner", agentId);
+    expect(stored?.docspace).toEqual(toolNames);
+    for (const toolName of toolNames) {
+      const { data: isDisabled } = await aiTools.isToolDisabled("owner", {
+        serverType: "docspace",
+        toolName,
+        agentId,
+      });
+      expect(isDisabled, `${toolName} reads back as disabled`).toBe(true);
+    }
+
+    const asked = await askForDocument(aiChat, {
+      profileId,
+      agentId,
+      title: "Built-in tool disabled",
+    });
+
+    test.fail();
+    expect(
+      asked.calledTools,
+      `a disabled tool was called anyway; the model answered "${asked.reply.slice(0, 120)}"`,
+    ).not.toContain(BUILT_IN_DOC_TOOL_TOKEN);
+  });
+
+  test("PUT /api/2.0/ai/tools/set-disabled - a tool disabled and enabled again is callable", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The closing leg of the cycle, and the one assertion of it that means the
+    // same thing before and after the bug above is fixed: whatever disabling
+    // does, clearing the list must leave the tool usable.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId } = await setupChat(
+      aiChat,
+      "Autotest Re-enabled Tool Agent",
+    );
+
+    await aiTools.setDisabledTools("owner", {
+      serverType: "docspace",
+      toolNames: [BUILT_IN_DOC_TOOL, BUILT_IN_DOC_TOOL_TOKEN],
+      agentId,
+    });
+    const { data: cleared } = await aiTools.setDisabledTools("owner", {
+      serverType: "docspace",
+      toolNames: [],
+      agentId,
+    });
+    expect(cleared?.success).toBe(true);
+
+    for (const toolName of [BUILT_IN_DOC_TOOL, BUILT_IN_DOC_TOOL_TOKEN]) {
+      const { data: isDisabled } = await aiTools.isToolDisabled("owner", {
+        serverType: "docspace",
+        toolName,
+        agentId,
+      });
+      expect(isDisabled, `${toolName} is enabled again`).toBe(false);
+    }
+
+    const asked = await askForDocument(aiChat, {
+      profileId,
+      agentId,
+      title: "Built-in tool re-enabled",
+    });
+
+    expect(
+      asked.calledTools,
+      `the model answered "${asked.reply.slice(0, 120)}"; frames were ${asked.frames.join(", ")}`,
+    ).toContain(BUILT_IN_DOC_TOOL_TOKEN);
   });
 });

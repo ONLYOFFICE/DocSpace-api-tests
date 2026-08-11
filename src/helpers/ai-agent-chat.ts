@@ -496,7 +496,7 @@ export class AiAgentChat extends AiHttp {
       ...(body.tools ? { tools: body.tools } : {}),
     };
 
-    const { status, error, text } = await this.call(
+    const { status, error, text, headers } = await this.call(
       role,
       "post",
       "/api/2.0/ai/ai/send-with-stream",
@@ -517,6 +517,7 @@ export class AiAgentChat extends AiHttp {
       status,
       error,
       text,
+      headers,
       streamError: AiAgentChat.streamError(text),
       frames: AiAgentChat.streamFrames(text),
     };
@@ -613,10 +614,14 @@ export class AiAgentChat extends AiHttp {
 
   /**
    * The frames of a `send-with-stream` / `regenerate-stream` response. The
-   * protocol is newline-delimited JSON objects with a `type` discriminator
-   * (`user-message-stored`, `message-start`, `message-end`, `error`), NOT the
-   * `event:`/`data:` SSE the old chat endpoints used — `parseSseEvents` does not
-   * apply here.
+   * protocol is newline-delimited JSON (`application/x-ndjson`) objects with a
+   * `type` discriminator, NOT the `event:`/`data:` SSE the old chat endpoints
+   * used — `parseSseEvents` does not apply here.
+   *
+   * The vocabulary is the SDK's AiChatEventTypeEnum: `user-message-stored`,
+   * `message-start`, `message-delta`, `message-end`, `message-incomplete`,
+   * `tool-call-pending`, `thread-title` — plus the `error` frame, which is not
+   * in the enum but is what a failed request answers with instead of a status.
    */
   static streamFrames(body: string): AiStreamFrame[] {
     return body
@@ -678,6 +683,52 @@ export class AiAgentChat extends AiHttp {
   /** The frame types in order — the cheap way to say what a stream did. */
   static frameTypes(body: string): string[] {
     return AiAgentChat.streamFrames(body).map((frame) => frame.type ?? "");
+  }
+
+  /**
+   * The frames that carry the assistant reply as it grows: `message-start`, the
+   * `message-delta`s and the terminal `message-end`. Deliberately not the whole
+   * `message`-bearing set — `user-message-stored` also carries one, and it is
+   * the question, not the answer.
+   */
+  static readonly CONTENT_FRAME_TYPES = [
+    "message-start",
+    "message-delta",
+    "message-end",
+  ];
+
+  static contentFrames(body: string): AiStreamFrame[] {
+    return AiAgentChat.streamFrames(body).filter((frame) =>
+      AiAgentChat.CONTENT_FRAME_TYPES.includes(frame.type ?? ""),
+    );
+  }
+
+  /** The text one frame carries, "" if it carries no message. */
+  static frameText(frame: AiStreamFrame): string {
+    return frame.message ? AiAgentChat.messageText(frame.message) : "";
+  }
+
+  /**
+   * The reply as a client assembles it from the stream.
+   *
+   * Note what the protocol is NOT: a `message-delta` carries the whole reply so
+   * far, not the piece that was added, so the assembled text is the last content
+   * frame's text and concatenating the frames would produce nonsense. The frames
+   * are snapshots — which is also why `deltaTexts` below grows as a chain of
+   * prefixes.
+   */
+  static streamedText(body: string): string {
+    const frames = AiAgentChat.contentFrames(body);
+    return frames.length === 0
+      ? ""
+      : AiAgentChat.frameText(frames[frames.length - 1]);
+  }
+
+  /** Every content frame's snapshot, in arrival order. */
+  static deltaTexts(body: string): string[] {
+    return AiAgentChat.contentFrames(body).map((frame) =>
+      AiAgentChat.frameText(frame),
+    );
   }
 
   /**

@@ -11,6 +11,7 @@ import {
   inviteToAgent,
 } from "@/src/helpers/ai-agent-chat";
 import { AiHttp } from "@/src/helpers/ai-http";
+import { postAndReadStream } from "@/src/helpers/ai-stream-transport";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
 import { AiTools } from "@/src/helpers/ai-tools";
 import { UserType } from "@/src/services/api-sdk";
@@ -298,6 +299,268 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
       expectHealthyAssistantReply(messages);
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// "The answer appears as it is generated" — the API half of it.
+//
+// Two tests, because the claim has two halves that no single one can carry:
+//
+//   1. the contract of the stream: which frames, in which order, tied to which
+//      message, and whether what the client assembles from them is what the
+//      thread ends up holding. Asserted on the buffered body, which is all a
+//      frame contract needs.
+//   2. the transport: that the body really arrives in pieces while the model is
+//      writing. A buffered client cannot tell that apart from one blob at the
+//      end, so that one goes through Node's client and looks at arrival times.
+//
+// The protocol, as it answers today:
+//
+//   {"type":"user-message-stored","message":{role:"user",…,"id":U},"messageId":U}
+//   {"type":"message-start","message":{role:"assistant","content":[…],"id":A},"messageId":A}
+//   {"type":"message-delta",…}      // zero or more
+//   {"type":"message-end","message":{…,"id":A},"messageId":A}
+//
+// Two details shape every assertion below:
+//
+//   * `messageId` is NOT constant across the stream. The first frame carries the
+//     id of the stored *user* message; every frame after it carries the
+//     assistant's. Asserting one id for the whole stream would be asserting a
+//     bug.
+//   * a `message-delta` is a cumulative snapshot of the whole reply, not the
+//     fragment that was added, and `message-start` already carries the first
+//     tokens. So the assembled text is the LAST frame's, the snapshots grow as a
+//     chain of prefixes, and concatenating them would be wrong.
+//
+// Not covered here on purpose: the tool-call pause (`tool-call-pending`, in the
+// MCP suite), the failed-reply terminal (`message-incomplete`, in the image
+// block below) and the OpenAI-shaped variant of this route (messages.spec.ts).
+
+/** Long enough that the model needs several turns of the socket to say it. */
+const LONG_ANSWER_QUESTION =
+  "Count from 1 to 60, separated by commas. Output nothing else.";
+
+test.describe("AI Chat - the stream of one reply", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream - the reply is streamed as NDJSON frames that match the stored message", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Stream Contract Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest stream thread",
+      profileId,
+      agentId,
+    });
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: LONG_ANSWER_QUESTION,
+    });
+
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    // A streamed response, declared as one: NDJSON, and no Content-Length —
+    // a length header would mean the whole body was known before it was sent.
+    expect(sent.headers["content-type"]).toContain("application/x-ndjson");
+    expect(
+      sent.headers["content-length"],
+      "a streamed body cannot announce its length up front",
+    ).toBeUndefined();
+
+    const frames = AiAgentChat.streamFrames(sent.text);
+    const types = frames.map((frame) => frame.type);
+    const where = `frames were ${types.join(", ")}`;
+
+    // The question is acknowledged first, before the model is asked anything —
+    // this is the frame a client renders the user's own bubble from.
+    expect(types[0], where).toBe("user-message-stored");
+    const userFrame = frames[0];
+    expect(AiAgentChat.frameText(userFrame)).toBe(LONG_ANSWER_QUESTION);
+
+    // Then the reply opens, finishes, and does so in that order.
+    const startIndex = types.indexOf("message-start");
+    const endIndex = types.indexOf("message-end");
+    expect(startIndex, where).toBeGreaterThan(0);
+    expect(endIndex, where).toBeGreaterThan(startIndex);
+    expect(
+      types.filter((type) => type === "message-start"),
+      "one reply, one opening frame",
+    ).toHaveLength(1);
+    expect(
+      types.filter((type) => type === "message-end"),
+      "one reply, one terminal frame",
+    ).toHaveLength(1);
+
+    // A healthy reply never carries the failure terminal.
+    expect(types, where).not.toContain("message-incomplete");
+    expect(types, where).not.toContain("tool-call-pending");
+
+    // The answer arrives in pieces rather than in one frame at the end.
+    const deltas = types
+      .slice(startIndex + 1, endIndex)
+      .filter((type) => type === "message-delta");
+    expect(
+      deltas.length,
+      `no content frame between start and end; ${where}`,
+    ).toBeGreaterThan(0);
+
+    // Nothing carrying reply content follows the terminal frame.
+    const afterEnd = types.slice(endIndex + 1);
+    for (const type of afterEnd) {
+      expect(
+        AiAgentChat.CONTENT_FRAME_TYPES,
+        `${type} arrived after message-end; ${where}`,
+      ).not.toContain(type);
+    }
+
+    // Every frame after the acknowledgement belongs to one assistant message —
+    // the first frame is deliberately excluded, it identifies the question.
+    const streamedMessageId = frames[startIndex].messageId;
+    expect(streamedMessageId).toBeTruthy();
+    for (const frame of frames.slice(1)) {
+      expect(frame.messageId, `${frame.type} names another message`).toBe(
+        streamedMessageId,
+      );
+      if (frame.message?.id !== undefined) {
+        expect(frame.message.id).toBe(streamedMessageId);
+      }
+      // `threadId` is optional on this protocol — only the pause frame carries
+      // one today — so it is checked where it exists rather than required.
+      if (frame.threadId !== undefined) {
+        expect(frame.threadId).toBe(threadId);
+      }
+    }
+
+    // The snapshots grow: each one extends the one before it.
+    const snapshots = AiAgentChat.deltaTexts(sent.text);
+    for (let index = 1; index < snapshots.length; index += 1) {
+      expect(
+        snapshots[index].startsWith(snapshots[index - 1]),
+        `snapshot ${index} is not an extension of the one before it: "${snapshots[index - 1].slice(-40)}" -> "${snapshots[index].slice(-40)}"`,
+      ).toBe(true);
+    }
+
+    // What the client assembled is what the thread kept.
+    const stored = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(stored);
+
+    const asked = AiAgentChat.userMessages(stored);
+    expect(asked, "the question is stored once").toHaveLength(1);
+    expect(asked[0].id).toBe(userFrame.messageId);
+
+    const replies = AiAgentChat.assistantMessages(stored);
+    expect(replies, "the reply is stored once").toHaveLength(1);
+    expect(replies[0].id).toBe(streamedMessageId);
+    expect(AiAgentChat.messageText(replies[0])).toBe(
+      AiAgentChat.streamedText(sent.text),
+    );
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - the body is delivered in pieces while the model is still writing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The transport claim, and the only test in the suite that can make it:
+    // everything else reads a body Playwright already collected in full.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Stream Transport Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest transport thread",
+      profileId,
+      agentId,
+    });
+
+    const streamed = await postAndReadStream(
+      `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/ai/ai/send-with-stream`,
+      {
+        headers: {
+          Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+          Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+        },
+        body: {
+          threadId,
+          entityId: String(agentId),
+          profileId,
+          userMessage: {
+            role: "user",
+            content: [{ type: "text", text: LONG_ANSWER_QUESTION }],
+          },
+        },
+      },
+    );
+
+    expect(streamed.status).toBe(200);
+    expect(streamed.headers["content-type"]).toContain("application/x-ndjson");
+
+    const trace = streamed.reads
+      .map((read) => `${read.atMs}ms:${AiAgentChat.frameTypes(read.text)}`)
+      .join(" | ");
+
+    // The body was not one blob: the client got it over several reads, the
+    // first of them after the response was already open.
+    expect(
+      streamed.reads.length,
+      `the whole body arrived in a single read (${trace})`,
+    ).toBeGreaterThan(1);
+    expect(
+      streamed.responseAtMs,
+      `the body cannot predate its own headers (${trace})`,
+    ).toBeLessThanOrEqual(streamed.reads[0].atMs);
+
+    // And those reads span the generation: the first frame is in the client's
+    // hands well before the reply is finished, which is what lets a UI render a
+    // partial answer and drop its "Analyzing" indicator.
+    const firstFrameRead = streamed.reads.findIndex(
+      (read) => AiAgentChat.streamFrames(read.text).length > 0,
+    );
+    const terminalRead = streamed.reads.findIndex((read) =>
+      AiAgentChat.frameTypes(read.text).includes("message-end"),
+    );
+    expect(
+      firstFrameRead,
+      `no frame arrived at all (${trace})`,
+    ).toBeGreaterThan(-1);
+    expect(terminalRead, `the reply never finished (${trace})`).toBeGreaterThan(
+      -1,
+    );
+    expect(
+      firstFrameRead,
+      `the first frame and the terminal one arrived in the same read (${trace})`,
+    ).toBeLessThan(terminalRead);
+    expect(
+      streamed.reads[firstFrameRead].atMs,
+      `the first frame did not arrive before the last (${trace})`,
+    ).toBeLessThan(streamed.reads[terminalRead].atMs);
+
+    // The reassembled body is the same stream the buffered client sees, and it
+    // agrees with what was stored.
+    expect(AiAgentChat.streamError(streamed.body)).toBeUndefined();
+    const stored = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(stored);
+    expect(
+      AiAgentChat.messageText(AiAgentChat.assistantMessages(stored)[0]),
+    ).toBe(AiAgentChat.streamedText(streamed.body));
+  });
 });
 
 test.describe("Thread management", () => {
