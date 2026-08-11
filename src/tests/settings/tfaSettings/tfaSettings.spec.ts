@@ -115,18 +115,19 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values",
     ).toBeTruthy();
   });
 
-  // BUG TBD: a malformed trustedIps entry is accepted with no format
+  // BUG 82994: a malformed trustedIps entry is accepted with no format
   // validation (200) and stored as-is. Every subsequent login attempt by any
   // user on the portal then crashes with 500 (System.FormatException) when
   // TfaEnabledForUserAsync tries to parse it as an IP. Confirmed: strings with
   // no IP shape at all (e.g. "not-an-ip") crash it; a numeric-but-out-of-range
-  // string ("999.999.999.999") does not.
+  // string ("999.999.999.999") does not. Also confirmed via the web UI login
+  // form - same crash, same unhandled exception message shown to the user.
   //
   // This test's portal can't be cleaned up afterwards: resetTfaAfterTest's own
   // recovery login hits the exact same crash, since the bad trustedIps entry
   // is still there. That's the bug demonstrating itself, not a regression.
   test.fail(
-    "BUG TBD: a malformed trustedIps entry should be rejected or ignored, not crash every subsequent login with 500",
+    "BUG 82994: a malformed trustedIps entry should be rejected or ignored, not crash every subsequent login with 500",
     async ({ apiSdk }) => {
       const enable = await apiSdk
         .forRole("owner")
