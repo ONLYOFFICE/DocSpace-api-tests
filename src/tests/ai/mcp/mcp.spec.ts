@@ -3375,7 +3375,7 @@ test.describe("MCP - disabling a tool the model really has", () => {
     expect(asked.frames).toContain("tool-call-pending");
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - a disabled built-in tool is still offered to the model", async ({
+  test("BUG 83013: PUT /api/2.0/ai/tools/set-disabled - a disabled built-in tool is still offered to the model", async ({
     apiSdk,
     paymentsApi,
   }) => {

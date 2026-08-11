@@ -6,9 +6,9 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import {
   AiAgentChat,
   AgentRole,
-  AiProfile,
   expectHealthyAssistantReply,
   inviteToAgent,
+  twoTextProfiles,
 } from "@/src/helpers/ai-agent-chat";
 import { AiHttp } from "@/src/helpers/ai-http";
 import { postAndReadStream } from "@/src/helpers/ai-stream-transport";
@@ -1939,25 +1939,6 @@ test.describe("AI Chat - the default model of a room", () => {
 // entity's.
 
 /** Two different usable text profiles, deterministically ordered. */
-function twoTextProfiles(profiles: AiProfile[]): [AiProfile, AiProfile] {
-  const usable = profiles
-    .filter(
-      (profile) =>
-        profile.canUseTool === true &&
-        !!profile.modelId &&
-        !AiAgentChat.NON_TEXT_MODEL_MARKERS.some((marker) =>
-          profile.modelId.toLowerCase().includes(marker),
-        ),
-    )
-    .sort((a, b) => a.modelId.localeCompare(b.modelId));
-
-  expect(
-    usable.length,
-    "the catalogue has at least two usable text profiles",
-  ).toBeGreaterThan(1);
-  return [usable[0], usable[1]];
-}
-
 class ThreadRoutes extends AiHttp {
   put(role: AgentRole, path: string, body: unknown) {
     return this.call<unknown>(role, "put", path, body);
