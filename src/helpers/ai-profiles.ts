@@ -50,6 +50,14 @@ export const AI_CAPS = {
   imageOnly: 2,
 } as const;
 
+/**
+ * The single vision bit inside `capabilities`. Tests that need "this model can
+ * read a picture" assert the bit rather than the whole mask, so a catalogue that
+ * grows a new text+vision combination does not make them silently pick a blind
+ * model.
+ */
+export const AI_CAP_VISION = 128;
+
 /** Every action type the assignment API accepts. */
 export const AI_ACTION_TYPES = [
   "Default",

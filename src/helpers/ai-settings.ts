@@ -28,6 +28,13 @@ export type TextToDocxBody = {
   title?: string | null;
   content?: string | null;
   folderId?: number | string | null;
+  /**
+   * Not part of the contract. The endpoint writes a .docx and nothing else, and
+   * the "only format" test sends these to show they are accepted and ignored
+   * rather than honoured.
+   */
+  format?: string;
+  extension?: string;
 };
 
 export class AiSettings extends AiHttp {
