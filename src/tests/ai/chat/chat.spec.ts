@@ -3623,16 +3623,6 @@ test.describe("AI Chat - state changed by another actor", () => {
 // or a silent substitution is a product question, so it is recorded here rather
 // than asserted; the unparseable GUID below is the case that is unambiguously
 // broken.
-//
-// On localisation. The portal does localise its own error messages by the
-// caller's profile culture — `GET /files/file/{missing}` answers "The required
-// file was not found" in English and "Запрашиваемый файл не найден" for a user
-// switched to `ru`, which is what `portalErrorMessage` below uses as the control
-// that a culture switch really reached error generation. AI failure messages do
-// not follow: they are the same English string in every language, and an
-// `Accept-Language: ru-RU` header changes nothing either. The localisation block
-// pins that as `test.fail`, because a client can only translate the codes it
-// already knows and everything else reaches the user in English.
 
 /** Past the reverse proxy's request-size limit — 500 KB is already refused. */
 const OVERSIZED_MESSAGE = "word ".repeat(400000);
