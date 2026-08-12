@@ -5,6 +5,8 @@ import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
   AiAgentChat,
+  AiMessageContentPart,
+  AiThreadMessage,
   HostTool,
   expectHealthyAssistantReply,
 } from "@/src/helpers/ai-agent-chat";
@@ -25,9 +27,10 @@ import {
 //
 //   1. the system catalogue, custom-server CRUD, disable and allow-always as
 //      stored state, and what the two confirmation routes accept;
-//   2. "the tool-call pause" and "always-allow drives the pause" — the same
-//      surface driven through a real conversation, where the model decides to
-//      call a tool and the stream stops until approve/deny resumes it;
+//   2. "the tool-call pause", "the tool call announces itself" and "always-allow
+//      drives the pause" — the same surface driven through a real conversation,
+//      where the model decides to call a tool and the stream stops until
+//      approve/deny resumes it;
 //   3. entity scopes that are not an agent (a room, a folder) and the bulk
 //      replace-all route;
 //   4. the per-entity model itself: that /ai/agents is not where servers are
@@ -977,6 +980,261 @@ test.describe("MCP - the tool-call pause", () => {
       "User deny tool call",
     );
     expect(AiAgentChat.messageText(replies[0]).length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The announcement that comes with a tool call — the API-side half of "before
+// calling a tool the model writes a short phrase about what it is about to do,
+// and the technical call card is hidden so the two do not duplicate each other".
+//
+// Only the first half is an API contract, and it is not chat text: the engine
+// injects an `aiChatIntent` parameter into every tool's schema, so the phrase
+// arrives as one of the arguments the model chose. That is what lets a client
+// render a sentence and suppress the call card — the sentence is attached to the
+// call rather than written next to it.
+//
+// The second half is rendering and is deliberately not tested here. Nothing in
+// the payload marks the card as hidden: the `tool-call` part is always delivered
+// whole (toolName, args, toolCallId, result), and neither `autoAllow` nor
+// `serverExecuted` is a display flag. Only a UI test can see the card.
+//
+// So the assertions are:
+//
+//   * the phrase exists and is the model's own prose, not the tool name;
+//   * it is already on the `tool-call-pending` frame, so a client has something
+//     to show at the exact moment it must stop and draw the pause;
+//   * it is persisted, so re-opening the thread still shows it;
+//   * it survives approval, so the phrase does not vanish once the call gets a
+//     result;
+//   * a tool that needs no dialog is announced too — the phrase belongs to the
+//     call, not to the confirmation prompt.
+//
+// Whether the model calls the tool at all is the model's decision, so every test
+// asserts the pause arrived first — a missing pause fails, it is never skipped.
+
+/** The phrase the engine asks the model to supply with every tool call. */
+function toolCallIntent(message: AiThreadMessage): unknown {
+  return AiAgentChat.toolCalls(message)[0]?.args?.aiChatIntent;
+}
+
+/**
+ * The announcement is prose the model wrote for this call, so the assertions are
+ * on its shape rather than on its wording: a non-blank string that is not just
+ * the tool's own name echoed back, and not the arguments serialised.
+ */
+function expectAnnouncementPhrase(intent: unknown, label: string) {
+  expect(typeof intent, `${label}: aiChatIntent is a string`).toBe("string");
+  const phrase = (intent as string).trim();
+  expect(phrase.length, `${label}: the phrase is not blank`).toBeGreaterThan(0);
+  expect(phrase, `${label}: the phrase is not the bare tool name`).not.toBe(
+    WEATHER_TOOL.name,
+  );
+  expect(
+    phrase,
+    `${label}: the phrase is not serialised arguments`,
+  ).not.toMatch(/^[[{]/);
+}
+
+test.describe("MCP - the tool call announces itself", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream - the pending tool call carries the model's aiChatIntent phrase and keeps it in the thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(aiChat);
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const pending = AiAgentChat.pendingToolCall(sent.text);
+    expect(
+      pending,
+      `the model did not ask for the tool; frames were ${AiAgentChat.frameTypes(sent.text).join(", ")}`,
+    ).toBeDefined();
+
+    // On the frame, not only in the thread: the client draws the pause from what
+    // the stream just handed it, so a phrase that needed a follow-up read would
+    // arrive too late to be shown instead of the call card.
+    expect(pending!.message, "the pause frame carries the reply").toBeDefined();
+    const streamed = toolCallIntent(pending!.message!);
+    expectAnnouncementPhrase(streamed, "on the tool-call-pending frame");
+
+    // And it is stored, so reopening the thread shows the same sentence rather
+    // than a bare call with no explanation.
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(messages.status).toBe(200);
+    const reply = AiAgentChat.assistantMessages(messages.data)[0];
+    expect(reply, "the paused reply is stored").toBeDefined();
+    expect(reply.id).toBe(pending!.messageId);
+
+    const stored = toolCallIntent(reply);
+    expectAnnouncementPhrase(stored, "in the stored reply");
+    expect(stored, "the stored phrase is the streamed one").toBe(streamed);
+
+    // The phrase rides along with the real arguments — it does not replace them.
+    expect(AiAgentChat.toolCalls(reply)[0].args).toMatchObject({
+      city: "Paris",
+    });
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - the announcement is not duplicated as chat text next to the call", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(aiChat);
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text);
+    expect(
+      pending,
+      `the model did not ask for the tool; frames were ${AiAgentChat.frameTypes(sent.text).join(", ")}`,
+    ).toBeDefined();
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    const reply = AiAgentChat.assistantMessages(messages.data)[0];
+    expect(reply, "the paused reply is stored").toBeDefined();
+
+    // Measured on 2026-08-12, the paused reply's content is exactly one part:
+    //
+    //   [{ type: "tool-call", toolName: "get_weather", toolCallId: "9v68pjt3",
+    //      args: { city: "Paris",
+    //              aiChatIntent: "Checking the current weather in Paris..." },
+    //      argsText: "{\"aiChatIntent\":\"…\",\"city\":\"Paris\"}" }]
+    //
+    // No text block at all — which is the non-duplication half of the contract
+    // seen from the API: the sentence is a property of the call, so there is
+    // nothing for a hidden call card to be redundant with.
+    expect(
+      Array.isArray(reply.content),
+      "a paused reply has content blocks, not the failed reply's empty string",
+    ).toBe(true);
+    const parts = reply.content as AiMessageContentPart[];
+    const callIndex = parts.findIndex((part) => part.type === "tool-call");
+    expect(callIndex, "the reply has a tool-call part").toBeGreaterThan(-1);
+    const intent = String(toolCallIntent(reply));
+    expectAnnouncementPhrase(intent, "at the pause");
+
+    // Written as "no text part repeats the phrase" rather than "content has
+    // length 1" on purpose: whether the model adds prose of its own is its
+    // decision, and a reply that both explains itself in text AND carries the
+    // same sentence in the call is the duplication the requirement rules out.
+    // This holds either way, and only fails on an actual double.
+    const texts = parts
+      .filter((part) => part.type !== "tool-call")
+      .map((part) => part.text?.trim() ?? "")
+      .filter((text) => text.length > 0);
+    expect(
+      texts.filter((text) => text.includes(intent)),
+      "the announcement is carried once, by the tool call",
+    ).toEqual([]);
+
+    // Content order is render order, and the pause is the end of the reply: a
+    // client walking the array top to bottom must not find text trailing the call
+    // it is about to draw a pause for.
+    const after = parts
+      .slice(callIndex + 1)
+      .filter((part) => part.text?.trim())
+      .map((part) => part.type);
+    expect(after, "no text trails the paused call").toEqual([]);
+  });
+
+  test("POST /api/2.0/ai/ai/approve-tool-call - the announcement survives the approval that fills in the result", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(aiChat);
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text);
+    expect(pending, "the stream paused for the tool").toBeDefined();
+    const announced = toolCallIntent(pending!.message!);
+    expectAnnouncementPhrase(announced, "at the pause");
+
+    const approve = await aiChat.approvePendingToolCall("owner", pending!, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "21C and sunny",
+    });
+    expect(approve.status).toBe(200);
+
+    // Resuming rewrites the tool call to add the result. The phrase is part of
+    // the same `args` object, so this is where it would be lost — a finished call
+    // whose announcement is gone leaves the transcript showing a result with no
+    // statement of what was being done.
+    const messages = await aiChat.readMessages("owner", threadId);
+    const reply = AiAgentChat.assistantMessages(messages.data)[0];
+    const call = AiAgentChat.toolCalls(reply)[0];
+    expect(call.result, "the approval landed").toBe("21C and sunny");
+    expect(call.args?.aiChatIntent, "the phrase is still there").toBe(
+      announced,
+    );
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a tool that needs no approval dialog is announced too", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(aiChat);
+
+    // `requireApproval: false` is the case with no dialog to put a sentence in,
+    // which is exactly why it is worth pinning: the phrase belongs to the call
+    // itself, so an auto-allowed tool must still say what it is about to do.
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [{ ...WEATHER_TOOL, requireApproval: false }],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text);
+    expect(
+      pending,
+      `the model did not ask for the tool; frames were ${AiAgentChat.frameTypes(sent.text).join(", ")}`,
+    ).toBeDefined();
+    expect(pending!.autoAllow, "no dialog for this one").toBe(true);
+
+    expectAnnouncementPhrase(
+      toolCallIntent(pending!.message!),
+      "on an auto-allowed call",
+    );
   });
 });
 

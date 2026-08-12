@@ -2392,7 +2392,7 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
     expectHealthyAssistantReply(newReplies);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/threads/update-message - an edited question moves to the end of the transcript", async ({
+  test("BUG 83037: PUT /api/2.0/ai/threads/update-message - an edited question moves to the end of the transcript", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4156,7 +4156,7 @@ test.describe("AI Messages - markdown in the .docx export", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a formula is written into the document as raw TeX", async ({
+  test("BUG 83038: POST /api/2.0/ai/text-to-docx - a formula is written into the document as raw TeX", async ({
     apiSdk,
   }) => {
     // The exporter renders every other markdown construct — headings, bold,
