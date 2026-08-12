@@ -17,6 +17,8 @@ import { AiHttp } from "@/src/helpers/ai-http";
 import { postAndReadStream } from "@/src/helpers/ai-stream-transport";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
 import { AiTools } from "@/src/helpers/ai-tools";
+import { agentStorageFolderId } from "@/src/helpers/device-upload";
+import { listFolderFiles } from "@/src/helpers/text-to-docx";
 import { UserType, ApiSDK } from "@/src/services/api-sdk";
 
 // Chat moved off `/ai/rooms/{roomId}/chats` (404) onto threads:
@@ -3062,6 +3064,99 @@ test.describe("AI Chat - an AI room created through the rooms API", () => {
 /** Long enough to be sure this is a hang, short enough not to stall the suite. */
 const STREAM_CAP_MS = 45000;
 
+/** The one request every test in this block makes, so they differ in nothing else. */
+const PICTURE_REQUEST =
+  "Generate an image of a red circle on a white background.";
+
+/**
+ * How long a generated picture is given to appear in the folder it should be
+ * saved into. Nothing lands there while BUG 82861 is open, so this is time each
+ * of the saving tests spends waiting in full — kept short deliberately.
+ */
+const PICTURE_SAVE_MS = 30000;
+
+const IMAGE_EXTENSION = /\.(png|jpe?g|webp|gif)$/i;
+
+type RoleApi = ReturnType<ApiSDK["forRole"]>;
+
+/**
+ * Asks for a picture in a thread of its own and reads the thread back.
+ *
+ * The request is capped: a drawing attempt never terminates while BUG 82861 is
+ * open, so the durable evidence is what the thread holds and not the frames.
+ * `finished` is returned rather than swallowed — it is what tells "the model
+ * answered" apart from "the model is still hanging", and a test that asserts
+ * the first would otherwise pass on the second.
+ */
+async function requestPicture(
+  aiChat: AiAgentChat,
+  role: AgentRole,
+  agentId: number,
+  profileId: string,
+  title: string,
+) {
+  const threadId = await aiChat.createThreadId(role, {
+    title,
+    profileId,
+    agentId,
+  });
+
+  let finished = false;
+  try {
+    await aiChat.sendMessage(role, {
+      threadId,
+      profileId,
+      agentId,
+      message: PICTURE_REQUEST,
+      timeoutMs: STREAM_CAP_MS,
+    });
+    finished = true;
+  } catch {
+    // The stream did not terminate within the cap; the thread is read below.
+  }
+
+  const messages = await aiChat.readMessages(role, threadId);
+  expect(messages.status, `reading "${title}" back`).toBe(200);
+  const reply = AiAgentChat.assistantMessages(messages.data)[0];
+  expect(reply, `the reply in "${title}" is stored`).toBeDefined();
+
+  return {
+    threadId,
+    finished,
+    reply,
+    toolNames: AiAgentChat.toolCalls(reply).map((call) => call.toolName),
+  };
+}
+
+/** Ids of everything currently in a folder, as the baseline for "a file appeared". */
+async function fileIdsIn(api: RoleApi, folderId: number): Promise<Set<number>> {
+  return new Set((await listFolderFiles(api, folderId)).map((file) => file.id));
+}
+
+/**
+ * Waits for a file that was not in `known` to turn up in the folder.
+ *
+ * Matched on ids rather than on a count or on a name: the picture's file name
+ * is the server's to choose, and a count also grows when something unrelated is
+ * written into the same folder. Returns `undefined` on timeout, so the caller
+ * decides whether an absence is the expected outcome.
+ */
+async function waitForNewFile(
+  api: RoleApi,
+  folderId: number,
+  known: Set<number>,
+  timeoutMs = PICTURE_SAVE_MS,
+): Promise<{ id: number; title: string } | undefined> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const fresh = (await listFolderFiles(api, folderId)).find(
+      (file) => !known.has(file.id),
+    );
+    if (fresh || Date.now() > deadline) return fresh;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+}
+
 test.describe("AI Chat - image generation", () => {
   test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a request for an image hangs on an unresolved generate_image call", async ({
     apiSdk,
@@ -3180,6 +3275,338 @@ test.describe("AI Chat - image generation", () => {
     // The user's question is still in the thread — the failure costs the reply,
     // not the conversation.
     expect(AiAgentChat.userMessages(messages)).toHaveLength(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // "Available when Model Assignment has an image model; with no such model the
+  // generation is off and the tool is not offered to the model."
+  //
+  // The second half is not directly observable: `generate_image` is the
+  // engine's own and is absent from `list-system-tools` in every configuration
+  // (asserted in the hang test above), so "the tool is not offered" has no
+  // reading of its own over the API. What is asserted instead is its only
+  // visible consequence — whether the model reaches for the tool at all.
+  //
+  // Both states are exercised in one test on purpose. "No `generate_image`
+  // call" on its own also describes a model that answered in prose, a portal
+  // where inference is dead, and a request the gateway refused, so the same
+  // request with the binding in place runs first as the positive control.
+  test("DELETE /api/2.0/ai/assignments/unassign - with no image model bound, a request for a picture does not reach the drawing tool", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Image Binding Agent",
+      profileId,
+    });
+
+    // The premise the control rests on: an image model really is bound.
+    const bound = await profiles.getAssignment("owner", "ImageGeneration");
+    expect(
+      bound.data,
+      "the portal starts with a model behind ImageGeneration",
+    ).toBeTruthy();
+
+    const withModel = await requestPicture(
+      aiChat,
+      "owner",
+      agentId,
+      profileId,
+      "Autotest picture with a model",
+    );
+    expect(
+      withModel.toolNames,
+      "with an image model bound the request does reach generate_image",
+    ).toContain("generate_image");
+
+    // Take the image model away…
+    const removed = await profiles.unassign("owner", {
+      actionType: "ImageGeneration",
+    });
+    expect(removed.status).toBe(200);
+    expect(removed.data?.success, removed.data?.error?.message).toBe(true);
+    expect(
+      (await profiles.getAssignment("owner", "ImageGeneration")).data,
+    ).toBeNull();
+
+    // …and confirm that leaves the portal in the state the requirement talks
+    // about. `ImageGeneration` still resolves — through `Default` — so the
+    // question is not whether it resolves but whether what it resolves to can
+    // draw. If a drawing model were still reachable here the run below would be
+    // testing nothing.
+    const resolved = await profiles.resolveForAction(
+      "owner",
+      "ImageGeneration",
+    );
+    expect(resolved.status).toBe(200);
+    expect(
+      resolved.data?.profile?.capabilities,
+      "no model that can draw is left behind ImageGeneration",
+    ).not.toBe(AI_CAPS.imageOnly);
+
+    const withoutModel = await requestPicture(
+      aiChat,
+      "owner",
+      agentId,
+      profileId,
+      "Autotest picture without a model",
+    );
+
+    expect(
+      withoutModel.toolNames,
+      "no image model is configured, so nothing should call the drawing tool",
+    ).not.toContain("generate_image");
+
+    // And the user is answered rather than left on a stream that never ends:
+    // a disabled feature has to say so, which is the difference between this
+    // and BUG 82861.
+    expect(
+      withoutModel.finished,
+      `the reply completed within ${STREAM_CAP_MS} ms`,
+    ).toBe(true);
+    expect(
+      AiAgentChat.messageText(withoutModel.reply).length,
+      "the model said something instead of drawing",
+    ).toBeGreaterThan(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // "The picture is saved automatically into the current section (where the
+  // user may write) or else into My Documents."
+  //
+  // Three tests, one per destination the rule can pick. All three are
+  // `test.fail` for the same reason: BUG 82861 leaves `generate_image`
+  // unresolved, so no picture is ever produced and nothing can land anywhere.
+  // Each asserts that the drawing really was attempted *before* `test.fail()`,
+  // so when the hang is fixed these report an unexpected pass for the right
+  // reason rather than because the request quietly stopped being made.
+  //
+  // The landing folder is matched on file ids taken before the request, not on
+  // a name: the picture's file name is the server's to choose.
+
+  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a picture generated in an agent chat is not saved into its Result Storage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // An agent room is the one "current section" a chat has by default, and its
+    // root takes no files at all (`security.Create:false`, 403 even for the
+    // Owner) — Result Storage is where everything the agent produces is filed,
+    // exports included. So that, not the room id, is where the picture belongs.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Picture Storage Agent",
+      profileId,
+    });
+
+    const resultStorageId = await agentStorageFolderId(
+      ownerApi,
+      agentId,
+      FolderType.ResultStorage,
+    );
+    const { data: myDocs } = await ownerApi.folders.getMyFolder();
+    const myDocsId = myDocs.response!.current!.id!;
+
+    const storedBefore = await fileIdsIn(ownerApi, resultStorageId);
+    const myDocsBefore = await fileIdsIn(ownerApi, myDocsId);
+
+    const attempt = await requestPicture(
+      aiChat,
+      "owner",
+      agentId,
+      profileId,
+      "Autotest picture into an agent",
+    );
+    expect(
+      attempt.toolNames,
+      "the drawing was attempted — without this the rest proves nothing",
+    ).toContain("generate_image");
+
+    test.fail();
+    const landed = await waitForNewFile(
+      ownerApi,
+      resultStorageId,
+      storedBefore,
+    );
+    expect(landed, "the picture is filed next to the agent").toBeDefined();
+    expect(landed!.title).toMatch(IMAGE_EXTENSION);
+
+    // The chat had a section of its own, so personal documents are not where it
+    // may fall back to.
+    const strayInMyDocs = (await listFolderFiles(ownerApi, myDocsId)).filter(
+      (file) => !myDocsBefore.has(file.id),
+    );
+    expect(
+      strayInMyDocs.map((file) => file.title),
+      "nothing was filed in My Documents instead",
+    ).toEqual([]);
+  });
+
+  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a picture generated in a room chat is not saved into that room", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The other kind of "current section": a chat opened against an ordinary
+    // room, whose root the owner may write to. `POST /files/{folderId}/file` is
+    // the oracle for that right — it is asserted rather than assumed, so a
+    // picture that never arrives cannot be explained by a folder that would
+    // have refused it anyway.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Picture Destination Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const probe = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Write Probe" },
+    });
+    expect(probe.status, "the owner may write into this room").toBe(200);
+
+    const { data: myDocs } = await ownerApi.folders.getMyFolder();
+    const myDocsId = myDocs.response!.current!.id!;
+
+    const roomBefore = await fileIdsIn(ownerApi, roomId);
+    const myDocsBefore = await fileIdsIn(ownerApi, myDocsId);
+
+    const attempt = await requestPicture(
+      aiChat,
+      "owner",
+      roomId,
+      profileId,
+      "Autotest picture into a room",
+    );
+    expect(
+      attempt.toolNames,
+      "the drawing was attempted — without this the rest proves nothing",
+    ).toContain("generate_image");
+
+    test.fail();
+    const landed = await waitForNewFile(ownerApi, roomId, roomBefore);
+    expect(
+      landed,
+      "the picture is saved into the room the chat is in",
+    ).toBeDefined();
+    expect(landed!.title).toMatch(IMAGE_EXTENSION);
+
+    const strayInMyDocs = (await listFolderFiles(ownerApi, myDocsId)).filter(
+      (file) => !myDocsBefore.has(file.id),
+    );
+    expect(
+      strayInMyDocs.map((file) => file.title),
+      "the writable section was used, not the personal fallback",
+    ).toEqual([]);
+  });
+
+  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a picture generated by a member who cannot write to the room is not saved into My Documents", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The "(where the user may write)" half. A Read-level member is the one
+    // case where the current section is not a legal destination, so the rule's
+    // fallback is the whole of what is under test here.
+    //
+    // The member is created and used last: authenticating as the owner after
+    // they have a token makes their calls run as the owner and fabricates a
+    // pass.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Read Only Picture Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    expect(inviteStatus, "the member really is in the room").toBe(200);
+
+    const memberApi = apiSdk.forRole("user");
+
+    // The premise: the room is closed to them for writing. Without this the
+    // fallback below would be indistinguishable from the room simply not being
+    // tried.
+    const probe = await memberApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Member Write Probe" },
+    });
+    expect(probe.status, "a Read member may not write into the room").toBe(403);
+
+    const { data: memberDocs } = await memberApi.folders.getMyFolder();
+    const memberDocsId = memberDocs.response!.current!.id!;
+
+    const memberDocsBefore = await fileIdsIn(memberApi, memberDocsId);
+    const roomBefore = await fileIdsIn(ownerApi, roomId);
+
+    const attempt = await requestPicture(
+      aiChat,
+      "user",
+      roomId,
+      profileId,
+      "Autotest picture by a read-only member",
+    );
+    expect(
+      attempt.toolNames,
+      "the drawing was attempted — without this the rest proves nothing",
+    ).toContain("generate_image");
+
+    test.fail();
+    const landed = await waitForNewFile(
+      memberApi,
+      memberDocsId,
+      memberDocsBefore,
+    );
+    expect(
+      landed,
+      "the picture falls back to the member's own documents",
+    ).toBeDefined();
+    expect(landed!.title).toMatch(IMAGE_EXTENSION);
+
+    // And nothing was forced into the room they may not write to.
+    const strayInRoom = (await listFolderFiles(ownerApi, roomId)).filter(
+      (file) => !roomBefore.has(file.id),
+    );
+    expect(
+      strayInRoom.map((file) => file.title),
+      "nothing was written into the room the member cannot write to",
+    ).toEqual([]);
   });
 });
 

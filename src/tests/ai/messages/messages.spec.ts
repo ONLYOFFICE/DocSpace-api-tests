@@ -72,6 +72,20 @@ const MARKDOWN_ANSWER = [
   "| 1 | 2 |",
 ].join("\n");
 
+// The same answer outside ASCII. CJK for an alphabet the portal actually ships
+// in, and a diacritic, an ß, an em dash and a non-BMP emoji for the characters
+// an exporter working on bytes rather than code points loses.
+const UNICODE_ANSWER = [
+  "## Assistant report",
+  "",
+  "**Bold** and *italic* — file saved.",
+  "",
+  "- Item one",
+  "- 第二项",
+  "",
+  "café naïve, größer, 🚀",
+].join("\n");
+
 test.describe("AI Messages - text-to-docx export", () => {
   test("POST /api/2.0/ai/text-to-docx - Owner exports text into My Documents", async ({
     apiSdk,
@@ -509,6 +523,407 @@ test.describe("AI Messages - text-to-docx export", () => {
         `the document shows the markdown source: ${JSON.stringify(syntax)}`,
       ).not.toContain(syntax);
     }
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - an answer outside ASCII survives the export, title included", async ({
+    apiSdk,
+  }) => {
+    // Every other export test is written in ASCII marker words, and a document
+    // builder that mangled the rest of Unicode — the wrong encoding in the
+    // .docx XML, a byte-wise truncation, a normalisation pass over the file
+    // name — would pass all of them while the portal's own users, who do not
+    // chat with the assistant in English, get an unreadable file.
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    // The file name is half of this test, and it is normalised by the same rule
+    // as a Files API title — so the expected name comes from that endpoint
+    // instead of being spelled out here. The control file goes into a folder of
+    // its own so it cannot turn the export into "… (1).docx".
+    const { data: controlFolder } = await ownerApi.folders.createFolder({
+      folderId,
+      createFolder: { title: "Autotest TextToDocx Unicode Control" },
+    });
+    const title = `Assistant report café 第二项 ${apiSdk.faker.generateString(8)}`;
+    const expectedTitle = await filesApiTitleFor(
+      ownerApi,
+      controlFolder.response!.id!,
+      title,
+    );
+
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content: UNICODE_ANSWER,
+      folderId,
+    });
+    expect(status).toBe(202);
+
+    const exported = await waitForExportedFile(
+      ownerApi,
+      folderId,
+      expectedTitle,
+    );
+    expect(
+      exported,
+      `no "${expectedTitle}" in My Documents — the Files API keeps that name for the same title`,
+    ).toBeDefined();
+
+    const text = await readExportedDocxText(apiSdk, "owner", exported!.id);
+
+    // One word per alphabet, plus the ones that only break when the exporter
+    // works on bytes: a diacritic, an ß, an em dash and a non-BMP emoji.
+    for (const fragment of [
+      "Assistant report",
+      "Bold",
+      "italic",
+      "Item one",
+      "第二项",
+      "café naïve",
+      "größer",
+      "—",
+      "🚀",
+    ]) {
+      expect(text, `"${fragment}" is missing from the document`).toContain(
+        fragment,
+      );
+    }
+
+    expect(text.indexOf("Item one")).toBeLessThan(text.indexOf("第二项"));
+
+    // Rendered, not transcribed — the same claim as the ASCII test, in case the
+    // exporter falls back to a plain-text path for anything it cannot classify.
+    for (const syntax of ["## ", "**", "- Item one"]) {
+      expect(
+        text,
+        `the document shows the markdown source: ${JSON.stringify(syntax)}`,
+      ).not.toContain(syntax);
+    }
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - the 202 carries no id, so the saved document can only be found by listing the folder", async ({
+    apiSdk,
+  }) => {
+    // "The answer was saved" needs something to point at: a link to the new
+    // file, or at least its id. The response has neither — it is exactly
+    // `{"success":true}`, and the document does not exist yet when it arrives —
+    // so every client has to poll the target folder and match on a name it
+    // derived itself, which is also why every test here does.
+    //
+    // Pinned as the current contract, on purpose: an id appearing in this body
+    // is the fix, and it should show up as a failing test rather than pass
+    // unnoticed.
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    const title = `Exported handle ${apiSdk.faker.generateString(8)}`;
+    const { data, status } = await aiSettings.textToDocx("owner", {
+      title,
+      content: "The assistant said hello.",
+      folderId,
+    });
+
+    expect(status).toBe(202);
+    expect(data).toEqual({ success: true });
+
+    // And the only handle there is really does lead to the document.
+    const exported = await waitForExportedFile(
+      ownerApi,
+      folderId,
+      `${title}.docx`,
+    );
+    expect(exported, `no "${title}.docx" in My Documents`).toBeDefined();
+  });
+});
+
+// The rooms an answer can be saved into.
+//
+// Room types are not interchangeable as export targets — a VDR indexes
+// everything that lands in it, a form-filling room's root takes PDF forms and
+// nothing else — and `POST /files/{folderId}/file` is what already knows the
+// rule for each of them. It decides the export's permissions
+// (messages.permission.spec.ts), so it is used here as the oracle for its
+// destinations too, rather than a hard-coded expectation per room type.
+//
+// The two rooms below take documents; the form-filling room does not, and it
+// gets a test of its own further down because the two surfaces disagree there.
+// The agent room, whose export lands in Result Storage rather than in the root,
+// is covered by the transcript block above.
+
+const EXPORT_ROOM_TYPES: Array<{ label: string; roomType: RoomType }> = [
+  { label: "Public room", roomType: RoomType.PublicRoom },
+  { label: "Virtual Data Room", roomType: RoomType.VirtualDataRoom },
+];
+
+test.describe("AI Messages - text-to-docx into every room type", () => {
+  for (const { label, roomType } of EXPORT_ROOM_TYPES) {
+    test(`POST /api/2.0/ai/text-to-docx - exporting into a ${label} agrees with POST /files/{folderId}/file`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+      const { data: roomData, status: roomStatus } =
+        await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: `Autotest Export ${label}`,
+            roomType,
+          },
+        });
+      expect(roomStatus).toBe(200);
+      const roomId = roomData.response!.id!;
+
+      // The premise: this room's root takes a document at all. Without it a
+      // successful export would be the only evidence for both claims at once.
+      const control = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: `Control ${apiSdk.faker.generateString(8)}`,
+        },
+      });
+      expect(
+        control.status,
+        `the Files API has to accept a document in a ${label} root for the export to be compared against it`,
+      ).toBe(200);
+
+      const title = `Exported ${apiSdk.faker.generateString(8)}`;
+      const { status } = await aiSettings.textToDocx("owner", {
+        title,
+        content: "The assistant said hello.",
+        folderId: roomId,
+      });
+      expect(status).toBe(202);
+
+      const exported = await waitForExportedFile(
+        ownerApi,
+        roomId,
+        `${title}.docx`,
+      );
+      expect(exported, `no "${title}.docx" in the ${label}`).toBeDefined();
+      expect(exported!.fileExst).toBe(".docx");
+
+      const text = await readExportedDocxText(apiSdk, "owner", exported!.id);
+      expect(text).toContain("The assistant said hello.");
+    });
+  }
+
+  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a form filling room refuses the document, but the export reports success and drops it", async ({
+    apiSdk,
+  }) => {
+    // A form filling room's root holds PDF forms: the Files API turns a
+    // document away with "The file cannot be uploaded to this room. Please try
+    // to upload the ONLYOFFICE PDF form." The export is aimed at the same
+    // folder, is subject to the same rule — and answers 202 `{"success":true}`.
+    // Nothing is ever written: not in the root, not in a subfolder, and there is
+    // no second response to carry the failure. The user is told their answer was
+    // saved and it is gone.
+    //
+    // (The Files API delivers that refusal as a 500 with a stack trace, which is
+    // a defect of its own and not this suite's to assert — hence the check on
+    // the message rather than on the status.)
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Export Form filling room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const control = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: `Control ${apiSdk.faker.generateString(8)}`,
+      },
+    });
+    expect(control.status).not.toBe(200);
+    expect(
+      JSON.stringify(control.data),
+      "the premise: this room type refuses a document, and says so",
+    ).toContain("PDF form");
+
+    const title = `Exported ${apiSdk.faker.generateString(8)}`;
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content: "The assistant said hello.",
+      folderId: roomId,
+    });
+
+    // The document really is nowhere — root and every subfolder, after an
+    // accepted export would have landed. This half stays true once the endpoint
+    // starts refusing properly, so it is asserted before the claim that fails.
+    await waitForExportToSettle();
+    const { data: room } = await ownerApi.folders.getFolderByFolderId({
+      folderId: roomId,
+    });
+    const landed = [...(await listFolderFiles(ownerApi, roomId))];
+    for (const folder of (room.response?.folders ?? []) as Array<{
+      id?: number;
+    }>) {
+      landed.push(...(await listFolderFiles(ownerApi, folder.id!)));
+    }
+    expect(landed.map((file) => file.title)).not.toContain(`${title}.docx`);
+
+    test.fail();
+    // 403 is what this endpoint answers for every other target it may not write
+    // to; if the fix lands as a 400 instead, this line is the one to update.
+    expect(
+      status,
+      "the export must refuse what the room refuses instead of reporting success and losing the answer",
+    ).toBe(403);
+  });
+});
+
+test.describe("AI Messages - .docx is the only format an answer can be saved as", () => {
+  test("POST /api/2.0/ai/text-to-* - there is no pdf, txt or markdown export, and a requested format is ignored", async ({
+    apiSdk,
+  }) => {
+    // "Save the answer as a file" is one format wide. Worth pinning both ways:
+    // the sibling routes a client might reasonably try do not exist, and the
+    // one route there is does not take a format — it accepts the field and
+    // still writes a .docx, so a client that thinks it asked for a PDF gets a
+    // document with the wrong extension and no error to show for it.
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    const base = apiSdk.tokenStore.portalBaseUrl;
+    const headers = {
+      Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+      Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+      "Content-Type": "application/json",
+    };
+    for (const route of [
+      "/api/2.0/ai/text-to-pdf",
+      "/api/2.0/ai/text-to-txt",
+      "/api/2.0/ai/text-to-md",
+      "/api/2.0/ai/text-to-file",
+      "/api/2.0/ai/export-text",
+    ]) {
+      const response = await apiSdk.request.post(`${base}${route}`, {
+        headers,
+        data: { title: "T", content: "hello", folderId },
+      });
+      expect(response.status(), `POST ${route}`).toBe(404);
+    }
+
+    const title = `Exported format ${apiSdk.faker.generateString(8)}`;
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content: "The assistant said hello.",
+      format: "pdf",
+      extension: ".txt",
+      folderId,
+    });
+    expect(status).toBe(202);
+
+    const exported = await waitForExportedFile(
+      ownerApi,
+      folderId,
+      `${title}.docx`,
+    );
+    expect(
+      exported,
+      `no "${title}.docx" — a requested format should be ignored, not honoured`,
+    ).toBeDefined();
+    expect(exported!.fileExst).toBe(".docx");
+
+    const titles = (await listFolderFiles(ownerApi, folderId)).map(
+      (file) => file.title,
+    );
+    expect(titles).not.toContain(`${title}.pdf`);
+    expect(titles).not.toContain(`${title}.txt`);
+  });
+});
+
+test.describe("AI Messages - text-to-docx and the room storage quota", () => {
+  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - an export into a room that is out of quota reports success and drops the document", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The export writes a real ~10 KB document into real storage, and it is the
+    // one write path in the portal that does not go through the Files API. A
+    // room whose quota is exhausted answers `402 "Room space quota exceeded"`
+    // there — and 202 `{"success":true}` here, with nothing written. Same
+    // failure as the form filling room above: the queue accepts work it cannot
+    // do and no one ever hears about it.
+    await paymentsApi.setupPayment();
+
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { status: quotaSettingsStatus } =
+      await ownerApi.settingsQuota.saveRoomQuotaSettings({
+        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1024 },
+      });
+    expect(quotaSettingsStatus).toBe(200);
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Export Quota Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: quotaData, status: quotaStatus } =
+      await ownerApi.roomQuota.updateRoomsQuota({
+        updateRoomsQuotaRequestDtoInteger: {
+          roomIds: [roomId] as unknown as number[],
+          quota: 1024,
+        },
+      });
+    expect(quotaStatus).toBe(200);
+    expect(
+      (quotaData.response as unknown as Array<{ quotaLimit?: number }>)[0]
+        .quotaLimit,
+    ).toBe(1024);
+
+    // 1 KB is under the size of an empty document, so the room is out of quota
+    // from the start and the very first create is refused. That refusal is the
+    // premise of the test — without it a dropped export would prove nothing —
+    // and it is also the answer the export is measured against.
+    const oracle = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: `Oracle ${apiSdk.faker.generateString(8)}`,
+      },
+    });
+    expect(
+      oracle.status,
+      "the room has to be out of quota for the Files API before the export can be compared against it",
+    ).toBe(402);
+    expect(JSON.stringify(oracle.data)).toContain("quota exceeded");
+
+    const title = `Exported quota ${apiSdk.faker.generateString(8)}`;
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content: "The assistant said hello.",
+      folderId: roomId,
+    });
+
+    // The quota does hold — nothing is written past it, which is the half that
+    // stays true after the fix. What is missing is the caller ever finding out.
+    await waitForExportToSettle();
+    expect(
+      (await listFolderFiles(ownerApi, roomId)).map((file) => file.title),
+      "a room that is out of quota must not gain a document",
+    ).not.toContain(`${title}.docx`);
+
+    test.fail();
+    expect(
+      status,
+      "the export has to answer the way the Files API answers for the same room, instead of accepting a job it silently abandons",
+    ).toBe(oracle.status);
   });
 });
 

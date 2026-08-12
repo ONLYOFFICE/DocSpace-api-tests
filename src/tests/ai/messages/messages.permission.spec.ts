@@ -254,6 +254,64 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
     });
   }
 
+  test("POST /api/2.0/ai/text-to-docx - the saved document is authored by the caller, not by the room owner", async ({
+    apiSdk,
+  }) => {
+    // The document is built by a background job, and whoever it is filed under
+    // is who owns it afterwards: the author is what "My documents" filters on,
+    // what the activity feed shows, and — in a room where a user may only touch
+    // their own files — what decides whether they can open the answer they just
+    // saved. A job that credited the room owner, or a system account, would be
+    // invisible in every other test here, because all of them only ask whether
+    // the file exists.
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TextToDocx Author Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: memberData, userData } = await apiSdk.addMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+    const { status: shareStatus } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+    expect(shareStatus).toBe(200);
+
+    const memberApi = await apiSdk.authenticateMember(userData, "User");
+
+    const title = `Exported ${apiSdk.faker.generateString(8)}`;
+    const { status } = await aiSettings.textToDocx("user", {
+      title,
+      content: "The assistant said hello.",
+      folderId: roomId,
+    });
+    expect(status).toBe(202);
+
+    const exported = await waitForExportedFile(
+      memberApi,
+      roomId,
+      `${title}.docx`,
+    );
+    expect(exported, `no "${title}.docx" in the room`).toBeDefined();
+
+    const { data: info, status: infoStatus } =
+      await memberApi.files.getFileInfo({ fileId: exported!.id });
+    expect(infoStatus).toBe(200);
+    expect(info.response?.createdBy?.id).toBe(memberId);
+  });
+
   test("POST /api/2.0/ai/text-to-docx - a member cannot export into the Owner's My Documents", async ({
     apiSdk,
   }) => {

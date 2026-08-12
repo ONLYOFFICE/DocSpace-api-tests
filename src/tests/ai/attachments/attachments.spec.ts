@@ -10,11 +10,20 @@ import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import {
   AiAgentChat,
+  AiProfile,
   expectHealthyAssistantReply,
 } from "@/src/helpers/ai-agent-chat";
+import { AI_CAP_VISION, AI_CAPS, AiProfiles } from "@/src/helpers/ai-profiles";
 import { AiSettings } from "@/src/helpers/ai-settings";
 import { ApiSDK } from "@/src/services/api-sdk";
-import { createPng } from "@/src/utils/test-image";
+import {
+  createGifBuffer,
+  createJpegBuffer,
+  createPng,
+  createPngWithRenderedText,
+  createWebpBuffer,
+} from "@/src/utils/test-image";
+import { readIconAsBase64 } from "@/src/utils/icon.utils";
 import { listDocxEntries } from "@/src/helpers/docx";
 import {
   listFolderFiles,
@@ -83,6 +92,20 @@ import {
 
 const PNG_1X1 =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
+
+/**
+ * A real photograph — a ginger kitten on a windowsill next to a yellow sticky
+ * note reading "Have a great day!" in handwriting. 900x675, 59 KB, which leaves
+ * the base64 well under the request limit that makes save-image answer 413.
+ *
+ * Kept beside the generated fixtures rather than instead of them: a photo is
+ * what a user actually attaches, with a real lens, real lighting and real
+ * handwriting, and no PNG this suite draws can stand in for that. What it cannot
+ * do is be unguessable, which is the generated marker's job.
+ */
+const PHOTO_WITH_NOTE = `data:image/jpeg;base64,${readIconAsBase64(
+  "src/assets/vision-ocr-sample.jpg",
+)}`;
 const MISSING_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
 test.describe("AI Attachments - route contract", () => {
@@ -957,6 +980,47 @@ test.describe("AI Attachments - save-image", () => {
 
     const stored = await attachments.expectStored("owner", data!.id!, "image");
     expect(stored.source).toBeUndefined();
+  });
+
+  test("POST /api/2.0/ai/attachments/save-image - png, jpeg, gif and webp are all stored and read back byte for byte", async ({
+    apiSdk,
+  }) => {
+    // The formats a user can paste or drop into the composer. Every other test on
+    // this route uses the same 1x1 PNG data URL, which proves the route works and
+    // says nothing about the formats the feature promises — so this one sends real
+    // bytes of each and checks the payload survives the round trip unchanged.
+    //
+    // What it deliberately does NOT assert is a server-side format rule. There is
+    // none: save-image stores whatever base64 it is handed (BUG 82752 above), so
+    // "only images can be dropped" lives in the composer. The value here is the
+    // positive half — a picture a user really can attach comes back intact.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const images: Array<[string, string, Buffer]> = [
+      // Multi-pixel, not the 1x1 the rest of the suite uses: a payload with real
+      // length would show a server that truncates or re-encodes.
+      ["png", "image/png", createPng(16, 16)],
+      ["jpeg", "image/jpeg", createJpegBuffer()],
+      ["gif", "image/gif", createGifBuffer()],
+      ["webp", "image/webp", createWebpBuffer()],
+    ];
+
+    for (const [label, mime, bytes] of images) {
+      const base64 = `data:${mime};base64,${bytes.toString("base64")}`;
+      const name = `autotest.${label}`;
+
+      const { status, data } = await attachments.saveImage("owner", {
+        input: { name, base64 },
+      });
+
+      expect(status, `saving a ${label}`).toBe(200);
+      expectDraftShape(data, "image");
+      expect(data?.title, `title of the ${label}`).toBe(name);
+      expect(data?.base64, `payload of the ${label} on the save`).toBe(base64);
+
+      const stored = await attachments.expectStored("owner", data!.id!, label);
+      expect(stored.kind, `kind of the stored ${label}`).toBe("image");
+      expect(stored.base64, `payload of the stored ${label}`).toBe(base64);
+    }
   });
 });
 
@@ -1960,6 +2024,39 @@ test.describe("AI Attachments - delete", () => {
     await attachments.expectAbsent("owner", imageId, "deleted image draft");
   });
 
+  test("DELETE /api/2.0/ai/attachments/delete - removing one draft out of a composer's set leaves the others alone", async ({
+    apiSdk,
+  }) => {
+    // What the ✕ on one preview does. The tests above delete a lone draft or the
+    // whole batch, so neither of them can see a delete reaching further than its
+    // id — five staged drafts, one removed, and the remaining four have to still
+    // be readable.
+    //
+    // The removal goes through `purge` on purpose. Whether ONE call is enough is
+    // a different question, and a failing one, pinned in "reads and deletes take
+    // effect at once" — repeating it here is what keeps that known flake out of
+    // this test's subject, which is the four survivors.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const drafts = await stageComposerDrafts(attachments, {
+      files: 3,
+      images: 2,
+      tag: "one-of-many",
+    });
+    const ids = drafts.map((draft) => draft.id as string);
+    for (const id of ids) {
+      await attachments.expectStored("owner", id, "staged draft");
+    }
+
+    // A file draft from the middle of the set, so an off-by-one in either
+    // direction shows up as a surviving-draft failure below.
+    const removed = ids[1];
+    await attachments.purge("owner", removed);
+
+    for (const id of ids.filter((candidate) => candidate !== removed)) {
+      await attachments.expectStored("owner", id, "draft left in the composer");
+    }
+  });
+
   test("DELETE /api/2.0/ai/attachments/delete-many - accepts several body shapes and rejects only unusable ids", async ({
     apiSdk,
   }) => {
@@ -1987,6 +2084,44 @@ test.describe("AI Attachments - delete", () => {
     expect(stringBody.status, "a string that is not a uuid").toBe(400);
   });
 });
+
+/**
+ * A profile picked by capability class, plus an agent and a thread both pinned
+ * to it — the setup the three picture-to-the-model tests share.
+ *
+ * The model is chosen from the catalogue rather than through
+ * `aiChat.defaultProfileId()`, which only rules image-*generation* models out
+ * and happily returns a text+tools model with no vision bit. Which model
+ * answered is the whole subject of those tests, so it cannot be left to a
+ * helper that was written for a different question.
+ */
+async function agentOnProfileClass(
+  apiSdk: ApiSDK,
+  aiChat: AiAgentChat,
+  capabilities: number,
+  label: string,
+): Promise<{
+  profile: AiProfile;
+  agentId: number;
+  threadId: string;
+}> {
+  const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+  const profile = AiProfiles.byCapabilities(
+    await profiles.catalogue("owner"),
+    capabilities,
+  );
+  const agentId = await aiChat.createAgentId("owner", {
+    title: `Autotest ${label} Agent`,
+    profileId: profile.id,
+  });
+  const threadId = await aiChat.createThreadId("owner", {
+    title: `Autotest ${label} Thread`,
+    profileId: profile.id,
+    agentId,
+  });
+
+  return { profile, agentId, threadId };
+}
 
 test.describe("AI Attachments - sending a message with an attachment", () => {
   test("POST /api/2.0/ai/ai/send-with-stream - userMessage.attachments is stored on the message", async ({
@@ -2187,6 +2322,407 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     expect(reply, `assistant reply: ${reply}`).toContain(marker);
   });
 
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - an image attachment does not reach the model either", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The two tests above are about a file. An image travels a different route
+    // into the store — save-image, with the bytes inline as base64, and no
+    // DocSpace file behind it — so "the model never sees it" has to be measured
+    // separately rather than assumed to follow.
+    //
+    // The probe is a colour instead of a code word: a solid red square cannot be
+    // guessed and cannot be inferred from the file name, so an answer of "red" is
+    // only possible if the picture itself reached the model. A model that cannot
+    // see images at all fails this the same way — and that is not a hole in the
+    // test, because the feature's promise is that an attached picture is usable,
+    // whichever half of the stack breaks it.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Image Attachment Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest Image Attachment Thread",
+      profileId,
+      agentId,
+    });
+
+    const red = createPng(64, 64, { colorType: 2, fill: [255, 0, 0, 255] });
+    const base64 = `data:image/png;base64,${red.toString("base64")}`;
+    const id = await attachments.saveImageId(
+      "owner",
+      { name: "autotest-solid.png", base64 },
+      String(agentId),
+    );
+    // The draft really holds the picture, so a model that does not describe it
+    // was not handed an empty record.
+    const draft = await attachments.expectStored("owner", id, "image draft");
+    expect(draft.base64).toBe(base64);
+
+    const inlined = {
+      id,
+      kind: "image",
+      title: "autotest-solid.png",
+      base64,
+    };
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message:
+        "The attached image is a single solid colour. Reply with the English name of that colour and nothing else.",
+      attachments: [inlined],
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    const userMessage = AiAgentChat.userMessages(messages)[0];
+    expect(
+      userMessage.attachments,
+      "the image travelled with the message and was stored whole",
+    ).toEqual([inlined]);
+    // The turn finished normally, so a wrong colour is about what the model was
+    // given rather than about a failed reply.
+    expectHealthyAssistantReply(messages);
+
+    const reply = AiAgentChat.assistantText(messages);
+
+    // A word boundary, not a substring: "required", "answered" and "hundred"
+    // all contain "red", and any of them would turn a refusal into a pass. With
+    // the boundary the measured reply is "There is no image attached", the same
+    // answer the two file tests above get.
+    test.fail();
+    expect(reply, `assistant reply: ${reply}`).toMatch(/\bred\b/i);
+  });
+
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a model the catalogue calls vision-capable is not given the picture either", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The test above runs on whatever `defaultProfileId()` hands back, and that
+    // picker only excludes image-generation models: a text+tools profile with no
+    // vision bit (capabilities 257 — deepseek-v4-pro, glm-5.2) passes it. So its
+    // failure has two possible readings, "the backend never sent the picture" and
+    // "the model cannot see pictures at all", and it cannot tell them apart.
+    //
+    // This one closes that gap by changing exactly one thing: the model is the
+    // profile the catalogue advertises as text+vision+tools, asserted bit by bit
+    // below. Same picture, same question, same probe as above on purpose — with
+    // two variables moving, a difference in the answer would say nothing.
+    //
+    // Still not proof of where the picture is lost: nothing in DocSpace lets a
+    // test put an image in front of the model without going through this route
+    // (the OpenAI proxy is inert 404). What it does establish is that the
+    // model's own capabilities are no longer an explanation.
+    //
+    // Measured 2026-08-12 on gpt-5.6-sol: the reply is "Blue". Worth knowing,
+    // because it is a worse symptom than the one the tests above see — a model
+    // given nothing does not always say so, it can answer a confident wrong
+    // colour that a user has no way to tell from a real one.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { profile, agentId, threadId } = await agentOnProfileClass(
+      apiSdk,
+      aiChat,
+      AI_CAPS.textVisionTools,
+      "Vision Attachment",
+    );
+    expect(
+      (profile.capabilities ?? 0) & AI_CAP_VISION,
+      `${profile.modelId} is advertised as able to read images`,
+    ).toBe(AI_CAP_VISION);
+
+    const red = createPng(64, 64, { colorType: 2, fill: [255, 0, 0, 255] });
+    const base64 = `data:image/png;base64,${red.toString("base64")}`;
+    const id = await attachments.saveImageId(
+      "owner",
+      { name: "autotest-solid.png", base64 },
+      String(agentId),
+    );
+    const draft = await attachments.expectStored("owner", id, "image draft");
+    expect(draft.base64).toBe(base64);
+
+    const inlined = { id, kind: "image", title: "autotest-solid.png", base64 };
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id,
+      agentId,
+      message:
+        "The attached image is a single solid colour. Reply with the English name of that colour and nothing else.",
+      attachments: [inlined],
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expect(
+      AiAgentChat.userMessages(messages)[0].attachments,
+      "the image travelled with the message and was stored whole",
+    ).toEqual([inlined]);
+    // No capability complaint anywhere either: the vision model took the turn
+    // and finished it normally, it just was not shown anything.
+    expectHealthyAssistantReply(messages);
+
+    const reply = AiAgentChat.assistantText(messages);
+
+    // \b, because "requi*red*" and "answe*red*" would turn a refusal into a pass.
+    test.fail();
+    expect(reply, `${profile.modelId} assistant reply: ${reply}`).toMatch(
+      /\bred\b/i,
+    );
+  });
+
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - text drawn into an attached picture cannot be read back (OCR)", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The other half of what an attached picture is for. Describing a picture and
+    // reading the text in it are one capability for the model but not one code
+    // path for the product — OCR is a separate action type in /ai/assignments,
+    // with a capability gate of its own — and nothing in this suite had ever put
+    // a picture with words in it in front of the model.
+    //
+    // The glyphs are drawn into the raster, not written into a tEXt chunk and not
+    // hinted at in the file name: `autotest-note.png` says nothing, so the only
+    // way the marker can appear in a reply is if the pixels were read. Six random
+    // letters cannot be guessed, and the font is rendered at a scale a reader can
+    // resolve — if this test ever fails *after* BUG 82773 is fixed, the legibility
+    // of the fixture is the first thing to check, by saving the buffer and looking
+    // at it.
+    //
+    // Measured 2026-08-12 on gpt-5.6-sol: "Please attach the image."
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { profile, agentId, threadId } = await agentOnProfileClass(
+      apiSdk,
+      aiChat,
+      AI_CAPS.textVisionTools,
+      "OCR Attachment",
+    );
+    expect(
+      (profile.capabilities ?? 0) & AI_CAP_VISION,
+      `${profile.modelId} is advertised as able to read images`,
+    ).toBe(AI_CAP_VISION);
+
+    // Letters only. A marker with digits in it would make O/0 and I/1 a source
+    // of failures that are about the font rather than about the API.
+    const marker = apiSdk.faker.generateString(6).toUpperCase();
+    const picture = createPngWithRenderedText(marker);
+    const base64 = `data:image/png;base64,${picture.toString("base64")}`;
+    const id = await attachments.saveImageId(
+      "owner",
+      { name: "autotest-note.png", base64 },
+      String(agentId),
+    );
+    const draft = await attachments.expectStored("owner", id, "OCR image");
+    expect(draft.base64, "the picture was stored whole").toBe(base64);
+
+    const inlined = { id, kind: "image", title: "autotest-note.png", base64 };
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id,
+      agentId,
+      message:
+        "The attached image has one word written in it. Reply with that word and nothing else.",
+      attachments: [inlined],
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expect(
+      AiAgentChat.userMessages(messages)[0].attachments,
+      "the picture travelled with the message and was stored whole",
+    ).toEqual([inlined]);
+    expectHealthyAssistantReply(messages);
+
+    const reply = AiAgentChat.assistantText(messages);
+
+    test.fail();
+    expect(reply, `assistant reply: ${reply}`).toMatch(
+      new RegExp(`\\b${marker}\\b`, "i"),
+    );
+  });
+
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a real photograph is neither described nor read", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The two tests above use pictures this suite draws: a solid square and a
+    // bitmap font. Both are legitimate probes and neither is what a user attaches
+    // — a photograph has a real lens, real lighting, a subject at an angle and
+    // handwriting rather than 5x7 glyphs, and "the model reads our generated PNG"
+    // would not have answered whether the feature works on a photo.
+    //
+    // One turn asks for both halves of the requirement, because they are one
+    // action for the user: what is in the picture (Vision) and what the note in it
+    // says (OCR).
+    //
+    // The weak spot of a real fixture, stated plainly: "a cat" and "Have a great
+    // day!" are both guessable — the phrase is the canonical sticky-note cliché,
+    // and a blind model that hallucinates instead of refusing (it does: see the
+    // "Blue" measured two tests up) could produce them without seeing anything.
+    // Requiring both in one reply makes that unlikely, not impossible, which is
+    // exactly why the generated-marker test above stays: six random letters
+    // cannot be guessed at all. Realism here, proof there.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { profile, agentId, threadId } = await agentOnProfileClass(
+      apiSdk,
+      aiChat,
+      AI_CAPS.textVisionTools,
+      "Photo Attachment",
+    );
+    expect(
+      (profile.capabilities ?? 0) & AI_CAP_VISION,
+      `${profile.modelId} is advertised as able to read images`,
+    ).toBe(AI_CAP_VISION);
+
+    const id = await attachments.saveImageId(
+      "owner",
+      { name: "autotest-photo.jpg", base64: PHOTO_WITH_NOTE },
+      String(agentId),
+    );
+    // A photo is three orders of magnitude bigger than the 1x1 the rest of the
+    // file sends, so this also shows a payload of a realistic size surviving the
+    // round trip intact.
+    const draft = await attachments.expectStored("owner", id, "photo");
+    expect(draft.base64, "the photograph was stored whole").toBe(
+      PHOTO_WITH_NOTE,
+    );
+
+    const inlined = {
+      id,
+      kind: "image",
+      title: "autotest-photo.jpg",
+      base64: PHOTO_WITH_NOTE,
+    };
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id,
+      agentId,
+      message:
+        "Look at the attached photo and answer in two lines, nothing else. " +
+        "Line 1: what animal is in it. " +
+        "Line 2: the exact text written on the note.",
+      attachments: [inlined],
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expect(
+      AiAgentChat.userMessages(messages)[0].attachments,
+      "the photograph travelled with the message and was stored whole",
+    ).toEqual([inlined]);
+    expectHealthyAssistantReply(messages);
+
+    const reply = AiAgentChat.assistantText(messages);
+
+    // Tolerant on purpose. Both halves have to be right for the test to pass, so
+    // an over-precise pattern would keep it red after BUG 82773 is fixed and hide
+    // the fix behind an expected failure.
+    test.fail();
+    expect(reply, `Vision half, assistant reply: ${reply}`).toMatch(
+      /\b(kitten|cat)\b/i,
+    );
+    expect(reply, `OCR half, assistant reply: ${reply}`).toMatch(
+      /have a great day/i,
+    );
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a picture sent to a model without vision is accepted with no warning at all", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // "Works only with a model that supports images" is a limit the product
+    // states, and /ai/assignments enforces it where it can: binding a model
+    // without the vision bit to the Vision or OCR action type is refused with a
+    // soft `{success:false}` (assignments.spec.ts). Chat has no such gate — a
+    // picture goes to a blind model exactly as it goes to a seeing one, and the
+    // user is told nothing, at send time or afterwards.
+    //
+    // Not a `test.fail`: nothing specifies what should happen instead, and a
+    // capability warning is a product decision rather than a broken contract. So
+    // this pins what is observable — the send is accepted, the picture is stored
+    // on the message, the turn completes clean, and no error names the model's
+    // capabilities anywhere.
+    //
+    // What it deliberately does NOT assert is that the reply is blind. Today
+    // every model is blind (BUG 82773) and writing that in would freeze the bug
+    // into the contract; once the bug is fixed, this test's subject — that
+    // nothing refuses or warns — is unchanged and still measured.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { profile, agentId, threadId } = await agentOnProfileClass(
+      apiSdk,
+      aiChat,
+      AI_CAPS.textTools,
+      "Blind Model Attachment",
+    );
+    // The premise of the whole test: this model is one the portal itself says
+    // cannot read pictures, and it can still hold a conversation — so a failed
+    // turn below would be about the attachment, not about an unusable model.
+    expect(
+      (profile.capabilities ?? 0) & AI_CAP_VISION,
+      `${profile.modelId} is advertised as unable to read images`,
+    ).toBe(0);
+    expect(profile.canUseTool, `${profile.modelId} is a chat model`).toBe(true);
+
+    const red = createPng(64, 64, { colorType: 2, fill: [255, 0, 0, 255] });
+    const base64 = `data:image/png;base64,${red.toString("base64")}`;
+    const id = await attachments.saveImageId(
+      "owner",
+      { name: "autotest-solid.png", base64 },
+      String(agentId),
+    );
+    const inlined = { id, kind: "image", title: "autotest-solid.png", base64 };
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id,
+      agentId,
+      message:
+        "The attached image is a single solid colour. Reply with the English name of that colour and nothing else.",
+      attachments: [inlined],
+    });
+    // Nothing is refused: not the send, and not the stream.
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expect(
+      sent.text ?? "",
+      "no capability error came back on the stream",
+    ).not.toMatch(/vision|not supported|capab/i);
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expect(
+      AiAgentChat.userMessages(messages)[0].attachments,
+      "the picture was stored on the message for a model that cannot read it",
+    ).toEqual([inlined]);
+    // And the stored reply carries no error status either — the turn looks, from
+    // every angle the API offers, exactly like one on a vision model.
+    expectHealthyAssistantReply(messages);
+  });
+
   test("POST /api/2.0/ai/threads/append-user-message - an inline attachment object is stored without checking that it exists", async ({
     apiSdk,
     paymentsApi,
@@ -2284,8 +2820,48 @@ const ARCHIVE_TITLES = [
   "autotest.tar.gz",
 ];
 
+/** Exactly the 5 files + 5 images the client allows on one message. */
+const AT_LIMIT_ATTACHMENTS = 10;
+
 /** Well over the 5 files + 5 images the client allows on one message. */
 const OVER_LIMIT_ATTACHMENTS = 11;
+
+/**
+ * The drafts a composer is holding while a message is being written: `files`
+ * file drafts followed by `images` image drafts, as the records that ride on a
+ * message's `attachments`.
+ *
+ * `tag` must differ between calls within one test. A file draft is a reference
+ * to a stored file, and two inputs that resolve to the same file collapse to a
+ * single draft — see "repeats of one path collapse to a single draft" — so
+ * reusing a title would quietly shorten the list and make a count assertion
+ * measure the wrong thing.
+ */
+async function stageComposerDrafts(
+  attachments: AiAttachments,
+  options: { files: number; images: number; tag: string },
+): Promise<Array<Record<string, unknown>>> {
+  const drafts: Array<Record<string, unknown>> = [];
+
+  for (let index = 0; index < options.files; index++) {
+    const title = `autotest-${options.tag}-file-${index}.txt`;
+    const id = await attachments.saveFileId("owner", {
+      title,
+      content: `${options.tag} file ${index}`,
+    });
+    drafts.push({ id, kind: "file", title });
+  }
+  for (let index = 0; index < options.images; index++) {
+    const title = `autotest-${options.tag}-image-${index}.png`;
+    const id = await attachments.saveImageId("owner", {
+      name: title,
+      base64: PNG_1X1,
+    });
+    drafts.push({ id, kind: "image", title });
+  }
+
+  return drafts;
+}
 
 test.describe("AI Attachments - client-side rules on the server", () => {
   test("POST /api/2.0/ai/attachments/save-file - an archive is refused by name and by content", async ({
@@ -2348,6 +2924,61 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     expect(sniffed.status, "ZIP magic bytes under a .txt name").toBe(400);
   });
 
+  test("POST /api/2.0/ai/threads/append-user-message - a message at the cap carries all five files and all five images", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The contract half of the cap, and the control the two over-limit tests
+    // below need: without it, "eleven were accepted" cannot be told apart from
+    // "this route accepts any attachments list, a legal one included". Ten is
+    // stored verbatim and in order, so the list is not truncated, reordered or
+    // split by kind on the way in.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Attachment Cap Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest attachment cap thread",
+      profileId,
+      agentId,
+    });
+
+    const drafts = await stageComposerDrafts(attachments, {
+      files: 5,
+      images: 5,
+      tag: "at-cap",
+    });
+    expect(drafts).toHaveLength(AT_LIMIT_ATTACHMENTS);
+
+    const { status } = await attachments.rawRequest(
+      "owner",
+      "post",
+      "/api/2.0/ai/threads/append-user-message",
+      {
+        threadId,
+        profileId,
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "Autotest attachments at the cap" }],
+          attachments: drafts,
+        },
+      },
+    );
+    expect(status).toBe(200);
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    const stored = messages.data.find((message) => message.role === "user") as
+      | { attachments?: Array<Record<string, unknown>> }
+      | undefined;
+    expect(stored?.attachments).toEqual(drafts);
+  });
+
   test("BUG 82894: POST /api/2.0/ai/threads/append-user-message - a message carries more attachments than the client allows", async ({
     apiSdk,
     paymentsApi,
@@ -2372,21 +3003,11 @@ test.describe("AI Attachments - client-side rules on the server", () => {
 
     // Six files and five images — over the cap on both halves and over it in
     // total, so no reading of "5 + 5" makes eleven legal.
-    const drafts: Array<Record<string, unknown>> = [];
-    for (let index = 0; index < 6; index++) {
-      const id = await attachments.saveFileId("owner", {
-        title: `autotest-file-${index}.txt`,
-        content: `file ${index}`,
-      });
-      drafts.push({ id, kind: "file", title: `autotest-file-${index}.txt` });
-    }
-    for (let index = 0; index < 5; index++) {
-      const id = await attachments.saveImageId("owner", {
-        name: `autotest-image-${index}.png`,
-        base64: PNG_1X1,
-      });
-      drafts.push({ id, kind: "image", title: `autotest-image-${index}.png` });
-    }
+    const drafts = await stageComposerDrafts(attachments, {
+      files: 6,
+      images: 5,
+      tag: "over-limit",
+    });
     expect(drafts).toHaveLength(OVER_LIMIT_ATTACHMENTS);
 
     const { status } = await attachments.rawRequest(
@@ -2414,7 +3035,70 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     expect(
       stored?.attachments?.length ?? 0,
       "a message must not carry more than the five files and five images the composer allows",
-    ).toBeLessThanOrEqual(10);
+    ).toBeLessThanOrEqual(AT_LIMIT_ATTACHMENTS);
+  });
+
+  test("BUG 82894: POST /api/2.0/ai/ai/send-with-stream - the send path the client really uses takes an over-limit list too", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The test above measures append-user-message, which stores a message
+    // without inference — a route the composer never calls. Sending is
+    // send-with-stream, and the cap has to be checked there before "the server
+    // does not enforce it" can be said about the product: a limit rejected on
+    // the real path and missing on the storage-only one would be a different
+    // finding altogether. It is missing on both.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Attachment Limit Send Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest attachment limit send thread",
+      profileId,
+      agentId,
+    });
+
+    const drafts = await stageComposerDrafts(attachments, {
+      files: 6,
+      images: 5,
+      tag: "over-limit-send",
+    });
+    expect(drafts).toHaveLength(OVER_LIMIT_ATTACHMENTS);
+
+    const { status, text } = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Reply with OK and nothing else.",
+      attachments: drafts,
+    });
+
+    // Asserted before test.fail(), so a dead gateway or a rejected send is red
+    // rather than being counted as this test's known failure. Nothing here
+    // depends on what the model answered — attachments never reach it anyway
+    // (BUG 82773) — only on the send having gone through.
+    expect(status).toBe(200);
+    expect(text, "the stream did not carry an error").not.toContain(
+      "stream error",
+    );
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    const stored = messages.data.find((message) => message.role === "user") as
+      | { attachments?: Array<Record<string, unknown>> }
+      | undefined;
+    expect(stored, "the user message was stored").toBeDefined();
+
+    test.fail();
+    expect(
+      stored?.attachments?.length ?? 0,
+      "a sent message must not carry more than the five files and five images the composer allows",
+    ).toBeLessThanOrEqual(AT_LIMIT_ATTACHMENTS);
   });
 
   test("POST /api/2.0/ai/attachments/save-file - a traversal-shaped filename cannot reach the draft", async ({
@@ -2459,6 +3143,92 @@ test.describe("AI Attachments - client-side rules on the server", () => {
       const stored = await attachments.expectStored("owner", data!.id!, name);
       expect(stored.title, `title for ${name}`).toBe(sanitised);
       expect(stored.path, `path for ${name}`).toBe(`${fileId}/${sanitised}`);
+    }
+  });
+
+  test("POST /api/2.0/ai/threads/append-user-message - a draft staged in one thread stays readable and can still be sent from another", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // "Switching to another thread drops the unsent attachments" is the composer
+    // forgetting a list of ids: a draft is not bound to a thread, no route lists
+    // drafts, and `entityId` is write-only, so the switch itself has nothing to
+    // observe. What IS observable is that nothing on the server participates —
+    // the two halves below are what the client's forgetting is hiding.
+    //
+    // Not a TTL claim: this says nothing about whether a sweeper eventually
+    // collects an abandoned draft, only that the switch does not.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Attachment Switch Agent",
+      profileId,
+    });
+    const abandonedThreadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread the attachments were staged in",
+      profileId,
+      agentId,
+    });
+    const otherThreadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread switched to",
+      profileId,
+      agentId,
+    });
+
+    // Staged the way the composer stages them — entityId is the agent, and the
+    // thread they were meant for is never named to the server at all.
+    const drafts = await stageComposerDrafts(attachments, {
+      files: 1,
+      images: 1,
+      tag: "switch",
+    });
+    const ids = drafts.map((draft) => draft.id as string);
+    for (const id of ids) {
+      await attachments.expectStored("owner", id, "staged draft");
+    }
+
+    // The switch, as far as the API can express it: the first thread is left
+    // without ever being sent to, and the second one is used instead.
+    const { status } = await attachments.rawRequest(
+      "owner",
+      "post",
+      "/api/2.0/ai/threads/append-user-message",
+      {
+        threadId: otherThreadId,
+        profileId,
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "Autotest message in a new thread" }],
+          attachments: drafts,
+        },
+      },
+    );
+    expect(status).toBe(200);
+
+    // First half: the drafts were accepted by a thread they were not staged for.
+    const otherMessages = await aiChat.readMessages("owner", otherThreadId);
+    const sent = otherMessages.data.find(
+      (message) => message.role === "user",
+    ) as { attachments?: Array<Record<string, unknown>> } | undefined;
+    expect(sent?.attachments).toEqual(drafts);
+
+    // The thread they were staged in stayed empty — the drafts really did move.
+    const abandonedMessages = await aiChat.readMessages(
+      "owner",
+      abandonedThreadId,
+    );
+    expect(abandonedMessages.status).toBe(200);
+    expect(abandonedMessages.data).toEqual([]);
+
+    // Second half: sending them elsewhere consumed nothing either. The records
+    // are still there to be read, and a client that kept the ids could send them
+    // again.
+    for (const id of ids) {
+      await attachments.expectStored("owner", id, "draft after the switch");
     }
   });
 });
@@ -2558,6 +3328,110 @@ async function createAgentWithStorage(
       FolderType.ResultStorage,
     ),
   };
+}
+
+/** A stored file, as the two converters below hand it back. */
+type ConvertedFile = { id: number; title: string };
+
+/**
+ * Setup-only: throws unless the portal really produced the file, so a test never
+ * reports "this format cannot be attached" when what actually failed was the
+ * conversion that was supposed to produce it.
+ */
+async function expectConverted(
+  api: ReturnType<ApiSDK["forRole"]>,
+  folderId: number,
+  entry: { id?: number; title?: string | null } | undefined,
+  status: number,
+  what: string,
+): Promise<ConvertedFile> {
+  if (status !== 200 || !entry?.id || !entry.title) {
+    throw new Error(`${what} was not produced: ${status}`);
+  }
+  // The converters answer with the entry before it is necessarily listed, and a
+  // file that is not there yet extracts as nothing — so wait for the listing.
+  const settled = await waitForExportedFile(api, folderId, entry.title);
+  if (!settled) {
+    throw new Error(`${what} never appeared in folder ${folderId}`);
+  }
+  return { id: settled.id, title: entry.title };
+}
+
+/**
+ * A real .pdf holding `marker`, built by the portal itself: text-to-docx writes
+ * a document and the file storage converts it. Hand-assembled PDF bytes would
+ * make a 400 impossible to read — it could always be the bytes rather than the
+ * rule under test.
+ */
+async function pdfWithMarker(
+  apiSdk: ApiSDK,
+  folderId: number,
+  marker: string,
+): Promise<ConvertedFile> {
+  const ownerApi = apiSdk.forRole("owner");
+  const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+  const title = `Autotest Pdf ${apiSdk.faker.generateString(6)}`;
+
+  const exported = await aiSettings.textToDocx("owner", {
+    title,
+    content: `Document body. ${marker}`,
+    folderId,
+  });
+  if (exported.status !== 202) {
+    throw new Error(`text-to-docx failed: ${exported.status}`);
+  }
+  const docx = await waitForExportedFile(ownerApi, folderId, `${title}.docx`);
+  if (!docx) {
+    throw new Error(`the .docx behind ${title}.pdf was never exported`);
+  }
+
+  const { status, data } = await ownerApi.files.saveFileAsPdf({
+    id: docx.id,
+    saveAsPdfInteger: { folderId, title: `${title}.pdf` },
+  });
+  return expectConverted(
+    ownerApi,
+    folderId,
+    data.response,
+    status,
+    `${title}.pdf`,
+  );
+}
+
+/**
+ * A real .xlsx holding `marker`, converted from a .csv by the file storage —
+ * `copyFileAs` converts when the destination extension differs. An .xlsx built
+ * here by hand would be a zip this suite wrote, not a spreadsheet the portal
+ * accepts.
+ */
+async function xlsxWithMarker(
+  apiSdk: ApiSDK,
+  folderId: number,
+  marker: string,
+): Promise<ConvertedFile> {
+  const ownerApi = apiSdk.forRole("owner");
+  const title = `Autotest Xlsx ${apiSdk.faker.generateString(6)}`;
+
+  const csv = await expectDeviceFileStored(
+    apiSdk,
+    "owner",
+    folderId,
+    `${title}.csv`,
+    Buffer.from(`marker,value\n${marker},1\n`, "utf8"),
+    "text/csv",
+  );
+
+  const { status, data } = await ownerApi.files.copyFileAs({
+    fileId: csv.id,
+    copyAsJsonElement: { destTitle: `${title}.xlsx`, destFolderId: folderId },
+  });
+  return expectConverted(
+    ownerApi,
+    folderId,
+    data.response as { id?: number; title?: string | null } | undefined,
+    status,
+    `${title}.xlsx`,
+  );
 }
 
 test.describe("AI Attachments - attaching a stored file by id", () => {
@@ -2929,6 +3803,178 @@ test.describe("AI Attachments - attaching a stored file by id", () => {
       String(byReference.data?.content).length,
       "the whole document came through",
     ).toBeGreaterThan(200_000);
+  });
+
+  test("POST /api/2.0/ai/attachments/save-file - a real .pdf and a real .xlsx are extracted the way a .docx is", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The two formats the requirement names beside .docx, and the only two a
+    // user cannot get into the composer any other way: they are not accepted by
+    // drag and drop, so "Add files from DocSpace" — this route — is the whole
+    // feature for them. The format sweep above covers txt, csv, md and png, and
+    // the test before this one covers docx; without these two the formats that
+    // depend on this route most are the ones nothing measures.
+    //
+    // Both files come from the portal's own converters, so a 400 here would be
+    // about the attachment rule and not about bytes assembled by a test.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    const pdfMarker = `PDF-${apiSdk.faker.generateString(6).toUpperCase()}`;
+    const xlsxMarker = `XLSX-${apiSdk.faker.generateString(6).toUpperCase()}`;
+    const cases: Array<[string, ConvertedFile, string]> = [
+      ["pdf", await pdfWithMarker(apiSdk, folderId, pdfMarker), pdfMarker],
+      ["xlsx", await xlsxWithMarker(apiSdk, folderId, xlsxMarker), xlsxMarker],
+    ];
+
+    for (const [label, file, marker] of cases) {
+      const { status, data } = await attachDocSpaceFile(
+        attachments,
+        "owner",
+        file.id,
+        file.title,
+      );
+
+      expect(status, `attaching a .${label}`).toBe(200);
+      expect(
+        String(data?.content),
+        `the text extracted from the .${label}`,
+      ).toContain(marker);
+      expect(data?.title, `the title of the .${label} draft`).toBe(file.title);
+      expect(data?.path).toBe(`${file.id}/${file.title}`);
+
+      const stored = await attachments.expectStored("owner", data!.id!, label);
+      expect(String(stored.content)).toContain(marker);
+    }
+  });
+
+  test("POST /api/2.0/ai/attachments/save-file - a picture attached by id comes back as an image draft carrying the file's bytes", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // `.png` appears in the format sweep above as a status and nothing more: it
+    // answers 200, and no test said what that 200 contains. It matters, because
+    // a picture chosen from DocSpace is the same product feature as a picture
+    // dropped into the composer — one arrives as base64 through save-image, the
+    // other by id through this route — and both have to end in an attachment
+    // that carries the picture rather than an empty document.
+    //
+    // They do end in the same place, and the route is cleverer here than
+    // anywhere else in this file: it recognises the image, switches `kind` to
+    // "image" on its own and hands back the file's bytes as a data URL, byte for
+    // byte. That is not in tension with "a .docx saved as FileType.Image stays a
+    // file" in the save-file describe — `kind` follows the file behind `path`,
+    // never the `type` a client sends.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const name = `autotest-picture-${apiSdk.faker.generateString(6)}.png`;
+    const bytes = createPng(16, 16);
+    const stored = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      myFolder.response!.current!.id!,
+      name,
+      bytes,
+      "image/png",
+    );
+    const expectedBase64 = `data:image/png;base64,${bytes.toString("base64")}`;
+
+    const { status, data } = await attachDocSpaceFile(
+      attachments,
+      "owner",
+      stored.id,
+      name,
+    );
+    expect(status).toBe(200);
+    expect(data?.title).toBe(name);
+    expect(data?.path).toBe(`${stored.id}/${name}`);
+    expect(data?.kind, "the endpoint does not decide the kind here").toBe(
+      "image",
+    );
+    // Not re-encoded and not re-compressed: the same bytes that were uploaded,
+    // which is what makes this attachment interchangeable with one built by
+    // save-image from the same picture.
+    expect(data?.base64).toBe(expectedBase64);
+    expect(
+      data?.content,
+      "a picture carries no extracted text",
+    ).toBeUndefined();
+
+    const draft = await attachments.expectStored("owner", data!.id!, "picture");
+    expect(draft.kind).toBe("image");
+    expect(draft.base64).toBe(expectedBase64);
+  });
+
+  test("POST /api/2.0/ai/attachments/save-file - a stored file the portal cannot read as text is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The other end of the format rule, and the one the helper only ever
+    // asserted in a comment. It is worth a test of its own because it is the
+    // reason several tests in this file are careful to give their backing files
+    // a real extension: the same bytes attach or do not attach depending on the
+    // name they were stored under.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const bytes = Buffer.from(DEVICE_TEXT, "utf8");
+    const suffix = apiSdk.faker.generateString(6);
+
+    // Positive control first: these exact bytes are attachable under a name the
+    // portal understands, so the refusals below are about the name alone.
+    const readable = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      folderId,
+      `autotest-control-${suffix}.txt`,
+      bytes,
+      "text/plain",
+    );
+    expect(
+      (
+        await attachDocSpaceFile(
+          attachments,
+          "owner",
+          readable.id,
+          readable.title,
+        )
+      ).status,
+      "the same bytes under a .txt name",
+    ).toBe(200);
+
+    for (const name of [
+      `autotest-noext-${suffix}`,
+      `autotest-binary-${suffix}.bin`,
+    ]) {
+      const stored = await expectDeviceFileStored(
+        apiSdk,
+        "owner",
+        folderId,
+        name,
+        bytes,
+        "application/octet-stream",
+      );
+      // The upload itself succeeded — a file storage takes any name — so the
+      // difference really is at attach time.
+      const { status } = await attachDocSpaceFile(
+        attachments,
+        "owner",
+        stored.id,
+        stored.title,
+      );
+      expect(status, `attaching ${stored.title}`).toBe(400);
+    }
   });
 
   // An id that resolves to nothing crashes the request instead of answering a
