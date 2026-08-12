@@ -712,7 +712,7 @@ test.describe("AI Messages - text-to-docx into every room type", () => {
     });
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a form filling room refuses the document, but the export reports success and drops it", async ({
+  test("BUG 83070: POST /api/2.0/ai/text-to-docx - a form filling room refuses the document, but the export reports success and drops it", async ({
     apiSdk,
   }) => {
     // A form filling room's root holds PDF forms: the Files API turns a
@@ -846,7 +846,7 @@ test.describe("AI Messages - .docx is the only format an answer can be saved as"
 });
 
 test.describe("AI Messages - text-to-docx and the room storage quota", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - an export into a room that is out of quota reports success and drops the document", async ({
+  test("BUG 83071: POST /api/2.0/ai/text-to-docx - an export into a room that is out of quota reports success and drops the document", async ({
     apiSdk,
     paymentsApi,
   }) => {
