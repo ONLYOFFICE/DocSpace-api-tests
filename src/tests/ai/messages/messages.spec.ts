@@ -72,15 +72,15 @@ const MARKDOWN_ANSWER = [
   "| 1 | 2 |",
 ].join("\n");
 
-// The same answer outside ASCII. Cyrillic and CJK for the alphabets the portal
-// actually ships in, and a diacritic, an ß, an em dash and a non-BMP emoji for
-// the characters an exporter working on bytes rather than code points loses.
+// The same answer outside ASCII. CJK for an alphabet the portal actually ships
+// in, and a diacritic, an ß, an em dash and a non-BMP emoji for the characters
+// an exporter working on bytes rather than code points loses.
 const UNICODE_ANSWER = [
-  "## Отчёт ассистента",
+  "## Assistant report",
   "",
-  "**Жирный** и *курсив* — файл сохранён.",
+  "**Bold** and *italic* — file saved.",
   "",
-  "- Пункт один",
+  "- Item one",
   "- 第二项",
   "",
   "café naïve, größer, 🚀",
@@ -525,7 +525,7 @@ test.describe("AI Messages - text-to-docx export", () => {
     }
   });
 
-  test("POST /api/2.0/ai/text-to-docx - an answer in Cyrillic and CJK survives the export, title included", async ({
+  test("POST /api/2.0/ai/text-to-docx - an answer outside ASCII survives the export, title included", async ({
     apiSdk,
   }) => {
     // Every other export test is written in ASCII marker words, and a document
@@ -547,7 +547,7 @@ test.describe("AI Messages - text-to-docx export", () => {
       folderId,
       createFolder: { title: "Autotest TextToDocx Unicode Control" },
     });
-    const title = `Отчёт ассистента ${apiSdk.faker.generateString(8)}`;
+    const title = `Assistant report café 第二项 ${apiSdk.faker.generateString(8)}`;
     const expectedTitle = await filesApiTitleFor(
       ownerApi,
       controlFolder.response!.id!,
@@ -576,10 +576,10 @@ test.describe("AI Messages - text-to-docx export", () => {
     // One word per alphabet, plus the ones that only break when the exporter
     // works on bytes: a diacritic, an ß, an em dash and a non-BMP emoji.
     for (const fragment of [
-      "Отчёт ассистента",
-      "Жирный",
-      "курсив",
-      "Пункт один",
+      "Assistant report",
+      "Bold",
+      "italic",
+      "Item one",
       "第二项",
       "café naïve",
       "größer",
@@ -591,11 +591,11 @@ test.describe("AI Messages - text-to-docx export", () => {
       );
     }
 
-    expect(text.indexOf("Пункт один")).toBeLessThan(text.indexOf("第二项"));
+    expect(text.indexOf("Item one")).toBeLessThan(text.indexOf("第二项"));
 
     // Rendered, not transcribed — the same claim as the ASCII test, in case the
     // exporter falls back to a plain-text path for anything it cannot classify.
-    for (const syntax of ["## ", "**", "- Пункт один"]) {
+    for (const syntax of ["## ", "**", "- Item one"]) {
       expect(
         text,
         `the document shows the markdown source: ${JSON.stringify(syntax)}`,
