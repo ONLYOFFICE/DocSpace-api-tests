@@ -643,7 +643,7 @@ test.describe("AI Preferences - deep mode and the answer", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a reply produced with deep mode on carries its reasoning as a part of its own", async ({
+  test("BUG 83050: POST /api/2.0/ai/ai/send-with-stream - a reply produced with deep mode on carries its reasoning as a part of its own", async ({
     apiSdk,
     paymentsApi,
   }) => {

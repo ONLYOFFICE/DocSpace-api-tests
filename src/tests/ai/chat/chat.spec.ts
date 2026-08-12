@@ -3927,7 +3927,7 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
 });
 
 test.describe("AI Chat - a failure the chat cannot show", () => {
-  test('BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a profileId the backend cannot parse answers a bare "stream error"', async ({
+  test('BUG 83045: POST /api/2.0/ai/ai/send-with-stream - a profileId the backend cannot parse answers a bare "stream error"', async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4214,7 +4214,7 @@ test.describe("AI Chat - the language a failed reply is reported in", () => {
   });
 
   for (const language of PROFILE_LANGUAGES) {
-    test(`BUG XXXXX: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the message of a failed reply stays English for a profile switched to ${language}`, async ({
+    test(`BUG 83046: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the message of a failed reply stays English for a profile switched to ${language}`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -4286,7 +4286,7 @@ test.describe("AI Chat - the language a failed reply is reported in", () => {
     });
   }
 
-  test("BUG XXXXX: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the portal's own gateway refusal is not translated either", async ({
+  test("BUG 83048: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the portal's own gateway refusal is not translated either", async ({
     apiSdk,
   }) => {
     // Worth its own test because the string is DocSpace's, not a provider's:
