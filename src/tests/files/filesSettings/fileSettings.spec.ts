@@ -3131,3 +3131,19 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     expect(rights).not.toContain(FileShare.ReadWrite);
   });
 });
+
+test.describe("PUT /api/2.0/files/settings/defaulttemplate - Validation", () => {
+  test("PUT /api/2.0/files/settings/defaulttemplate - Request without selectedFile returns 400", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.setDefaultTemplate({
+        defaultTemplateSettingsRequestDto: {
+          fileExtension: ".docx",
+        } as any,
+      });
+
+    expect(status).toBe(400);
+  });
+});
