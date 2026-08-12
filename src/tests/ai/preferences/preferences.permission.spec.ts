@@ -196,6 +196,62 @@ test.describe("AI Preferences - per-user isolation", () => {
       "an entity the caller cannot see must be refused, not crash",
     ).toBe(403);
   });
+
+  test("PUT /api/2.0/ai/preferences/set-deep-mode - a member cannot set the switch on an agent they have no access to", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const catalogue = await profiles.catalogue("owner");
+    const profileId = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    ).id;
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Reasoning Agent",
+      profileId,
+    });
+
+    const { data: ownerValue } = await preferences.setDeepMode("owner", {
+      value: true,
+      entityId: String(agentId),
+    });
+    expect(ownerValue?.success).toBe(true);
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await preferences.expectActingAs("user", memberData.response!.id!, "User");
+
+    // The member is not in the agent's room. Their own portal-wide scope answers
+    // them normally, so a 403 below is about the entity rather than the route or
+    // the user type — a non-Guest member does manage their own switch.
+    const ownScope = await preferences.setDeepMode("user", { value: true });
+    expect(ownScope.status).toBe(200);
+    expect(ownScope.data?.success).toBe(true);
+
+    const { status } = await preferences.setDeepMode("user", {
+      value: false,
+      entityId: String(agentId),
+    });
+    expect(
+      status,
+      "writing the switch of an agent the caller cannot see must be refused",
+    ).toBe(403);
+
+    await apiSdk.authenticateOwner();
+    expect(
+      (await preferences.getDeepMode("owner", agentId)).data,
+      "the owner's value for the agent is untouched",
+    ).toBe(true);
+  });
 });
 
 test.describe("AI Preferences - AI Disabled", () => {

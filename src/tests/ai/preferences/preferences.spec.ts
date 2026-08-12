@@ -4,7 +4,10 @@ import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { AiPreferences } from "@/src/helpers/ai-preferences";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
-import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
+import {
+  AiAgentChat,
+  expectHealthyAssistantReply,
+} from "@/src/helpers/ai-agent-chat";
 
 // "Deep mode" is the reasoning / extended-thinking switch of section 10, and the
 // only reasoning surface the API exposes.
@@ -17,11 +20,12 @@ import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 // What section 10 asks for and what exists differ in one important way: the
 // setting is stored per user and per entity, but nothing in the message or thread
 // payloads exposes a reasoning *result*. There are no separate reasoning stream
-// events, no reasoning block on a stored assistant message, and no per-thread
-// value — so "the API returns a separate reasoning part", "reasoning is not mixed
-// into the answer" and the per-thread restore cases have no field to assert on and
-// are listed as gaps rather than guessed at. The state machine below is what is
-// actually testable.
+// events and no reasoning block on a stored assistant message — measured again
+// 2026-08-11 on two reasoning-capable models with the switch on, see the "deep
+// mode and the answer" block. So "the answer carries a separate reasoning part"
+// is one `test.fail` test rather than a gap, and its mirror image — "reasoning is
+// not mixed into the answer" — is assertable in the negative: the answer text
+// must not carry a leaked `<think>` trace.
 //
 // `get-deep-mode` answers a bare JSON boolean, so `data` is `false` for a real
 // "off" and `undefined` for a refusal — assert the status first.
@@ -481,6 +485,330 @@ test.describe("AI Preferences - deep mode validation", () => {
     expect(
       still.data,
       "a clear that reports success must actually clear the value",
+    ).toBe(false);
+  });
+});
+
+// The switch is only meant to be offered for a model that supports reasoning, so
+// the composer needs a per-model flag to key on. That flag is `reasoning` on the
+// profile, and on this gateway it splits exactly along "can this model chat at
+// all": every text model advertises reasoning, and only the image-generation
+// profiles — which cannot be used in a chat anyway — say false.
+test.describe("AI Preferences - deep mode and model support", () => {
+  test("GET /api/2.0/ai/profiles/list - the reasoning flag the switch keys on is set on every chat-capable model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    for (const profile of catalogue) {
+      expect(typeof profile.reasoning, `${profile.modelId} reasoning`).toBe(
+        "boolean",
+      );
+    }
+
+    // An image-generation profile is not a chat model — `canUseTool` is false and
+    // sending on one comes back as model_not_found — and it does not reason
+    // either, so the switch has nothing to attach to there.
+    for (const image of catalogue.filter(
+      (profile) => profile.capabilities === AI_CAPS.imageOnly,
+    )) {
+      expect(image.reasoning, `${image.modelId} is not a reasoning model`).toBe(
+        false,
+      );
+      expect(image.canUseTool, `${image.modelId} cannot call tools`).toBe(
+        false,
+      );
+    }
+
+    const chatModels = catalogue.filter(
+      (profile) => profile.capabilities !== AI_CAPS.imageOnly,
+    );
+    expect(
+      chatModels.length,
+      "the catalogue offers chat models",
+    ).toBeGreaterThan(0);
+
+    // A red line here is not a defect: it means the gateway has started offering
+    // a chat model that does not reason, and the case this suite cannot write
+    // today — the switch on against a model that does not support it — becomes
+    // writable. Every chat model reporting `true` is why there is no such test.
+    expect(
+      chatModels
+        .filter((profile) => profile.reasoning !== true)
+        .map((profile) => profile.modelId),
+      "chat models that do not advertise reasoning",
+    ).toEqual([]);
+  });
+});
+
+// The half of section 10 the state tests above cannot reach: what the switch
+// actually does to an answer.
+//
+// Measured 2026-08-11 with the switch on for the agent, on gpt-5.6-sol,
+// claude-opus-5 and deepseek-v4-pro — all three report `reasoning: true` — and
+// against a question that a reasoning model does think about:
+//
+//   * the stream carries the same four frames as with the switch off
+//     (`user-message-stored`, `message-start`, `message-delta`, `message-end`),
+//   * every frame and the stored reply carry `text` parts only,
+//   * the answer, the frame vocabulary and the stored message are byte-identical
+//     in shape to a send made with the switch off, and
+//   * a per-request `deepMode` / `reasoning` field on send-with-stream (top level
+//     and inside `actionArgs`) is accepted and changes nothing.
+//
+// So there is no reasoning payload to collapse into a "Thinking" block. The one
+// thing that is verifiable in the positive is the mirror-image requirement —
+// the trace must not be mixed into the answer — and it holds.
+test.describe("AI Preferences - deep mode and the answer", () => {
+  const REASONING_QUESTION =
+    "A bat and a ball cost $1.10 together. The bat costs $1.00 more than the " +
+    "ball. How much does the ball cost? Reply with the amount only.";
+
+  /** What a leaked provider-level reasoning trace is wrapped in. */
+  const THINK_MARKERS = ["<think", "</think", "<thinking", "</thinking"];
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a reply produced with deep mode on is a healthy answer with no reasoning mixed into it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+    // Premise of the whole test: a model that cannot reason would make "no
+    // reasoning came back" true for the wrong reason.
+    expect(profile.reasoning, `${profile.modelId} supports reasoning`).toBe(
+      true,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Reasoning Agent",
+      profileId: profile.id!,
+    });
+
+    const { data: enabled } = await preferences.setDeepMode("owner", {
+      value: true,
+      entityId: String(agentId),
+    });
+    expect(enabled?.success).toBe(true);
+    expect(
+      (await preferences.getDeepMode("owner", agentId)).data,
+      "the switch is on for this agent before the send",
+    ).toBe(true);
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest deep mode thread",
+      profileId: profile.id!,
+      agentId,
+    });
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id!,
+      agentId,
+      message: REASONING_QUESTION,
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(messages);
+
+    // The switch does not turn the answer into a transcript of the model's own
+    // deliberation: neither the stream nor the stored reply carries a `<think>`
+    // trace. If a gateway ever starts forwarding one inline, this is where it
+    // surfaces — and the client would render it as part of the answer.
+    const answer = AiAgentChat.assistantText(messages);
+    for (const marker of THINK_MARKERS) {
+      expect(
+        answer.toLowerCase(),
+        `the stored answer must not carry a raw ${marker}> trace`,
+      ).not.toContain(marker);
+      expect(
+        sent.text.toLowerCase(),
+        `the stream must not carry a raw ${marker}> trace`,
+      ).not.toContain(marker);
+    }
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a reply produced with deep mode on carries its reasoning as a part of its own", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+    expect(profile.reasoning, `${profile.modelId} supports reasoning`).toBe(
+      true,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Reasoning Agent",
+      profileId: profile.id!,
+    });
+    const { data: enabled } = await preferences.setDeepMode("owner", {
+      value: true,
+      entityId: String(agentId),
+    });
+    expect(enabled?.success).toBe(true);
+    expect(
+      (await preferences.getDeepMode("owner", agentId)).data,
+      "the switch is on for this agent before the send",
+    ).toBe(true);
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest deep mode thread",
+      profileId: profile.id!,
+      agentId,
+    });
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id!,
+      agentId,
+      message: REASONING_QUESTION,
+    });
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+
+    // Control first: the model really answered. Without this the assertion below
+    // would also be red on a portal where inference is dead — a refused reply
+    // carries no reasoning either, and that is not the defect under test.
+    expect(sent.status).toBe(200);
+    expectHealthyAssistantReply(messages);
+
+    const partTypes = (content: unknown) =>
+      Array.isArray(content)
+        ? (content as Array<{ type?: string }>).map((part) => part.type ?? "")
+        : [];
+
+    const reply = AiAgentChat.assistantMessages(messages).at(-1)!;
+    const signals = [
+      // A separate block on the stored reply, the way `tool-call` is a part of
+      // its own next to the text ones.
+      ...partTypes(reply.content).filter((type) => type !== "text"),
+      // Or a part / frame in the stream that is not the answer growing.
+      ...AiAgentChat.streamFrames(sent.text).flatMap((frame) =>
+        partTypes(frame.message?.content).filter((type) => type !== "text"),
+      ),
+      // Or a field on the message the client could hang the block off.
+      ...Object.keys(reply).filter((key) => /reason|think/i.test(key)),
+    ];
+
+    test.fail();
+    expect(
+      signals,
+      "with deep mode on, the reasoning has to reach the client somewhere: " +
+        `stored parts ${JSON.stringify(partTypes(reply.content))}, ` +
+        `frames ${JSON.stringify(AiAgentChat.frameTypes(sent.text))}, ` +
+        `message fields ${JSON.stringify(Object.keys(reply))}`,
+    ).not.toEqual([]);
+  });
+});
+
+// "Remembered separately for each room / section" is about a *place*, not about a
+// conversation: reopening a chat in the same place must find the switch as it was
+// left, and a second chat there starts with the same value rather than its own.
+// The API keys the value on entityId, and a thread id is not one of those:
+//
+//   * a write with a thread id is a 400 — the scope has to be a numeric entity,
+//   * a read with one is answered 200 with the portal-wide fallback instead of
+//     being refused, the same shape as the unknown-entity read above.
+//
+// Which is the behaviour the requirement wants, so this is a green test — but it
+// is worth pinning, because the fallback on read is exactly what would make a
+// broken per-thread scope look like it worked.
+test.describe("AI Preferences - deep mode is not per thread", () => {
+  test("GET|PUT /api/2.0/ai/preferences/set-deep-mode - a thread is not a scope of its own", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const catalogue = await profiles.catalogue("owner");
+    const profileId = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    ).id!;
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Reasoning Agent",
+      profileId,
+    });
+    const first = await aiChat.createThreadId("owner", {
+      title: "Autotest first thread",
+      profileId,
+      agentId,
+    });
+    const second = await aiChat.createThreadId("owner", {
+      title: "Autotest second thread",
+      profileId,
+      agentId,
+    });
+
+    // The portal-wide value stays unset: both reads fall back to it, so a
+    // portal-wide `true` would make "the thread kept the agent's value" and "the
+    // thread inherited the fallback" indistinguishable.
+    expect((await preferences.getDeepMode("owner")).data).toBe(false);
+
+    const { data: enabled } = await preferences.setDeepMode("owner", {
+      value: true,
+      entityId: String(agentId),
+    });
+    expect(enabled?.success).toBe(true);
+
+    // A thread of that agent does not read as the agent — it reads as the
+    // portal-wide fallback, so the client has to ask for the *section*.
+    const threadRead = await preferences.getDeepMode("owner", first);
+    expect(threadRead.status).toBe(200);
+    expect(
+      threadRead.data,
+      "a thread id resolves to the portal-wide value, not the agent's",
+    ).toBe(false);
+
+    const threadWrite = await preferences.setDeepMode("owner", {
+      value: false,
+      entityId: first,
+    });
+    expect(
+      threadWrite.status,
+      "a thread id is not a valid scope to write to",
+    ).toBe(400);
+
+    // And the refused write left the section's value alone, so the second chat
+    // opened in the same place still finds the switch on.
+    expect(
+      (await preferences.getDeepMode("owner", agentId)).data,
+      "the agent's value survives a write aimed at one of its threads",
+    ).toBe(true);
+    expect((await preferences.isDeepModeSet("owner", agentId)).data).toBe(true);
+    expect(
+      (await preferences.getDeepMode("owner", second)).data,
+      "the other thread of the same agent reads the same fallback",
     ).toBe(false);
   });
 });

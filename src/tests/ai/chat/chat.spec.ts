@@ -1,7 +1,10 @@
 import { expect } from "@playwright/test";
 import { RoomType, FileShare, FolderType } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
-import { enableAiGateway } from "@/src/helpers/wallet-services";
+import {
+  enableAiGateway,
+  configureAiToolsAsUnpaid,
+} from "@/src/helpers/wallet-services";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import {
   AiAgentChat,
@@ -14,7 +17,7 @@ import { AiHttp } from "@/src/helpers/ai-http";
 import { postAndReadStream } from "@/src/helpers/ai-stream-transport";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
 import { AiTools } from "@/src/helpers/ai-tools";
-import { UserType } from "@/src/services/api-sdk";
+import { UserType, ApiSDK } from "@/src/services/api-sdk";
 
 // Chat moved off `/ai/rooms/{roomId}/chats` (404) onto threads:
 //
@@ -3567,5 +3570,792 @@ test.describe("AI Chat - state changed by another actor", () => {
 
     const info = await aiChat.getAgentInfo("user", agentId);
     expect(info.status, "and the agent itself is gone for them too").toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What happens in a chat when the model call itself fails — a wrong key, a model
+// that cannot serve the request, a limit, a reply that never arrives — and
+// whether the failure is something a client can put in front of a user in their
+// own language. Measured against a live portal on 2026-08-12.
+//
+// The shape of an in-chat failure. The send is HTTP 200 either way; the failure
+// arrives as the terminal frame of the stream and is stored in the thread as an
+// assistant message with empty content plus
+//
+//   status: { type: "incomplete", reason: "error",
+//             error: { code: "model_not_found", message: "400 model is not a chat model" } }
+//
+// so `error.code` is the machine-readable half a client can localise by, and
+// `error.message` is the upstream string, verbatim.
+//
+// Which failures an API test can actually provoke on the gateway portal, and how:
+//
+//   provider refuses the credentials  the AI Tools wallet service is not paid for
+//                                     -> code "auth", "403 AI Gateway is not enabled"
+//   model cannot serve the request    an image profile driven as a chat model
+//                                     -> code "model_not_found"
+//   a limit is exceeded               a body past the request-size limit -> HTTP 413
+//   no reply at all                   a request for an image: the stream never ends
+//
+// And what is NOT reachable, so nobody looks for it here later:
+//
+//   * A wrong API key cannot be configured. The portal runs the built-in
+//     "ONLYOFFICE AI" gateway and its profiles are read-only (create/update
+//     answer 403), so the credential failure has to be staged through the wallet
+//     gate above. The key-validation surface itself does answer on a bad key —
+//     `POST /ai/profiles/list-provider-models` with a wrong one is 400
+//     `{"error":"Invalid API key for the AI provider"}` — and lives in
+//     profiles.spec.ts.
+//   * A provider rate limit. Six sends fired in parallel on six threads all
+//     answered normally; nothing on the portal side rate-limits inference, and
+//     the gateway's own limit is not reachable at a volume a test may use.
+//   * The provider's context-length error. The reverse proxy answers 413 for a
+//     500 KB body, well before any model's context window is in play, so the
+//     "limit exceeded" case an API test can see is the proxy's, not the model's.
+//   * A provider timeout as such. The observable equivalent is the request for an
+//     image, whose stream never terminates (BUG 82861).
+//
+// One more thing measured on the way and deliberately left without a test: a
+// well-formed but *unknown* profileId GUID is not treated as a failure at all —
+// the send is answered normally by the model the thread already had, and nothing
+// says the model that was asked for does not exist. Whether that is resilience
+// or a silent substitution is a product question, so it is recorded here rather
+// than asserted; the unparseable GUID below is the case that is unambiguously
+// broken.
+//
+// On localisation. The portal does localise its own error messages by the
+// caller's profile culture — `GET /files/file/{missing}` answers "The required
+// file was not found" in English and "Запрашиваемый файл не найден" for a user
+// switched to `ru`, which is what `portalErrorMessage` below uses as the control
+// that a culture switch really reached error generation. AI failure messages do
+// not follow: they are the same English string in every language, and an
+// `Accept-Language: ru-RU` header changes nothing either. The localisation block
+// pins that as `test.fail`, because a client can only translate the codes it
+// already knows and everything else reaches the user in English.
+
+/** Past the reverse proxy's request-size limit — 500 KB is already refused. */
+const OVERSIZED_MESSAGE = "word ".repeat(400000);
+
+type PortalError = { error?: { message?: string } };
+
+/**
+ * The message of an ordinary portal error, in whatever language the caller's
+ * profile is set to.
+ *
+ * This is the control for every localisation test here: it is a message the
+ * portal does translate, so a test can tell "the AI message is not localised"
+ * apart from "the culture switch did not take effect". Without it, a test
+ * comparing two identical English AI messages would pass just as happily on a
+ * portal where changing the culture does nothing at all.
+ */
+async function portalErrorMessage(apiSdk: ApiSDK): Promise<string> {
+  const response = await apiSdk.request.get(
+    `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/files/file/99999999`,
+    {
+      headers: {
+        Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+        Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+      },
+    },
+  );
+  expect(response.status(), "GET /files/file/{missing} as the control").toBe(
+    404,
+  );
+  const message = ((await response.json()) as PortalError).error?.message;
+  expect(message, "the control error carries a message").toBeTruthy();
+  return message as string;
+}
+
+/** Switches the caller's profile language and proves the portal kept it. */
+async function setProfileCulture(
+  ownerApi: ReturnType<ApiSDK["forRole"]>,
+  userId: string,
+  cultureName: string,
+) {
+  const { status, data } = await ownerApi.profiles.updateMemberCulture({
+    userid: userId,
+    culture: { cultureName },
+  });
+  expect(status, `PUT /people/${userId}/culture {${cultureName}}`).toBe(200);
+  expect(
+    data.response?.cultureName,
+    "the culture read back from the profile",
+  ).toBe(cultureName);
+}
+
+test.describe("AI Chat - a provider failure lands in the thread", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream - the provider refuses the request and the thread carries on once it stops refusing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The whole requirement in one thread: the refused turn is reported rather
+    // than lost, and the *same* thread — not a fresh one — is still a working
+    // conversation afterwards, history and context included.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await configureAiToolsAsUnpaid(ownerApi);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Provider Failure Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest failure thread",
+      profileId,
+      agentId,
+    });
+
+    const CODEWORD = "TULIP";
+    const question = `Remember the codeword ${CODEWORD}. Reply with the single word OK.`;
+    const refused = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: question,
+    });
+    expect(refused.status).toBe(200);
+    expect(AiAgentChat.frameTypes(refused.text)).toContain(
+      "message-incomplete",
+    );
+
+    const failedTurn = await aiChat.waitForAssistantReply(
+      "owner",
+      threadId,
+      60000,
+    );
+
+    // The failure is reported as a failure — not as an empty answer, and not as
+    // a silent one: type, reason, a code to translate by and a message to fall
+    // back on are all there.
+    const failure = AiAgentChat.assistantStatus(failedTurn);
+    expect(failure?.type).toBe("incomplete");
+    expect(failure?.reason).toBe("error");
+    expect(failure?.error?.code).toBe("auth");
+    expect(failure?.error?.message?.length ?? 0).toBeGreaterThan(0);
+    expect(AiAgentChat.assistantText(failedTurn)).toBe("");
+
+    // The question survived it.
+    const asked = AiAgentChat.userMessages(failedTurn);
+    expect(asked).toHaveLength(1);
+    expect(AiAgentChat.messageText(asked[0])).toBe(question);
+
+    // And the thread is still an ordinary thread: readable, listed and editable.
+    const read = await aiChat.getThread("owner", threadId);
+    expect(read.status).toBe(200);
+    expect(read.data?.threadId).toBe(threadId);
+
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.status).toBe(200);
+    expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
+
+    const renamed = await aiChat.renameThread(
+      "owner",
+      threadId,
+      "Renamed after the failure",
+    );
+    expect(renamed.status).toBe(200);
+    expect((await aiChat.getThread("owner", threadId)).data?.title).toBe(
+      "Renamed after the failure",
+    );
+
+    // Remove the cause and ask again in the same thread. The codeword is only
+    // available from the turn that failed, so an answer that knows it proves the
+    // failed turn stayed in the model's context rather than being dropped.
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const recovery = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message:
+        "Which codeword did I ask you to remember? Answer with that word only.",
+    });
+    expect(recovery.streamError).toBeUndefined();
+    expect(recovery.status).toBe(200);
+
+    const settled = await aiChat.waitForAssistantReplies(
+      "owner",
+      threadId,
+      2,
+      120000,
+    );
+    const replies = AiAgentChat.assistantMessages(settled);
+    expect(replies).toHaveLength(2);
+    expect(AiAgentChat.userMessages(settled)).toHaveLength(2);
+
+    // The failed reply is still in the history — recovering did not rewrite it.
+    expect(replies[0].status?.error?.code).toBe("auth");
+    expect(AiAgentChat.messageText(replies[0])).toBe("");
+
+    // The new one is a real answer, and it read the failed turn's question.
+    expect(replies[1].status?.error).toBeUndefined();
+    expect(AiAgentChat.messageText(replies[1])).toContain(CODEWORD);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a model that cannot serve the request fails the reply, and another model answers in the same thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // "Model unavailable", staged the only way the gateway allows: an
+    // image-generation profile asked to hold a conversation. A room is used
+    // rather than an agent because a room lets the caller choose the model per
+    // send, which is what the recovery half needs — an agent's model is fixed.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const imageProfile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.imageOnly,
+    );
+    const [textProfile] = twoTextProfiles(catalogue);
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Provider Failure Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest unavailable model thread",
+      profileId: imageProfile.id,
+      agentId: roomId,
+    });
+
+    const question = "Reply with the single word OK.";
+    const refused = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: imageProfile.id,
+      agentId: roomId,
+      message: question,
+    });
+    expect(refused.status).toBe(200);
+    expect(AiAgentChat.frameTypes(refused.text)).toContain(
+      "message-incomplete",
+    );
+
+    const failedTurn = await aiChat.waitForAssistantReply("owner", threadId);
+    const failure = AiAgentChat.assistantStatus(failedTurn);
+    expect(failure?.type).toBe("incomplete");
+    expect(failure?.reason).toBe("error");
+    expect(failure?.error?.code).toBe("model_not_found");
+    expect(failure?.error?.message?.length ?? 0).toBeGreaterThan(0);
+    expect(AiAgentChat.assistantText(failedTurn)).toBe("");
+    expect(
+      AiAgentChat.messageText(AiAgentChat.userMessages(failedTurn)[0]),
+    ).toBe(question);
+
+    // Picking a model that can answer is all it takes — same thread, no reset.
+    const retried = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: textProfile.id,
+      agentId: roomId,
+      message: question,
+    });
+    expect(retried.streamError).toBeUndefined();
+    expect(retried.status).toBe(200);
+
+    const settled = await aiChat.waitForAssistantReplies(
+      "owner",
+      threadId,
+      2,
+      120000,
+    );
+    const replies = AiAgentChat.assistantMessages(settled);
+    expect(replies).toHaveLength(2);
+    expect(replies[0].status?.error?.code).toBe("model_not_found");
+    expect(replies[1].status?.error).toBeUndefined();
+    expect(AiAgentChat.messageText(replies[1]).length).toBeGreaterThan(0);
+    expect(AiAgentChat.userMessages(settled)).toHaveLength(2);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream - regenerating a failed reply reports the same failure and keeps the thread", async ({
+    apiSdk,
+  }) => {
+    // The gesture a user makes next: "try again". While the provider is still
+    // refusing, the retry has to come back as the same reported failure — not as
+    // a 500, and not as a thread that loses its history.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await configureAiToolsAsUnpaid(ownerApi);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Retry Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest retry thread",
+      profileId,
+      agentId,
+    });
+
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Say hi",
+    });
+    const failedTurn = await aiChat.waitForAssistantReply(
+      "owner",
+      threadId,
+      60000,
+    );
+    expect(AiAgentChat.assistantStatus(failedTurn)?.error?.code).toBe("auth");
+
+    const again = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+    });
+    expect(again.status).toBe(200);
+    expect(AiAgentChat.frameTypes(again.text)).toContain("message-incomplete");
+    expect(AiAgentChat.streamFrames(again.text)[0]?.message?.status).toEqual(
+      expect.objectContaining({
+        reason: "error",
+        error: expect.objectContaining({ code: "auth" }),
+      }),
+    );
+
+    // The question is still there and the thread did not gain a second one.
+    const after = await aiChat.readMessages("owner", threadId);
+    expect(after.status).toBe(200);
+    const asked = AiAgentChat.userMessages(after.data);
+    expect(asked).toHaveLength(1);
+    expect(AiAgentChat.messageText(asked[0])).toBe("Say hi");
+  });
+});
+
+test.describe("AI Chat - a failure the chat cannot show", () => {
+  test('BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a profileId the backend cannot parse answers a bare "stream error"', async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Every failure above arrives with a code. This one does not: a `profileId`
+    // that is not a GUID gets HTTP 200 whose entire body is
+    // `{"type":"error","message":"stream error"}` — no code, no field name, and
+    // nothing stored in the thread, so the chat has neither an answer nor a
+    // failure to render and nothing to look a translation up by.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Bad Profile Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest bad profile thread",
+      profileId,
+      agentId,
+    });
+
+    // Control: this thread answers before the bad send, so what follows is the
+    // unparseable profileId and not a portal that cannot talk to the model.
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Reply with the single word OK.",
+    });
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    const bad = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: "not-a-guid",
+      agentId,
+      message: "This one goes nowhere.",
+      timeoutMs: STREAM_CAP_MS,
+    });
+
+    // Nothing was stored: the question is gone with the answer.
+    const afterBad = await aiChat.readMessages("owner", threadId);
+    expect(afterBad.status).toBe(200);
+    expect(AiAgentChat.userMessages(afterBad.data)).toHaveLength(1);
+    expect(AiAgentChat.assistantMessages(afterBad.data)).toHaveLength(1);
+    expect(AiAgentChat.assistantStatus(afterBad.data)?.error).toBeUndefined();
+
+    // The thread itself is unharmed — the second half of the requirement holds.
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Reply with the single word OK.",
+    });
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReplies("owner", threadId, 2, 120000),
+      2,
+    );
+
+    // What is missing is the report. A request the backend cannot even parse is
+    // a malformed request, which is what the rest of this surface answers 400
+    // with a message to; `{"type":"error","message":"stream error"}` is neither
+    // showable nor translatable.
+    test.fail();
+    expect(
+      { status: bad.status, streamError: bad.streamError },
+      "a request the backend cannot run says what was wrong with it",
+    ).toEqual({ status: 400, streamError: undefined });
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a message past the request size limit is refused without touching the thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The "limit exceeded" case an API test can reach. It is refused by the
+    // reverse proxy, so it never becomes a provider error: HTTP 413 with an HTML
+    // body, before the model is called. What matters for the requirement is the
+    // other half — the thread is untouched and the next message works.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Oversized Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest oversized thread",
+      profileId,
+      agentId,
+    });
+
+    const refused = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: OVERSIZED_MESSAGE,
+      timeoutMs: 120000,
+    });
+    expect(refused.status).toBe(413);
+    expect(AiAgentChat.streamFrames(refused.text)).toEqual([]);
+
+    const afterRefusal = await aiChat.readMessages("owner", threadId);
+    expect(afterRefusal.status).toBe(200);
+    expect(afterRefusal.data).toEqual([]);
+
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Reply with the single word OK.",
+    });
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a reply the backend abandons leaves the thread able to carry on", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The timeout case as the product has it: a request for an image stops at an
+    // unresolved `generate_image` call and the stream never terminates (BUG
+    // 82861 — the missing failure report is that bug, not this test). What is
+    // asserted here is that the abandoned turn does not take the conversation
+    // with it: the half-written reply stays, and the next question is answered
+    // normally in the same thread.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Abandoned Reply Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest abandoned reply thread",
+      profileId,
+      agentId,
+    });
+
+    let finished = false;
+    try {
+      await aiChat.sendMessage("owner", {
+        threadId,
+        profileId,
+        agentId,
+        message: "Generate an image of a red circle on a white background.",
+        timeoutMs: STREAM_CAP_MS,
+      });
+      finished = true;
+    } catch {
+      // The stream did not terminate inside the cap — the state under test.
+    }
+
+    const abandoned = await aiChat.readMessages("owner", threadId);
+    expect(abandoned.status).toBe(200);
+    const stalled = AiAgentChat.assistantMessages(abandoned.data)[0];
+    expect(stalled, "the abandoned reply is stored").toBeDefined();
+    expect(
+      AiAgentChat.toolCalls(stalled).map((call) => call.toolName),
+      finished
+        ? "the stream ended — the hang this test is built on is gone"
+        : "the reply stalled on the drawing tool",
+    ).toContain("generate_image");
+
+    // The stalled turn does not block the thread.
+    const next = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Forget the picture. Reply with the single word OK.",
+      timeoutMs: 120000,
+    });
+    expect(next.streamError).toBeUndefined();
+    expect(next.status).toBe(200);
+
+    const settled = await aiChat.waitForAssistantReplies(
+      "owner",
+      threadId,
+      2,
+      120000,
+    );
+    const replies = AiAgentChat.assistantMessages(settled);
+    expect(replies).toHaveLength(2);
+    expect(replies[1].status?.error).toBeUndefined();
+    expect(AiAgentChat.messageText(replies[1]).length).toBeGreaterThan(0);
+    expect(AiAgentChat.userMessages(settled)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The language a failure reaches the user in.
+//
+// The profile language is switched with `PUT /people/{userId}/culture` and the
+// same failure is provoked twice — once in the portal default (en-US), once in
+// the new language — in two threads of the same room, so the two payloads differ
+// in nothing but the caller's culture. `portalErrorMessage` is read on both sides
+// of the switch as the control: it is a message the portal does translate, so a
+// pair of identical AI messages cannot be explained by a culture switch that did
+// not take.
+
+const PROFILE_LANGUAGES = ["ru", "de", "fr"] as const;
+
+test.describe("AI Chat - the language a failed reply is reported in", () => {
+  test("PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the failure code does not depend on the profile language", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The half a client can rely on: whatever language the user picked, the
+    // failure is classified identically, so a chat can map the code to a string
+    // of its own. This is the assertion that has to keep passing for any
+    // localisation to be possible at all.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const imageProfile = AiProfiles.byCapabilities(
+      await profiles.catalogue("owner"),
+      AI_CAPS.imageOnly,
+    );
+
+    const { data: self } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = self.response!.id!;
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Failure Language Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const failIn = async (title: string) => {
+      const threadId = await aiChat.createThreadId("owner", {
+        title,
+        profileId: imageProfile.id,
+        agentId: roomId,
+      });
+      await aiChat.sendMessage("owner", {
+        threadId,
+        profileId: imageProfile.id,
+        agentId: roomId,
+        message: "Reply with the single word OK.",
+      });
+      const status = AiAgentChat.assistantStatus(
+        await aiChat.waitForAssistantReply("owner", threadId),
+      );
+      expect(status?.reason, `the send in ${title} really failed`).toBe(
+        "error",
+      );
+      return status;
+    };
+
+    const inEnglish = await failIn("Autotest failure en");
+    const controlInEnglish = await portalErrorMessage(apiSdk);
+
+    await setProfileCulture(ownerApi, ownerId, "ru");
+
+    // Control: the portal's own errors did switch language for this user.
+    expect(
+      await portalErrorMessage(apiSdk),
+      "a portal error message the profile culture is known to translate",
+    ).not.toBe(controlInEnglish);
+
+    const inRussian = await failIn("Autotest failure ru");
+
+    expect(inRussian?.error?.code).toBe(inEnglish?.error?.code);
+    expect(inRussian?.reason).toBe(inEnglish?.reason);
+    expect(inRussian?.type).toBe(inEnglish?.type);
+  });
+
+  for (const language of PROFILE_LANGUAGES) {
+    test(`BUG XXXXX: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the message of a failed reply stays English for a profile switched to ${language}`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      test.setTimeout(300000);
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+      const imageProfile = AiProfiles.byCapabilities(
+        await profiles.catalogue("owner"),
+        AI_CAPS.imageOnly,
+      );
+
+      const { data: self } = await ownerApi.profiles.getSelfProfile();
+      const ownerId = self.response!.id!;
+
+      const { data: room } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Failure Language Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = room.response!.id!;
+
+      const failIn = async (title: string) => {
+        const threadId = await aiChat.createThreadId("owner", {
+          title,
+          profileId: imageProfile.id,
+          agentId: roomId,
+        });
+        await aiChat.sendMessage("owner", {
+          threadId,
+          profileId: imageProfile.id,
+          agentId: roomId,
+          message: "Reply with the single word OK.",
+        });
+        const status = AiAgentChat.assistantStatus(
+          await aiChat.waitForAssistantReply("owner", threadId),
+        );
+        expect(status?.reason, `the send in ${title} really failed`).toBe(
+          "error",
+        );
+        return status;
+      };
+
+      const inEnglish = await failIn("Autotest failure en");
+      const controlInEnglish = await portalErrorMessage(apiSdk);
+
+      await setProfileCulture(ownerApi, ownerId, language);
+
+      expect(
+        await portalErrorMessage(apiSdk),
+        `a portal error message translated into ${language}`,
+      ).not.toBe(controlInEnglish);
+
+      const localized = await failIn(`Autotest failure ${language}`);
+
+      // What it does today: the upstream provider's English string, unchanged.
+      expect(localized?.error?.message).toBe(inEnglish?.error?.message);
+
+      // What the user is supposed to see: the same message their portal
+      // translates everything else into.
+      test.fail();
+      expect(
+        localized?.error?.message,
+        `the failure a ${language} user is shown is not English`,
+      ).not.toBe(inEnglish?.error?.message);
+    });
+  }
+
+  test("BUG XXXXX: PUT /people/{userId}/culture, POST /api/2.0/ai/ai/send-with-stream - the portal's own gateway refusal is not translated either", async ({
+    apiSdk,
+  }) => {
+    // Worth its own test because the string is DocSpace's, not a provider's:
+    // "403 AI Gateway is not enabled" is produced by the portal for a tenant
+    // that never paid for AI Tools, and it reaches a `ru` user in English all
+    // the same.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await configureAiToolsAsUnpaid(ownerApi);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Gateway Language Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+
+    const { data: self } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = self.response!.id!;
+
+    const failIn = async (title: string) => {
+      const threadId = await aiChat.createThreadId("owner", {
+        title,
+        profileId,
+        agentId,
+      });
+      await aiChat.sendMessage("owner", {
+        threadId,
+        profileId,
+        agentId,
+        message: "Say hi",
+      });
+      const status = AiAgentChat.assistantStatus(
+        await aiChat.waitForAssistantReply("owner", threadId, 60000),
+      );
+      expect(status?.error?.code, `the send in ${title} was refused`).toBe(
+        "auth",
+      );
+      return status;
+    };
+
+    const inEnglish = await failIn("Autotest gateway en");
+    const controlInEnglish = await portalErrorMessage(apiSdk);
+
+    await setProfileCulture(ownerApi, ownerId, "ru");
+
+    expect(
+      await portalErrorMessage(apiSdk),
+      "a portal error message translated into ru",
+    ).not.toBe(controlInEnglish);
+
+    const localized = await failIn("Autotest gateway ru");
+    expect(localized?.error?.message).toBe(inEnglish?.error?.message);
+
+    test.fail();
+    expect(
+      localized?.error?.message,
+      "the gateway refusal a ru user is shown is not English",
+    ).not.toBe(inEnglish?.error?.message);
   });
 });
