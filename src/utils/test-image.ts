@@ -131,6 +131,136 @@ export function createPngWithText(keyword: string, text: string): Buffer {
   return Buffer.concat([body, chunk("tEXt", textData), iend]);
 }
 
+/* ---------------------------------------------------------------------------
+ * Text drawn into the raster, for the OCR probe in the AI attachment tests.
+ *
+ * `createPngWithText` above writes a tEXt metadata chunk, which is invisible to
+ * anything that looks at pixels — a model asked to read it would be answering
+ * from the file name at best. A picture a model can actually read has to have
+ * the glyphs in the image, so this is a 5x7 bitmap font blitted into an RGB
+ * raster and scaled up.
+ * ------------------------------------------------------------------------- */
+
+/** 5x7 glyphs, one string per row, "1" = ink. Only what a marker needs. */
+const FONT_5X7: Record<string, string[]> = {
+  A: ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+  B: ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+  C: ["01110", "10001", "10000", "10000", "10000", "10001", "01110"],
+  D: ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+  E: ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+  F: ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+  G: ["01110", "10001", "10000", "10111", "10001", "10001", "01111"],
+  H: ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+  I: ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
+  J: ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
+  K: ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+  L: ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+  M: ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+  N: ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
+  O: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+  P: ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+  Q: ["01110", "10001", "10001", "10001", "10101", "10010", "01101"],
+  R: ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+  S: ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+  T: ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+  U: ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+  V: ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+  W: ["10001", "10001", "10001", "10101", "10101", "11011", "10001"],
+  X: ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
+  Y: ["10001", "10001", "01010", "00100", "00100", "00100", "00100"],
+  Z: ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+  "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+  "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+  "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+  "3": ["11111", "00010", "00100", "00010", "00001", "10001", "01110"],
+  "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+  "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+  "6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
+  "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+  "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+  "9": ["01110", "10001", "10001", "01111", "00001", "00010", "01100"],
+  "-": ["00000", "00000", "00000", "11111", "00000", "00000", "00000"],
+  " ": ["00000", "00000", "00000", "00000", "00000", "00000", "00000"],
+};
+
+const GLYPH_WIDTH = 5;
+const GLYPH_HEIGHT = 7;
+
+/** Encode a full RGB raster (3 bytes per pixel, row-major) as a PNG. */
+function encodeRgbPng(width: number, height: number, pixels: Buffer): Buffer {
+  const rowLen = width * 3;
+  const raw = Buffer.alloc((rowLen + 1) * height);
+  for (let y = 0; y < height; y++) {
+    raw[y * (rowLen + 1)] = 0; // filter type: none
+    pixels.copy(raw, y * (rowLen + 1) + 1, y * rowLen, (y + 1) * rowLen);
+  }
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // colour type: RGB
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+
+  return Buffer.concat([
+    PNG_SIG,
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+/**
+ * A PNG with `text` really drawn into it: black glyphs on white, one font pixel
+ * per `scale`x`scale` block.
+ *
+ * The default scale is what makes the result legible — at 1:1 a 5x7 glyph is a
+ * smudge, and an OCR test on an unreadable picture would fail for a reason that
+ * has nothing to do with the API. Throws on a character the font does not have,
+ * so a caller never ships a marker that renders as blanks and then asserts the
+ * model failed to read it.
+ */
+export function createPngWithRenderedText(
+  text: string,
+  options?: { scale?: number; margin?: number },
+): Buffer {
+  const scale = options?.scale ?? 16;
+  const margin = options?.margin ?? 24;
+  const glyphs = [...text.toUpperCase()].map((char) => {
+    const glyph = FONT_5X7[char];
+    if (!glyph) {
+      throw new Error(`No 5x7 glyph for ${JSON.stringify(char)}`);
+    }
+    return glyph;
+  });
+
+  // One blank font column between glyphs, none after the last one.
+  const columns = glyphs.length * (GLYPH_WIDTH + 1) - 1;
+  const width = columns * scale + margin * 2;
+  const height = GLYPH_HEIGHT * scale + margin * 2;
+
+  const pixels = Buffer.alloc(width * height * 3, 0xff); // white
+  glyphs.forEach((glyph, index) => {
+    const originX = margin + index * (GLYPH_WIDTH + 1) * scale;
+    for (let row = 0; row < GLYPH_HEIGHT; row++) {
+      for (let column = 0; column < GLYPH_WIDTH; column++) {
+        if (glyph[row][column] !== "1") {
+          continue;
+        }
+        for (let y = 0; y < scale; y++) {
+          const pixelY = margin + row * scale + y;
+          const start = (pixelY * width + originX + column * scale) * 3;
+          pixels.fill(0x00, start, start + scale * 3); // black
+        }
+      }
+    }
+  });
+
+  return encodeRgbPng(width, height, pixels);
+}
+
 /**
  * Decompression bomb: tiny compressed IDAT that expands to a huge raster.
  * A solid-fill grayscale image of large dimensions has a raw size of
