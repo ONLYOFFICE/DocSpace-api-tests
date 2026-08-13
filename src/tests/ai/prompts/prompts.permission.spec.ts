@@ -135,7 +135,7 @@ test.describe("AI Prompts - role access", () => {
     });
   }
 
-  test("GET|POST /api/2.0/ai/prompts/* - a Guest has no prompt library", async ({
+  test("GET|POST|PUT|DELETE /api/2.0/ai/prompts/* - a Guest has no prompt library", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -143,27 +143,66 @@ test.describe("AI Prompts - role access", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+
+    // The owner's ids, created before the Guest exists so the shared context's
+    // cookie cannot send the Guest's calls as the owner. They give the id-taking
+    // routes something real to aim at — a 403 on a made-up id would not
+    // distinguish "Guests are refused" from "that id does not exist".
+    const promptId = await prompts.createPromptId("owner", {
+      name: "Autotest owner prompt",
+      text: "Owner body",
+    });
+    const folderId = await prompts.createFolderId("owner", "Autotest folder");
+
     const { data: guestData } = await apiSdk.addAuthenticatedMember(
       "owner",
       "Guest",
     );
     await prompts.expectActingAs("guest", guestData.response!.id!, "Guest");
 
-    expect((await prompts.listPrompts("guest")).status).toBe(403);
-    expect((await prompts.listFolders("guest")).status).toBe(403);
-    expect((await prompts.exportBundle("guest")).status).toBe(403);
-    expect(
-      (await prompts.createPrompt("guest", { name: "Autotest", text: "Body" }))
-        .status,
-    ).toBe(403);
-    expect((await prompts.createFolder("guest", "Autotest")).status).toBe(403);
-    expect(
-      (
-        await prompts.importBundle("guest", {
+    const calls: Array<[string, Promise<{ status: number }>]> = [
+      ["list", prompts.listPrompts("guest")],
+      ["get-by-id", prompts.getPrompt("guest", promptId)],
+      ["create", prompts.createPrompt("guest", { name: "A", text: "Body" })],
+      [
+        "update",
+        prompts.updatePrompt("guest", {
+          id: promptId,
+          updates: { name: "Autotest hijacked" },
+        }),
+      ],
+      ["move", prompts.movePrompt("guest", { id: promptId, folderId })],
+      ["delete", prompts.deletePrompt("guest", promptId)],
+      ["list-folders", prompts.listFolders("guest")],
+      ["get-folder-by-id", prompts.getFolder("guest", folderId)],
+      ["create-folder", prompts.createFolder("guest", "Autotest")],
+      [
+        "rename-folder",
+        prompts.renameFolder("guest", { id: folderId, name: "Autotest guest" }),
+      ],
+      ["delete-folder", prompts.deleteFolder("guest", folderId)],
+      ["export", prompts.exportBundle("guest")],
+      [
+        "import-bundle",
+        prompts.importBundle("guest", {
           bundle: { version: 1, folders: [], prompts: [] },
-        })
-      ).status,
-    ).toBe(403);
+        }),
+      ],
+    ];
+
+    for (const [label, call] of calls) {
+      const { status } = await call;
+      expect(status, `${label} as Guest`).toBe(403);
+    }
+
+    // None of the refused writes reached the owner's library.
+    await apiSdk.authenticateOwner();
+    const read = await prompts.getPrompt("owner", promptId);
+    expect(read.data?.name).toBe("Autotest owner prompt");
+    expect(read.data?.folderId).toBeUndefined();
+    expect((await prompts.getFolder("owner", folderId)).data?.name).toBe(
+      "Autotest folder",
+    );
   });
 });
 
@@ -302,6 +341,83 @@ test.describe("AI Prompts - cross-user isolation", () => {
     expect(
       data?.success,
       "deleting a prompt the caller does not own must not report success",
+    ).toBe(false);
+  });
+
+  test("PUT /api/2.0/ai/prompts/rename-folder - another user's folder cannot be renamed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const ownerFolder = await prompts.createFolderId("owner", "Autotest owner");
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await prompts.expectActingAs("user", memberData.response!.id!, "User");
+
+    const { status, data } = await prompts.renameFolder("user", {
+      id: ownerFolder,
+      name: "Autotest hijacked",
+    });
+    expect(status).toBe(200);
+    expect(data?.success).toBe(false);
+    expect(data?.error?.message).toBe(`Folder not found: ${ownerFolder}`);
+
+    await apiSdk.authenticateOwner();
+    expect(
+      (await prompts.getFolder("owner", ownerFolder)).data?.name,
+      "the owner's folder keeps its name",
+    ).toBe("Autotest owner");
+  });
+
+  test("DELETE /api/2.0/ai/prompts/delete-folder - another user's folder cannot be deleted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    // delete-folder is the one write with a blast radius: it cascade-deletes the
+    // prompts inside. So the folder gets a prompt, and the prompt is what the
+    // assertions read — a folder that survived while its contents were wiped
+    // would otherwise look like a pass.
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const ownerFolder = await prompts.createFolderId("owner", "Autotest owner");
+    const ownerPrompt = await prompts.createPromptId("owner", {
+      name: "Autotest inside",
+      text: "Owner body",
+      folderId: ownerFolder,
+    });
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await prompts.expectActingAs("user", memberData.response!.id!, "User");
+
+    const { status, data } = await prompts.deleteFolder("user", ownerFolder);
+    expect(status).toBe(200);
+
+    await apiSdk.authenticateOwner();
+    expect(
+      (await prompts.getFolder("owner", ownerFolder)).data?.id,
+      "the owner's folder survives",
+    ).toBe(ownerFolder);
+    expect(
+      (await prompts.getPrompt("owner", ownerPrompt)).data?.id,
+      "and so does the prompt inside it",
+    ).toBe(ownerPrompt);
+
+    // Same question as BUG 82809 one test up, on the route that would take a
+    // whole folder with it: the answer has to say "not yours", not "done".
+    expect(
+      data?.success,
+      "deleting a folder the caller does not own must not report success",
     ).toBe(false);
   });
 });

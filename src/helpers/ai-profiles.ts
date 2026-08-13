@@ -51,12 +51,34 @@ export const AI_CAPS = {
 } as const;
 
 /**
+ * The individual bits of `capabilities`. Section 4.2 wants each of these to be
+ * shown as its own icon, so a test that checks "the icon data is there" has to
+ * look at the bits rather than at a composite mask — a catalogue that grows a
+ * new combination must not make such a test silently pass on nothing.
+ *
+ * `reasoning` is deliberately absent: it is a separate boolean field, not a bit.
+ */
+export const AI_CAP_BITS = {
+  text: 1,
+  imageGeneration: 2,
+  vision: 128,
+  tools: 256,
+} as const;
+
+/** Every bit the backend is known to publish, for "no unknown bits" assertions. */
+export const AI_CAP_KNOWN_BITS =
+  AI_CAP_BITS.text |
+  AI_CAP_BITS.imageGeneration |
+  AI_CAP_BITS.vision |
+  AI_CAP_BITS.tools;
+
+/**
  * The single vision bit inside `capabilities`. Tests that need "this model can
  * read a picture" assert the bit rather than the whole mask, so a catalogue that
  * grows a new text+vision combination does not make them silently pick a blind
  * model.
  */
-export const AI_CAP_VISION = 128;
+export const AI_CAP_VISION = AI_CAP_BITS.vision;
 
 /** Every action type the assignment API accepts. */
 export const AI_ACTION_TYPES = [

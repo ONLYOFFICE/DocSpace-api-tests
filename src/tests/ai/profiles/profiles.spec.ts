@@ -1,7 +1,14 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
-import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
+import {
+  AiProfiles,
+  AI_CAPS,
+  AI_CAP_BITS,
+  AI_CAP_KNOWN_BITS,
+  AiProviderModel,
+} from "@/src/helpers/ai-profiles";
+import { AiBuiltinProviderType } from "@onlyoffice/docspace-api-sdk";
 import {
   unsafeSchemeUrls,
   nonResolvingAttackerUrls,
@@ -36,6 +43,30 @@ import config from "@/config";
 // `list-provider-models` is also a live egress surface: it dials any http(s) URL
 // the caller supplies. The runnable payloads here stay on non-resolving
 // RFC 6761 `.invalid` hosts per the policy in ssrf-payloads.ts.
+
+// Section 4 states the profile form carries no generation tuning: no
+// temperature, no token limit. `reasoning` and `capabilities` are model
+// *capability* metadata and are expected — these are the tuning knobs that must
+// not be there.
+const GENERATION_KNOBS = [
+  "temperature",
+  "topP",
+  "top_p",
+  "topK",
+  "top_k",
+  "maxTokens",
+  "max_tokens",
+  "maxOutputTokens",
+  "max_output_tokens",
+  "frequencyPenalty",
+  "frequency_penalty",
+  "presencePenalty",
+  "presence_penalty",
+  "stop",
+  "stopSequences",
+  "stop_sequences",
+  "seed",
+] as const;
 
 test.describe("AI Profiles - catalogue", () => {
   test("GET /api/2.0/ai/profiles/list - the catalogue carries capability metadata for every model", async ({
@@ -154,6 +185,51 @@ test.describe("AI Profiles - catalogue", () => {
 
     const { status: emptyStatus } = await profiles.getProfileById("owner", "");
     expect(emptyStatus).toBe(400);
+  });
+
+  test("GET /api/2.0/ai/profiles/list, get-by-id - a profile carries no generation-tuning fields", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    // The create side of this claim is unobservable here (create is 403, below),
+    // so the guard sits on the read side — the same DTO the composer binds to and
+    // the only place such a field could surface. The day one appears, section 4
+    // is out of date and every "the model answered X" test in this suite has
+    // acquired a hidden variable.
+    const expectNoKnobs = (profile: Record<string, unknown>, where: string) => {
+      const present = GENERATION_KNOBS.filter((knob) => knob in profile);
+      expect(present, `${where} must expose no generation tuning`).toEqual([]);
+    };
+
+    for (const profile of catalogue) {
+      expectNoKnobs(profile, `list: ${profile.modelId}`);
+    }
+
+    const one = AiProfiles.byCapabilities(catalogue, AI_CAPS.textVisionTools);
+    const { status, data } = await profiles.getProfileById("owner", one.id);
+    expect(status).toBe(200);
+    expectNoKnobs(data!, `get-by-id: ${one.modelId}`);
+
+    // The expansion behind an assignment is what actually configures a call to
+    // the provider, so it is checked too rather than only the catalogue view.
+    const resolved = await profiles.resolveForAction("owner", "Chat");
+    expect(resolved.status).toBe(200);
+    expect(
+      resolved.data?.profile?.modelId,
+      "the Chat action resolves",
+    ).toBeTruthy();
+    expectNoKnobs(resolved.data!.profile!, "resolve-for-action: Chat");
+
+    // Positive control: the same objects DO carry the capability metadata, so an
+    // empty `present` list above is not just an empty profile object.
+    expect(typeof data?.capabilities).toBe("number");
+    expect(typeof resolved.data?.profile?.capabilities).toBe("number");
   });
 });
 
@@ -353,6 +429,231 @@ test.describe("AI Profiles - the gateway catalogue is read-only", () => {
 
     const bare = await profiles.deleteProfile("owner", existing.id);
     expect(bare.status).toBe(403);
+  });
+});
+
+// Section 4's "about 17 providers are supported (OpenAI, Anthropic, Google,
+// Mistral, local Ollama / LM Studio / GPT4All, …)".
+//
+// On a gateway portal no profile can be created, so the created bundle is not
+// observable — but the provider list is, and through `create` of all places. What
+// the run below establishes is the order of the three things `create` does:
+//
+//   1. resolve the provider type — an unknown name is HTTP 200 +
+//      `{success:false, error:{message:"Unknown provider type: …"}}`, and no
+//      built-in name ever answers that. This is the oracle for the 17.
+//   2. probe the provider with the caller's baseUrl and key. With an unreachable
+//      base URL every built-in transport stops here, with either a local
+//      "Invalid URL" or an outbound "Failed to connect" / "Connection error." —
+//      still HTTP 200 + success:false.
+//   3. only then the gateway's read-only 403 (the deepseek step of the read-only
+//      test above reaches it, because api.deepseek.com answers the probe).
+//
+// So the gate is LAST, not first, which is the bug two tests down: a route that
+// can never create anything still spends an outbound request on a caller-supplied
+// host. Runnable payloads stay on the non-resolving `.invalid` host of
+// ssrf-payloads.ts.
+//
+// The names are read out of the SDK enum instead of being retyped, so a provider
+// dropped or renamed in the API breaks these tests rather than quietly shrinking
+// the matrix.
+const BUILT_IN_PROVIDER_TYPES: string[] = Object.values(AiBuiltinProviderType);
+
+/**
+ * `external` has no transport of its own — it delegates every request to the
+ * host and parses the reply with the provider named in `basedOn`. It is the one
+ * entry whose resolution cannot be read off `create` at all: it answers 500. See
+ * the bug at the bottom of this block.
+ */
+const EXTERNAL_PROVIDER_TYPE = "external";
+
+const TRANSPORT_PROVIDER_TYPES = BUILT_IN_PROVIDER_TYPES.filter(
+  (providerType) => providerType !== EXTERNAL_PROVIDER_TYPE,
+);
+
+/** Names from the section-4 prose and plausible near-misses. None is an identifier. */
+const NON_IDENTIFIERS = [
+  "google",
+  "gemini",
+  "lmstudio",
+  "open-ai",
+  "gpt-4all",
+  "local",
+];
+
+/** A create body whose provider can never be reached — see the policy note above. */
+const unreachableProfile = (providerType: string) => ({
+  name: `Autotest ${providerType}`,
+  providerType,
+  baseUrl: `https://api.${ATTACKER_HOST}`,
+  key: "sk-autotest-not-a-real-key",
+  modelId: "autotest-model",
+});
+
+test.describe("AI Profiles - the built-in provider types", () => {
+  test("POST /api/2.0/ai/profiles/create - every built-in provider type is resolved by the backend", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const before = await profiles.catalogue("owner");
+
+    // The count section 4 quotes as "about 17", pinned so the prose and the API
+    // cannot drift apart in silence.
+    expect(BUILT_IN_PROVIDER_TYPES, "the built-in provider list").toHaveLength(
+      17,
+    );
+
+    const outcomes: Array<{ type: string; status: number; message?: string }> =
+      [];
+
+    for (const providerType of TRANSPORT_PROVIDER_TYPES) {
+      const { status, data } = await profiles.createProfile(
+        "owner",
+        unreachableProfile(providerType),
+      );
+      outcomes.push({
+        type: providerType,
+        status,
+        message: data?.error?.message,
+      });
+    }
+
+    // The claim: all sixteen transports are still known to the backend. Anything
+    // that fell out of the API reports itself by name here.
+    const unresolved = outcomes.filter((outcome) =>
+      (outcome.message ?? "").startsWith("Unknown provider type"),
+    );
+    expect(
+      unresolved.map((outcome) => outcome.type),
+      "these provider types are no longer known to the backend",
+    ).toEqual([]);
+
+    // Each one got as far as its own provider probe and failed there, which is
+    // what "resolved" means on this route: a soft 200 carrying a URL/connection
+    // complaint rather than a plumbing 400 or a crash.
+    expect(
+      outcomes.filter((outcome) => outcome.status !== 200),
+      "a resolved provider type answers a soft 200",
+    ).toEqual([]);
+    expect(
+      outcomes.filter((outcome) => !outcome.message),
+      "and says why it refused",
+    ).toEqual([]);
+
+    // Sixteen refusals were sixteen refusals.
+    const after = await profiles.catalogue("owner");
+    expect(after.map((profile) => profile.id).sort()).toEqual(
+      before.map((profile) => profile.id).sort(),
+    );
+  });
+
+  test("POST /api/2.0/ai/profiles/create - a provider named the way section 4 spells it is not an identifier", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // Negative control for the test above: reaching the provider probe has to
+    // mean "this name resolved", not "every name gets that far". Google is
+    // `genai` and LM Studio is `lm-studio`, so the human-readable names of
+    // section 4 must NOT bind.
+    for (const providerType of NON_IDENTIFIERS) {
+      const { status, data } = await profiles.createProfile(
+        "owner",
+        unreachableProfile(providerType),
+      );
+
+      expect(status, `${providerType} is not a provider identifier`).toBe(200);
+      expect(data?.success).toBe(false);
+      expect(data?.error?.message).toBe(
+        `Unknown provider type: ${providerType}`,
+      );
+    }
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/profiles/create - the provider is dialled before the read-only gate refuses the request", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // openrouter answers "Failed to connect" for a host in the RFC 6761 `.invalid`
+    // TLD. That message can only come from a failed outbound lookup, so the portal
+    // really did try to reach the caller's host — on a route that cannot create a
+    // profile under any circumstances.
+    const dialled = await profiles.createProfile(
+      "owner",
+      unreachableProfile("openrouter"),
+    );
+    expect(dialled.data?.success).toBe(false);
+    expect(
+      dialled.data?.error?.message,
+      "the portal attempted the connection itself",
+    ).toBe("Failed to connect");
+
+    // Positive control that the gate does exist for this exact body shape: swap
+    // the unreachable host for one that answers the probe and the same call is
+    // refused with 403 (same as the deepseek step of the read-only test above).
+    const gated = await profiles.createProfile("owner", {
+      name: "Autotest gate control",
+      providerType: "deepseek",
+      baseUrl: "https://api.deepseek.com",
+      key: config.DEEPSEEK_API_KEY,
+      modelId: "deepseek-v4-flash",
+    });
+    expect(gated.status, "a reachable provider hits the read-only gate").toBe(
+      403,
+    );
+
+    test.fail();
+    expect(
+      dialled.status,
+      "the read-only gate must refuse before the provider is dialled",
+    ).toBe(403);
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/profiles/create - the `external` provider type answers 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // The seventeenth built-in type crashes the route instead of answering it.
+    // Nothing distinguishes it from a typo for the caller: there is no
+    // `success:false`, no message, and no way to tell whether the name was even
+    // recognised. Either the read-only 403 of every other resolved type, or a
+    // soft validation error naming the missing `basedOn`, would be an answer.
+    const bare = await profiles.createProfile(
+      "owner",
+      unreachableProfile(EXTERNAL_PROVIDER_TYPE),
+    );
+    expect(bare.data?.error?.message, "no reason is reported").toBeUndefined();
+
+    // `basedOn` is the inner provider `external` parses replies with, so a missing
+    // one is the obvious suspect — it makes no difference.
+    const withBasedOn = await profiles.createProfile("owner", {
+      ...unreachableProfile(EXTERNAL_PROVIDER_TYPE),
+      basedOn: "openai",
+    });
+    expect(withBasedOn.status, "supplying basedOn does not help").toBe(
+      bare.status,
+    );
+
+    test.fail();
+    expect(bare.status, "a built-in provider type must not crash").toBe(403);
   });
 });
 
@@ -575,4 +876,541 @@ test.describe("AI Profiles - provider model discovery", () => {
   // egress contract is already covered by the `nonResolvingAttackerUrls` loop
   // above, which never leaves a `.invalid` host.
   // ------------------------------------------------------------------------
+});
+
+// ===========================================================================
+// Section 4.2, the provider form's model picker: "entering the key and the URL
+// pulls in the model list with an icon per capability (text, vision, image
+// generation, tools, reasoning); a wrong key or URL highlights the field that is
+// wrong; local providers work without a key."
+//
+// All of it hangs off `list-provider-models`, the route that form calls, plus the
+// catalogue its output is compared against. Three measured facts shape the
+// assertions below (portal run 2026-08-13):
+//
+//   * the icons are the `capabilities` bitmask plus the separate `reasoning`
+//     boolean, so "an icon per capability" is only testable as "every bit is
+//     published, decodable, and actually differs between models";
+//   * failures come back as a flat `{error: "<message>"}` — this route has NO
+//     `field` marker, unlike `create` and `test-connection`, which answer
+//     `{field, message}`. So "highlights the field" can only be asserted through
+//     the wording, and these tests pin the wording;
+//   * a local provider is unreachable from a shared portal, so the observable
+//     half of "works without a key" is that the key is not part of the decision.
+// ===========================================================================
+
+/** The host+transport pair that really answers, used as the control everywhere. */
+const REACHABLE_PROVIDER = {
+  providerType: AiBuiltinProviderType.Deepseek,
+  baseUrl: "https://api.deepseek.com",
+};
+
+/** A local model server's address that can never resolve — see ssrf-payloads.ts. */
+const LOCAL_SERVER_URL = `http://${ATTACKER_HOST}:11434`;
+
+/**
+ * The transports a locally hosted model server is reached through. Read off the
+ * SDK enum, so a provider dropped or renamed in the API breaks the test instead
+ * of quietly shrinking it.
+ */
+const LOCAL_PROVIDER_TYPES: string[] = [
+  AiBuiltinProviderType.Ollama,
+  AiBuiltinProviderType.LmStudio,
+  AiBuiltinProviderType.Gpt4all,
+];
+
+test.describe("AI Profiles - the model picker's capability icons", () => {
+  test("POST /api/2.0/ai/profiles/list-provider-models - a discovered model carries everything the capability icons are drawn from", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const { status, data } = await profiles.listProviderModels("owner", {
+      ...REACHABLE_PROVIDER,
+      apiKey: config.DEEPSEEK_API_KEY,
+    });
+
+    expect(status).toBe(200);
+    expect(data!.length).toBeGreaterThan(0);
+
+    for (const model of data!) {
+      expect(model.id, "model id").toBeTruthy();
+      expect(model.name, `${model.id} display name`).toBeTruthy();
+      expect(model.provider).toBe(AiBuiltinProviderType.Deepseek);
+      expect(typeof model.reasoning, `${model.id} reasoning`).toBe("boolean");
+
+      const capabilities = model.capabilities ?? 0;
+      // An all-zero mask leaves the picker with no icons at all, and a bit the
+      // client does not know leaves it with an icon it cannot draw — both are
+      // invisible to a `typeof capabilities === "number"` check.
+      expect(capabilities, `${model.id} capabilities`).toBeGreaterThan(0);
+      expect(
+        capabilities & ~AI_CAP_KNOWN_BITS,
+        `${model.id} capability bits outside the known set`,
+      ).toBe(0);
+      expect(
+        capabilities & AI_CAP_BITS.text,
+        `${model.id} is a text model`,
+      ).toBe(AI_CAP_BITS.text);
+    }
+  });
+
+  test("GET /api/2.0/ai/profiles/list - each of the five capability kinds is separately readable", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    const withBit = (bit: number) =>
+      catalogue.filter(
+        (profile) => ((profile.capabilities ?? 0) & bit) === bit,
+      );
+
+    // Four of the five icons are bits. The catalogue-shape test above pins the
+    // three composite masks that happen to be shipped; this one pins the thing
+    // the UI actually needs, namely that each individual capability is
+    // represented by at least one model and is therefore drawable.
+    expect(withBit(AI_CAP_BITS.text).length, "text models").toBeGreaterThan(0);
+    expect(withBit(AI_CAP_BITS.vision).length, "vision models").toBeGreaterThan(
+      0,
+    );
+    expect(
+      withBit(AI_CAP_BITS.imageGeneration).length,
+      "image-generation models",
+    ).toBeGreaterThan(0);
+    expect(
+      withBit(AI_CAP_BITS.tools).length,
+      "tool-calling models",
+    ).toBeGreaterThan(0);
+
+    // The fifth icon is the only one that is not a bit, and it is only an icon if
+    // both values occur — a catalogue where everything reasons carries no
+    // information for the user.
+    expect(
+      catalogue.filter((profile) => profile.reasoning === true).length,
+      "reasoning models",
+    ).toBeGreaterThan(0);
+    expect(
+      catalogue.filter((profile) => profile.reasoning === false).length,
+      "non-reasoning models",
+    ).toBeGreaterThan(0);
+
+    // `canUseTool` and the tools bit are two spellings of one capability: the
+    // picker draws the icon from the bit while chat enforces `canUseTool`, so a
+    // disagreement would put a tools icon on a model that cannot call tools.
+    const disagreeing = catalogue.filter(
+      (profile) =>
+        (((profile.capabilities ?? 0) & AI_CAP_BITS.tools) ===
+          AI_CAP_BITS.tools) !==
+        (profile.canUseTool === true),
+    );
+    expect(
+      disagreeing.map((profile) => profile.modelId),
+      "the tools bit and canUseTool disagree for these models",
+    ).toEqual([]);
+  });
+
+  test("BUG XXXXX: GET /api/2.0/ai/profiles/list vs list-provider-models - the same model is published with different capabilities", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const { status, data } = await profiles.listProviderModels("owner", {
+      ...REACHABLE_PROVIDER,
+      apiKey: config.DEEPSEEK_API_KEY,
+    });
+    expect(status).toBe(200);
+
+    // Only a model the portal describes twice can contradict itself.
+    const shared = data!
+      .map((model) => ({
+        model,
+        listed: catalogue.find((profile) => profile.modelId === model.id),
+      }))
+      .filter((pair) => pair.listed);
+    expect(
+      shared.length,
+      "the two surfaces have to share a model id for this to mean anything",
+    ).toBeGreaterThan(0);
+
+    const contradictions = shared
+      .filter(
+        (pair) =>
+          pair.listed!.capabilities !== pair.model.capabilities ||
+          pair.listed!.reasoning !== pair.model.reasoning,
+      )
+      .map(
+        (pair) =>
+          `${pair.model.id}: catalogue ${pair.listed!.capabilities}/reasoning=${pair.listed!.reasoning}` +
+          ` vs discovery ${pair.model.capabilities}/reasoning=${pair.model.reasoning}`,
+      );
+
+    test.fail();
+    // Measured: `deepseek-v4-pro` is 257 with reasoning:true in the catalogue and
+    // 385 with reasoning:false through discovery. Both numbers are icon data for
+    // the same model id, so the portal shows a vision icon and no reasoning icon
+    // on one screen and the opposite on the other.
+    expect(
+      contradictions,
+      "a model must not be described differently by the two surfaces",
+    ).toEqual([]);
+  });
+});
+
+test.describe("AI Profiles - which field the model picker blames", () => {
+  test("POST /api/2.0/ai/profiles/list-provider-models - a key that cannot work is reported against the key", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // Positive control first: this host and this key do produce a model list, so
+    // every refusal below is caused by the key and by nothing else.
+    const control = await profiles.listProviderModels("owner", {
+      ...REACHABLE_PROVIDER,
+      apiKey: config.DEEPSEEK_API_KEY,
+    });
+    expect(control.status, "the control call reaches the provider").toBe(200);
+
+    // A key field left empty, cleared, or filled with spaces is the ordinary way
+    // a user gets this wrong, and all three have to land on the key rather than
+    // on the URL or on a generic failure.
+    const emptyKeys: Array<[string, Record<string, unknown>]> = [
+      ["omitted", {}],
+      ["empty string", { apiKey: "" }],
+      ["whitespace only", { apiKey: "   " }],
+    ];
+
+    for (const [label, patch] of emptyKeys) {
+      const { status, error } = await profiles.listProviderModels("owner", {
+        ...REACHABLE_PROVIDER,
+        ...patch,
+      });
+      expect(status, `${label} key`).toBe(400);
+      expect(error, `${label} key`).toBe("Invalid API key for the AI provider");
+    }
+  });
+
+  test("POST /api/2.0/ai/profiles/list-provider-models - a base URL that is not the provider's API endpoint is reported against the URL", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // The host is right and the key is right — only the path is wrong, which is
+    // the case a "baseUrl is not a valid URL" check cannot catch.
+    const { status, error } = await profiles.listProviderModels("owner", {
+      providerType: AiBuiltinProviderType.Deepseek,
+      baseUrl: "https://api.deepseek.com/nope/v9",
+      apiKey: config.DEEPSEEK_API_KEY,
+    });
+
+    expect(status).toBe(400);
+    expect(error).toBe(
+      "Invalid base URL — expected an OpenAI-compatible endpoint (e.g. ending in /v1)",
+    );
+    // The wording is all a client has to decide which input to highlight, so it
+    // has to name the URL and must not blame the key that was in fact correct.
+    expect(error?.toLowerCase()).toContain("url");
+    expect(error?.toLowerCase()).not.toContain("api key");
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - a missing base URL and a missing provider type get the same two-field message", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    const noBaseUrl = await profiles.listProviderModels("owner", {
+      providerType: AiBuiltinProviderType.Deepseek,
+      apiKey: config.DEEPSEEK_API_KEY,
+    });
+    const noProviderType = await profiles.listProviderModels("owner", {
+      baseUrl: "https://api.deepseek.com",
+      apiKey: config.DEEPSEEK_API_KEY,
+    });
+
+    // Refusing both is correct — the request cannot be built without them.
+    expect(noBaseUrl.status, "a request with no baseUrl").toBe(400);
+    expect(noProviderType.status, "a request with no providerType").toBe(400);
+
+    test.fail();
+    // Measured: both answer "providerType and baseUrl required". So the form is
+    // told that two of its inputs are wrong when one of them was filled in
+    // correctly, and it cannot tell which one to highlight. `create` shows the
+    // shape this route is missing — a single `{field, message}` pair.
+    expect(
+      noBaseUrl.error,
+      "a missing baseUrl is reported without blaming providerType",
+    ).not.toContain("providerType");
+    expect(
+      noProviderType.error,
+      "a missing providerType is reported without blaming baseUrl",
+    ).not.toContain("baseUrl");
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - an unknown provider type is answered with 502 instead of a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // The control: on `create` the very same name is caught by provider
+    // resolution and named back to the caller, so the backend can tell an unknown
+    // provider type from an unreachable one.
+    const created = await profiles.createProfile(
+      "owner",
+      unreachableProfile("not-a-provider"),
+    );
+    expect(created.status, "create resolves the provider type first").toBe(200);
+    expect(created.data?.error?.message).toBe(
+      "Unknown provider type: not-a-provider",
+    );
+
+    const { status, error } = await profiles.listProviderModels("owner", {
+      providerType: "not-a-provider",
+      baseUrl: "https://api.deepseek.com",
+      apiKey: config.DEEPSEEK_API_KEY,
+    });
+
+    test.fail();
+    // Measured: 502 "Failed to list provider models" — a gateway error for a name
+    // that is not a provider at all. Nothing in the response points at the
+    // provider selector, so a typo there is indistinguishable from an outage.
+    expect(status, "an unknown provider type is a client error").toBe(400);
+    expect(error, "and the response names what was not understood").toContain(
+      "Unknown provider type",
+    );
+  });
+});
+
+test.describe("AI Profiles - local providers need no key", () => {
+  test("POST /api/2.0/ai/profiles/list-provider-models - a local provider type never refuses the request over the key", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // Control: for a cloud provider the key IS the deciding input. Same route,
+    // same host: a list with the key, a complaint about the key without it.
+    const withKey = await profiles.listProviderModels("owner", {
+      ...REACHABLE_PROVIDER,
+      apiKey: config.DEEPSEEK_API_KEY,
+    });
+    expect(withKey.status, "the cloud control with a key").toBe(200);
+
+    const withoutKey = await profiles.listProviderModels(
+      "owner",
+      REACHABLE_PROVIDER,
+    );
+    expect(withoutKey.status, "the cloud control without a key").toBe(400);
+    expect(withoutKey.error).toBe("Invalid API key for the AI provider");
+
+    // A local model server cannot be stood up from a shared portal, so what is
+    // observable here is that the key never enters the decision: no key, an empty
+    // key and a bogus key all get the same answer, and none of them is about a
+    // key. On a portal that CAN reach a local server the same test would show a
+    // model list for all three.
+    for (const providerType of LOCAL_PROVIDER_TYPES) {
+      const body = { providerType, baseUrl: LOCAL_SERVER_URL };
+
+      const outcomes: string[] = [];
+      for (const patch of [
+        {},
+        { apiKey: "" },
+        { apiKey: "sk-not-a-real-key" },
+      ]) {
+        const { status, error } = await profiles.listProviderModels("owner", {
+          ...body,
+          ...patch,
+        });
+        outcomes.push(`${status} ${error ?? ""}`.trim());
+      }
+
+      const [noKey, emptyKey, bogusKey] = outcomes;
+      expect(
+        [emptyKey, bogusKey],
+        `${providerType} treats the key as irrelevant`,
+      ).toEqual([noKey, noKey]);
+      expect(
+        noKey,
+        `${providerType} does not refuse a keyless request over the key`,
+      ).not.toContain("API key");
+    }
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - gpt4all reports an unreachable server as an empty model list", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // Control: the other two local transports call the same non-resolving host
+    // unreachable, so what follows is a gpt4all verdict and not the policy of the
+    // route.
+    for (const providerType of [
+      AiBuiltinProviderType.Ollama,
+      AiBuiltinProviderType.LmStudio,
+    ]) {
+      const { status, error } = await profiles.listProviderModels("owner", {
+        providerType,
+        baseUrl: LOCAL_SERVER_URL,
+      });
+      expect(status, `${providerType} on an unreachable server`).toBe(502);
+      expect(error).toBe(
+        "The AI provider is unreachable — check the base URL and that the service is running",
+      );
+    }
+
+    const { status } = await profiles.listProviderModels("owner", {
+      providerType: AiBuiltinProviderType.Gpt4all,
+      baseUrl: LOCAL_SERVER_URL,
+    });
+
+    test.fail();
+    // Measured: 200 `[]`. A form that gets that shows "no models" for a server
+    // that is not running, and the answer is indistinguishable from a running
+    // server with an empty catalogue — the case the `onlyoffice` test above pins.
+    expect(status, "an unreachable gpt4all server is reported as such").toBe(
+      502,
+    );
+  });
+});
+
+test.describe("AI Profiles - the transport is not checked against the host", () => {
+  /** Three transports pointed at one host, so only the transport differs. */
+  const MISMATCHED_TRANSPORTS: string[] = [
+    AiBuiltinProviderType.Deepseek,
+    AiBuiltinProviderType.Openai,
+    AiBuiltinProviderType.Anthropic,
+  ];
+
+  const discoverThroughEach = async (profiles: AiProfiles) => {
+    const byTransport: Record<string, AiProviderModel[]> = {};
+    for (const providerType of MISMATCHED_TRANSPORTS) {
+      const { status, data } = await profiles.listProviderModels("owner", {
+        providerType,
+        baseUrl: "https://api.deepseek.com",
+        apiKey: config.DEEPSEEK_API_KEY,
+      });
+      expect(status, `${providerType} against a deepseek host`).toBe(200);
+      byTransport[providerType] = data!;
+    }
+    return byTransport;
+  };
+
+  test("POST /api/2.0/ai/profiles/list-provider-models - a transport pointed at another provider's host is answered, not refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const byTransport = await discoverThroughEach(profiles);
+
+    // Recorded as the current contract rather than as a bug: the transports are
+    // OpenAI-compatible enough that a deepseek host answers all three. What makes
+    // it worth pinning is that each model's `provider` echoes what the CALLER
+    // asked for, so nothing in the response reveals the mismatch — and the two
+    // bugs below are consequences of that. If this ever starts refusing, this
+    // test goes red first and the bug tests stop being about a live mismatch.
+    for (const [providerType, models] of Object.entries(byTransport)) {
+      expect(models.length, `${providerType} model count`).toBeGreaterThan(0);
+      expect(
+        models.map((model) => model.provider),
+        `${providerType} echoes the requested provider`,
+      ).toEqual(models.map(() => providerType));
+    }
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - the capability icons come from the requested transport, not from the model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const byTransport = await discoverThroughEach(profiles);
+
+    const masks = (providerType: string) =>
+      byTransport[providerType]
+        .map((model) => `${model.id}:${model.capabilities}`)
+        .sort();
+
+    test.fail();
+    // Measured: through `deepseek` both models come back as 385, through `openai`
+    // and `anthropic` the same two ids come back as 129 — the tools icon appears
+    // or disappears depending only on which transport was selected in the form.
+    expect(
+      masks(AiBuiltinProviderType.Openai),
+      "openai vs deepseek, same host and same models",
+    ).toEqual(masks(AiBuiltinProviderType.Deepseek));
+    expect(
+      masks(AiBuiltinProviderType.Anthropic),
+      "anthropic vs deepseek, same host and same models",
+    ).toEqual(masks(AiBuiltinProviderType.Deepseek));
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - the anthropic transport returns models with no display name", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const byTransport = await discoverThroughEach(profiles);
+
+    // Control: the other two transports label every row.
+    for (const providerType of [
+      AiBuiltinProviderType.Deepseek,
+      AiBuiltinProviderType.Openai,
+    ]) {
+      expect(
+        byTransport[providerType].filter((model) => !model.name),
+        `${providerType} names every model`,
+      ).toEqual([]);
+    }
+
+    test.fail();
+    // Measured: the anthropic transport drops `name` entirely, leaving the picker
+    // with nothing to write in the row next to the capability icons.
+    expect(
+      byTransport[AiBuiltinProviderType.Anthropic]
+        .filter((model) => !model.name)
+        .map((model) => model.id),
+      "these models came back without a display name",
+    ).toEqual([]);
+  });
 });
