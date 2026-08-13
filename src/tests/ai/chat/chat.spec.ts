@@ -6199,7 +6199,7 @@ type ThreadIdOperation = {
 };
 
 test.describe("AI Threads - renaming, deleting and clearing: validation", () => {
-  test("BUG XXXXX: PUT /api/2.0/ai/threads/rename - a blank title is accepted and wipes the thread's name", async ({
+  test("BUG 83094: PUT /api/2.0/ai/threads/rename - a blank title is accepted and wipes the thread's name", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -6376,7 +6376,7 @@ test.describe("AI Threads - renaming, deleting and clearing: validation", () => 
     );
   });
 
-  test("BUG XXXXX: DELETE /api/2.0/ai/threads/delete - deleting a thread that does not exist reports success instead of 404", async ({
+  test("BUG 83095: DELETE /api/2.0/ai/threads/delete - deleting a thread that does not exist reports success instead of 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
