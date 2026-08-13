@@ -9,6 +9,7 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import {
   AiAgentChat,
   AgentRole,
+  AiThreadMessage,
   expectHealthyAssistantReply,
   inviteToAgent,
   twoTextProfiles,
@@ -256,6 +257,118 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
     expect(AiAgentChat.messageText(secondReply).toUpperCase()).toContain(
       "ORANGE",
     );
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a second thread of the same agent does not inherit the first one's context", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The negative half of the test above: "the thread remembers" is only a
+    // *per-thread* history if the thread next to it does not. A backend that
+    // keyed the conversation on the agent, or on the user, would pass the
+    // continuation test and fail this one.
+    //
+    // Three inference turns, so the default 240s test timeout is not enough.
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Chat Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    const first = await aiChat.createThreadId("owner", {
+      title: "Autotest thread that knows the word",
+      profileId,
+      agentId,
+    });
+    const second = await aiChat.createThreadId("owner", {
+      title: "Autotest thread that must not",
+      profileId,
+      agentId,
+    });
+
+    const taught = await aiChat.sendMessage("owner", {
+      threadId: first,
+      profileId,
+      agentId,
+      message: "Remember the code word ORANGE. Reply with just: OK.",
+    });
+    expect(taught.status).toBe(200);
+    expect(taught.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReplies("owner", first, 1, 120000),
+    );
+
+    // The same question, in the sibling thread. The instruction to answer NONE
+    // keeps a model that does not know from filling the gap with a guess, and
+    // the health check keeps a *failed* reply from being read as "it did not
+    // know".
+    const asked = await aiChat.sendMessage("owner", {
+      threadId: second,
+      profileId,
+      agentId,
+      message:
+        "What code word did I ask you to remember earlier in this conversation? If no code word was ever mentioned here, reply with just: NONE.",
+    });
+    expect(asked.status).toBe(200);
+    expect(asked.streamError).toBeUndefined();
+    const secondThread = await aiChat.waitForAssistantReplies(
+      "owner",
+      second,
+      1,
+      120000,
+    );
+    expectHealthyAssistantReply(secondThread);
+
+    // Neither the answer nor anything stored in the second thread carries the
+    // first thread's word or its question.
+    expect(
+      secondThread
+        .map((message) => AiAgentChat.messageText(message))
+        .join("\n")
+        .toUpperCase(),
+      "the sibling thread neither holds nor repeats the other thread's word",
+    ).not.toContain("ORANGE");
+    expect(AiAgentChat.userMessages(secondThread)).toHaveLength(1);
+
+    // And the first thread still knows it — otherwise the miss above could just
+    // be a model that had dropped the word by then, in either thread.
+    const reasked = await aiChat.sendMessage("owner", {
+      threadId: first,
+      profileId,
+      agentId,
+      message:
+        "What code word did I ask you to remember? Reply with just that word.",
+    });
+    expect(reasked.status).toBe(200);
+    expect(reasked.streamError).toBeUndefined();
+    const firstThread = await aiChat.waitForAssistantReplies(
+      "owner",
+      first,
+      2,
+      120000,
+    );
+    expectHealthyAssistantReply(firstThread, 2);
+    expect(
+      AiAgentChat.messageText(
+        AiAgentChat.assistantMessages(firstThread)[1],
+      ).toUpperCase(),
+    ).toContain("ORANGE");
+
+    // The first thread's own transcript stayed its own too: its two questions,
+    // and not the sibling's.
+    expect(
+      AiAgentChat.userMessages(firstThread).map((message) =>
+        AiAgentChat.messageText(message),
+      ),
+    ).toEqual([
+      "Remember the code word ORANGE. Reply with just: OK.",
+      "What code word did I ask you to remember? Reply with just that word.",
+    ]);
   });
 
   for (const { label, type, role } of MEMBER_ROLES) {
@@ -1119,6 +1232,109 @@ test.describe("AI Threads - open-or-create", () => {
     expect(listed.data.map((thread) => thread.threadId)).toEqual([threadId]);
   });
 
+  test("POST /api/2.0/ai/threads/open-or-create - a thread that holds a conversation is replayed whole", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The positive control for the empty thread above, and the API side of
+    // "reopening a chat brings its history back". `priorMessages: []` on a
+    // thread that never held anything would also pass on a route that always
+    // answers with an empty array, so the replay is only proven by a thread
+    // that has something to replay.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Threads Agent",
+      profileId: profile.id,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread with a history",
+      profileId: profile.id,
+      agentId,
+    });
+
+    // One real turn, so the history carries both roles — a replay that only
+    // kept the user's side would still satisfy a length check.
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: profile.id,
+      agentId,
+      message: "Reply with the single word ORANGE and nothing else.",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    // Plus a question stored without an answer, so the transcript is not a
+    // sequence of complete pairs that a replay could reconstruct by shape.
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId: profile.id,
+      text: "Autotest unanswered question",
+    });
+    expect(appended.status).toBe(200);
+
+    const stored = await aiChat.readMessages("owner", threadId);
+    expect(stored.status).toBe(200);
+    expect(stored.data).toHaveLength(3);
+
+    const { status, data } = await aiChat.openOrCreateThread("owner", {
+      threadId,
+      profile,
+      entityId: String(agentId),
+      firstMessage: {
+        role: "user",
+        content: [{ type: "text", text: "hello" }],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data?.threadId, "the existing thread is reused").toBe(threadId);
+
+    // What comes back is the stored transcript itself: same messages, same
+    // order, same ids — not a summary and not the last turn only.
+    const replayed = (data?.priorMessages ?? []) as AiThreadMessage[];
+    expect(replayed).toHaveLength(3);
+    expect(replayed.map((message) => message.id)).toEqual(
+      stored.data.map((message) => message.id),
+    );
+    expect(replayed.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+    ]);
+    expect(replayed.map((message) => AiAgentChat.messageText(message))).toEqual(
+      stored.data.map((message) => AiAgentChat.messageText(message)),
+    );
+    expect(
+      AiAgentChat.messageText(replayed[1]).toUpperCase(),
+      "the assistant's answer is part of the replay",
+    ).toContain("ORANGE");
+
+    // Opening a thread that already exists still does not store its
+    // `firstMessage`, and does not start a second thread.
+    const after = await aiChat.readMessages("owner", threadId);
+    expect(after.data.map((message) => message.id)).toEqual(
+      stored.data.map((message) => message.id),
+    );
+    const listedAfter = await aiChat.listThreads("owner", agentId);
+    expect(listedAfter.data.map((thread) => thread.threadId)).toEqual([
+      threadId,
+    ]);
+  });
+
   test("POST /api/2.0/ai/threads/open-or-create - the whole profile object is required, not just its id", async ({
     apiSdk,
     paymentsApi,
@@ -1290,6 +1506,327 @@ test.describe("AI Threads - regenerate-title", () => {
     expect(withProfile.status, "regenerating a thread title must work").toBe(
       200,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "A thread is started by its first message, and named after it."
+//
+// The product rule is two halves: a thread appears only once the user has sent
+// something — an empty one is never kept — and its title is generated from that
+// first question rather than typed by the user.
+//
+// Measured 2026-08-12, the API implements the first half and not the second:
+//
+//   * `POST /ai/ai/send-with-stream` with NO `threadId` (or an empty one) opens
+//     the thread itself and answers the message in the same call. The very
+//     first frame of the stream is a `thread-title` frame carrying the new
+//     threadId — that is how the client learns which thread it is now in. So
+//     nothing has to create an empty thread up front, and `open-or-create`
+//     being 500 without a threadId (BUG 82826, above) is not what blocks the
+//     rule.
+//   * `POST /ai/threads/create` is the "I typed a name" route: `title` is
+//     required and must not be blank, and a thread made that way is persisted
+//     with no message in it and never pruned. It is the client's own business
+//     not to call it.
+//   * The generated title does not exist. Every thread the first message opens
+//     is called `New chat`, and no later turn changes that — the `thread-title`
+//     frame carries the same fixed string, and the only route that asks the
+//     model for a title is 500 (BUG 82828, above).
+
+/** Raw thread/send calls — the typed helpers always fill `title`/`threadId` in. */
+class RawThreadCalls extends AiHttp {
+  post(role: AgentRole, path: string, body: unknown) {
+    return this.call<{ threadId?: string }>(role, "post", path, body);
+  }
+}
+
+const AUTO_TITLE_QUESTION =
+  "What is the capital of France? Answer in one word.";
+
+/** What the backend names every thread a first message opens. */
+const DEFAULT_THREAD_TITLE = "New chat";
+
+test.describe("AI Threads - started by the first message", () => {
+  test("POST /api/2.0/ai/threads/create - a thread with no message in it is kept and listed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Empty Thread Agent",
+      profileId,
+    });
+
+    const emptyThreadId = await aiChat.createThreadId("owner", {
+      title: "Autotest never used",
+      profileId,
+      agentId,
+    });
+
+    // Nothing was ever sent into it...
+    const messages = await aiChat.readMessages("owner", emptyThreadId);
+    expect(messages.status).toBe(200);
+    expect(messages.data, "the thread really is empty").toEqual([]);
+
+    // ...and it is a first-class thread all the same: readable, and listed next
+    // to a thread that does carry a message. The used thread is the control —
+    // it proves the list is being read, so "the empty one is still here" is not
+    // an artefact of a list that answers with everything or with nothing.
+    const usedThreadId = await aiChat.createThreadId("owner", {
+      title: "Autotest used",
+      profileId,
+      agentId,
+    });
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId: usedThreadId,
+      profileId,
+      text: "hello",
+    });
+    expect(appended.status).toBe(200);
+    expect(
+      (await aiChat.readMessages("owner", usedThreadId)).data,
+    ).toHaveLength(1);
+
+    const read = await aiChat.getThread("owner", emptyThreadId);
+    expect(read.status).toBe(200);
+    expect(read.data?.threadId).toBe(emptyThreadId);
+    expect(read.data?.title).toBe("Autotest never used");
+
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.status).toBe(200);
+    expect(
+      listed.data.map((thread) => thread.threadId).sort(),
+      "the unused thread was not pruned when a used one appeared",
+    ).toEqual([emptyThreadId, usedThreadId].sort());
+  });
+
+  test("POST /api/2.0/ai/threads/create - a blank title is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // `create` never names a thread for the caller: every spelling of "you pick
+    // one" is a 400. Worth pinning next to the generation test below — an
+    // untitled thread is not a state the API can even be put in, so a client
+    // that wants the backend to name the thread has to use the send path.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const raw = new RawThreadCalls(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Untitled Thread Agent",
+      profileId,
+    });
+
+    const blankTitles: Array<[string, Record<string, unknown>]> = [
+      ["no title field", {}],
+      ["an empty title", { title: "" }],
+      ["a null title", { title: null }],
+      ["a whitespace title", { title: "   " }],
+    ];
+
+    for (const [label, titleField] of blankTitles) {
+      const { status, error } = await raw.post(
+        "owner",
+        "/api/2.0/ai/threads/create",
+        { ...titleField, profileId, entityId: String(agentId) },
+      );
+      expect(status, `create with ${label}`).toBe(400);
+      expect(error, `create with ${label}`).toBe("Bad Request");
+    }
+
+    // The refusals left nothing behind, and the list is being read: a titled
+    // create is the only thread in it.
+    const titledId = await aiChat.createThreadId("owner", {
+      title: "Autotest titled",
+      profileId,
+      agentId,
+    });
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.status).toBe(200);
+    expect(listed.data.map((thread) => thread.threadId)).toEqual([titledId]);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a send with no threadId opens the thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const raw = new RawThreadCalls(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Threadless Send Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+
+    // Nothing exists yet — the thread this send is about to open cannot be one
+    // the agent already had.
+    const before = await aiChat.listThreads("owner", agentId);
+    expect(before.status).toBe(200);
+    expect(before.data, "the agent starts with no threads").toEqual([]);
+
+    const sent = await raw.post("owner", "/api/2.0/ai/ai/send-with-stream", {
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: AUTO_TITLE_QUESTION }],
+      },
+    });
+    expect(sent.status).toBe(200);
+    expect(AiAgentChat.streamError(sent.text)).toBeUndefined();
+
+    // The new thread is announced in the opening frame, before the question is
+    // acknowledged — this is where the client picks up the id it did not have.
+    const frames = AiAgentChat.streamFrames(sent.text);
+    const types = frames.map((frame) => frame.type);
+    const where = `frames were ${types.join(", ")}`;
+    expect(types[0], where).toBe("thread-title");
+    expect(types.indexOf("user-message-stored"), where).toBe(1);
+
+    const threadId = frames[0].threadId;
+    expect(threadId, "the opening frame names the new thread").toBeTruthy();
+    expect(frames[0].profileId).toBe(profileId);
+
+    // It is a real, listed thread of that agent, carrying the question and an
+    // answer the model actually produced.
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.status).toBe(200);
+    expect(listed.data.map((thread) => thread.threadId)).toEqual([threadId]);
+
+    const messages = await aiChat.waitForAssistantReply(
+      "owner",
+      threadId as string,
+    );
+    const asked = AiAgentChat.userMessages(messages);
+    expect(
+      asked,
+      "the question opened the thread and is stored once",
+    ).toHaveLength(1);
+    expect(AiAgentChat.messageText(asked[0])).toBe(AUTO_TITLE_QUESTION);
+    expectHealthyAssistantReply(messages);
+
+    // An empty threadId is the same call, not a validation error: it opens a
+    // second thread rather than reusing the first.
+    const emptyId = await raw.post("owner", "/api/2.0/ai/ai/send-with-stream", {
+      threadId: "",
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Say OK." }],
+      },
+    });
+    expect(emptyId.status).toBe(200);
+    expect(AiAgentChat.streamError(emptyId.text)).toBeUndefined();
+
+    const secondFrames = AiAgentChat.streamFrames(emptyId.text);
+    expect(secondFrames[0].type).toBe("thread-title");
+    const secondThreadId = secondFrames[0].threadId;
+    expect(secondThreadId).toBeTruthy();
+    expect(secondThreadId, 'threadId "" is not the first thread').not.toBe(
+      threadId,
+    );
+
+    const bothListed = await aiChat.listThreads("owner", agentId);
+    expect(bothListed.data.map((thread) => thread.threadId).sort()).toEqual(
+      [threadId, secondThreadId].sort(),
+    );
+  });
+
+  test('BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - the thread the first question opened is called "New chat"', async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const raw = new RawThreadCalls(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Auto Title Agent",
+      profileId,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+
+    // A distinctive question with an obvious short answer, so a title built
+    // from it would be recognisable and a title that ignores it cannot be
+    // mistaken for a bad summary.
+    const sent = await raw.post("owner", "/api/2.0/ai/ai/send-with-stream", {
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: AUTO_TITLE_QUESTION }],
+      },
+    });
+    expect(sent.status).toBe(200);
+
+    const frames = AiAgentChat.streamFrames(sent.text);
+    expect(frames[0].type).toBe("thread-title");
+    const threadId = frames[0].threadId as string;
+    expect(threadId).toBeTruthy();
+
+    // The title the stream announces is the fixed default...
+    expect(frames[0].title, "the title carried by the opening frame").toBe(
+      DEFAULT_THREAD_TITLE,
+    );
+
+    // ...on a thread the model really answered, so the naming cannot be blamed
+    // on there being nothing to build a title from.
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(messages);
+
+    // ...and it is what was stored, in both reads of it.
+    const stored = await aiChat.getThread("owner", threadId);
+    expect(stored.status).toBe(200);
+    expect(stored.data?.title).toBe(DEFAULT_THREAD_TITLE);
+    expect(
+      (await aiChat.listThreads("owner", agentId)).data.find(
+        (thread) => thread.threadId === threadId,
+      )?.title,
+      "get-by-id and list agree",
+    ).toBe(DEFAULT_THREAD_TITLE);
+
+    // A second turn does not name it either, and carries no title frame at all:
+    // there is no "the title catches up once the conversation has substance".
+    const second = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "And the capital of Italy? One word.",
+    });
+    expect(second.status).toBe(200);
+    expect(
+      second.frames.map((frame) => frame.type),
+      "no title frame on a later turn",
+    ).not.toContain("thread-title");
+    await aiChat.waitForAssistantReplies("owner", threadId, 2, 120000);
+
+    const afterSecond = await aiChat.getThread("owner", threadId);
+    expect(afterSecond.status).toBe(200);
+
+    // The wording of a generated title is the model's, so only "it is not the
+    // fixed default" is asserted — that is the whole of the requirement that
+    // can be pinned without guessing the phrasing.
+    test.fail();
+    expect(
+      afterSecond.data?.title,
+      "the first question must name the thread",
+    ).not.toBe(DEFAULT_THREAD_TITLE);
   });
 });
 
