@@ -38,12 +38,12 @@ import {
   CommonSettingsApi,
   UsersApi,
 } from "@onlyoffice/docspace-api-sdk";
-import { ProvidersApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/providers-api";
-import { ChatApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/chat-api";
-import { SettingsApi as AiSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/settings-api";
+import { ProfilesApi as ProvidersApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/profiles-api";
+import { ThreadsApi as ChatApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/threads-api";
+import { AISettingsApi as AiSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/aisettings-api";
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
-import { MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/mcpapi";
-import { FilesSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/files-settings-api";
+import { ToolsApi as MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/tools-api";
+import { SettingsApi as FilesSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/settings-api";
 import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { ApiKeysApi } from "@onlyoffice/docspace-api-sdk/dist/api/api-keys/api-keys-api";
 import { AuthenticationApi } from "@onlyoffice/docspace-api-sdk/dist/api/authentication/authentication-api";
