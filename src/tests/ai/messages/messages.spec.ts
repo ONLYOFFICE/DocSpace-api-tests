@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
-import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, FileType, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { AiSettings, TextToDocxBody } from "@/src/helpers/ai-settings";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import {
@@ -15,10 +15,12 @@ import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
   AiAgentChat,
+  AgentRole,
   inviteToAgent,
   expectHealthyAssistantReply,
   twoTextProfiles,
 } from "@/src/helpers/ai-agent-chat";
+import { AiAttachments } from "@/src/helpers/ai-attachments";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
 import { ApiSDK } from "@/src/services/api-sdk";
 
@@ -959,6 +961,29 @@ function renderTranscript(messages: Array<{ role: string; text: string }>) {
     .join("\n\n");
 }
 
+/**
+ * An agent and a thread of the owner's own, with the profile behind both — the
+ * setup every export test needs before there is a conversation to export.
+ */
+async function threadForExport(
+  aiChat: AiAgentChat,
+  threadTitle: string,
+  role: AgentRole = "owner",
+) {
+  const profileId = await aiChat.defaultProfileId(role);
+  const agentId = await aiChat.createAgentId(role, {
+    title: "Autotest Export Agent",
+    profileId,
+  });
+  const threadId = await aiChat.createThreadId(role, {
+    title: threadTitle,
+    profileId,
+    agentId,
+  });
+
+  return { profileId, agentId, threadId };
+}
+
 test.describe("AI Messages - exporting a thread", () => {
   test("GET read-messages + POST /api/2.0/ai/text-to-docx - a two-turn conversation exports into My Documents in order", async ({
     apiSdk,
@@ -1136,6 +1161,471 @@ test.describe("AI Messages - exporting a thread", () => {
 
     const text = await readExportedDocxText(apiSdk, "owner", exported!.id);
     expect(text).toContain(question);
+  });
+
+  test("BUG XXXXX: GET read-messages + POST /api/2.0/ai/text-to-docx - a long thread cannot be exported whole", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The two tests above export a conversation of one and two turns. A thread
+    // that has been used for a while is neither, and the requirement is the
+    // whole thread — so the size the store accepts and the size the exporter
+    // accepts have to agree, and they do not:
+    //
+    //   * the thread store takes any number of messages of any length;
+    //   * `read-messages` has no window — `count`/`cursor` are accepted and
+    //     ignored (BUG 82899), so a client cannot ask for a slice;
+    //   * `text-to-docx` refuses a body over ~128 KB with a 413 and no body
+    //     ("content is accepted up to ~100 KB and refused at 128 KB" above).
+    //
+    // With no paged, chunked or server-side export route to fall back on, every
+    // thread past that size is simply not exportable. Forty turns of about
+    // 4 KB each — a page of text per message, which is what a real answer looks
+    // like — is already over it.
+    //
+    // Built with append-user-message: the length under test is the store's, not
+    // the model's, so no inference is spent on it.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, threadId } = await threadForExport(
+      aiChat,
+      "Autotest long export thread",
+    );
+
+    const texts = Array.from(
+      { length: 40 },
+      (_unused, index) => `Autotest turn ${index + 1}: ${"x".repeat(4000)}`,
+    );
+    for (const [index, text] of texts.entries()) {
+      const appended = await aiChat.appendUserMessage("owner", {
+        threadId,
+        profileId,
+        text,
+      });
+      expect(appended.status, `storing turn ${index + 1}`).toBe(200);
+    }
+
+    // The premise: the thread really is that long, and the read gives all of it.
+    // Without this a 413 below could just as well be about a thread the store
+    // had truncated on its own.
+    const stored = await aiChat.readMessages("owner", threadId);
+    expect(stored.status).toBe(200);
+    expect(
+      stored.data.map((message) => AiAgentChat.messageText(message)),
+      "the store kept the whole thread",
+    ).toEqual(texts);
+
+    const transcript = renderTranscript(
+      stored.data.map((message) => ({
+        role: message.role,
+        text: AiAgentChat.messageText(message),
+      })),
+    );
+    expect(
+      Buffer.byteLength(transcript, "utf8"),
+      "the thread under test is bigger than one export body",
+    ).toBeGreaterThan(131072);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    const title = `Autotest Long Export ${apiSdk.faker.generateString(8)}`;
+    const exportCall = await aiSettings.textToDocx("owner", {
+      title,
+      content: transcript,
+      folderId,
+    });
+
+    // Nothing was written, so this is a refusal rather than a slow job or a
+    // partial document — either of which would be a different defect.
+    await waitForExportToSettle();
+    expect(
+      await waitForExportedFile(ownerApi, folderId, `${title}.docx`, 0),
+      "the refused export left no document behind",
+    ).toBeUndefined();
+
+    test.fail();
+    expect(
+      exportCall.status,
+      "a thread the portal itself stored has to be exportable whole; today it is 413 and the client has nothing to fall back on",
+    ).toBe(202);
+  });
+
+  test("GET read-messages + POST /api/2.0/ai/text-to-docx - an attached file is exported by name, which costs a second call", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // A turn is not always text. A user message can carry attachments, and a
+    // transcript that drops them is not the whole thread.
+    //
+    // What `read-messages` gives back for such a turn is the attachment ECHOED
+    // VERBATIM — `[{ id }]`, nothing else: no title, no DocSpace file id, no
+    // size. So the id is all a renderer has, and naming the file in the export
+    // takes a second call per attachment, to `attachments/get-many`. That is the
+    // contract pinned here, both halves of it: the id-only echo, and the name
+    // being recoverable from it and surviving into the document.
+    //
+    // (The model never sees the attachment either — BUG 82773 — but that is
+    // about inference, not about the export.)
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await threadForExport(
+      aiChat,
+      "Autotest export thread with an attachment",
+    );
+
+    const attachmentId = await attachments.saveFileId(
+      "owner",
+      {
+        title: "Autotest attached.txt",
+        content: "attached payload",
+        type: FileType.Document,
+      },
+      String(agentId),
+    );
+
+    const question = "Reply with exactly the word NEPTUNE.";
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: question,
+      instructions: SHORT_ANSWERS,
+      attachments: [{ id: attachmentId }],
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(messages);
+
+    const storedQuestion = AiAgentChat.userMessages(messages)[0];
+    expect(
+      storedQuestion.attachments,
+      "the stored turn points at the attachment by id and says nothing else about it",
+    ).toEqual([{ id: attachmentId }]);
+
+    // The second call: what the id resolves to, and the name it carries.
+    const draft = await attachments.findAttachment("owner", attachmentId);
+    expect(
+      draft,
+      "the attachment the turn points at is readable",
+    ).not.toBeNull();
+    const attachmentTitle = String(draft!.title ?? "");
+    expect(attachmentTitle, "and it knows the file's name").toContain(
+      "Autotest attached",
+    );
+
+    const names = new Map<string, string>([[attachmentId, attachmentTitle]]);
+    const transcript = messages
+      .map((message) => {
+        const body = `**${message.role === "user" ? "You" : "Assistant"}:**\n\n${AiAgentChat.messageText(message)}`;
+        const files = (message.attachments ?? []).map((attachment) => {
+          const id = String(attachment.id ?? "");
+          return names.get(id) ?? id;
+        });
+        return files.length
+          ? `${body}\n\n**Attached:** ${files.join(", ")}`
+          : body;
+      })
+      .join("\n\n");
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    const title = `Autotest Attachment Export ${apiSdk.faker.generateString(8)}`;
+    const exportCall = await aiSettings.textToDocx("owner", {
+      title,
+      content: transcript,
+      folderId,
+    });
+    expect(exportCall.status).toBe(202);
+
+    const exported = await waitForExportedFile(
+      ownerApi,
+      folderId,
+      `${title}.docx`,
+    );
+    expect(exported, `no "${title}.docx" in My Documents`).toBeDefined();
+
+    const text = await readExportedDocxText(apiSdk, "owner", exported!.id);
+    expect(text).toContain(question);
+    expect(
+      text,
+      "the attached file is named in the document, not left as a bare id",
+    ).toContain(attachmentTitle);
+    expect(text).not.toContain(attachmentId);
+    for (const reply of AiAgentChat.assistantMessages(messages)) {
+      expect(text).toContain(AiAgentChat.messageText(reply));
+    }
+  });
+
+  test("BUG 83037: GET read-messages + POST /api/2.0/ai/text-to-docx - an edited turn is exported out of place", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The consequence of BUG 83037 for this requirement. `update-message` stamps
+    // `createdAt` with the time of the edit and `read-messages` is ordered by
+    // `createdAt`, so editing an earlier message moves it to the end of the
+    // thread — and an export renders the thread in the order it is read, which
+    // puts the edited turn last in the document too.
+    //
+    // Two stored messages and no inference are enough: the reordering is the
+    // store's, and a document whose turns are in the wrong order is wrong
+    // whatever produced them. The answered-question form of the same defect is
+    // in "an edited question moves to the end of the transcript" above.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, threadId } = await threadForExport(
+      aiChat,
+      "Autotest export thread with an edit",
+    );
+
+    const first = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "Autotest first FIRSTWORD",
+    });
+    expect(first.status).toBe(200);
+    const firstId = (first.data?.messageId as { id: string }).id;
+
+    const second = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: "Autotest second SECONDWORD",
+    });
+    expect(second.status).toBe(200);
+
+    const edited = await aiChat.updateMessage("owner", {
+      messageId: firstId,
+      message: {
+        role: "user",
+        content: [{ type: "text", text: "Autotest first EDITEDWORD" }],
+      },
+    });
+    expect(edited.status).toBe(200);
+
+    const stored = await aiChat.readMessages("owner", threadId);
+    expect(stored.status).toBe(200);
+    // The edit landed, and on the same message — otherwise the order below would
+    // be about something else entirely.
+    expect(stored.data).toHaveLength(2);
+    expect(
+      stored.data.map((message) => AiAgentChat.messageText(message)),
+      "the edit was stored",
+    ).toContain("Autotest first EDITEDWORD");
+    expect(stored.data.map((message) => message.id)).toContain(firstId);
+
+    const transcript = renderTranscript(
+      stored.data.map((message) => ({
+        role: message.role,
+        text: AiAgentChat.messageText(message),
+      })),
+    );
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    const title = `Autotest Edited Export ${apiSdk.faker.generateString(8)}`;
+    const exportCall = await aiSettings.textToDocx("owner", {
+      title,
+      content: transcript,
+      folderId,
+    });
+    expect(exportCall.status).toBe(202);
+
+    const exported = await waitForExportedFile(
+      ownerApi,
+      folderId,
+      `${title}.docx`,
+    );
+    expect(exported, `no "${title}.docx" in My Documents`).toBeDefined();
+
+    // Both turns are in the document — the export itself is fine. What is wrong
+    // is where the edited one sits.
+    const text = await readExportedDocxText(apiSdk, "owner", exported!.id);
+    expect(text).toContain("EDITEDWORD");
+    expect(text).toContain("SECONDWORD");
+
+    test.fail();
+    expect(
+      text.indexOf("EDITEDWORD"),
+      "the edited turn has to be exported where it belongs, before the turn that followed it",
+    ).toBeLessThan(text.indexOf("SECONDWORD"));
+  });
+
+  test("DELETE clear-messages + POST /api/2.0/ai/text-to-docx - a cleared thread has nothing to export and the export is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The empty end of the range. `clear-messages` really drops the history, so
+    // "export this chat" right afterwards renders an empty transcript — and the
+    // exporter refuses empty content instead of filing an empty document into My
+    // Documents, which is the outcome a client can report.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, threadId } = await threadForExport(
+      aiChat,
+      "Autotest cleared export thread",
+    );
+
+    for (const text of ["Autotest one", "Autotest two"]) {
+      const appended = await aiChat.appendUserMessage("owner", {
+        threadId,
+        profileId,
+        text,
+      });
+      expect(appended.status).toBe(200);
+    }
+    // Positive control: the thread had a history, so the empty read below is the
+    // clear rather than a thread that was never written to.
+    expect((await aiChat.readMessages("owner", threadId)).data).toHaveLength(2);
+
+    const cleared = await aiChat.clearThreadMessages("owner", threadId);
+    expect(cleared.status).toBe(200);
+
+    const stored = await aiChat.readMessages("owner", threadId);
+    expect(stored.status).toBe(200);
+    expect(stored.data).toEqual([]);
+
+    const transcript = renderTranscript(
+      stored.data.map((message) => ({
+        role: message.role,
+        text: AiAgentChat.messageText(message),
+      })),
+    );
+    expect(transcript).toBe("");
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    const title = `Autotest Cleared Export ${apiSdk.faker.generateString(8)}`;
+    const { status, error } = await aiSettings.textToDocx("owner", {
+      title,
+      content: transcript,
+      folderId,
+    });
+
+    await waitForExportToSettle();
+    expect(
+      await waitForExportedFile(ownerApi, folderId, `${title}.docx`, 0),
+      "no empty document was filed",
+    ).toBeUndefined();
+    expect(status).toBe(400);
+    expect(error).toBeTruthy();
+  });
+
+  test("GET read-messages + POST /api/2.0/ai/text-to-docx - a member exports their own thread into their own My Documents", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Every export test above runs as the Owner. A member's chat has to be
+    // exportable too, and both halves of the flow are per-user: the thread is
+    // theirs to read, and My Documents is theirs to write into. The target-folder
+    // matrix is in messages.permission.spec.ts; what this adds is the thread end
+    // of it, for a plain User rather than an administrator.
+    //
+    // No inference: the turns are stored with append-user-message, so what is
+    // measured is the member's access to their own history and to the exporter.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    // All of the Owner's setup first: the shared request context's session
+    // cookie beats the bearer token, so a member created earlier would run it.
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Export Agent",
+      profileId,
+    });
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+    await aiChat.expectActingAs("user", memberId, "User");
+    await inviteToAgent(
+      apiSdk.forRole("owner").rooms,
+      agentId,
+      memberId,
+      FileShare.ContentCreator,
+    );
+
+    const threadId = await aiChat.createThreadId("user", {
+      title: "Autotest member export thread",
+      profileId,
+      agentId,
+    });
+
+    const texts = ["Autotest member MERCURYWORD", "Autotest member VENUSWORD"];
+    for (const text of texts) {
+      const appended = await aiChat.appendUserMessage("user", {
+        threadId,
+        profileId,
+        text,
+      });
+      expect(appended.status, `storing "${text}"`).toBe(200);
+    }
+
+    const stored = await aiChat.readMessages("user", threadId);
+    expect(stored.status).toBe(200);
+    expect(
+      stored.data.map((message) => AiAgentChat.messageText(message)),
+      "the member reads their whole thread",
+    ).toEqual(texts);
+
+    const transcript = renderTranscript(
+      stored.data.map((message) => ({
+        role: message.role,
+        text: AiAgentChat.messageText(message),
+      })),
+    );
+
+    const memberApi = apiSdk.forRole("user");
+    const { data: memberFolder, status: folderStatus } =
+      await memberApi.folders.getMyFolder({});
+    expect(folderStatus).toBe(200);
+    const folderId = memberFolder.response!.current!.id!;
+
+    const title = `Autotest Member Export ${apiSdk.faker.generateString(8)}`;
+    const exportCall = await aiSettings.textToDocx("user", {
+      title,
+      content: transcript,
+      folderId,
+    });
+    expect(exportCall.status).toBe(202);
+
+    const exported = await waitForExportedFile(
+      memberApi,
+      folderId,
+      `${title}.docx`,
+    );
+    expect(
+      exported,
+      `no "${title}.docx" in the member's My Documents`,
+    ).toBeDefined();
+    expect(exported!.fileExst).toBe(".docx");
+
+    const text = await readExportedDocxText(apiSdk, "user", exported!.id);
+    for (const turn of texts) {
+      expect(text).toContain(turn);
+    }
+    expect(text.indexOf(texts[0])).toBeLessThan(text.indexOf(texts[1]));
   });
 });
 
