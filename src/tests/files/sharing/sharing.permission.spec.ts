@@ -399,9 +399,9 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     expect(data.statusCode).toBe(200);
   });
 
-  // BUG XXXXX: GET /api/2.0/files/file/{fileId}/sharedusers - Non-existent fileId returns 403 instead of 404
+  // BUG 83105: GET /api/2.0/files/file/{fileId}/sharedusers - Non-existent fileId returns 403 instead of 404
   test.fail(
-    "BUG XXXXX: GET /api/2.0/files/file/{fileId}/sharedusers - Non-existent fileId returns 403 instead of 404",
+    "BUG 83105: GET /api/2.0/files/file/{fileId}/sharedusers - Non-existent fileId returns 403 instead of 404",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
