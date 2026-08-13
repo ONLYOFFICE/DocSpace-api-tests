@@ -472,3 +472,55 @@ test.describe("POST /api/2.0/files/share", () => {
     },
   );
 });
+
+test.describe("PUT /api/2.0/files/file/:fileId/share", () => {
+  test("PUT /api/2.0/files/file/:fileId/share - RoomAdmin cannot share file with guest belonging to another user", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: guestData } = await apiSdk.addMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    const { data: roomAdminData, api: roomAdminApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Share File Guest",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: guestId, access: FileShare.Read },
+          { id: roomAdminId, access: FileShare.RoomManager },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Share File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await roomAdminApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    expect(status).toBe(200);
+    const sharedUserIds = data.response?.map((entry) => entry.sharedToUser?.id);
+    expect(sharedUserIds).not.toContain(guestId);
+  });
+});

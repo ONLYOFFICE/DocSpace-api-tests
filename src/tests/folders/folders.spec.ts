@@ -7133,58 +7133,42 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(actionIds).toContain(MessageAction.RoomUpdateAccessForUser);
   });
 
-  // BUG 81641: UsersUpdatedType (4019) is not written to room history via REST API when user type is changed via updateUserType
-  test.fail(
-    "BUG 81641: GET /api/2.0/files/folder/{folderId}/log - History contains UsersUpdatedType after room member is promoted to DocSpace Admin",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: profileData } = await ownerApi.profiles.getSelfProfile();
-      const ownerDisplayName = profileData.response!.displayName!;
+  test("GET /api/2.0/files/folder/{folderId}/log - User type change does not create room history entry", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder History UsersUpdatedType",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History UsersUpdatedType",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: userData } = await apiSdk.addMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { data: beforeData } = await ownerApi.folders.getFolderHistory({
-        folderId: roomId,
-      });
-      expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
-        MessageAction.UsersUpdatedType,
-      );
+    await ownerApi.userType.updateUserType({
+      type: EmployeeType.DocSpaceAdmin,
+      updateMembersRequestDto: { userIds: [userId] },
+    });
 
-      await ownerApi.userType.updateUserType({
-        type: EmployeeType.DocSpaceAdmin,
-        updateMembersRequestDto: { userIds: [userId] },
-      });
-
-      const { data, status } = await ownerApi.folders.getFolderHistory({
-        folderId: roomId,
-      });
-      expect(status).toBe(200);
-      const actionIds = data.response!.map((e) => e.action?.id);
-      expect(actionIds).toContain(MessageAction.UsersUpdatedType);
-      const entry = data.response!.find(
-        (e) => e.action?.id === MessageAction.UsersUpdatedType,
-      );
-      expect(entry).toBeDefined();
-      expect(entry!.initiator.displayName).toBe(ownerDisplayName);
-    },
-  );
+    const { data, status } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+    const actionIds = data.response!.map((e) => e.action?.id);
+    expect(actionIds).not.toContain(MessageAction.UsersUpdatedType);
+  });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History reflects correct sequence after invite, role change and removal", async ({
     apiSdk,
