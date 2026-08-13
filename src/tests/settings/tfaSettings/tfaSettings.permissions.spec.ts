@@ -236,4 +236,82 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - access control", () => {
       "No permissions to perform this action",
     );
   });
+
+  test("PUT /api/2.0/settings/tfaappnewapp - User cannot unlink another user's TFA app", async ({
+    apiSdk,
+  }) => {
+    await linkTfaApp(apiSdk, "owner");
+
+    // See the RoomAdmin case above for why the target doesn't need to
+    // actually have TFA linked, and why that also matters for the
+    // brute-force login threshold.
+    const target = await apiSdk.addMember("owner", "User");
+    const targetId = target.data.response!.id!;
+
+    const otherUser = await apiSdk.addMember("owner", "User");
+    await linkTfaApp(apiSdk, "user", {
+      userName: otherUser.userData.email,
+      password: otherUser.userData.password,
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: targetId } });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "No permissions to perform this action",
+    );
+  });
+
+  test("PUT /api/2.0/settings/tfaappnewapp - Guest cannot unlink another user's TFA app", async ({
+    apiSdk,
+  }) => {
+    await linkTfaApp(apiSdk, "owner");
+
+    const target = await apiSdk.addMember("owner", "User");
+    const targetId = target.data.response!.id!;
+
+    const guest = await apiSdk.addMember("owner", "Guest");
+    await linkTfaApp(apiSdk, "guest", {
+      userName: guest.userData.email,
+      password: guest.userData.password,
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: targetId } });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "No permissions to perform this action",
+    );
+  });
+
+  // Confirmed live: DocSpaceAdmin gets the exact same 403 as RoomAdmin/User/
+  // Guest above - unlinking another user's TFA app is Owner-only, DocSpaceAdmin
+  // has no elevated access here despite otherwise mirroring Owner for the
+  // self-service and portal-settings TFA endpoints (see tfaSettings.spec.ts).
+  test("PUT /api/2.0/settings/tfaappnewapp - DocSpaceAdmin cannot unlink another user's TFA app", async ({
+    apiSdk,
+  }) => {
+    const admin = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const target = await apiSdk.addMember("owner", "User");
+    const targetId = target.data.response!.id!;
+
+    await linkTfaApp(apiSdk, "owner");
+    await linkTfaApp(apiSdk, "docSpaceAdmin", {
+      userName: admin.userData.email,
+      password: admin.userData.password,
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: targetId } });
+
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe(
+      "No permissions to perform this action",
+    );
+  });
 });
