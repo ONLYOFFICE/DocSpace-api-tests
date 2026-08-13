@@ -1163,7 +1163,7 @@ test.describe("AI Messages - exporting a thread", () => {
     expect(text).toContain(question);
   });
 
-  test("BUG XXXXX: GET read-messages + POST /api/2.0/ai/text-to-docx - a long thread cannot be exported whole", async ({
+  test("BUG 83096: GET read-messages + POST /api/2.0/ai/text-to-docx - a long thread cannot be exported whole", async ({
     apiSdk,
     paymentsApi,
   }) => {
