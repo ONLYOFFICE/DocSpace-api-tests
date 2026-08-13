@@ -2,6 +2,10 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { AiPrompts } from "@/src/helpers/ai-prompts";
+import {
+  AiAgentChat,
+  expectHealthyAssistantReply,
+} from "@/src/helpers/ai-agent-chat";
 
 // Saved prompts and prompt folders — sections 18.1 and 18.2.
 //
@@ -556,6 +560,159 @@ test.describe("AI Prompts - export and import", () => {
     expect(reimported.status).toBe(200);
     expect(typeof reimported.data?.success).toBe("boolean");
   });
+
+  // `options.mode` is the only knob the import takes, and it decides whether the
+  // library is added to or wiped — the difference between a merge and data loss.
+  test("POST /api/2.0/ai/prompts/import-bundle - mode merge keeps what is already there", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const existingFolder = await prompts.createFolderId(
+      "owner",
+      "Autotest existing folder",
+    );
+    const existing = await prompts.createPromptId("owner", {
+      name: "Autotest existing",
+      text: "Existing body",
+      folderId: existingFolder,
+    });
+
+    const { status, data } = await prompts.importBundle("owner", {
+      bundle: {
+        version: 1,
+        folders: [{ id: "ignored-folder", name: "Autotest imported folder" }],
+        prompts: [
+          {
+            id: "ignored-prompt",
+            name: "Autotest imported",
+            text: "Imported body",
+            folderId: "ignored-folder",
+          },
+        ],
+      },
+      options: { mode: "merge" },
+    });
+
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
+    expect(data?.imported?.prompts).toBe(1);
+    expect(data?.imported?.folders).toBe(1);
+
+    // Both libraries are there afterwards, and the imported prompt landed inside
+    // the imported folder rather than in the root — the bundle's own folder ids
+    // are re-issued, so the binding has to be remapped, not dropped.
+    const folders = await prompts.listFolders("owner");
+    expect(folders.data.map((folder) => folder.name).sort()).toEqual([
+      "Autotest existing folder",
+      "Autotest imported folder",
+    ]);
+    expect(
+      (await prompts.listPrompts("owner", existingFolder)).data.map(
+        (p) => p.id,
+      ),
+      "the prompt that was already there",
+    ).toEqual([existing]);
+
+    const importedFolder = folders.data.find(
+      (folder) => folder.name === "Autotest imported folder",
+    );
+    const inside = await prompts.listPrompts("owner", importedFolder!.id!);
+    expect(inside.data.map((prompt) => prompt.name)).toEqual([
+      "Autotest imported",
+    ]);
+    expect(inside.data[0]?.text).toBe("Imported body");
+  });
+
+  test("POST /api/2.0/ai/prompts/import-bundle - mode replace drops the existing library", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const doomedFolder = await prompts.createFolderId(
+      "owner",
+      "Autotest doomed folder",
+    );
+    const doomed = await prompts.createPromptId("owner", {
+      name: "Autotest doomed",
+      text: "Doomed body",
+      folderId: doomedFolder,
+    });
+
+    const { status, data } = await prompts.importBundle("owner", {
+      bundle: {
+        version: 1,
+        folders: [],
+        prompts: [
+          { id: "ignored", name: "Autotest replacement", text: "New body" },
+        ],
+      },
+      options: { mode: "replace" },
+    });
+
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
+    expect(data?.imported?.prompts).toBe(1);
+
+    // Replace means replace: the previous prompt and its folder are gone, and the
+    // library is exactly the bundle. This is destructive by design, which is why
+    // it is pinned rather than left to a client's assumption.
+    expect((await prompts.getPrompt("owner", doomed)).data).toBeNull();
+    expect((await prompts.getFolder("owner", doomedFolder)).data).toBeNull();
+    expect((await prompts.listFolders("owner")).data).toEqual([]);
+    expect(
+      (await prompts.listPrompts("owner")).data.map((prompt) => prompt.name),
+    ).toEqual(["Autotest replacement"]);
+  });
+
+  test("POST /api/2.0/ai/prompts/import-bundle - a bundle entry that collides with an existing name is reported", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const existing = await prompts.createPromptId("owner", {
+      name: "Autotest collision",
+      text: "Existing body",
+    });
+
+    const { status, data } = await prompts.importBundle("owner", {
+      bundle: {
+        version: 1,
+        folders: [],
+        prompts: [
+          { id: "ignored-1", name: "Autotest collision", text: "Bundle body" },
+          { id: "ignored-2", name: "Autotest fresh", text: "Fresh body" },
+        ],
+      },
+      options: { mode: "merge" },
+    });
+
+    // AiImportResult is documented as all-or-nothing: either every entry
+    // persisted with counts, or nothing persisted plus a per-entry error report.
+    expect(status).toBe(200);
+    expect(data?.success).toBe(false);
+    expect(data?.errors?.length).toBe(1);
+    expect(data?.errors?.[0]?.kind).toBe("prompt");
+    expect(data?.errors?.[0]?.ref).toContain("Autotest collision");
+
+    // Nothing was written — not the colliding entry, and not the clean one that
+    // shared the bundle with it.
+    const listed = await prompts.listPrompts("owner");
+    expect(listed.data.map((prompt) => prompt.id)).toEqual([existing]);
+    expect(
+      listed.data[0]?.text,
+      "the existing prompt was not overwritten",
+    ).toBe("Existing body");
+  });
 });
 
 test.describe("AI Prompt folders - lifecycle", () => {
@@ -827,6 +984,88 @@ test.describe("AI Prompt folders - validation", () => {
     expect(unknown.data).toBeNull();
   });
 
+  // rename-folder is a separate handler from create-folder, and renaming is one
+  // of the four gestures section 18.2 names, so its validation is pinned in its
+  // own right rather than assumed to match create's.
+  test("PUT /api/2.0/ai/prompts/rename-folder - a blank name is refused and the folder keeps its own", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const folderId = await prompts.createFolderId("owner", "Autotest keeper");
+
+    for (const name of ["", "   ", "\t\n"]) {
+      const { status, data } = await prompts.renameFolder("owner", {
+        id: folderId,
+        name,
+      });
+      expect(status, `name ${JSON.stringify(name)}`).toBe(200);
+      expect(data?.success).toBe(false);
+      expect(data?.error?.message).toBe("Name is required");
+    }
+
+    // The refusal left the folder alone — a blank rename must not wipe the name.
+    expect((await prompts.getFolder("owner", folderId)).data?.name).toBe(
+      "Autotest keeper",
+    );
+    expect(
+      (await prompts.listFolders("owner")).data.map((folder) => folder.name),
+    ).toEqual(["Autotest keeper"]);
+  });
+
+  test("PUT /api/2.0/ai/prompts/rename-folder - renaming onto an existing folder's name is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const first = await prompts.createFolderId("owner", "Autotest first");
+    const second = await prompts.createFolderId("owner", "Autotest second");
+
+    const { status, data } = await prompts.renameFolder("owner", {
+      id: second,
+      name: "Autotest first",
+    });
+    expect(status).toBe(200);
+    expect(data?.success).toBe(false);
+    expect(data?.error?.message).toBe("Folder name already exists");
+
+    // Neither folder moved: create refuses the duplicate, so rename must too, or
+    // the tree ends up with two identical labels the user cannot tell apart.
+    expect((await prompts.getFolder("owner", second)).data?.name).toBe(
+      "Autotest second",
+    );
+    expect((await prompts.getFolder("owner", first)).data?.name).toBe(
+      "Autotest first",
+    );
+  });
+
+  test("PUT /api/2.0/ai/prompts/rename-folder - an over-long name is rejected with 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const folderId = await prompts.createFolderId("owner", "Autotest short");
+
+    const { status } = await prompts.renameFolder("owner", {
+      id: folderId,
+      name: "N".repeat(5000),
+    });
+    expect(status).toBe(400);
+
+    expect((await prompts.getFolder("owner", folderId)).data?.name).toBe(
+      "Autotest short",
+    );
+  });
+
   test("PUT /api/2.0/ai/prompts/rename-folder - an unknown folder id is refused", async ({
     apiSdk,
     paymentsApi,
@@ -998,5 +1237,391 @@ test.describe("AI Prompt folders - moving prompts", () => {
     expect(
       (await prompts.listPrompts("owner", folderId)).data.map((p) => p.id),
     ).toEqual([promptId]);
+  });
+
+  // The duplicate-name rule is scoped to a folder, so two prompts may legally
+  // share a name while they sit in different folders. Moving one onto the other
+  // is the moment the rule has to be re-checked — on both routes that move a
+  // prompt, `move` and `update{folderId}`.
+  test("PUT /api/2.0/ai/prompts/move - moving onto a name already taken in the target folder is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const target = await prompts.createFolderId("owner", "Autotest target");
+
+    // Same name in two scopes, which create allows: the rule is per folder.
+    const inFolder = await prompts.createPromptId("owner", {
+      name: "Autotest clash",
+      text: "Folder body",
+      folderId: target,
+    });
+    const inRoot = await prompts.createPromptId("owner", {
+      name: "Autotest clash",
+      text: "Root body",
+    });
+
+    const { status, data } = await prompts.movePrompt("owner", {
+      id: inRoot,
+      folderId: target,
+    });
+    expect(status).toBe(200);
+    expect(data?.success).toBe(false);
+    expect(data?.error?.message).toBe(
+      "Prompt name already exists in this folder",
+    );
+
+    // The refusal has to be complete: the folder still holds one prompt and the
+    // moved one is still in the root, not lost between the two scopes.
+    const listed = await prompts.listPrompts("owner", target);
+    expect(listed.data.map((prompt) => prompt.id)).toEqual([inFolder]);
+    expect(listed.data[0]?.text).toBe("Folder body");
+    expect((await prompts.listPrompts("owner")).data.map((p) => p.id)).toEqual([
+      inRoot,
+    ]);
+  });
+
+  test("PUT /api/2.0/ai/prompts/update - moving onto a taken name through update is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const target = await prompts.createFolderId("owner", "Autotest target");
+    await prompts.createPromptId("owner", {
+      name: "Autotest clash",
+      text: "Folder body",
+      folderId: target,
+    });
+    const inRoot = await prompts.createPromptId("owner", {
+      name: "Autotest clash",
+      text: "Root body",
+    });
+
+    const { status, data } = await prompts.updatePrompt("owner", {
+      id: inRoot,
+      updates: { folderId: target },
+    });
+    expect(status).toBe(200);
+    expect(data?.success).toBe(false);
+    expect(data?.error?.message).toBe(
+      "Prompt name already exists in this folder",
+    );
+
+    expect(
+      (await prompts.listPrompts("owner", target)).data,
+      "the target folder still holds one prompt",
+    ).toHaveLength(1);
+    expect((await prompts.listPrompts("owner")).data.map((p) => p.id)).toEqual([
+      inRoot,
+    ]);
+  });
+
+  test("PUT /api/2.0/ai/prompts/update - renaming a prompt onto a sibling's name is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const folderId = await prompts.createFolderId("owner", "Autotest folder");
+    await prompts.createPromptId("owner", {
+      name: "Autotest taken",
+      text: "First body",
+      folderId,
+    });
+    const second = await prompts.createPromptId("owner", {
+      name: "Autotest free",
+      text: "Second body",
+      folderId,
+    });
+
+    const { status, data } = await prompts.updatePrompt("owner", {
+      id: second,
+      updates: { name: "Autotest taken" },
+    });
+    expect(status).toBe(200);
+    expect(data?.success).toBe(false);
+    expect(data?.error?.message).toBe(
+      "Prompt name already exists in this folder",
+    );
+
+    expect(
+      (await prompts.getPrompt("owner", second)).data?.name,
+      "the refused rename left the name alone",
+    ).toBe("Autotest free");
+  });
+
+  test("GET /api/2.0/ai/prompts/list - an unknown or malformed folderId", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    // A root prompt as the positive control: an empty answer below then means
+    // "that folder has nothing", not "the listing is broken for everything".
+    const rootPrompt = await prompts.createPromptId("owner", {
+      name: "Autotest root",
+      text: "Root body",
+    });
+
+    const unknown = await prompts.listPrompts(
+      "owner",
+      "019fcc1d-2ccd-7274-974a-cc335f583f58",
+    );
+    expect(unknown.status).toBe(200);
+    expect(unknown.data, "an unknown folder lists nothing").toEqual([]);
+
+    const malformed = await prompts.listPrompts("owner", "not-a-guid");
+    expect(malformed.status).toBe(200);
+    expect(malformed.data).toEqual([]);
+
+    // Neither call leaked the root listing into a folder-scoped one.
+    expect((await prompts.listPrompts("owner")).data.map((p) => p.id)).toEqual([
+      rootPrompt,
+    ]);
+  });
+});
+
+// The two ends of the composer, which no other block touches. `create` has no
+// "from message" route — the client reads the message text and posts it as
+// `text` — so what these pin is the round trip: a real message becomes a prompt
+// unchanged, and a saved prompt goes back out as a message the model answers.
+// Both need real inference, hence the gateway and the agent.
+
+const SHORT_ANSWERS =
+  "You are a test assistant. Answer with one short sentence.";
+
+/** An agent and a thread of the owner's own, with the profile behind both. */
+async function threadForPrompts(aiChat: AiAgentChat, threadTitle: string) {
+  const profileId = await aiChat.defaultProfileId("owner");
+  const agentId = await aiChat.createAgentId("owner", {
+    title: "Autotest Prompt Agent",
+    profileId,
+  });
+  const threadId = await aiChat.createThreadId("owner", {
+    title: threadTitle,
+    profileId,
+    agentId,
+  });
+
+  return { profileId, agentId, threadId };
+}
+
+// A message a user would plausibly want to keep: multi-line, markdown, and
+// outside ASCII. Every construct carries a word of its own so a prompt that
+// kept the text but lost the formatting is still caught.
+const MESSAGE_TO_SAVE = [
+  "# BRIEFHEAD",
+  "",
+  "Rewrite the text below as **BOLDWORD** bullet points:",
+  "",
+  "- LISTONE",
+  "- 第二项",
+  "",
+  "```js",
+  "const answer = 42;",
+  "```",
+  "",
+  "café naïve, größer, 🚀",
+].join("\n");
+
+test.describe("AI Prompts - composer round trip", () => {
+  test("GET /api/2.0/ai/threads/read-messages, POST /api/2.0/ai/prompts/create - a prompt made from a message keeps it verbatim", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await threadForPrompts(
+      aiChat,
+      "Autotest prompt source thread",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: MESSAGE_TO_SAVE,
+      instructions: SHORT_ANSWERS,
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(messages);
+
+    // The text the composer would save comes off the stored message, not off
+    // the constant above — a store that mangled the message would otherwise be
+    // invisible here and the round trip would be measured against nothing.
+    const userMessages = AiAgentChat.userMessages(messages);
+    expect(userMessages).toHaveLength(1);
+    const messageText = AiAgentChat.messageText(userMessages[0]);
+    expect(messageText, "the message survived the send verbatim").toBe(
+      MESSAGE_TO_SAVE,
+    );
+
+    const created = await prompts.createPrompt("owner", {
+      name: "Autotest from my message",
+      text: messageText,
+    });
+    expect(created.status).toBe(200);
+    expect(created.data?.success).toBe(true);
+    const promptId = created.data!.prompt!.id!;
+
+    const read = await prompts.getPrompt("owner", promptId);
+    expect(read.status).toBe(200);
+    expect(read.data?.text, "the saved prompt is the message, unchanged").toBe(
+      MESSAGE_TO_SAVE,
+    );
+    // Spelt out separately: `toBe` on the whole blob says "different" without
+    // saying what a truncating or newline-normalising store dropped.
+    expect(read.data?.text?.split("\n")).toHaveLength(
+      MESSAGE_TO_SAVE.split("\n").length,
+    );
+    for (const marker of ["BRIEFHEAD", "**BOLDWORD**", "第二项", "🚀"]) {
+      expect(read.data?.text).toContain(marker);
+    }
+
+    // And it is in the library the composer lists, not just readable by id.
+    const listed = await prompts.listPrompts("owner");
+    expect(listed.data.map((prompt) => prompt.id)).toContain(promptId);
+
+    // The other half of the same gesture: keeping the model's answer. Same
+    // route, but the text is one the test did not author.
+    const replyText = AiAgentChat.messageText(
+      AiAgentChat.assistantMessages(messages)[0],
+    );
+    const fromReply = await prompts.createPrompt("owner", {
+      name: "Autotest from the reply",
+      text: replyText,
+    });
+    expect(fromReply.status).toBe(200);
+    expect(fromReply.data?.success).toBe(true);
+    expect(
+      (await prompts.getPrompt("owner", fromReply.data!.prompt!.id!)).data
+        ?.text,
+    ).toBe(replyText);
+  });
+
+  test("GET /api/2.0/ai/prompts/get-by-id, POST /api/2.0/ai/ai/send-with-stream - a saved prompt is sent from the composer and answered", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+
+    const promptText = "Reply with exactly the word PROMPTPLUTO.";
+    const promptId = await prompts.createPromptId("owner", {
+      name: "Autotest composer preset",
+      text: promptText,
+    });
+
+    // What the composer inserts is what `get-by-id` hands back, so the message
+    // is built from the response rather than from `promptText`.
+    const stored = await prompts.getPrompt("owner", promptId);
+    expect(stored.status).toBe(200);
+    expect(stored.data?.text).toBe(promptText);
+
+    const { profileId, agentId, threadId } = await threadForPrompts(
+      aiChat,
+      "Autotest preset thread",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: stored.data!.text!,
+      instructions: SHORT_ANSWERS,
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(messages);
+
+    // The prompt arrived as the user's message, and the model acted on it —
+    // a healthy reply on its own would pass even if the text had been dropped.
+    expect(AiAgentChat.messageText(AiAgentChat.userMessages(messages)[0])).toBe(
+      promptText,
+    );
+    expect(
+      AiAgentChat.messageText(AiAgentChat.assistantMessages(messages)[0]),
+    ).toMatch(/\bPROMPTPLUTO\b/);
+
+    // Using a preset does not consume it — it is still in the library.
+    expect(
+      (await prompts.listPrompts("owner")).data.map((prompt) => prompt.id),
+    ).toContain(promptId);
+  });
+});
+
+// The other half of the requirement — what an EMPTY chat shows: ready-made
+// suggestion chips, and a read-only folder of built-in prompts. Neither has an
+// API surface on this build, so both are `test.fixme` placeholders: they cost
+// nothing to run and they keep the gap visible in the report instead of buried
+// in a comment at the top of the file.
+//
+//   * No built-in set and no read-only flag exists in the contract. `AiPrompt`
+//     and `AiPromptFolder` carry id / name / text / folderId and the two
+//     timestamps and nothing else — no `isSystem`, no `readOnly`, no `source` —
+//     `list` and `list-folders` start empty on a fresh portal (pinned by the
+//     lifecycle tests above), and the SDK exposes exactly the 13 routes listed at
+//     the top of this file, none of which serves a system library.
+//   * Nothing serves the chips either: no prompts route, no field on
+//     `/ai/config` (AiAiSettingsDto is vectorizationEnabled /
+//     vectorizationNeedReset / aiReady / embeddingModel / systemAiEnabled /
+//     recommendedModelForForms), and `/ai/preferences/*` is deep-mode only.
+//
+// So each is either a client-side constant — a UI concern, out of reach from the
+// API — or not implemented on the backend. That question belongs to development;
+// until it is answered there is nothing here to assert against.
+
+test.describe("AI Prompts - empty chat: built-ins and suggestions", () => {
+  test.fixme("GET /api/2.0/ai/prompts/list-folders - the built-in prompt folder is read-only", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+
+    // What this will assert once built-ins exist: the folder is present on a
+    // fresh portal, it is flagged read-only, rename-folder and delete-folder
+    // are refused on it, the prompts inside it refuse update / delete / move,
+    // and a user's own prompt cannot be flipped into a built-in one through
+    // create or update. Today `list-folders` is empty and no field carries the
+    // flag, so there is no id to point any of that at.
+    const folders = await prompts.listFolders("owner");
+    expect(folders.status).toBe(200);
+    expect(
+      folders.data,
+      "a fresh portal serves the built-in prompt folder",
+    ).not.toEqual([]);
+  });
+
+  test.fixme("the empty-chat suggestion chips are served by an API", async () => {
+    // Nothing to call: no route, no config field. Once development says where
+    // the chips come from, this becomes the test for it — the list is served,
+    // it is non-empty, each chip carries the text that goes into the composer,
+    // and the AI-off / Guest behaviour matches the rest of the prompts family.
+    // If the answer is "hard-coded in the client", this placeholder goes away
+    // and the coverage moves to the UI suite.
   });
 });

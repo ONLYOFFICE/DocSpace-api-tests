@@ -64,6 +64,23 @@ export type AiPromptBundle = {
   prompts?: AiPrompt[];
 };
 
+/**
+ * `import-bundle` is documented as all-or-nothing: either every entry persisted
+ * and `imported` carries the counts, or nothing persisted and `errors` names the
+ * offending entries. `options.mode` is `"merge"` (add to the library) or
+ * `"replace"` (drop it first) — the destructive one, so it is worth spelling out.
+ */
+export type AiImportResult = {
+  success?: boolean;
+  imported?: { folders?: number; prompts?: number };
+  errors?: Array<{
+    kind?: "folder" | "prompt";
+    ref?: string;
+    error?: { field?: string; message?: string };
+  }>;
+  error?: { field?: string; message?: string };
+};
+
 export class AiPrompts extends AiHttp {
   // ----------------------------------------------------------------- prompts
 
@@ -175,11 +192,12 @@ export class AiPrompts extends AiHttp {
   }
 
   importBundle(role: AgentRole, body: Record<string, unknown>) {
-    return this.call<{
-      success?: boolean;
-      imported?: { folders?: number; prompts?: number };
-      error?: { field?: string; message?: string };
-    }>(role, "post", "/api/2.0/ai/prompts/import-bundle", body);
+    return this.call<AiImportResult>(
+      role,
+      "post",
+      "/api/2.0/ai/prompts/import-bundle",
+      body,
+    );
   }
 
   // ----------------------------------------------------------------- helpers
