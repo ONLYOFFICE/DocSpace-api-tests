@@ -1,7 +1,17 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { TfaRequestsDtoType } from "@onlyoffice/docspace-api-sdk";
-import { enableTfaApp, linkTfaApp, resetTfaAfterTest } from "@/src/helpers/tfa";
+import {
+  addTfaConfirmCookie,
+  enableTfaApp,
+  extractTfaSetupSecret,
+  linkTfaApp,
+  parseSetCookieHeader,
+  refreshTfaSessionToken,
+  resetTfaAfterTest,
+  submitTfaConfirmCode,
+  totpCode,
+} from "@/src/helpers/tfa";
 import config from "@/config";
 
 test.afterEach(async ({ apiSdk }) => {
@@ -154,6 +164,169 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values",
   );
 });
 
+test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for the selected account only", () => {
+  test("a user listed in mandatoryUsers is forced into the TFA setup flow on login", async ({
+    apiSdk,
+  }) => {
+    const mandatory = await apiSdk.addMember("owner", "User");
+    const mandatoryId = mandatory.data.response!.id!;
+
+    const { status: settingsStatus } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: {
+          type: TfaRequestsDtoType.App,
+          mandatoryUsers: [mandatoryId],
+        },
+      });
+    expect(settingsStatus).toBe(200);
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .authentication.authenticateMe({
+        authRequestsDto: {
+          userName: mandatory.userData.email,
+          password: mandatory.userData.password,
+          session: true,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.tfa).toBe(true);
+    expect(data.response?.tfaKey).toBeTruthy();
+  });
+
+  // mandatoryUsers/mandatoryGroups override trustedIps for the listed
+  // accounts - they don't scope who needs TFA (that's still everyone under
+  // `type: App`). SDK docs describe mandatoryUsers as if it were an
+  // allowlist, which reads as misleading - not yet reported as a bug.
+  test("mandatoryUsers forces TFA even from a trustedIps address, unlike an unlisted user", async ({
+    apiSdk,
+  }) => {
+    const { data: events } = await apiSdk
+      .forRole("owner")
+      .loginHistory.getLastLoginEvents();
+    const trustedIp = events.response![0].ip!;
+
+    const mandatory = await apiSdk.addMember("owner", "User");
+    const mandatoryId = mandatory.data.response!.id!;
+    const trusted = await apiSdk.addMember("owner", "User");
+
+    const { status: settingsStatus } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: {
+          type: TfaRequestsDtoType.App,
+          mandatoryUsers: [mandatoryId],
+          trustedIps: [trustedIp],
+        },
+      });
+    expect(settingsStatus).toBe(200);
+
+    await test.step("the mandatory user is still forced into TFA despite the trusted IP", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .authentication.authenticateMe({
+          authRequestsDto: {
+            userName: mandatory.userData.email,
+            password: mandatory.userData.password,
+            session: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.tfa).toBe(true);
+      expect(data.response?.tfaKey).toBeTruthy();
+    });
+
+    await test.step("the non-mandatory user is bypassed via the trusted IP", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .authentication.authenticateMe({
+          authRequestsDto: {
+            userName: trusted.userData.email,
+            password: trusted.userData.password,
+            session: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.tfa).toBeFalsy();
+      expect(data.response?.token).toBeTruthy();
+    });
+  });
+
+  test("mandatoryGroups forces TFA even from a trustedIps address, unlike a non-member user", async ({
+    apiSdk,
+  }) => {
+    const { data: events } = await apiSdk
+      .forRole("owner")
+      .loginHistory.getLastLoginEvents();
+    const trustedIp = events.response![0].ip!;
+
+    const { data: ownerProfile } = await apiSdk
+      .forRole("owner")
+      .profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const mandatory = await apiSdk.addMember("owner", "User");
+    const mandatoryId = mandatory.data.response!.id!;
+    const outsider = await apiSdk.addMember("owner", "User");
+
+    const { data: group } = await apiSdk.forRole("owner").groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [mandatoryId],
+      },
+    });
+    const groupId = group.response!.id!;
+
+    const { status: settingsStatus } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: {
+          type: TfaRequestsDtoType.App,
+          mandatoryGroups: [groupId],
+          trustedIps: [trustedIp],
+        },
+      });
+    expect(settingsStatus).toBe(200);
+
+    await test.step("a member of the mandatory group is still forced into TFA despite the trusted IP", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .authentication.authenticateMe({
+          authRequestsDto: {
+            userName: mandatory.userData.email,
+            password: mandatory.userData.password,
+            session: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.tfa).toBe(true);
+      expect(data.response?.tfaKey).toBeTruthy();
+    });
+
+    await test.step("a user outside the mandatory group is bypassed via the trusted IP", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .authentication.authenticateMe({
+          authRequestsDto: {
+            userName: outsider.userData.email,
+            password: outsider.userData.password,
+            session: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.tfa).toBeFalsy();
+      expect(data.response?.token).toBeTruthy();
+    });
+  });
+});
+
 test.describe("PUT /api/2.0/settings/tfaapp - DocSpaceAdmin updates TFA settings", () => {
   test("PUT /api/2.0/settings/tfaapp - DocSpaceAdmin enables TFA App", async ({
     apiSdk,
@@ -264,6 +437,61 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - Owner updates TFA settings
     expect(typeof data.response).toBe("string");
   });
 
+  // The URL alone 404s ("Invalid link") - the confirmation key travels as an
+  // httpOnly `asc_confirm_key_TfaActivation` cookie on this same response,
+  // not in the URL's query string. A real browser session that received this
+  // response would already have that cookie; our Bearer-token API client
+  // doesn't share cookies with `page`, so it's transplanted manually here to
+  // actually follow the link end-to-end.
+  test("PUT /api/2.0/settings/tfaappwithlink - following the confirmation URL (with its cookie) completes TFA app setup", async ({
+    apiSdk,
+    page,
+  }) => {
+    const credentials = {
+      userName: config.DOCSPACE_OWNER_EMAIL,
+      password: config.DOCSPACE_OWNER_PASSWORD,
+    };
+
+    const response = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettingsLink({
+        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+      });
+    expect(response.status).toBe(200);
+
+    await addTfaConfirmCookie(
+      page,
+      apiSdk.tokenStore.portalDomain,
+      parseSetCookieHeader(response.headers["set-cookie"]!),
+    );
+
+    await page.goto(response.data.response!);
+    const secret = await extractTfaSetupSecret(page);
+    await submitTfaConfirmCode(
+      page,
+      await totpCode(secret),
+      "app_connect_button",
+    );
+
+    // A fresh login no longer returns a tfaKey (the setup secret) for an
+    // already-linked account - only a not-yet-linked one gets that. Getting
+    // tfa: true without tfaKey here proves the confirmation link genuinely
+    // finished linking the app, not just navigated somewhere that looks right.
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .authentication.authenticateMe({
+        authRequestsDto: { ...credentials, session: true },
+      });
+    expect(status).toBe(200);
+    expect(data.response?.tfa).toBe(true);
+    expect(data.response?.tfaKey).toBeFalsy();
+
+    // Owner's stored Bearer token is now stale (this settings change
+    // invalidated it, same as enabling TFA App always does) - refresh it so
+    // the fixture's own teardown login doesn't orphan this portal.
+    await refreshTfaSessionToken(apiSdk, "owner", credentials, secret);
+  });
+
   // Docs: 405 "SMS settings are not available" when no SMS provider is
   // configured. Live API returns 403 instead.
   test.fail(
@@ -371,6 +599,218 @@ test.describe("GET+PUT /api/2.0/settings/tfaappcodes|tfaappnewcodes - Owner mana
     expect(data.response!.map((c) => c.code)).not.toEqual(
       before.response!.map((c) => c.code),
     );
+  });
+});
+
+test.describe("POST /api/2.0/authentication - Owner logs in using a backup code instead of a TOTP code", () => {
+  test("a backup code authenticates in place of a TOTP code and is single-use", async ({
+    apiSdk,
+  }) => {
+    await linkTfaApp(apiSdk, "owner");
+    const { data: codes } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.getTfaAppCodes();
+    const backupCode = codes.response!.find((c) => !c.isUsed)!.code!;
+
+    const credentials = {
+      userName: config.DOCSPACE_OWNER_EMAIL,
+      password: config.DOCSPACE_OWNER_PASSWORD,
+    };
+
+    await test.step("logging in with the backup code succeeds", async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .authentication.authenticateMeFromBodyWithCode({
+          code: backupCode,
+          authWithCodeRequestsDto: {
+            ...credentials,
+            code: backupCode,
+            session: true,
+          },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response?.token).toBeTruthy();
+      apiSdk.tokenStore.setToken("owner", data.response!.token!);
+    });
+
+    await test.step("the same backup code is marked used and cannot be reused", async () => {
+      const { data: after } = await apiSdk
+        .forRole("owner")
+        .tfaSettings.getTfaAppCodes();
+      expect(after.response!.find((c) => c.code === backupCode)?.isUsed).toBe(
+        true,
+      );
+
+      const { status } = await apiSdk
+        .forRole("owner")
+        .authentication.authenticateMeFromBodyWithCode({
+          code: backupCode,
+          authWithCodeRequestsDto: {
+            ...credentials,
+            code: backupCode,
+            session: true,
+          },
+        });
+
+      expect(status).toBe(401);
+    });
+  });
+});
+
+test.describe("GET+PUT /api/2.0/settings/tfaappcodes|tfaappnewcodes - DocSpaceAdmin manages TFA backup codes", () => {
+  test("GET /api/2.0/settings/tfaappcodes - DocSpaceAdmin gets backup codes once the TFA app is linked", async ({
+    apiSdk,
+  }) => {
+    const admin = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    await enableTfaApp(apiSdk, "owner");
+    await linkTfaApp(apiSdk, "docSpaceAdmin", {
+      userName: admin.userData.email,
+      password: admin.userData.password,
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .tfaSettings.getTfaAppCodes();
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+  });
+
+  test("PUT /api/2.0/settings/tfaappnewcodes - DocSpaceAdmin regenerates backup codes", async ({
+    apiSdk,
+  }) => {
+    const admin = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    await enableTfaApp(apiSdk, "owner");
+    await linkTfaApp(apiSdk, "docSpaceAdmin", {
+      userName: admin.userData.email,
+      password: admin.userData.password,
+    });
+    const { data: before } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .tfaSettings.getTfaAppCodes();
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .tfaSettings.updateTfaAppCodes();
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+    expect(data.response!.map((c) => c.code)).not.toEqual(
+      before.response!.map((c) => c.code),
+    );
+  });
+});
+
+test.describe("GET+PUT /api/2.0/settings/tfaappcodes|tfaappnewcodes, GET /api/2.0/settings/tfaapp/confirm - non-admin roles manage their own TFA app data", () => {
+  test("RoomAdmin can get/regenerate their own backup codes and get their own confirmation data once the TFA app is linked", async ({
+    apiSdk,
+  }) => {
+    const member = await apiSdk.addMember("owner", "RoomAdmin");
+    await enableTfaApp(apiSdk, "owner");
+    await linkTfaApp(apiSdk, "roomAdmin", {
+      userName: member.userData.email,
+      password: member.userData.password,
+    });
+
+    await test.step("GET /api/2.0/settings/tfaappcodes", async () => {
+      const { data, status } = await apiSdk
+        .forRole("roomAdmin")
+        .tfaSettings.getTfaAppCodes();
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBeGreaterThan(0);
+    });
+
+    await test.step("PUT /api/2.0/settings/tfaappnewcodes", async () => {
+      const { data, status } = await apiSdk
+        .forRole("roomAdmin")
+        .tfaSettings.updateTfaAppCodes();
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBeGreaterThan(0);
+    });
+
+    await test.step("GET /api/2.0/settings/tfaapp/confirm", async () => {
+      const { status } = await apiSdk
+        .forRole("roomAdmin")
+        .tfaSettings.getTfaConfirmData();
+      expect(status).toBe(200);
+    });
+  });
+
+  test("User can get/regenerate their own backup codes and get their own confirmation data once the TFA app is linked", async ({
+    apiSdk,
+  }) => {
+    const member = await apiSdk.addMember("owner", "User");
+    await enableTfaApp(apiSdk, "owner");
+    await linkTfaApp(apiSdk, "user", {
+      userName: member.userData.email,
+      password: member.userData.password,
+    });
+
+    await test.step("GET /api/2.0/settings/tfaappcodes", async () => {
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .tfaSettings.getTfaAppCodes();
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBeGreaterThan(0);
+    });
+
+    await test.step("PUT /api/2.0/settings/tfaappnewcodes", async () => {
+      const { data, status } = await apiSdk
+        .forRole("user")
+        .tfaSettings.updateTfaAppCodes();
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBeGreaterThan(0);
+    });
+
+    await test.step("GET /api/2.0/settings/tfaapp/confirm", async () => {
+      const { status } = await apiSdk
+        .forRole("user")
+        .tfaSettings.getTfaConfirmData();
+      expect(status).toBe(200);
+    });
+  });
+
+  test("Guest can get/regenerate their own backup codes and get their own confirmation data once the TFA app is linked", async ({
+    apiSdk,
+  }) => {
+    const member = await apiSdk.addMember("owner", "Guest");
+    await enableTfaApp(apiSdk, "owner");
+    await linkTfaApp(apiSdk, "guest", {
+      userName: member.userData.email,
+      password: member.userData.password,
+    });
+
+    await test.step("GET /api/2.0/settings/tfaappcodes", async () => {
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .tfaSettings.getTfaAppCodes();
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBeGreaterThan(0);
+    });
+
+    await test.step("PUT /api/2.0/settings/tfaappnewcodes", async () => {
+      const { data, status } = await apiSdk
+        .forRole("guest")
+        .tfaSettings.updateTfaAppCodes();
+      expect(status).toBe(200);
+      expect(Array.isArray(data.response)).toBe(true);
+      expect(data.response!.length).toBeGreaterThan(0);
+    });
+
+    await test.step("GET /api/2.0/settings/tfaapp/confirm", async () => {
+      const { status } = await apiSdk
+        .forRole("guest")
+        .tfaSettings.getTfaConfirmData();
+      expect(status).toBe(200);
+    });
   });
 });
 
