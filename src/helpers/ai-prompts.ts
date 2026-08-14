@@ -25,8 +25,16 @@ import { AiHttp, AgentRole } from "./ai-http";
 // Error style is split in a way that matters for assertions:
 //   * a blank *name* is HTTP 200 `{success:false, error:{field:"name", ...}}`
 //   * a blank *text* is a hard HTTP 400
-//   * an over-long name (5000 chars) is a hard HTTP 400
+//   * an over-long name (5000 chars) is a hard HTTP 400 on *create*-folder only;
+//     `rename-folder` takes any length, answers 200 and silently truncates to
+//     255 chars — do not generalise create's validation to the rename route
 //   * a missing id on delete/get is HTTP 400 `{"error":"id required"}`
+//   * `list?folderId=` is 200 + `[]` for an unknown GUID but a hard 400 for a
+//     value that is not a GUID at all — it fails to bind before the store
+//
+// Per-folder name uniqueness is enforced on `create` and on `update{name}`, but
+// NOT on `move` or `update{folderId}`: either will happily park a second prompt
+// with the same name in the target folder (BUG XXXXX).
 // `error.field` is always "name", even when the offending field is folderId or
 // the provider type — do not assert the field name as if it were meaningful.
 
