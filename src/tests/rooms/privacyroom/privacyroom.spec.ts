@@ -3,6 +3,17 @@ import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
+// SKIPPED (2026-08-14): the Private Rooms feature is postponed to the next
+// release and is being temporarily removed from the current one, so the whole
+// PrivacyroomApi surface is unavailable here. The tests are parked rather than
+// deleted because the feature is coming back.
+//
+// When it returns: drop the .skip on the describe below and re-verify the
+// contract documented here against the live portal — the endpoints may come
+// back changed, and the open bugs referenced in the test.fail annotations
+// (82524 / 82544 / 82545 / 82546 / 82551 / 82552 / 82553 / 82554 / 82800 /
+// 82802 / 82804) may or may not still reproduce.
+
 /**
  * Functional tests for the PrivacyroomApi — per-user encryption key management
  * used by DocSpace Privacy Rooms.
@@ -61,7 +72,7 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  */
 const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
-test.describe("API privacyroom methods", () => {
+test.describe.skip("API privacyroom methods", () => {
   test.describe("GET /api/2.0/privacyroom/keys - getUserKeys", () => {
     test("GET /api/2.0/privacyroom/keys - Owner has no keys initially", async ({
       apiSdk,

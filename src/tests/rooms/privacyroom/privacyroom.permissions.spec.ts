@@ -4,6 +4,14 @@ import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "@/src/services/api-sdk";
 import { folderIds, roomAccesses } from "@/src/helpers/rooms";
 
+// SKIPPED (2026-08-14): the Private Rooms feature is postponed to the next
+// release and is being temporarily removed from the current one, so neither the
+// PrivacyroomApi nor private rooms (createRoom({ private: true })) are available
+// here. The tests are parked rather than deleted because the feature is coming
+// back — drop the .skip on the describes below and re-verify the role matrix and
+// the open bugs (82524 / 82803 / 82956) against the live portal when it does.
+// See the matching note in privacyroom.spec.ts.
+
 /**
  * Access control for the PrivacyroomApi.
  *
@@ -33,7 +41,7 @@ const dto = (apiSdk: { faker: { generateString: (n: number) => string } }) => ({
   },
 });
 
-test.describe("GET /api/2.0/privacyroom/keys - access control", () => {
+test.describe.skip("GET /api/2.0/privacyroom/keys - access control", () => {
   test("GET /api/2.0/privacyroom/keys - Owner reads back their own key", async ({
     apiSdk,
   }) => {
@@ -116,7 +124,7 @@ test.describe("GET /api/2.0/privacyroom/keys - access control", () => {
   });
 });
 
-test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
+test.describe.skip("POST /api/2.0/privacyroom/keys - access control", () => {
   // POST create should return 201 Created; the API returns 200. Each test first
   // verifies the role could actually create its key (authorization side-effect),
   // then the 201 status assertion drives the expected failure.
@@ -201,7 +209,7 @@ test.describe("POST /api/2.0/privacyroom/keys - access control", () => {
   });
 });
 
-test.describe("PUT /api/2.0/privacyroom/keys - access control", () => {
+test.describe.skip("PUT /api/2.0/privacyroom/keys - access control", () => {
   test("PUT /api/2.0/privacyroom/keys - Owner can replace their key", async ({
     apiSdk,
   }) => {
@@ -269,7 +277,8 @@ test.describe("PUT /api/2.0/privacyroom/keys - access control", () => {
   });
 });
 
-test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
+test.describe
+  .skip("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   // DELETE of an existing key should return 204 No Content; the API returns 200.
   // Each test first verifies the key is actually gone (authorization side-effect
   // and guard against a no-op), then the 204 status assertion drives the failure.
@@ -363,7 +372,8 @@ test.describe("DELETE /api/2.0/privacyroom/keys/{id} - access control", () => {
   });
 });
 
-test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () => {
+test.describe
+  .skip("GET /api/2.0/privacyroom/{roomId}/access - access control", () => {
   // Helper: owner (with keys) creates a private room, returns its id.
   const createPrivateRoomAsOwner = async (apiSdk: ApiSDK) => {
     const owner = apiSdk.forRole("owner");
@@ -653,7 +663,7 @@ test.describe("GET /api/2.0/privacyroom/{roomId}/access - access control", () =>
   });
 });
 
-test.describe("Cross-user E2E key isolation", () => {
+test.describe.skip("Cross-user E2E key isolation", () => {
   test("A user cannot replace another user's key", async ({ apiSdk }) => {
     const owner = apiSdk.forRole("owner");
     const ownerPk = "owner-" + apiSdk.faker.generateString(12);
@@ -796,7 +806,7 @@ test.describe("Cross-user E2E key isolation", () => {
   });
 });
 
-test.describe("GET /files/rooms - private room visibility", () => {
+test.describe.skip("GET /files/rooms - private room visibility", () => {
   test.fail(
     "BUG 82956: GET /files/rooms - DocSpaceAdmin must not see a private room they are not a member of",
     async ({ apiSdk }) => {
