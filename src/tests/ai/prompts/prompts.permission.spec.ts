@@ -375,7 +375,7 @@ test.describe("AI Prompts - cross-user isolation", () => {
     ).toBe("Autotest owner");
   });
 
-  test("BUG XXXXX: DELETE /api/2.0/ai/prompts/delete-folder - deleting another user's folder reports success", async ({
+  test("BUG 83138: DELETE /api/2.0/ai/prompts/delete-folder - deleting another user's folder reports success", async ({
     apiSdk,
     paymentsApi,
   }) => {

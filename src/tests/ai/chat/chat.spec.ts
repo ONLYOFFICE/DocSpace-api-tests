@@ -4709,7 +4709,7 @@ test.describe("AI Chat - image generation", () => {
   // unassign properly (assignments.spec.ts). So the "no image model" state is not
   // constructible over the API and the test is `test.fail` on the state check,
   // with the positive control asserted before it.
-  test("BUG XXXXX: DELETE /api/2.0/ai/assignments/unassign - the portal's seeded ImageGeneration model cannot be taken away", async ({
+  test("BUG 83137: DELETE /api/2.0/ai/assignments/unassign - the portal's seeded ImageGeneration model cannot be taken away", async ({
     apiSdk,
     paymentsApi,
   }) => {

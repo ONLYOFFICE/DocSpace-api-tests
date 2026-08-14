@@ -671,7 +671,7 @@ test.describe("AI Prompts - export and import", () => {
     ).toEqual(["Autotest replacement"]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/prompts/import-bundle - a bundle entry that collides with an existing name overwrites it silently", async ({
+  test("BUG 83130: POST /api/2.0/ai/prompts/import-bundle - a bundle entry that collides with an existing name overwrites it silently", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1063,7 +1063,7 @@ test.describe("AI Prompt folders - validation", () => {
     );
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/prompts/rename-folder - an over-long name is truncated instead of rejected", async ({
+  test("BUG 83123: PUT /api/2.0/ai/prompts/rename-folder - an over-long name is truncated instead of rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1275,7 +1275,7 @@ test.describe("AI Prompt folders - moving prompts", () => {
   // share a name while they sit in different folders. Moving one onto the other
   // is the moment the rule has to be re-checked — on both routes that move a
   // prompt, `move` and `update{folderId}`.
-  test("BUG XXXXX: PUT /api/2.0/ai/prompts/move - moving onto a name already taken in the target folder is not refused", async ({
+  test("BUG 83122: PUT /api/2.0/ai/prompts/move - moving onto a name already taken in the target folder is not refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1333,7 +1333,7 @@ test.describe("AI Prompt folders - moving prompts", () => {
     );
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/prompts/update - moving onto a taken name through update is not refused", async ({
+  test("BUG 83122: PUT /api/2.0/ai/prompts/update - moving onto a taken name through update is not refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1641,9 +1641,9 @@ test.describe("AI Prompts - composer round trip", () => {
 
 // The other half of the requirement — what an EMPTY chat shows: ready-made
 // suggestion chips, and a read-only folder of built-in prompts. Neither has an
-// API surface on this build, so both are `test.fixme` placeholders: they cost
-// nothing to run and they keep the gap visible in the report instead of buried
-// in a comment at the top of the file.
+// API surface on this build, so neither is covered here. The placeholders that
+// used to stand in for them are removed; this note is what is left of them, so
+// the gap is not rediscovered from scratch.
 //
 //   * No built-in set and no read-only flag exists in the contract. `AiPrompt`
 //     and `AiPromptFolder` carry id / name / text / folderId and the two
@@ -1659,37 +1659,14 @@ test.describe("AI Prompts - composer round trip", () => {
 // So each is either a client-side constant — a UI concern, out of reach from the
 // API — or not implemented on the backend. That question belongs to development;
 // until it is answered there is nothing here to assert against.
-
-test.describe("AI Prompts - empty chat: built-ins and suggestions", () => {
-  test.fixme("GET /api/2.0/ai/prompts/list-folders - the built-in prompt folder is read-only", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
-
-    // What this will assert once built-ins exist: the folder is present on a
-    // fresh portal, it is flagged read-only, rename-folder and delete-folder
-    // are refused on it, the prompts inside it refuse update / delete / move,
-    // and a user's own prompt cannot be flipped into a built-in one through
-    // create or update. Today `list-folders` is empty and no field carries the
-    // flag, so there is no id to point any of that at.
-    const folders = await prompts.listFolders("owner");
-    expect(folders.status).toBe(200);
-    expect(
-      folders.data,
-      "a fresh portal serves the built-in prompt folder",
-    ).not.toEqual([]);
-  });
-
-  test.fixme("the empty-chat suggestion chips are served by an API", async () => {
-    // Nothing to call: no route, no config field. Once development says where
-    // the chips come from, this becomes the test for it — the list is served,
-    // it is non-empty, each chip carries the text that goes into the composer,
-    // and the AI-off / Guest behaviour matches the rest of the prompts family.
-    // If the answer is "hard-coded in the client", this placeholder goes away
-    // and the coverage moves to the UI suite.
-  });
-});
+//
+// What the coverage looks like once there is an answer:
+//   * built-ins on the backend → the folder is present on a fresh portal and
+//     flagged read-only, `rename-folder` / `delete-folder` refuse it, the prompts
+//     inside refuse update / delete / move, and a user's own prompt cannot be
+//     flipped into a built-in one through create or update. That answer also
+//     makes today's empty `list-folders` a bug rather than a missing feature.
+//   * chips served by a route → the list is served, it is non-empty, each chip
+//     carries the text that goes into the composer, and the AI-off / Guest
+//     behaviour matches the rest of this family. If they are hard-coded in the
+//     client, the coverage belongs to the UI suite instead.
