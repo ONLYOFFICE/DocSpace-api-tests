@@ -8,6 +8,7 @@ import {
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
+import { disableWalletService } from "@/src/helpers/wallet-services";
 
 test.describe("POST /portal/backup/start - Start backup", () => {
   test("Owner creates backup to Temporary storage", async ({
@@ -1406,6 +1407,61 @@ test.describe("GET /api/2.0/backup/getbackupsservicestate - Get backup service s
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(typeof data.response!.enabled).toBe("boolean");
+  });
+});
+
+test.describe("POST /portal/backup/start - Backup without Backup wallet service enabled", () => {
+  test("POST /portal/backup/start - Owner creates backup when Backup wallet service is disabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await paymentsApi.makeWalletTopUp();
+    const ownerApi = apiSdk.forRole("owner");
+    await disableWalletService(ownerApi.payment, "backup");
+
+    await test.step("POST startbackup - start backup", async () => {
+      const { status } = await ownerApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+  });
+
+  test("POST /portal/backup/start - DocSpaceAdmin creates backup when Backup wallet service is disabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await paymentsApi.makeWalletTopUp();
+    const ownerApi = apiSdk.forRole("owner");
+    await disableWalletService(ownerApi.payment, "backup");
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await test.step("POST startbackup - start backup", async () => {
+      const { status } = await adminApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
   });
 });
 
