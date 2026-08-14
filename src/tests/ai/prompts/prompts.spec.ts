@@ -671,7 +671,7 @@ test.describe("AI Prompts - export and import", () => {
     ).toEqual(["Autotest replacement"]);
   });
 
-  test("POST /api/2.0/ai/prompts/import-bundle - a bundle entry that collides with an existing name is reported", async ({
+  test("BUG XXXXX: POST /api/2.0/ai/prompts/import-bundle - a bundle entry that collides with an existing name overwrites it silently", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -695,10 +695,33 @@ test.describe("AI Prompts - export and import", () => {
       },
       options: { mode: "merge" },
     });
-
-    // AiImportResult is documented as all-or-nothing: either every entry
-    // persisted with counts, or nothing persisted plus a per-entry error report.
     expect(status).toBe(200);
+
+    // Control: `create` still refuses a duplicate name, so the library really has
+    // a uniqueness rule for the import to report against — the silence below is
+    // the import's own, not the absence of any rule to break.
+    const duplicate = await prompts.createPrompt("owner", {
+      name: "Autotest collision",
+      text: "Another body",
+    });
+    expect(
+      duplicate.data?.success,
+      "create refuses the duplicate name the import accepted",
+    ).toBe(false);
+
+    test.fail();
+    // What happens instead: `200 {success:true, imported:{prompts:2}}`, and the
+    // existing prompt is overwritten in place — same id, `text` replaced by the
+    // bundle's, `createdAt` restamped. There is no `errors` entry and nothing
+    // else in the response a client could use to warn that a saved prompt was
+    // destroyed. AiImportResult documents the opposite: all-or-nothing, with the
+    // offending entry named in `errors`.
+    const listed = await prompts.listPrompts("owner");
+    expect(
+      listed.data.find((prompt) => prompt.id === existing)?.text,
+      "the existing prompt was not overwritten",
+    ).toBe("Existing body");
+
     expect(data?.success).toBe(false);
     expect(data?.errors?.length).toBe(1);
     expect(data?.errors?.[0]?.kind).toBe("prompt");
@@ -706,12 +729,7 @@ test.describe("AI Prompts - export and import", () => {
 
     // Nothing was written — not the colliding entry, and not the clean one that
     // shared the bundle with it.
-    const listed = await prompts.listPrompts("owner");
     expect(listed.data.map((prompt) => prompt.id)).toEqual([existing]);
-    expect(
-      listed.data[0]?.text,
-      "the existing prompt was not overwritten",
-    ).toBe("Existing body");
   });
 });
 
@@ -1045,7 +1063,7 @@ test.describe("AI Prompt folders - validation", () => {
     );
   });
 
-  test("PUT /api/2.0/ai/prompts/rename-folder - an over-long name is rejected with 400", async ({
+  test("BUG XXXXX: PUT /api/2.0/ai/prompts/rename-folder - an over-long name is truncated instead of rejected", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1055,15 +1073,29 @@ test.describe("AI Prompt folders - validation", () => {
     const prompts = new AiPrompts(apiSdk.request, apiSdk.tokenStore);
     const folderId = await prompts.createFolderId("owner", "Autotest short");
 
+    // Control: the same over-long name is a hard 400 on `create-folder`. The
+    // limit exists and is enforced on the way in, so what follows is the rename
+    // route disagreeing with create about the same field.
+    const created = await prompts.createFolder("owner", "C".repeat(5000));
+    expect(
+      created.status,
+      "create-folder rejects the name rename-folder accepts",
+    ).toBe(400);
+
     const { status } = await prompts.renameFolder("owner", {
       id: folderId,
       name: "N".repeat(5000),
     });
-    expect(status).toBe(400);
 
+    test.fail();
+    // What happens instead: `200 {success:true}` and the name is silently cut to
+    // 255 characters — 256, 257, 1000, 1024 and 1025 all behave the same way, so
+    // there is no length at which the route reports anything. The folder is left
+    // carrying a name the caller never asked for.
     expect((await prompts.getFolder("owner", folderId)).data?.name).toBe(
       "Autotest short",
     );
+    expect(status).toBe(400);
   });
 
   test("PUT /api/2.0/ai/prompts/rename-folder - an unknown folder id is refused", async ({
@@ -1243,7 +1275,7 @@ test.describe("AI Prompt folders - moving prompts", () => {
   // share a name while they sit in different folders. Moving one onto the other
   // is the moment the rule has to be re-checked — on both routes that move a
   // prompt, `move` and `update{folderId}`.
-  test("PUT /api/2.0/ai/prompts/move - moving onto a name already taken in the target folder is refused", async ({
+  test("BUG XXXXX: PUT /api/2.0/ai/prompts/move - moving onto a name already taken in the target folder is not refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1269,22 +1301,39 @@ test.describe("AI Prompt folders - moving prompts", () => {
       folderId: target,
     });
     expect(status).toBe(200);
-    expect(data?.success).toBe(false);
-    expect(data?.error?.message).toBe(
-      "Prompt name already exists in this folder",
-    );
 
-    // The refusal has to be complete: the folder still holds one prompt and the
-    // moved one is still in the root, not lost between the two scopes.
+    // Control: `create` refuses that very name inside the target folder, so the
+    // per-folder uniqueness rule is live on this build — `move` simply does not
+    // consult it.
+    const duplicate = await prompts.createPrompt("owner", {
+      name: "Autotest clash",
+      text: "Third body",
+      folderId: target,
+    });
+    expect(
+      duplicate.data?.error?.message,
+      "create refuses the duplicate the move was allowed to create",
+    ).toBe("Prompt name already exists in this folder");
+
+    test.fail();
+    // What happens instead: `200 {success:true}` and the move goes through, so
+    // the folder ends up holding two prompts with the same name and the root is
+    // left empty. The rule is enforced on `create` and on `update{name}` — only
+    // the routes that change a prompt's folder skip it.
     const listed = await prompts.listPrompts("owner", target);
     expect(listed.data.map((prompt) => prompt.id)).toEqual([inFolder]);
     expect(listed.data[0]?.text).toBe("Folder body");
     expect((await prompts.listPrompts("owner")).data.map((p) => p.id)).toEqual([
       inRoot,
     ]);
+
+    expect(data?.success).toBe(false);
+    expect(data?.error?.message).toBe(
+      "Prompt name already exists in this folder",
+    );
   });
 
-  test("PUT /api/2.0/ai/prompts/update - moving onto a taken name through update is refused", async ({
+  test("BUG XXXXX: PUT /api/2.0/ai/prompts/update - moving onto a taken name through update is not refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1308,11 +1357,22 @@ test.describe("AI Prompt folders - moving prompts", () => {
       updates: { folderId: target },
     });
     expect(status).toBe(200);
-    expect(data?.success).toBe(false);
-    expect(data?.error?.message).toBe(
-      "Prompt name already exists in this folder",
-    );
 
+    // Control, as on `move` one test up: the rule is live, this route ignores it.
+    const duplicate = await prompts.createPrompt("owner", {
+      name: "Autotest clash",
+      text: "Third body",
+      folderId: target,
+    });
+    expect(
+      duplicate.data?.error?.message,
+      "create refuses the duplicate the update was allowed to create",
+    ).toBe("Prompt name already exists in this folder");
+
+    test.fail();
+    // Same defect reached through `update{folderId}` rather than `move`: 200
+    // {success:true}, and the target folder ends up with two prompts named
+    // "Autotest clash". Both routes need the check, so both are pinned.
     expect(
       (await prompts.listPrompts("owner", target)).data,
       "the target folder still holds one prompt",
@@ -1320,6 +1380,11 @@ test.describe("AI Prompt folders - moving prompts", () => {
     expect((await prompts.listPrompts("owner")).data.map((p) => p.id)).toEqual([
       inRoot,
     ]);
+
+    expect(data?.success).toBe(false);
+    expect(data?.error?.message).toBe(
+      "Prompt name already exists in this folder",
+    );
   });
 
   test("PUT /api/2.0/ai/prompts/update - renaming a prompt onto a sibling's name is refused", async ({
@@ -1358,7 +1423,7 @@ test.describe("AI Prompt folders - moving prompts", () => {
     ).toBe("Autotest free");
   });
 
-  test("GET /api/2.0/ai/prompts/list - an unknown or malformed folderId", async ({
+  test("GET /api/2.0/ai/prompts/list - an unknown folderId lists nothing, a malformed one is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1380,9 +1445,12 @@ test.describe("AI Prompt folders - moving prompts", () => {
     expect(unknown.status).toBe(200);
     expect(unknown.data, "an unknown folder lists nothing").toEqual([]);
 
+    // A folderId that is not a GUID at all is a different case, and the route
+    // treats it as one: it never reaches the store, so instead of the empty
+    // listing an unknown-but-well-formed id gets, the request is refused. Worth
+    // pinning precisely because the two look alike from the client's side.
     const malformed = await prompts.listPrompts("owner", "not-a-guid");
-    expect(malformed.status).toBe(200);
-    expect(malformed.data).toEqual([]);
+    expect(malformed.status).toBe(400);
 
     // Neither call leaked the root listing into a folder-scoped one.
     expect((await prompts.listPrompts("owner")).data.map((p) => p.id)).toEqual([

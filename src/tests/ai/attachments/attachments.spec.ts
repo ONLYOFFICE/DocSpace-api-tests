@@ -1167,22 +1167,23 @@ test.describe("AI Attachments - batch saves", () => {
     expect(data).toEqual([]);
   });
 
-  test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - a missing or null inputs list is silently treated as empty", async ({
+  test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - a missing or null inputs list is a 400, not an empty batch", async ({
     apiSdk,
   }) => {
+    // Both used to answer 200 [], so a client that sent the wrong field name got
+    // a success it could not tell apart from the genuinely empty batch one test
+    // up. They are refused now, and the refusal is the same one a non-array
+    // value gets — absent and null are not spelled differently from `"a string"`.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
     const missing = await attachments.saveFilesMany("owner", {});
     const nulled = await attachments.saveFilesMany("owner", { inputs: null });
 
-    // Both answer 200 [] — a client that sent the wrong field name gets a
-    // success it cannot tell apart from a genuinely empty batch.
-    if (missing.status === 200) {
-      expect(missing.data).toEqual([]);
-    }
-
-    test.fail();
     expect([missing.status, nulled.status]).toEqual([400, 400]);
+    expect([missing.error, nulled.error]).toEqual([
+      "inputs must be an array",
+      "inputs must be an array",
+    ]);
   });
 
   test("BUG 82754: POST /api/2.0/ai/attachments/save-files-many - one invalid element is a 400 naming it", async ({

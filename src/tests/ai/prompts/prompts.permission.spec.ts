@@ -375,7 +375,7 @@ test.describe("AI Prompts - cross-user isolation", () => {
     ).toBe("Autotest owner");
   });
 
-  test("DELETE /api/2.0/ai/prompts/delete-folder - another user's folder cannot be deleted", async ({
+  test("BUG XXXXX: DELETE /api/2.0/ai/prompts/delete-folder - deleting another user's folder reports success", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -402,7 +402,13 @@ test.describe("AI Prompts - cross-user isolation", () => {
 
     const { status, data } = await prompts.deleteFolder("user", ownerFolder);
     expect(status).toBe(200);
+    expect(data?.success, "the call reports the delete succeeded").toBe(true);
 
+    // The data is safe — the store is scoped, so nothing was actually removed,
+    // contents included. The defect is the answer, and rename-folder one test up
+    // shows the store knows better: the same id, for the same caller, is
+    // "Folder not found" there. An id that never existed answers success:true too,
+    // so the caller has no way to tell "deleted" from "not yours".
     await apiSdk.authenticateOwner();
     expect(
       (await prompts.getFolder("owner", ownerFolder)).data?.id,
@@ -415,6 +421,7 @@ test.describe("AI Prompts - cross-user isolation", () => {
 
     // Same question as BUG 82809 one test up, on the route that would take a
     // whole folder with it: the answer has to say "not yours", not "done".
+    test.fail();
     expect(
       data?.success,
       "deleting a folder the caller does not own must not report success",
