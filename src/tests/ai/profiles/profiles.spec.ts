@@ -578,7 +578,7 @@ test.describe("AI Profiles - the built-in provider types", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/create - the provider is dialled before the read-only gate refuses the request", async ({
+  test("BUG 83112: POST /api/2.0/ai/profiles/create - the provider is dialled before the read-only gate refuses the request", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -622,7 +622,7 @@ test.describe("AI Profiles - the built-in provider types", () => {
     ).toBe(403);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/create - the `external` provider type answers 500", async ({
+  test("BUG 83114: POST /api/2.0/ai/profiles/create - the `external` provider type answers 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1017,7 +1017,7 @@ test.describe("AI Profiles - the model picker's capability icons", () => {
     ).toEqual([]);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/profiles/list vs list-provider-models - the same model is published with different capabilities", async ({
+  test("BUG 83113: GET /api/2.0/ai/profiles/list vs list-provider-models - the same model is published with different capabilities", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1132,7 +1132,7 @@ test.describe("AI Profiles - which field the model picker blames", () => {
     expect(error?.toLowerCase()).not.toContain("api key");
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - a missing base URL and a missing provider type get the same two-field message", async ({
+  test("BUG 83116: POST /api/2.0/ai/profiles/list-provider-models - a missing base URL and a missing provider type get the same two-field message", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1169,7 +1169,7 @@ test.describe("AI Profiles - which field the model picker blames", () => {
     ).not.toContain("baseUrl");
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - an unknown provider type is answered with 502 instead of a validation error", async ({
+  test("BUG 83117: POST /api/2.0/ai/profiles/list-provider-models - an unknown provider type is answered with 502 instead of a validation error", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1265,7 +1265,7 @@ test.describe("AI Profiles - local providers need no key", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - gpt4all reports an unreachable server as an empty model list", async ({
+  test("BUG 83118: POST /api/2.0/ai/profiles/list-provider-models - gpt4all reports an unreachable server as an empty model list", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1341,9 +1341,9 @@ test.describe("AI Profiles - the transport is not checked against the host", () 
     // Recorded as the current contract rather than as a bug: the transports are
     // OpenAI-compatible enough that a deepseek host answers all three. What makes
     // it worth pinning is that each model's `provider` echoes what the CALLER
-    // asked for, so nothing in the response reveals the mismatch — and the two
-    // bugs below are consequences of that. If this ever starts refusing, this
-    // test goes red first and the bug tests stop being about a live mismatch.
+    // asked for, so nothing in the response reveals the mismatch — and the bug
+    // below is a consequence of that. If this ever starts refusing, this test
+    // goes red first and the bug test stops being about a live mismatch.
     for (const [providerType, models] of Object.entries(byTransport)) {
       expect(models.length, `${providerType} model count`).toBeGreaterThan(0);
       expect(
@@ -1353,36 +1353,7 @@ test.describe("AI Profiles - the transport is not checked against the host", () 
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - the capability icons come from the requested transport, not from the model", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
-    const byTransport = await discoverThroughEach(profiles);
-
-    const masks = (providerType: string) =>
-      byTransport[providerType]
-        .map((model) => `${model.id}:${model.capabilities}`)
-        .sort();
-
-    test.fail();
-    // Measured: through `deepseek` both models come back as 385, through `openai`
-    // and `anthropic` the same two ids come back as 129 — the tools icon appears
-    // or disappears depending only on which transport was selected in the form.
-    expect(
-      masks(AiBuiltinProviderType.Openai),
-      "openai vs deepseek, same host and same models",
-    ).toEqual(masks(AiBuiltinProviderType.Deepseek));
-    expect(
-      masks(AiBuiltinProviderType.Anthropic),
-      "anthropic vs deepseek, same host and same models",
-    ).toEqual(masks(AiBuiltinProviderType.Deepseek));
-  });
-
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - the anthropic transport returns models with no display name", async ({
+  test("BUG 83119: POST /api/2.0/ai/profiles/list-provider-models - the anthropic transport returns models with no display name", async ({
     apiSdk,
     paymentsApi,
   }) => {

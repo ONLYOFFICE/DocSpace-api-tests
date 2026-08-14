@@ -4700,7 +4700,16 @@ test.describe("AI Chat - image generation", () => {
   // call" on its own also describes a model that answered in prose, a portal
   // where inference is dead, and a request the gateway refused, so the same
   // request with the binding in place runs first as the positive control.
-  test("DELETE /api/2.0/ai/assignments/unassign - with no image model bound, a request for a picture does not reach the drawing tool", async ({
+  //
+  // As of now the second half cannot be reached at all: the portal's *seeded*
+  // ImageGeneration binding cannot be removed. `unassign` answers 200
+  // `{success:true}` and get-assignment / get-all-assignments / resolve-for-action
+  // all still name the same image profile, repeats included — and `Default`
+  // behaves the same way, while a binding a test created with `assign` does
+  // unassign properly (assignments.spec.ts). So the "no image model" state is not
+  // constructible over the API and the test is `test.fail` on the state check,
+  // with the positive control asserted before it.
+  test("BUG XXXXX: DELETE /api/2.0/ai/assignments/unassign - the portal's seeded ImageGeneration model cannot be taken away", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4741,6 +4750,16 @@ test.describe("AI Chat - image generation", () => {
     });
     expect(removed.status).toBe(200);
     expect(removed.data?.success, removed.data?.error?.message).toBe(true);
+
+    // …which reports success and does nothing. The binding is read back from the
+    // route that lists it as well, so this is the stored state and not one stale
+    // reader, and the state is what the rest of the test needs.
+    expect(
+      (await profiles.getAllAssignments("owner")).data?.ImageGeneration,
+      "get-all-assignments still lists the model unassign said it removed",
+    ).toBe(bound.data);
+
+    test.fail();
     expect(
       (await profiles.getAssignment("owner", "ImageGeneration")).data,
     ).toBeNull();
