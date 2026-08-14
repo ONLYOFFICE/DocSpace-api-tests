@@ -5690,19 +5690,17 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
     expect(Array.isArray(data.response)).toBe(true);
   });
 
-  // BUG 82210: duplicateBatchItems returns 500 instead of 404 for non-existent fileId
-  test.fail(
-    "BUG 82210: PUT /api/2.0/files/fileops/duplicate - Non-existent fileId returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 82210: PUT /api/2.0/files/fileops/duplicate - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.operations.duplicateBatchItems({
-        duplicateRequestDto: { fileIds: [999999999 as any] },
-      });
+    const { status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { fileIds: [999999999 as any] },
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   test("PUT /api/2.0/files/fileops/duplicate - File in archived room cannot be duplicated returns 403", async ({
     apiSdk,
@@ -5761,19 +5759,17 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
     expect(status).toBe(403);
   });
 
-  // BUG 82210: duplicateBatchItems returns 500 instead of 404 for non-existent folderId
-  test.fail(
-    "BUG 82210: PUT /api/2.0/files/fileops/duplicate - Non-existent folderId returns 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 82210: PUT /api/2.0/files/fileops/duplicate - Non-existent folderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.operations.duplicateBatchItems({
-        duplicateRequestDto: { folderIds: [999999999 as any] },
-      });
+    const { status } = await ownerApi.operations.duplicateBatchItems({
+      duplicateRequestDto: { folderIds: [999999999 as any] },
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   test(
     "PUT /api/2.0/files/fileops/duplicate - Duplicate folder with nested file" +
@@ -8861,20 +8857,36 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
     const { data: myDocsData } = await ownerApi.folders.getMyFolder();
     const myDocsFolderId = myDocsData.response!.current!.id!;
 
-    const { data: fileData } = await ownerApi.files.createFile({
-      folderId: myDocsFolderId,
-      createFileJsonElement: {
-        title: "Autotest TerminateTasks EmptyTrash.docx",
-      },
-    });
-    const fileId = fileData.response!.id!;
+    // Create many files in parallel so emptyTrash takes long enough to be terminated
+    const fileResults = await Promise.all(
+      Array.from({ length: 50 }, (_, i) =>
+        ownerApi.files.createFile({
+          folderId: myDocsFolderId,
+          createFileJsonElement: {
+            title: `Autotest TerminateTasks EmptyTrash ${i}.docx`,
+          },
+        }),
+      ),
+    );
+    const fileIds = fileResults
+      .map((r) => r.data.response?.id)
+      .filter((id): id is number => id !== undefined);
 
     await ownerApi.operations.deleteBatchItems({
-      deleteBatchRequestDto: { fileIds: [fileId], immediately: false },
+      deleteBatchRequestDto: { fileIds, immediately: false },
     });
 
     const { data: opData } = await ownerApi.operations.emptyTrash();
     const operationId = opData.response![0].id!;
+
+    // Wait until the operation is actually in progress before terminating
+    await expect(async () => {
+      const { data: statusData } =
+        await ownerApi.operations.getOperationStatuses({ id: operationId });
+      const op = statusData.response?.find((o) => o.id === operationId);
+      expect(op).toBeDefined();
+      expect(op!.finished).toBe(false);
+    }).toPass({ intervals: [200, 500, 1_000], timeout: 10_000 });
 
     const { data, status } = await ownerApi.operations.terminateTasks({
       id: operationId,
@@ -8883,10 +8895,11 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
 
-    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
-      { id: operationId },
-    );
-    expect(statusData.response).toHaveLength(0);
+    await expect(async () => {
+      const { data: statusData } =
+        await ownerApi.operations.getOperationStatuses({ id: operationId });
+      expect(statusData.response).toHaveLength(0);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
   });
 });
 

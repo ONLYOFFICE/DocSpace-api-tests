@@ -1465,6 +1465,282 @@ test.describe("POST /portal/backup/start - Backup without Backup wallet service 
   });
 });
 
+test.describe("POST /portal/backup/start - Backup wallet deduction on Business plan", () => {
+  test("POST /portal/backup/start - DocSpaceAdmin cannot create backup when wallet balance is zero on Business plan", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await paymentsApi.makeWalletTopUp(10);
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await test.step("GET customer balance - verify wallet has $10", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(10);
+    });
+
+    await test.step("POST startbackup - first backup is free", async () => {
+      const { status } = await adminApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for first backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET customer balance - verify wallet still has $10 after free backup", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(10);
+    });
+
+    await test.step("POST startbackup - second backup is free", async () => {
+      const { status } = await adminApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for second backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET customer balance - verify wallet still has $10 after second free backup", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(10);
+    });
+
+    await test.step("POST startbackup - third backup costs $10", async () => {
+      const { status } = await adminApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for third backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET customer balance - verify wallet is now $0", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(0);
+    });
+
+    await test.step("POST startbackup - fourth backup returns 402 when balance is zero", async () => {
+      const { status } = await adminApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(402);
+    });
+  });
+
+  test("POST /portal/backup/start - Owner (payer) can top up wallet and create backup after balance is zero on Business plan", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await paymentsApi.makeWalletTopUp(10);
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("POST startbackup - first backup is free", async () => {
+      const { status } = await ownerApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for first backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("POST startbackup - second backup is free", async () => {
+      const { status } = await ownerApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for second backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("POST startbackup - third backup costs $10", async () => {
+      const { status } = await ownerApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for third backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET customer balance - verify wallet is now $0", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(0);
+    });
+
+    await test.step("top up wallet with $10 again (simulates owner using stored payment method)", async () => {
+      await paymentsApi.makeWalletTopUp(10);
+    });
+
+    await test.step("GET customer balance - verify wallet has $10 again", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(10);
+    });
+
+    await test.step("POST startbackup - fourth backup returns 200 after top up", async () => {
+      const { status } = await ownerApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+  });
+});
+
+test.describe("POST /portal/backup/start - Backup with insufficient wallet balance", () => {
+  test("POST /portal/backup/start - DocSpaceAdmin cannot create backup when wallet balance is zero after first backup", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp(10);
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    await test.step("GET customer balance - verify wallet has $10", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(10);
+    });
+
+    await test.step("POST startbackup - start first backup (spends $10)", async () => {
+      const { status } = await adminApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for first backup completion", async () => {
+      await expect(async () => {
+        const { data } = await adminApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET customer balance - verify wallet is now $0", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(0);
+    });
+
+    await test.step("POST startbackup - second backup returns 402 when balance is zero", async () => {
+      const { status } = await adminApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(402);
+    });
+  });
+
+  // Note: the owner top-up step uses makeWalletTopUp (internal test API) instead of
+  // topUpDeposit, because topUpDeposit requires a real stored payment method unavailable
+  // on test portals. This simulates the result of the owner paying, not the payment itself.
+  test("POST /portal/backup/start - Owner (payer) can top up wallet and create backup after balance is zero", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp(10);
+    const ownerApi = apiSdk.forRole("owner");
+
+    await test.step("GET customer balance - verify wallet has $10", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(10);
+    });
+
+    await test.step("POST startbackup - start first backup (spends $10)", async () => {
+      const { status } = await ownerApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+
+    await test.step("GET getbackupprogress - wait for first backup completion", async () => {
+      await expect(async () => {
+        const { data } = await ownerApi.backup.getBackupProgress();
+        expect(data.response!.isCompleted).toBe(true);
+      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 60_000 });
+    });
+
+    await test.step("GET customer balance - verify wallet is now $0", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(0);
+    });
+
+    await test.step("top up wallet with $10 again (simulates owner using stored payment method)", async () => {
+      await paymentsApi.makeWalletTopUp(10);
+    });
+
+    await test.step("GET customer balance - verify wallet has $10 again", async () => {
+      const { data } = await ownerApi.payment.getCustomerBalance({
+        refresh: true,
+      });
+      expect(data.response!.subAccounts![0].amount).toBe(10);
+    });
+
+    await test.step("POST startbackup - second backup returns 200 after top up", async () => {
+      const { status } = await ownerApi.backup.startBackup({
+        backupDto: { storageType: BackupStorageType.DataStore },
+      });
+      expect(status).toBe(200);
+    });
+  });
+});
+
 /*
   A test for the `startBackupRestore` method cannot be written,
   as it triggers the restoration process,
