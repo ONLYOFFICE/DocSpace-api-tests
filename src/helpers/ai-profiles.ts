@@ -327,4 +327,34 @@ export class AiProfiles extends AiHttp {
     }
     return match;
   }
+
+  /**
+   * Picks `count` *different* profiles that all carry `bit`, skipping everything
+   * already in `taken`. Matching on the bit rather than on the whole mask is what
+   * lets a vision model also serve a text action.
+   *
+   * It throws instead of returning a short list on purpose: a test that gives
+   * every action its own model proves nothing if two of the actions quietly got
+   * the same one, and a shrunken catalogue must not turn that into a green run.
+   */
+  static distinctWithBit(
+    profiles: AiProfile[],
+    bit: number,
+    count: number,
+    taken: AiProfile[] = [],
+  ): AiProfile[] {
+    const used = new Set(taken.map((profile) => profile.id));
+    const pool = profiles.filter(
+      (profile) =>
+        ((profile.capabilities ?? 0) & bit) === bit && !used.has(profile.id),
+    );
+    if (pool.length < count) {
+      throw new Error(
+        `The catalogue offers ${pool.length} unused profiles with capability bit ${bit}, ` +
+          `${count} are needed: ` +
+          profiles.map((p) => `${p.modelId}:${p.capabilities}`).join(", "),
+      );
+    }
+    return pool.slice(0, count);
+  }
 }

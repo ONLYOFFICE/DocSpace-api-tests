@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
-import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
+import { AiProfiles, AI_CAPS, AI_CAP_BITS } from "@/src/helpers/ai-profiles";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 
 // Model assignments — section 5. One profile is bound to each action type, and
@@ -223,6 +223,115 @@ test.describe("AI Assignments - assigning a profile", () => {
     expect(summarization.data, "Summarization is untouched").toBe(first.id);
   });
 
+  // Section 5.2 head-on: *every* task named in the requirement — chat,
+  // summarization, translation, text analysis, OCR, vision, image generation —
+  // gets a model of its own, all seven at the same time. The tests above only
+  // ever showed one profile backing several actions and one pair staying
+  // independent, which is also what a backend storing a single global model
+  // would produce.
+  //
+  // Each action is given a *different* profile so that a read-back naming the
+  // right id cannot be a coincidence: with seven distinct models, one shared
+  // slot behind the scenes would collapse them all onto the last write.
+  test("PUT /api/2.0/ai/assignments/assign - each of the seven tasks holds a model of its own", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    // The eligible pool differs per task, so the profiles are handed out
+    // capability-first: the two tasks that need eyes take vision models, image
+    // generation takes a drawing one, and the four text tasks take whatever text
+    // models are left over.
+    const [drawing] = AiProfiles.distinctWithBit(
+      catalogue,
+      AI_CAP_BITS.imageGeneration,
+      1,
+    );
+    const [vision, ocr] = AiProfiles.distinctWithBit(
+      catalogue,
+      AI_CAP_BITS.vision,
+      2,
+    );
+    const [chat, summarization, translation, textAnalyze] =
+      AiProfiles.distinctWithBit(catalogue, AI_CAP_BITS.text, 4, [
+        drawing,
+        vision,
+        ocr,
+      ]);
+
+    const plan = [
+      { actionType: "Chat", profile: chat },
+      { actionType: "Summarization", profile: summarization },
+      { actionType: "Translation", profile: translation },
+      { actionType: "TextAnalyze", profile: textAnalyze },
+      { actionType: "OCR", profile: ocr },
+      { actionType: "Vision", profile: vision },
+      { actionType: "ImageGeneration", profile: drawing },
+    ];
+
+    // The premise the whole test rests on: seven different models.
+    expect(new Set(plan.map((entry) => entry.profile.id)).size).toBe(7);
+
+    for (const { actionType, profile } of plan) {
+      const { status, data } = await profiles.assign("owner", {
+        actionType,
+        profileId: profile.id,
+      });
+      expect(status, `assign ${actionType}`).toBe(200);
+      expect(
+        data?.success,
+        `assign ${actionType} to ${profile.modelId}: ${data?.error?.message}`,
+      ).toBe(true);
+    }
+
+    // Read every binding back only after all seven writes, so a later write
+    // overwriting an earlier one is caught rather than hidden by an
+    // assign-then-read-immediately loop.
+    const { data: all } = await profiles.getAllAssignments("owner");
+    for (const { actionType, profile } of plan) {
+      const read = await profiles.getAssignment("owner", actionType);
+      expect(read.data, `${actionType} reads back its own model`).toBe(
+        profile.id,
+      );
+      expect(all?.[actionType], `${actionType} in get-all-assignments`).toBe(
+        profile.id,
+      );
+
+      // And the model the task will actually run on is the one that was bound —
+      // not the Default fallback that answers for anything unassigned.
+      const resolved = await profiles.resolveForAction("owner", actionType);
+      expect(resolved.status).toBe(200);
+      expect(resolved.data?.profileId, `${actionType} resolves`).toBe(
+        profile.id,
+      );
+      expect(resolved.data?.profile?.modelId).toBe(profile.modelId);
+    }
+
+    // Moving one task must leave the other six where they were. The pairwise
+    // check above does this for two text actions; the tasks that differ in
+    // capability class are the ones that could plausibly share storage.
+    const { data: moved } = await profiles.assign("owner", {
+      actionType: "OCR",
+      profileId: vision.id,
+    });
+    expect(moved?.success, moved?.error?.message).toBe(true);
+
+    expect((await profiles.getAssignment("owner", "OCR")).data).toBe(vision.id);
+    for (const { actionType, profile } of plan.filter(
+      (entry) => entry.actionType !== "OCR",
+    )) {
+      expect(
+        (await profiles.getAssignment("owner", actionType)).data,
+        `${actionType} is untouched by the OCR change`,
+      ).toBe(profile.id);
+    }
+  });
+
   test("PUT /api/2.0/ai/assignments/assign - a non-existent profile id is refused", async ({
     apiSdk,
     paymentsApi,
@@ -285,6 +394,12 @@ test.describe("AI Assignments - capability validation", () => {
     accepted: boolean;
   }> = [
     {
+      actionType: "Chat",
+      caps: AI_CAPS.imageOnly,
+      label: "an image-generation model",
+      accepted: false,
+    },
+    {
       actionType: "Vision",
       caps: AI_CAPS.textVisionTools,
       label: "a vision model",
@@ -312,6 +427,12 @@ test.describe("AI Assignments - capability validation", () => {
       actionType: "OCR",
       caps: AI_CAPS.textTools,
       label: "a model without vision",
+      accepted: false,
+    },
+    {
+      actionType: "OCR",
+      caps: AI_CAPS.imageOnly,
+      label: "an image-generation model",
       accepted: false,
     },
     {
@@ -324,6 +445,12 @@ test.describe("AI Assignments - capability validation", () => {
       actionType: "ImageGeneration",
       caps: AI_CAPS.textVisionTools,
       label: "a text model",
+      accepted: false,
+    },
+    {
+      actionType: "ImageGeneration",
+      caps: AI_CAPS.textTools,
+      label: "a text model that cannot see either",
       accepted: false,
     },
     {

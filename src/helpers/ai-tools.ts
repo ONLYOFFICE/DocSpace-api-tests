@@ -49,7 +49,15 @@ import { AiHttp, AgentRole } from "./ai-http";
 //
 // A stored config is whatever was sent, minus nothing, as long as it is an object
 // carrying `url` (HTTP) or `command` (stdio); update replaces it wholesale rather
-// than merging.
+// than merging. Opaque, too: a `disabled: true` inside it — the switch other MCP
+// clients use — round-trips and means nothing here.
+//
+// There is no server-level switch. `set-disabled` addresses a
+// `(serverType, toolNames)` pair and the list is a full replacement, so "turn this
+// server off" is "send every tool it has" and "turn it back on" is "send a shorter
+// list"; the only way to unregister is remove-custom-server. The per-request
+// equivalent for client-supplied tools is `AiTMCPItem.enabled`, which is ignored.
+// See the switching-a-whole-server-off block of mcp/mcp.spec.ts.
 //
 // Names are the map keys and carry most of the sharp edges. `_` is banned
 // anywhere in a name ("reserved for tool-token format" — the engine addresses a
