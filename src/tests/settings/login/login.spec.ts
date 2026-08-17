@@ -1,5 +1,8 @@
 import { expect } from "@playwright/test";
+import { MessageAction } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures/index";
+import { expectActionRecorded } from "@/src/helpers/tfa";
+import config from "@/config";
 
 test.describe("GET /api/2.0/settings/security/loginsettings - Get login settings", () => {
   test("GET /api/2.0/settings/security/loginsettings - Owner gets login settings", async ({
@@ -117,6 +120,72 @@ test.describe("PUT /api/2.0/settings/security/loginsettings - Update login setti
       const { status } = await ownerApi.loginSettings.setDefaultLoginSettings();
 
       expect(status).toBe(200);
+    });
+  });
+});
+
+test.describe("POST /api/2.0/authentication - Login lockout after too many failed attempts", () => {
+  test("A user is locked out of a correct login after exhausting attemptCount, but other accounts on the same portal are unaffected", async ({
+    apiSdk,
+  }) => {
+    const { data: settings } = await apiSdk
+      .forRole("owner")
+      .loginSettings.getLoginSettings();
+    const attemptCount = settings.response!.attemptCount;
+
+    const { userData } = await apiSdk.addMember("owner", "User");
+
+    await test.step("exhaust the attempt count with wrong passwords", async () => {
+      for (let i = 0; i < attemptCount; i++) {
+        const { status } = await apiSdk
+          .forAnonymous()
+          .authentication.authenticateMe({
+            authRequestsDto: {
+              userName: userData.email,
+              password: "definitely-wrong-password",
+            },
+          });
+        expect(status).toBe(401);
+      }
+    });
+
+    await test.step("even the correct password is now rejected as locked out", async () => {
+      const { data, status } = await apiSdk
+        .forAnonymous()
+        .authentication.authenticateMe({
+          authRequestsDto: {
+            userName: userData.email,
+            password: userData.password,
+          },
+        });
+
+      expect(status).toBe(403);
+      expect((data as any).error?.message).toBe(
+        "Too many login attempts. Please try again later",
+      );
+    });
+
+    await test.step("an unrelated account on the same portal can still log in normally", async () => {
+      const { status } = await apiSdk
+        .forRole("owner")
+        .authentication.authenticateMe({
+          authRequestsDto: {
+            userName: config.DOCSPACE_OWNER_EMAIL,
+            password: config.DOCSPACE_OWNER_PASSWORD,
+          },
+        });
+
+      expect(status).toBe(200);
+    });
+
+    await test.step("the lockout is recorded in login history as LoginFailBruteForce", async () => {
+      await expectActionRecorded(
+        () =>
+          apiSdk.forRole("owner").loginHistory.getLoginEventsByFilter({
+            action: MessageAction.LoginFailBruteForce,
+          }),
+        MessageAction.LoginFailBruteForce,
+      );
     });
   });
 });
