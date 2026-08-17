@@ -1,7 +1,15 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { TfaRequestsDtoType } from "@onlyoffice/docspace-api-sdk";
-import { enableTfaApp, linkTfaApp, resetTfaAfterTest } from "@/src/helpers/tfa";
+import {
+  TfaRequestsDtoType,
+  MessageAction,
+} from "@onlyoffice/docspace-api-sdk";
+import {
+  enableTfaApp,
+  expectActionRecorded,
+  linkTfaApp,
+  resetTfaAfterTest,
+} from "@/src/helpers/tfa";
 import config from "@/config";
 
 test.afterEach(async ({ apiSdk }) => {
@@ -378,6 +386,27 @@ test.describe("PUT /api/2.0/settings/tfaapp - Enabling TFA App invalidates the c
       .tfaSettings.getTfaSettings();
 
     expect(status).toBe(401);
+  });
+
+  // Confirmed live: this isn't a self-invalidation of just the caller's own
+  // token - it's a portal-wide security-stamp reset. An already-authenticated
+  // DocSpaceAdmin who never touched TFA settings gets logged out too, purely
+  // as a side effect of the Owner's action.
+  test("PUT /api/2.0/settings/tfaapp - Enabling TFA App invalidates every session on the portal, not just the enabler's own", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const before = await adminApi.profiles.getSelfProfile();
+    expect(before.status).toBe(200);
+
+    await enableTfaApp(apiSdk, "owner");
+
+    const after = await adminApi.profiles.getSelfProfile();
+    expect(after.status).toBe(401);
   });
 });
 
@@ -838,5 +867,96 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks another user's
       .tfaSettings.unlinkTfaApp({ tfaRequestsDto: {} });
 
     expect(status).toBe(403);
+  });
+});
+
+test.describe("TFA actions are recorded in the audit trail / login history", () => {
+  test("Enabling TFA App logs a TwoFactorAuthenticationEnabledByTfaApp audit event", async ({
+    apiSdk,
+  }) => {
+    await linkTfaApp(apiSdk, "owner");
+
+    await expectActionRecorded(
+      () =>
+        apiSdk.forRole("owner").auditTrail.getAuditEventsByFilter({
+          action: MessageAction.TwoFactorAuthenticationEnabledByTfaApp,
+        }),
+      MessageAction.TwoFactorAuthenticationEnabledByTfaApp,
+    );
+  });
+
+  test("Disabling TFA logs a TwoFactorAuthenticationDisabled audit event", async ({
+    apiSdk,
+  }) => {
+    await linkTfaApp(apiSdk, "owner");
+
+    const disableResult = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: { type: TfaRequestsDtoType.None },
+      });
+    expect(disableResult.status).toBe(200);
+
+    // Disabling invalidates the session same as any TFA settings change - a
+    // plain re-login works now, no TFA challenge since type is back to None.
+    const relogin = await apiSdk
+      .forRole("owner")
+      .authentication.authenticateMe({
+        authRequestsDto: {
+          userName: config.DOCSPACE_OWNER_EMAIL,
+          password: config.DOCSPACE_OWNER_PASSWORD,
+          session: true,
+        },
+      });
+    expect(relogin.status).toBe(200);
+    apiSdk.tokenStore.setToken("owner", relogin.data.response!.token!);
+
+    await expectActionRecorded(
+      () =>
+        apiSdk.forRole("owner").auditTrail.getAuditEventsByFilter({
+          action: MessageAction.TwoFactorAuthenticationDisabled,
+        }),
+      MessageAction.TwoFactorAuthenticationDisabled,
+    );
+  });
+
+  test("Linking a TFA app logs a successful login-via-API-TFA event in login history", async ({
+    apiSdk,
+  }) => {
+    await linkTfaApp(apiSdk, "owner");
+
+    await expectActionRecorded(
+      () =>
+        apiSdk.forRole("owner").loginHistory.getLoginEventsByFilter({
+          action: MessageAction.LoginSuccessViaApiTfa,
+        }),
+      MessageAction.LoginSuccessViaApiTfa,
+    );
+  });
+
+  test("Unlinking a user's TFA app logs a UserDisconnectedTfaApp audit event", async ({
+    apiSdk,
+  }) => {
+    await linkTfaApp(apiSdk, "owner");
+
+    const target = await apiSdk.addMember("owner", "User");
+    const targetId = target.data.response!.id!;
+    await linkTfaApp(apiSdk, "user", {
+      userName: target.userData.email,
+      password: target.userData.password,
+    });
+
+    const unlinkResult = await apiSdk
+      .forRole("owner")
+      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: targetId } });
+    expect(unlinkResult.status).toBe(200);
+
+    await expectActionRecorded(
+      () =>
+        apiSdk.forRole("owner").auditTrail.getAuditEventsByFilter({
+          action: MessageAction.UserDisconnectedTfaApp,
+        }),
+      MessageAction.UserDisconnectedTfaApp,
+    );
   });
 });

@@ -1,4 +1,5 @@
 import { generate, createGuardrails } from "otplib";
+import { expect } from "@playwright/test";
 import { TfaRequestsDtoType } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
 import { ApiSDK } from "../services/api-sdk";
@@ -118,4 +119,29 @@ export async function resetTfaAfterTest(apiSdk: ApiSDK) {
   await linkTfaApp(apiSdk, "owner")
     .then(disable)
     .catch(() => {});
+}
+
+/**
+ * Polls until a given MessageAction id shows up in an audit trail / login
+ * history query. Confirmed live: writing an event and it becoming visible via
+ * getAuditEventsByFilter/getLoginEventsByFilter is eventually consistent, not
+ * immediate - a query made right after the triggering action can miss it.
+ * Filtering by `action` is also confirmed loose (the server includes other,
+ * unrelated recent events alongside matches), so this checks the returned
+ * list for the id rather than trusting the filter to have narrowed it down.
+ */
+export async function expectActionRecorded(
+  fetchEvents: () => Promise<{
+    status: number;
+    data: { response?: Array<{ actionId?: number }> };
+  }>,
+  actionId: number,
+) {
+  await expect
+    .poll(async () => {
+      const { status, data } = await fetchEvents();
+      if (status !== 200) return false;
+      return data.response?.some((e) => e.actionId === actionId) ?? false;
+    })
+    .toBe(true);
 }
