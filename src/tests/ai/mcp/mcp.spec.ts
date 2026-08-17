@@ -4613,6 +4613,13 @@ test.describe("MCP - a registered server in the tool list", () => {
 // So a chat that looks like it is "inside the agent room" reaches the 401 as
 // soon as the client scopes it to a folder of that room instead of to the room.
 
+/**
+ * The reported request, verbatim and in the language it was made in. Naming a
+ * section the agent does not own is what makes it interesting: the answer has to
+ * come from whatever tools the scope really has.
+ */
+const ASK_FOR_FILE_IN_FILES = 'Создай файл в разделе Files, назови "тест"';
+
 /** Forces the REST family if the model has it, and says so if it does not. */
 const ASK_FOR_MY_FOLDER =
   "Call the get_my_folder tool and report the id and title of my My Documents folder. " +
@@ -4832,8 +4839,16 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     // agent room id the REST family is simply not there, so nothing can 401.
     //
     // Read through the calls rather than through the answer — "no catalogue tool
-    // was CALLED" is a fact about the request — with the sentinel as the
-    // corroborating half, since a refusal's wording is the model's own.
+    // was CALLED" is a fact about the request. Two questions, because `entityId`
+    // is the only thing that decides the toolset and a naming-the-section prompt
+    // must not be able to change it:
+    //
+    //   * the tool asked for by name, answered with the sentinel — the inventory
+    //     read that does not depend on how a refusal is phrased;
+    //   * "создай файл в разделе Files" — the request that produced the reported
+    //     401 elsewhere. Here it has to be served by the agent's own generator
+    //     instead, which is also what keeps the negative half honest: the model
+    //     acted, it just had nothing but built-in tools to act with.
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -4850,116 +4865,168 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       aiChat,
       "Autotest Agent Scope Tools",
     );
-    const threadId = await aiChat.createThreadId("owner", {
-      title: "Autotest agent scope thread",
-      profileId,
-      agentId,
-    });
 
-    const driven = await driveToolCalls(aiChat, {
-      threadId,
-      profileId,
-      entityId: agentId,
-      message: ASK_FOR_MY_FOLDER,
-    });
+    for (const probe of [
+      {
+        label: "the folder tool asked for by name",
+        message: ASK_FOR_MY_FOLDER,
+        expectSentinel: true,
+      },
+      {
+        label: "a file requested in the Files section",
+        message: ASK_FOR_FILE_IN_FILES,
+        expectSentinel: false,
+      },
+    ]) {
+      await test.step(probe.label, async () => {
+        const threadId = await aiChat.createThreadId("owner", {
+          title: `Autotest agent scope — ${probe.label}`,
+          profileId,
+          agentId,
+        });
 
-    expect(
-      driven.calls
-        .map((call) => call.toolName ?? "")
-        .filter((name) => catalogue.includes(name)),
-      `a catalogue tool was called after all; the model answered "${driven.reply.slice(0, 200)}"`,
-    ).toEqual([]);
-    expect(driven.reply).toContain(NO_TOOL_SENTINEL);
-  });
+        const driven = await driveToolCalls(aiChat, {
+          threadId,
+          profileId,
+          entityId: agentId,
+          message: probe.message,
+        });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - a server-executed DocSpace tool sends its request to another portal and gets 401", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    // The user-visible symptom is an agent in an AI room telling a signed-in
-    // Owner it could not reach Files because the service returned 401. That
-    // sentence is the model's reading of a tool result; what the tool result
-    // actually carries is the request the ENGINE made, and its host is not this
-    // portal:
-    //
-    //   GET https://docspace-szxr6g.onlyoffice.io/api/2.0/files/@my?…: 401 Unauthorized
-    //
-    // Measured on four freshly registered portals on 2026-08-14 — the host in
-    // the trace was the same stranger every time and never the portal under
-    // test, so it is a fixed base URL on the AI side rather than a stale
-    // session, an expired token or a permission of the caller's. That host
-    // answers an anonymous request 401 as well, so the status itself says
-    // nothing about the token.
-    //
-    // The chat is scoped to the agent's own Result Storage folder, which is the
-    // shortest path from "the user is in the AI room" to the REST family: the
-    // agent room id itself is served by the generators only (test above).
-    //
-    // The assertion is the host, not the status: a fix that still answered 401
-    // would at least have to stop calling a foreign portal, and a fix that
-    // changed the status without changing the target would not be one.
-    test.setTimeout(300000);
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
+        expect(
+          driven.calls
+            .map((call) => call.toolName ?? "")
+            .filter((name) => catalogue.includes(name)),
+          `a catalogue tool was called after all; the model answered "${driven.reply.slice(0, 200)}"`,
+        ).toEqual([]);
 
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const catalogue = await catalogueToolNames(aiTools);
-
-    const { profileId, agentId } = await setupChat(
-      aiChat,
-      "Autotest REST Tool Agent",
-    );
-    const resultStorageId = await agentStorageFolderId(
-      ownerApi,
-      agentId,
-      FolderType.ResultStorage,
-    );
-    const threadId = await aiChat.createThreadId("owner", {
-      title: "Autotest REST tool thread",
-      profileId,
-      agentId: resultStorageId,
-    });
-
-    const driven = await driveToolCalls(aiChat, {
-      threadId,
-      profileId,
-      entityId: resultStorageId,
-      message: ASK_FOR_MY_FOLDER,
-    });
-
-    // The premise, and it holds on a fixed build too: the model really did reach
-    // for a REST tool and the engine really ran it. Without this the assertions
-    // below would be satisfied by a chat that never called anything.
-    const restCalls = driven.calls.filter((call) =>
-      catalogue.includes(call.toolName ?? ""),
-    );
-    expect(
-      restCalls.map((call) => call.toolName),
-      `no catalogue tool was called; the model answered "${driven.reply.slice(0, 200)}"`,
-    ).not.toEqual([]);
-    for (const call of restCalls) {
-      expect(call.result, `${call.toolName} was executed`).toBeDefined();
+        if (probe.expectSentinel) {
+          expect(driven.reply).toContain(NO_TOOL_SENTINEL);
+        } else {
+          // Naming the section did not reach for a folder tool — it reached for
+          // the generator, the one document tool an agent scope has.
+          expect(
+            driven.calls.map((call) => call.toolName),
+            `the model answered "${driven.reply.slice(0, 200)}"`,
+          ).toContain(BUILT_IN_DOC_TOOL_TOKEN);
+        }
+      });
     }
-
-    const requested = restCalls.flatMap((call) =>
-      toolHttpCalls(call.result).map((http) => ({
-        toolName: call.toolName,
-        ...http,
-      })),
-    );
-    const ourHost = new URL(apiSdk.tokenStore.portalBaseUrl).host;
-
-    test.fail();
-    expect(
-      requested.filter((http) => http.host !== ourHost),
-      `the engine called ${JSON.stringify(requested)} instead of ${ourHost}`,
-    ).toEqual([]);
-    expect(
-      restCalls
-        .filter((call) => toolIsError(call.result))
-        .map((call) => ({ toolName: call.toolName, result: call.result })),
-      "no DocSpace tool reported an error",
-    ).toEqual([]);
   });
+
+  // The user-visible symptom is an agent in an AI room telling a signed-in Owner
+  // it could not reach Files because the service returned 401. That sentence is
+  // the model's reading of a tool result; what the tool result actually carries is
+  // the request the ENGINE made, and its host is not this portal:
+  //
+  //   GET https://docspace-szxr6g.onlyoffice.io/api/2.0/files/@my?…: 401 Unauthorized
+  //
+  // Measured on five freshly registered portals on 2026-08-14 — the host in the
+  // trace was the same stranger every time and never the portal under test, so it
+  // is a fixed base URL on the AI side rather than a stale session, an expired
+  // token or a permission of the caller's. That host answers an anonymous request
+  // 401 as well, so the status itself says nothing about the token.
+  //
+  // The assertion is therefore the HOST, not the status: a fix that still answered
+  // 401 would at least have to stop calling a foreign portal, and a fix that
+  // changed the status without changing the target would not be one. `isError`
+  // follows it as the secondary check.
+  //
+  // Three scopes, because all three are reachable while the user is looking at an
+  // AI room and none of them is the agent id that would have been served by the
+  // generators alone: the agent's own two folders, and an ordinary folder as the
+  // control that this is not something about agent rooms.
+  //
+  // What is deliberately NOT asserted: whether the model recovers after the 401
+  // and produces the document anyway. It did in twelve runs and gave up in three,
+  // with the same request — that is the model's decision, not the API's.
+  const REST_TOOL_SCOPES: Array<{
+    label: string;
+    /** Which of the agent's folders to scope to; a plain folder when absent. */
+    folder?: FolderType;
+  }> = [
+    { label: "the agent's Result Storage", folder: FolderType.ResultStorage },
+    { label: "the agent's Knowledge Base", folder: FolderType.Knowledge },
+    { label: "an ordinary folder in Files" },
+  ];
+
+  for (const scope of REST_TOOL_SCOPES) {
+    test(`BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - a server-executed DocSpace tool scoped to ${scope.label} sends its request to another portal and gets 401`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      test.setTimeout(300000);
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const catalogue = await catalogueToolNames(aiTools);
+
+      const { profileId, agentId } = await setupChat(
+        aiChat,
+        "Autotest REST Tool Agent",
+      );
+
+      let entityId: number;
+      if (scope.folder === undefined) {
+        const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+        const { data: created, status } = await ownerApi.folders.createFolder({
+          folderId: myFolder.response!.current!.id!,
+          createFolder: { title: "Autotest REST Tool Folder" },
+        });
+        expect(status, "the control folder was created").toBe(200);
+        entityId = created.response!.id!;
+      } else {
+        entityId = await agentStorageFolderId(ownerApi, agentId, scope.folder);
+      }
+
+      const threadId = await aiChat.createThreadId("owner", {
+        title: "Autotest REST tool thread",
+        profileId,
+        agentId: entityId,
+      });
+
+      const driven = await driveToolCalls(aiChat, {
+        threadId,
+        profileId,
+        entityId,
+        message: ASK_FOR_MY_FOLDER,
+      });
+
+      // The premise, and it holds on a fixed build too: the model really did
+      // reach for a REST tool and the engine really ran it. Without this the
+      // assertions below would be satisfied by a chat that never called
+      // anything.
+      const restCalls = driven.calls.filter((call) =>
+        catalogue.includes(call.toolName ?? ""),
+      );
+      expect(
+        restCalls.map((call) => call.toolName),
+        `no catalogue tool was called; the model answered "${driven.reply.slice(0, 200)}"`,
+      ).not.toEqual([]);
+      for (const call of restCalls) {
+        expect(call.result, `${call.toolName} was executed`).toBeDefined();
+      }
+
+      const requested = restCalls.flatMap((call) =>
+        toolHttpCalls(call.result).map((http) => ({
+          toolName: call.toolName,
+          ...http,
+        })),
+      );
+      const ourHost = new URL(apiSdk.tokenStore.portalBaseUrl).host;
+
+      test.fail();
+      expect(
+        requested.filter((http) => http.host !== ourHost),
+        `the engine called ${JSON.stringify(requested)} instead of ${ourHost}`,
+      ).toEqual([]);
+      expect(
+        restCalls
+          .filter((call) => toolIsError(call.result))
+          .map((call) => ({ toolName: call.toolName, result: call.result })),
+        "no DocSpace tool reported an error",
+      ).toEqual([]);
+    });
+  }
 });
