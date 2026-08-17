@@ -23,9 +23,13 @@ import { AiAttachments } from "@/src/helpers/ai-attachments";
 import { AiHttp } from "@/src/helpers/ai-http";
 import { postAndReadStream } from "@/src/helpers/ai-stream-transport";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
+import { AiSettings } from "@/src/helpers/ai-settings";
 import { AiTools } from "@/src/helpers/ai-tools";
 import { agentStorageFolderId } from "@/src/helpers/device-upload";
-import { listFolderFiles } from "@/src/helpers/text-to-docx";
+import {
+  listFolderFiles,
+  waitForExportedFile,
+} from "@/src/helpers/text-to-docx";
 import { UserType, ApiSDK } from "@/src/services/api-sdk";
 
 // Chat moved off `/ai/rooms/{roomId}/chats` (404) onto threads:
@@ -3420,6 +3424,162 @@ test.describe("AI Chat - the model of one thread", () => {
     );
   });
 
+  test("POST /api/2.0/ai/ai/send-with-stream - the conversation carries over to the model the picker switched to", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The test above pins that the switch is *stored*. This is the half the user
+    // feels: the model just picked has to answer from what was said to the
+    // previous one. A backend that started a fresh conversation whenever the
+    // model changed would pass the stored-profileId test and fail this one.
+    //
+    // Two inference turns with a poll between them.
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Model Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread that changes its model",
+      profileId: first.id,
+      agentId: roomId,
+    });
+
+    const taught = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: first.id,
+      agentId: roomId,
+      message: "Remember the code word ORANGE. Reply with just: OK.",
+    });
+    expect(taught.status).toBe(200);
+    expect(taught.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReplies("owner", threadId, 1, 120000),
+    );
+
+    // The picker moves to the other model mid-conversation. The question can
+    // only be answered from the turn the first model was given.
+    const asked = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: second.id,
+      agentId: roomId,
+      message:
+        "What code word did I ask you to remember? Reply with just that word.",
+    });
+    expect(asked.status).toBe(200);
+    expect(asked.streamError).toBeUndefined();
+    const messages = await aiChat.waitForAssistantReplies(
+      "owner",
+      threadId,
+      2,
+      120000,
+    );
+    expectHealthyAssistantReply(messages, 2);
+
+    expect(
+      AiAgentChat.messageText(
+        AiAgentChat.assistantMessages(messages)[1],
+      ).toUpperCase(),
+      "the model the picker switched to answers from the earlier turn",
+    ).toContain("ORANGE");
+
+    // The transcript survived the switch whole, and the switch stuck.
+    expect(
+      AiAgentChat.userMessages(messages).map((message) =>
+        AiAgentChat.messageText(message),
+      ),
+    ).toEqual([
+      "Remember the code word ORANGE. Reply with just: OK.",
+      "What code word did I ask you to remember? Reply with just that word.",
+    ]);
+    expect((await aiChat.getThread("owner", threadId)).data?.profileId).toBe(
+      second.id,
+    );
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a room member switches the model of their own thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Switching by send is otherwise measured on the Owner only, and the Owner
+    // is the one case where "the choice belongs to the user" cannot be told from
+    // "the choice belongs to whoever owns the room". A member of somebody else's
+    // room is who the picker is for.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Shared Model Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const member = await apiSdk.addMember("owner", "RoomAdmin");
+    const memberId = member.data.response!.id!;
+    const invited = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+        notify: false,
+      },
+    });
+    expect(invited.status, "inviting the member into the room").toBe(200);
+
+    // Everything owner-side is done; from here the shared request context acts
+    // as the member.
+    await apiSdk.authenticateMember(member.userData, "RoomAdmin");
+    await aiChat.expectActingAs("roomAdmin", memberId, "the invited member");
+
+    const threadId = await aiChat.createThreadId("roomAdmin", {
+      title: "Autotest member thread",
+      profileId: first.id,
+      agentId: roomId,
+    });
+    expect(
+      (await aiChat.getThread("roomAdmin", threadId)).data?.profileId,
+      "the thread starts on the model the member picked",
+    ).toBe(first.id);
+
+    const sent = await aiChat.sendMessage("roomAdmin", {
+      threadId,
+      profileId: second.id,
+      agentId: roomId,
+      message: "Reply with the single word OK.",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("roomAdmin", threadId),
+    );
+
+    const moved = await aiChat.getThread("roomAdmin", threadId);
+    expect(moved.status).toBe(200);
+    expect(
+      moved.data?.profileId,
+      "the member's own switch is what the thread now runs on",
+    ).toBe(second.id);
+    expect(
+      (await aiChat.listThreads("roomAdmin", roomId)).data.find(
+        (thread) => thread.threadId === threadId,
+      )?.profileId,
+      "and the list the picker is drawn from agrees",
+    ).toBe(second.id);
+  });
+
   test("BUG 82860: POST /api/2.0/ai/ai/send-with-stream - a message with no profileId keeps the thread's chosen model", async ({
     apiSdk,
     paymentsApi,
@@ -3703,6 +3863,158 @@ test.describe("AI Chat - the model of one thread", () => {
     const listed = await aiChat.listThreads("owner", agentId);
     expect(listed.status).toBe(200);
     expect(listed.data).toEqual([]);
+  });
+
+  // The send is the only route that WRITES a thread's model, so a `profileId`
+  // the backend cannot resolve is a question about the picker and not just about
+  // input validation. Both tests below are staged with the portal-wide Chat
+  // binding on `first` and the thread on `second`, so "kept its own model", "took
+  // the room's" and "was wiped" are three distinguishable outcomes.
+  const UNKNOWN_PROFILE_ID = "019ed118-0000-0000-0000-0000000000ff";
+
+  async function roomThreadOnSecondModel(
+    apiSdk: ApiSDK,
+    aiChat: AiAgentChat,
+    profiles: AiProfiles,
+    first: string,
+    second: string,
+  ) {
+    const { data: room } = await apiSdk.forRole("owner").rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Model Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const bound = await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: first,
+    });
+    expect(bound.data?.success).toBe(true);
+    const resolved = await profiles.resolveForAction("owner", "Chat", roomId);
+    expect(
+      resolved.data?.profileId,
+      "the room resolves the other profile",
+    ).toBe(first);
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread in a room",
+      profileId: second,
+      agentId: roomId,
+    });
+    expect(
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "the thread starts on the chosen model",
+    ).toBe(second);
+
+    return { roomId, threadId };
+  }
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is answered instead of refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The id `create` answers 404 to. On the send it is dropped in silence: the
+    // question is answered normally, by whatever model the backend picked
+    // instead, and the client is told nothing — so a picker pointed at a model
+    // that has gone away (or a client with a stale catalogue) produces a
+    // conversation running on a model nobody chose. Every other failure on this
+    // surface arrives either as a status or as an `error` frame.
+    //
+    // The thread itself is not corrupted, which is the one thing that could have
+    // made this worse, and is asserted before the report.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
+    const { roomId, threadId } = await roomThreadOnSecondModel(
+      apiSdk,
+      aiChat,
+      profiles,
+      first.id,
+      second.id,
+    );
+
+    const bad = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: UNKNOWN_PROFILE_ID,
+      agentId: roomId,
+      message: "Reply with the single word OK.",
+      timeoutMs: STREAM_CAP_MS,
+    });
+
+    // The thread was not stamped with the unresolvable id, and it did not take
+    // the room's binding either — it stayed on the model it was created with.
+    expect(
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "the thread keeps the model it was on",
+    ).toBe(second.id);
+
+    // The question really was answered, which is what makes the silence a
+    // problem rather than a cosmetic one: the user sees an ordinary reply.
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    // Fix-agnostic: a 4xx like create's, or an `error` frame inside the 200 the
+    // way a model failure is reported, both satisfy this. Only today's silent
+    // success does not.
+    test.fail();
+    expect(
+      bad.status !== 200 || bad.streamError !== undefined,
+      "a model choice the backend cannot resolve is reported, not dropped",
+    ).toBe(true);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a blank profileId leaves the thread's model alone", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // `""` is what a client sends when its picker holds nothing. `create` refuses
+    // it (400); the send takes it, answers the question and leaves the thread on
+    // its own model — which is the important half, because it is NOT how an
+    // omitted `profileId` behaves: that one overwrites the thread with the
+    // portal-wide binding (BUG 82860 above). The binding here points at `first`
+    // and the thread is on `second`, so the two paths cannot be confused.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
+    const { roomId, threadId } = await roomThreadOnSecondModel(
+      apiSdk,
+      aiChat,
+      profiles,
+      first.id,
+      second.id,
+    );
+
+    const blank = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: "",
+      agentId: roomId,
+      message: "Reply with the single word OK.",
+      timeoutMs: STREAM_CAP_MS,
+    });
+    expect(blank.status).toBe(200);
+    expect(blank.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    expect(
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "a blank id is not an omission: the thread keeps its own model",
+    ).toBe(second.id);
+    expect(
+      (await aiChat.listThreads("owner", roomId)).data.find(
+        (thread) => thread.threadId === threadId,
+      )?.profileId,
+    ).toBe(second.id);
   });
 
   test("POST /api/2.0/ai/threads/create - two threads on a folder entity keep their own models", async ({
@@ -6703,5 +7015,523 @@ test.describe("AI Threads - a cleared thread carries on", () => {
     const listed = await aiChat.listThreads("owner", agentId);
     expect(listed.status).toBe(200);
     expect(listed.data.map((entry) => entry.threadId)).toEqual([threadId]);
+  });
+});
+
+// The starter buttons an empty AI Chat offers ("Summarize the knowledge base",
+// "Find contradictions", …).
+//
+// What the mechanism turned out to be, measured on a live portal:
+//
+//   * Nothing serves the list. `/ai/prompts/suggested`, `/ai/prompts/default`,
+//     `/ai/prompts/built-in`, `/ai/suggested-prompts` and
+//     `/ai/ai/suggested-prompts` are all 404, `/ai/config` and
+//     `/ai/config/user` carry no such field, and `/ai/prompts/list` is the
+//     user's own prompt library — empty on a fresh portal, see
+//     ai/prompts/prompts.spec.ts. The labels are client-side constants.
+//   * Pressing one is an ORDINARY text message: the label is sent verbatim as
+//     `userMessage.content[0].text` on `POST /ai/ai/send-with-stream`. No
+//     dedicated route, no action type, no extra `actionArgs` — which is why
+//     every test below asserts the stored user message equals the label
+//     character for character. There is nothing else to reproduce.
+//   * Six of the eight are answered out of the Knowledge Base through ONE
+//     server-executed `docspace_knowledge_search` tool call. It is auto-run:
+//     the stream carries no `tool-call-pending`, so no approve-tool-call round
+//     trip stands between the button and the answer.
+//   * That tool is NOT in `GET /ai/tools/list-system-tools`, which advertises
+//     23 unrelated docspace file/folder/room/people tools instead. The
+//     catalogue is not the toolset the model gets — same disagreement as
+//     BUG 83013.
+//   * The tool is offered only when the Knowledge Base holds indexed content.
+//     Against an empty one the model answers that it has no file tools at all,
+//     which is what the empty-Knowledge-Base control test at the bottom pins —
+//     and what makes the marker assertions above it mean something.
+//
+// Grounding is asserted two ways, because "the model said words" is not proof
+// it read anything: the search result really carried the fixture text, and the
+// answer really quotes a marker that exists nowhere but the fixture. The exact
+// wording is never asserted — that is the model's, and it is not deterministic.
+
+/** Invented tokens: neither can be produced without reading the fixture. */
+const VENDOR_CODE = "ZORBAX-77";
+const SAVED_MARKER = "QUUX-4242";
+
+const CONTRACT_TITLE = "Autotest Vendor Contract";
+const ADDENDUM_TITLE = "Autotest Payment Addendum";
+const SAVED_TITLE = "Autotest Saved Summary";
+
+const CONTRACT_TEXT =
+  `Vendor contract. The approved vendor is ${VENDOR_CODE}. ` +
+  "Invoices must be paid within 45 days. " +
+  "Task: Kate must submit the vendor report by 2026-09-15. " +
+  "The Q3 audit deadline is 2026-09-30.";
+
+// Deliberately disagrees with the contract on the payment window, and says so
+// in a way that cannot be read as superseding it — that is the contradiction
+// "Find contradictions" has to have something to find.
+const ADDENDUM_TEXT =
+  `Payment addendum for vendor ${VENDOR_CODE}. ` +
+  "Invoices must be paid within 90 days. This supersedes nothing. " +
+  "Task: Boris must archive the invoices by 2026-10-05.";
+
+const SAVED_TEXT = `Saved result: the ${SAVED_MARKER} quarterly report was generated by the agent.`;
+
+const KNOWLEDGE_SEARCH_TOOL = "docspace_knowledge_search";
+
+/**
+ * Fixture markers a grounded answer may quote, per prompt. Any ONE match is
+ * enough: which of them the model picks up is its own choice, but none of them
+ * can appear in an answer that never read the Knowledge Base. Word boundaries
+ * matter on the bare numbers — an unanchored "45" also matches "2045".
+ */
+const SUGGESTED_PROMPTS: Array<{
+  /** The button label, sent verbatim. */
+  prompt: string;
+  grounding: RegExp[];
+}> = [
+  {
+    prompt: "Summarize the knowledge base",
+    grounding: [
+      new RegExp(VENDOR_CODE),
+      new RegExp(CONTRACT_TITLE),
+      new RegExp(ADDENDUM_TITLE),
+    ],
+  },
+  {
+    prompt: "Show source documents",
+    grounding: [
+      new RegExp(CONTRACT_TITLE),
+      new RegExp(ADDENDUM_TITLE),
+      new RegExp(VENDOR_CODE),
+    ],
+  },
+  {
+    prompt: "Find a document",
+    grounding: [
+      new RegExp(CONTRACT_TITLE),
+      new RegExp(ADDENDUM_TITLE),
+      new RegExp(VENDOR_CODE),
+    ],
+  },
+  {
+    prompt: "Find tasks and deadlines",
+    grounding: [
+      /\bKate\b/,
+      /\bBoris\b/,
+      /2026-09-15/,
+      /2026-10-05/,
+      /September 15/,
+      /October 5/,
+    ],
+  },
+  {
+    prompt: "Compare documents",
+    grounding: [
+      /\b45\b/,
+      /\b90\b/,
+      new RegExp(CONTRACT_TITLE),
+      new RegExp(ADDENDUM_TITLE),
+    ],
+  },
+  {
+    prompt: "Find contradictions",
+    grounding: [/\b45\b/, /\b90\b/, new RegExp(VENDOR_CODE)],
+  },
+];
+
+type PromptsAgent = {
+  aiChat: AiAgentChat;
+  profileId: string;
+  agentId: number;
+  knowledgeId: number;
+  resultStorageId: number;
+};
+
+/** An agent plus the ids of the two folders inside it that accept files. */
+async function createPromptsAgent(apiSdk: ApiSDK): Promise<PromptsAgent> {
+  const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+  const profileId = await aiChat.defaultProfileId("owner");
+  const agentId = await aiChat.createAgentId("owner", {
+    title: "Autotest Suggested Prompts Agent",
+    profileId,
+  });
+
+  const ownerApi = apiSdk.forRole("owner");
+  return {
+    aiChat,
+    profileId,
+    agentId,
+    knowledgeId: await agentStorageFolderId(
+      ownerApi,
+      agentId,
+      FolderType.Knowledge,
+    ),
+    resultStorageId: await agentStorageFolderId(
+      ownerApi,
+      agentId,
+      FolderType.ResultStorage,
+    ),
+  };
+}
+
+/**
+ * Writes one deterministic .docx into an agent folder, using the portal's own
+ * exporter so the bytes are a real document rather than hand-assembled ones.
+ *
+ * Setup-only, so it throws: a fixture that never landed would turn every
+ * grounding assertion below into "the model did not mention the marker", which
+ * reads like a product failure instead of a missing file.
+ */
+async function writeAgentDocument(
+  apiSdk: ApiSDK,
+  folderId: number,
+  title: string,
+  content: string,
+): Promise<number> {
+  const settings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+  const { status } = await settings.textToDocx("owner", {
+    title,
+    content,
+    folderId,
+  });
+  if (status !== 202) {
+    throw new Error(`text-to-docx for "${title}" failed: ${status}`);
+  }
+
+  const file = await waitForExportedFile(
+    apiSdk.forRole("owner"),
+    folderId,
+    `${title}.docx`,
+  );
+  if (!file) {
+    throw new Error(`"${title}.docx" never appeared in folder ${folderId}`);
+  }
+  return file.id;
+}
+
+/** The two contradicting Knowledge Base documents every data prompt reads. */
+async function fillKnowledgeBase(apiSdk: ApiSDK, agent: PromptsAgent) {
+  await writeAgentDocument(
+    apiSdk,
+    agent.knowledgeId,
+    CONTRACT_TITLE,
+    CONTRACT_TEXT,
+  );
+  await writeAgentDocument(
+    apiSdk,
+    agent.knowledgeId,
+    ADDENDUM_TITLE,
+    ADDENDUM_TEXT,
+  );
+}
+
+/**
+ * Asserts the stream ran to a clean finish. Every send in this suite has the
+ * same plumbing, and the interesting part is what the answer says.
+ *
+ * `message-end` being last is the whole point: `message-incomplete` is how a
+ * cut-off generation ends, an `error` frame is how a failed request reports
+ * itself (HTTP is still 200), and `tool-call-pending` would mean the answer is
+ * parked waiting for a client decision the suggested-prompt flow never makes.
+ */
+function expectCompletedStream(body: string) {
+  const types = AiAgentChat.frameTypes(body);
+
+  expect(types, "the stream reported an error frame").not.toContain("error");
+  expect(types, "the generation was cut off").not.toContain(
+    "message-incomplete",
+  );
+  expect(types, "the answer is parked on a tool approval").not.toContain(
+    "tool-call-pending",
+  );
+
+  expect(types).toContain("user-message-stored");
+  expect(types).toContain("message-start");
+  expect(
+    types.filter((type) => type === "message-delta").length,
+    "the reply arrived in at least one delta",
+  ).toBeGreaterThan(0);
+  expect(types[types.length - 1], "the last frame is the terminal one").toBe(
+    "message-end",
+  );
+}
+
+/** The `docspace_knowledge_search` results of a reply, as raw JSON strings. */
+function knowledgeSearchResults(reply: AiThreadMessage): string[] {
+  return AiAgentChat.toolCalls(reply)
+    .filter((call) => call.toolName === KNOWLEDGE_SEARCH_TOOL)
+    .map((call) => JSON.stringify(call.result ?? ""));
+}
+
+function expectMatchesAny(text: string, patterns: RegExp[], label: string) {
+  expect(
+    patterns.some((pattern) => pattern.test(text)),
+    `${label} — none of ${patterns.map(String).join(", ")} in:\n${text}`,
+  ).toBe(true);
+}
+
+test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts", () => {
+  for (const { prompt, grounding } of SUGGESTED_PROMPTS) {
+    test(`POST /api/2.0/ai/ai/send-with-stream - suggested prompt "${prompt}" is answered from the Knowledge Base`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+
+      const agent = await createPromptsAgent(apiSdk);
+      await fillKnowledgeBase(apiSdk, agent);
+
+      const threadId = await agent.aiChat.createThreadId("owner", {
+        title: "Autotest suggested prompt thread",
+        profileId: agent.profileId,
+        agentId: agent.agentId,
+      });
+
+      const sent = await agent.aiChat.sendMessage("owner", {
+        threadId,
+        profileId: agent.profileId,
+        agentId: agent.agentId,
+        message: prompt,
+      });
+
+      expect(sent.status).toBe(200);
+      expect(sent.streamError).toBeUndefined();
+      expectCompletedStream(sent.text);
+
+      const messages = await agent.aiChat.waitForAssistantReply(
+        "owner",
+        threadId,
+      );
+
+      // The label is what reached the backend — no prefix, no wrapper, no
+      // hidden instruction bolted onto a starter button.
+      expect(
+        AiAgentChat.userMessages(messages).map((message) =>
+          AiAgentChat.messageText(message),
+        ),
+      ).toEqual([prompt]);
+
+      // Not `some(role === "assistant")`: a refused inference is stored as an
+      // assistant message too, so that check passes on a dead portal.
+      expectHealthyAssistantReply(messages);
+
+      const reply = AiAgentChat.assistantMessages(messages)[0];
+      const answer = AiAgentChat.messageText(reply);
+
+      // The stream and the persisted message are the same answer — a client
+      // that rendered the stream is not showing something the thread will
+      // disagree with when it is reopened.
+      expect(AiAgentChat.streamedText(sent.text)).toBe(answer);
+
+      // Grounding, half one: the Knowledge Base really was searched, and the
+      // search really came back with the fixture's text. This half is
+      // deterministic — it is the tool's output, not the model's prose.
+      const results = knowledgeSearchResults(reply);
+      expect(
+        results.length,
+        `the reply made no ${KNOWLEDGE_SEARCH_TOOL} call`,
+      ).toBeGreaterThan(0);
+      expect(results.join("\n")).toContain(VENDOR_CODE);
+
+      // Grounding, half two: the answer quotes something only the fixture
+      // could have supplied, so it is not a generic reply written around the
+      // question.
+      expectMatchesAny(answer, grounding, "the answer is not grounded");
+    });
+  }
+
+  test('POST /api/2.0/ai/ai/send-with-stream - suggested prompt "What can I ask you" is answered without any context', async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+
+    // The only prompt of the eight that asks about the assistant rather than
+    // about the data, so it is the one case with nothing to ground against and
+    // no Knowledge Base to prepare. It must still produce a real answer.
+    const agent = await createPromptsAgent(apiSdk);
+
+    const threadId = await agent.aiChat.createThreadId("owner", {
+      title: "Autotest suggested prompt thread",
+      profileId: agent.profileId,
+      agentId: agent.agentId,
+    });
+
+    const sent = await agent.aiChat.sendMessage("owner", {
+      threadId,
+      profileId: agent.profileId,
+      agentId: agent.agentId,
+      message: "What can I ask you",
+    });
+
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expectCompletedStream(sent.text);
+
+    const messages = await agent.aiChat.waitForAssistantReply(
+      "owner",
+      threadId,
+    );
+    expect(
+      AiAgentChat.userMessages(messages).map((message) =>
+        AiAgentChat.messageText(message),
+      ),
+    ).toEqual(["What can I ask you"]);
+    expectHealthyAssistantReply(messages);
+
+    const answer = AiAgentChat.messageText(
+      AiAgentChat.assistantMessages(messages)[0],
+    );
+    expect(AiAgentChat.streamedText(sent.text)).toBe(answer);
+    // A one-word acknowledgement would satisfy "non-empty" while telling the
+    // user nothing about what the assistant can do.
+    expect(answer.trim().length).toBeGreaterThan(40);
+  });
+
+  // The control for every grounding assertion above.
+  //
+  // Same prompt, same agent shape, only the Knowledge Base is empty — and the
+  // marker is gone from the answer, which is what proves the marker in the
+  // other tests was read out of the fixture rather than being something this
+  // model says anyway. It also pins the behaviour behind the "Show saved
+  // results" bug below: with nothing indexed, `docspace_knowledge_search` is
+  // not offered to the model at all, and it answers that it has no file tools —
+  // while `list-system-tools` still advertises 23 of them.
+  test('POST /api/2.0/ai/ai/send-with-stream - suggested prompt "Summarize the knowledge base" against an empty Knowledge Base invents nothing', async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+
+    const agent = await createPromptsAgent(apiSdk);
+    const ownerApi = apiSdk.forRole("owner");
+
+    // Assert the premise rather than assume it: a Knowledge Base that quietly
+    // had something in it would make the missing marker meaningless.
+    const { data: knowledge, status: knowledgeStatus } =
+      await ownerApi.folders.getFolderByFolderId({
+        folderId: agent.knowledgeId,
+      });
+    expect(knowledgeStatus).toBe(200);
+    expect(knowledge.response?.files ?? []).toEqual([]);
+
+    const threadId = await agent.aiChat.createThreadId("owner", {
+      title: "Autotest suggested prompt thread",
+      profileId: agent.profileId,
+      agentId: agent.agentId,
+    });
+
+    const sent = await agent.aiChat.sendMessage("owner", {
+      threadId,
+      profileId: agent.profileId,
+      agentId: agent.agentId,
+      message: "Summarize the knowledge base",
+    });
+
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expectCompletedStream(sent.text);
+
+    const messages = await agent.aiChat.waitForAssistantReply(
+      "owner",
+      threadId,
+    );
+    expectHealthyAssistantReply(messages);
+
+    const reply = AiAgentChat.assistantMessages(messages)[0];
+    expect(AiAgentChat.messageText(reply)).not.toContain(VENDOR_CODE);
+    expect(knowledgeSearchResults(reply)).toEqual([]);
+  });
+
+  // BUG XXXXX: "Show saved results" cannot reach Result Storage.
+  //
+  // The button is offered in every empty AI Chat, and there is no way for the
+  // model to answer it. `docspace_knowledge_search` is the only file tool it
+  // gets and its corpus is the Knowledge folder: a Result Storage file is
+  // never indexed (`vectorizationStatus` is absent on it, and an explicit
+  // POST /ai/vectorization/tasks on one answers 200 without ever giving it
+  // one), so the saved document is invisible.
+  //
+  // The failure is worse than an "I cannot do that": with anything in the
+  // Knowledge Base the model answers the question with whatever the search
+  // returned, presenting unrelated Knowledge Base documents as the user's
+  // saved results. Measured on 2026-08-14 — an agent whose Knowledge Base held
+  // only a note about watering office plants answered "Show saved results"
+  // with that note.
+  //
+  // Asserted as the intended contract, not as the defect: the answer must
+  // reach the file that actually is in Result Storage. `test.fail()` sits right
+  // above that one assertion rather than at the top of the test, so everything
+  // this case takes for granted — the file is stored, the request is accepted,
+  // the stream completes, the reply is healthy — still has to hold for real. An
+  // agent that stopped answering altogether would fail this test loudly
+  // instead of quietly satisfying an expected failure.
+  test('POST /api/2.0/ai/ai/send-with-stream - suggested prompt "Show saved results" reads the Result Storage folder', async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+
+    const agent = await createPromptsAgent(apiSdk);
+    const savedId = await writeAgentDocument(
+      apiSdk,
+      agent.resultStorageId,
+      SAVED_TITLE,
+      SAVED_TEXT,
+    );
+
+    // The Knowledge Base is filled too, so the search tool is definitely
+    // offered. That keeps the failure specific — "the corpus excludes Result
+    // Storage" rather than "the model was given no tools at all", which is
+    // what the empty-Knowledge-Base test above already covers.
+    await fillKnowledgeBase(apiSdk, agent);
+
+    // The premise: the saved document really is stored, and really is where
+    // the UI's "saved results" live.
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: storage, status: storageStatus } =
+      await ownerApi.folders.getFolderByFolderId({
+        folderId: agent.resultStorageId,
+      });
+    expect(storageStatus).toBe(200);
+    expect(
+      ((storage.response?.files ?? []) as Array<{ id?: number }>).map(
+        (file) => file.id,
+      ),
+    ).toContain(savedId);
+
+    const threadId = await agent.aiChat.createThreadId("owner", {
+      title: "Autotest suggested prompt thread",
+      profileId: agent.profileId,
+      agentId: agent.agentId,
+    });
+
+    const sent = await agent.aiChat.sendMessage("owner", {
+      threadId,
+      profileId: agent.profileId,
+      agentId: agent.agentId,
+      message: "Show saved results",
+    });
+
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expectCompletedStream(sent.text);
+
+    const messages = await agent.aiChat.waitForAssistantReply(
+      "owner",
+      threadId,
+    );
+    expectHealthyAssistantReply(messages);
+
+    const answer = AiAgentChat.messageText(
+      AiAgentChat.assistantMessages(messages)[0],
+    );
+
+    test.fail();
+    expectMatchesAny(
+      answer,
+      [new RegExp(SAVED_MARKER), new RegExp(SAVED_TITLE)],
+      "the answer never reached Result Storage",
+    );
   });
 });

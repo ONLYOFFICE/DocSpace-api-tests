@@ -248,6 +248,40 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
     expect(data).toBe(false);
   });
 
+  test("GET /api/2.0/ai/web-search/get-active-config - reads back as unconfigured whether AI Tools is paid for or not", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The companion of the test above: `is-configured` is a boolean, this route
+    // is the config itself, and the client reads it to decide what to show in the
+    // Web Search tab. Both off-states have to be pinned separately — the switch
+    // makes this route 403 (first describe block), the wallet does not touch it.
+    //
+    // The `null` is the unconfigured portal, not the wallet: no provider can be
+    // saved at all on this build (BUG 82812), which is why paying changes nothing
+    // here and why this is the strongest form the assertion can take today.
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const unpaid = await aiSettings.webSearchActiveConfig("owner");
+    expect(unpaid.status).toBe(200);
+    expect(unpaid.data).toBeNull();
+
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { data: config, status: configStatus } =
+      await ownerApi.aiSettings.aiSettingsGet();
+    expect(configStatus).toBe(200);
+    expect(config.response?.aiReady, "the wallet really was paid for").toBe(
+      true,
+    );
+
+    const { status, data } = await aiSettings.webSearchActiveConfig("owner");
+
+    expect(status).toBe(200);
+    expect(data).toBeNull();
+  });
+
   // `POST /ai/text-to-docx` works on an unpaid portal as well — pinned in
   // messages.ai-disabled.spec.ts together with the rest of that endpoint's
   // off-state behaviour.
