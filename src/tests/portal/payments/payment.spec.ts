@@ -1158,16 +1158,16 @@ test.describe("GET /api/2.0/portal/payment/walletservices", () => {
     expect(serviceNames).toContain("disk-storage-1-hour");
     expect(serviceNames).toContain("backup");
     expect(serviceNames).toContain("ai-tools");
-    expect(serviceNames).toContain("docscloud");
-    expect(serviceNames).toContain("docscloud-devpack");
+    expect(serviceNames).toContain("docscloud-1-hour");
+    expect(serviceNames).toContain("docscloud-devpack-1-hour");
     expect(serviceNames).toContain("ai-search");
 
     const expectedPrices: Record<string, number> = {
       "disk-storage-1-hour": 0.14,
       backup: 10,
       "ai-tools": 0,
-      docscloud: 8,
-      "docscloud-devpack": 12,
+      "docscloud-1-hour": 8,
+      "docscloud-devpack-1-hour": 12,
       "ai-search": 0,
     };
 
@@ -1195,16 +1195,16 @@ test.describe("GET /api/2.0/portal/payment/walletservices", () => {
     expect(serviceNames).toContain("disk-storage-1-hour");
     expect(serviceNames).toContain("backup");
     expect(serviceNames).toContain("ai-tools");
-    expect(serviceNames).toContain("docscloud");
-    expect(serviceNames).toContain("docscloud-devpack");
+    expect(serviceNames).toContain("docscloud-1-hour");
+    expect(serviceNames).toContain("docscloud-devpack-1-hour");
     expect(serviceNames).toContain("ai-search");
 
     const expectedPrices: Record<string, number> = {
       "disk-storage-1-hour": 0.14,
       backup: 10,
       "ai-tools": 0,
-      docscloud: 8,
-      "docscloud-devpack": 12,
+      "docscloud-1-hour": 8,
+      "docscloud-devpack-1-hour": 12,
       "ai-search": 0,
     };
 

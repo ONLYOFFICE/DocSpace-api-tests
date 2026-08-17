@@ -208,8 +208,6 @@ test.describe("AI Settings - per-user chat config", () => {
     // Checked before test.fail() is armed: a broken read must surface as a real
     // failure, not as the expected one.
     expect(afterStatus).toBe(200);
-
-    test.fail();
     expect(after.response?.chatRecommendedModelVisible).toBe(initial);
     expect(status).toBe(200);
   });
