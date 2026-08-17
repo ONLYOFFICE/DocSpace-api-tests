@@ -172,7 +172,7 @@ test.describe("GET /api/2.0/settings/security/security - Get web items security 
     ]);
   });
 
-  // BUG TBD: this endpoint returns full user profiles (id, displayName,
+  // BUG 83192/83193: this endpoint returns full user profiles (id, displayName,
   // avatar, profileUrl - which embeds the user's email in a search query)
   // for anyone listed in a web item's `subjects`, to ANY authenticated
   // caller including Guest and plain User. People API's own
@@ -182,7 +182,7 @@ test.describe("GET /api/2.0/settings/security/security - Get web items security 
   // show them, just by knowing (or omitting) a webItemId that has that
   // member as a subject.
   test.fail(
-    "BUG TBD: GET /api/2.0/settings/security/security - Guest sees another user's profile info here, which the People API itself blocks for Guest",
+    "BUG 83192: GET /api/2.0/settings/security/security - Guest sees another user's profile info here, which the People API itself blocks for Guest",
     async ({ apiSdk }) => {
       const id = crypto.randomUUID();
       const { data: target } = await apiSdk.addMember("owner", "User");
@@ -206,7 +206,7 @@ test.describe("GET /api/2.0/settings/security/security - Get web items security 
   );
 
   test.fail(
-    "BUG TBD: GET /api/2.0/settings/security/security - User sees another user's profile info here, which the People API itself blocks for User",
+    "BUG 83193: GET /api/2.0/settings/security/security - User sees another user's profile info here, which the People API itself blocks for User",
     async ({ apiSdk }) => {
       const id = crypto.randomUUID();
       const { data: target } = await apiSdk.addMember("owner", "User");
@@ -335,7 +335,7 @@ test.describe("PUT /api/2.0/settings/security/access - Bulk-set access to web it
 // parse it manually inside WebItemSecurity.GetSecurityInfoAsync, uncaught.
 test.describe("Malformed web-item ids crash instead of returning a validation error", () => {
   test.fail(
-    "BUG TBD: GET /api/2.0/settings/security/security - a malformed id should return 400, not crash with 500",
+    "BUG 83186: GET /api/2.0/settings/security/security - a malformed id should return 400, not crash with 500",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -346,7 +346,7 @@ test.describe("Malformed web-item ids crash instead of returning a validation er
   );
 
   test.fail(
-    "BUG TBD: PUT /api/2.0/settings/security/security - a malformed id should return 400, not crash with 500",
+    "BUG 83187: PUT /api/2.0/settings/security/security - a malformed id should return 400, not crash with 500",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -359,7 +359,7 @@ test.describe("Malformed web-item ids crash instead of returning a validation er
   );
 
   test.fail(
-    "BUG TBD: PUT /api/2.0/settings/security/access - a malformed id should return 400, not crash with 500",
+    "BUG 83190: PUT /api/2.0/settings/security/access - a malformed id should return 400, not crash with 500",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
