@@ -1,17 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import { TfaRequestsDtoType } from "@onlyoffice/docspace-api-sdk";
-import {
-  addTfaConfirmCookie,
-  enableTfaApp,
-  extractTfaSetupSecret,
-  linkTfaApp,
-  parseSetCookieHeader,
-  refreshTfaSessionToken,
-  resetTfaAfterTest,
-  submitTfaConfirmCode,
-  totpCode,
-} from "@/src/helpers/tfa";
+import { enableTfaApp, linkTfaApp, resetTfaAfterTest } from "@/src/helpers/tfa";
 import config from "@/config";
 
 test.afterEach(async ({ apiSdk }) => {
@@ -437,60 +427,11 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - Owner updates TFA settings
     expect(typeof data.response).toBe("string");
   });
 
-  // The URL alone 404s ("Invalid link") - the confirmation key travels as an
-  // httpOnly `asc_confirm_key_TfaActivation` cookie on this same response,
-  // not in the URL's query string. A real browser session that received this
-  // response would already have that cookie; our Bearer-token API client
-  // doesn't share cookies with `page`, so it's transplanted manually here to
-  // actually follow the link end-to-end.
-  test("PUT /api/2.0/settings/tfaappwithlink - following the confirmation URL (with its cookie) completes TFA app setup", async ({
-    apiSdk,
-    page,
-  }) => {
-    const credentials = {
-      userName: config.DOCSPACE_OWNER_EMAIL,
-      password: config.DOCSPACE_OWNER_PASSWORD,
-    };
-
-    const response = await apiSdk
-      .forRole("owner")
-      .tfaSettings.updateTfaSettingsLink({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
-      });
-    expect(response.status).toBe(200);
-
-    await addTfaConfirmCookie(
-      page,
-      apiSdk.tokenStore.portalDomain,
-      parseSetCookieHeader(response.headers["set-cookie"]!),
-    );
-
-    await page.goto(response.data.response!);
-    const secret = await extractTfaSetupSecret(page);
-    await submitTfaConfirmCode(
-      page,
-      await totpCode(secret),
-      "app_connect_button",
-    );
-
-    // A fresh login no longer returns a tfaKey (the setup secret) for an
-    // already-linked account - only a not-yet-linked one gets that. Getting
-    // tfa: true without tfaKey here proves the confirmation link genuinely
-    // finished linking the app, not just navigated somewhere that looks right.
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .authentication.authenticateMe({
-        authRequestsDto: { ...credentials, session: true },
-      });
-    expect(status).toBe(200);
-    expect(data.response?.tfa).toBe(true);
-    expect(data.response?.tfaKey).toBeFalsy();
-
-    // Owner's stored Bearer token is now stale (this settings change
-    // invalidated it, same as enabling TFA App always does) - refresh it so
-    // the fixture's own teardown login doesn't orphan this portal.
-    await refreshTfaSessionToken(apiSdk, "owner", credentials, secret);
-  });
+  // Confirming this link end-to-end requires a real browser (the
+  // confirmation key travels as an httpOnly cookie, and the setup secret is
+  // scraped off the rendered confirm page) - that flow is covered in the
+  // DocSpace-e2e-tests project instead (Security > Two-Factor Authentication
+  // tests), not here.
 
   // Docs: 405 "SMS settings are not available" when no SMS provider is
   // configured. Live API returns 403 instead.
@@ -533,11 +474,20 @@ test.describe("GET /api/2.0/settings/tfaapp/confirm - Owner gets TFA confirmatio
   }) => {
     await linkTfaApp(apiSdk, "owner");
 
-    const { status } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.getTfaConfirmData();
 
     expect(status).toBe(200);
+    // For an already-linked account this builds a TfaAuth (re-verify) link,
+    // not the TfaActivation (first-time setup) link updateTfaSettingsLink
+    // returns - a lighter flow, but shaped the same: a confirm URL plus the
+    // httpOnly cookie it depends on, handed back directly in the body here
+    // instead of a Set-Cookie header.
+    expect(data.response?.url).toMatch(/\/confirm\/TfaAuth\?type=TfaAuth/);
+    expect(data.response?.cookieName).toBe("asc_confirm_key_TfaAuth");
+    expect(typeof data.response?.cookieValue).toBe("string");
+    expect(data.response?.cookieValue).not.toBe("");
   });
 });
 
