@@ -3911,7 +3911,7 @@ test.describe("AI Chat - the model of one thread", () => {
     return { roomId, threadId };
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is answered instead of refused", async ({
+  test("BUG 83160: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is answered instead of refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -7443,7 +7443,7 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
     expect(knowledgeSearchResults(reply)).toEqual([]);
   });
 
-  // BUG XXXXX: "Show saved results" cannot reach Result Storage.
+  // BUG 83165: "Show saved results" cannot reach Result Storage.
   //
   // The button is offered in every empty AI Chat, and there is no way for the
   // model to answer it. `docspace_knowledge_search` is the only file tool it
@@ -7466,7 +7466,7 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
   // the stream completes, the reply is healthy — still has to hold for real. An
   // agent that stopped answering altogether would fail this test loudly
   // instead of quietly satisfying an expected failure.
-  test('POST /api/2.0/ai/ai/send-with-stream - suggested prompt "Show saved results" reads the Result Storage folder', async ({
+  test('BUG 83165: POST /api/2.0/ai/ai/send-with-stream - suggested prompt "Show saved results" reads the Result Storage folder', async ({
     apiSdk,
     paymentsApi,
   }) => {

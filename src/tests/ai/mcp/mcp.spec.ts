@@ -483,7 +483,7 @@ test.describe("MCP - Allow-always for tool approval", () => {
     expect(scopedList.data ?? []).toEqual([]);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/tools/is-allow-always - a pre-approval granted for one server type answers for every other type", async ({
+  test("BUG 83161: GET /api/2.0/ai/tools/is-allow-always - a pre-approval granted for one server type answers for every other type", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3955,8 +3955,17 @@ const BUILT_IN_DOC_TOOL = "generate_docx";
 /** What the model sees, and what set-disabled's two fields spell out together. */
 const BUILT_IN_DOC_TOOL_TOKEN = `docspace_${BUILT_IN_DOC_TOOL}`;
 
+// The last clause is a safety rail rather than part of the question. Since the
+// REST family started being offered in the agent scope too (BUG 83172, the
+// cross-tenant block at the bottom of this file), a bare "create a document"
+// request can make the model pick `upload_file` — which executes against a portal
+// that is not this one, so a run of these tests would create a file in a
+// stranger's My Documents. Steering it to the generator does not weaken what the
+// tests below assert: they are about whether `docspace_generate_docx` is offered
+// and called at all.
 const ASK_FOR_DOCX =
   "Generate a .docx document titled ProbeDoc containing the single sentence 'hello probe'. " +
+  "Use only your built-in document generator — do not call any DocSpace file, folder, room or people API tool. " +
   `If you have no tool for that, reply with exactly: ${NO_TOOL_SENTINEL}`;
 
 /**
@@ -4457,7 +4466,7 @@ const SWITCHED_OFF_WEATHER_TOOL: HostTool = {
 };
 
 test.describe("MCP - the per-request tool switch", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a tool sent with enabled:false is still offered to the model", async ({
+  test("BUG 83162: POST /api/2.0/ai/ai/send-with-stream - a tool sent with enabled:false is still offered to the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4516,7 +4525,7 @@ test.describe("MCP - the per-request tool switch", () => {
 // is no way for a client to show a common list of tools at all.
 
 test.describe("MCP - a registered server in the tool list", () => {
-  test("BUG XXXXX: GET /api/2.0/ai/tools/list-system-tools - a registered server's tools never appear in the catalogue", async ({
+  test("BUG 83163: GET /api/2.0/ai/tools/list-system-tools - a registered server's tools never appear in the catalogue", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4625,42 +4634,65 @@ const ASK_FOR_MY_FOLDER =
   "Call the get_my_folder tool and report the id and title of my My Documents folder. " +
   `Do not generate any document. If you truly have no such tool, reply exactly: ${NO_TOOL_SENTINEL}`;
 
-/** What `list-system-tools` publishes — the REST family, by name. */
-async function catalogueToolNames(aiTools: AiTools): Promise<string[]> {
-  const { data, status } = await aiTools.listSystemTools("owner");
-  if (status !== 200) {
-    throw new Error(`GET /ai/tools/list-system-tools failed: ${status}`);
-  }
-  const names = (data?.docspace ?? [])
-    .map((tool) => tool.name)
-    .filter((name): name is string => !!name);
-  if (names.length === 0) {
-    throw new Error("the system tool catalogue is empty");
-  }
-  return names;
+/**
+ * The in-process generators — the whole of what an agent scope is given. Any
+ * other tool the model calls belongs to the REST family.
+ *
+ * Deliberately a list of its own rather than a read of `list-system-tools`: that
+ * catalogue is not the toolset the model gets (BUG 83013's disagreement) and it
+ * is not even stable — it published 23 tools on 2026-08-14 and answered `{}` on a
+ * fresh portal on 2026-08-17 while the model still had, and still called, every
+ * REST tool. A test keyed on it would have gone red for the catalogue's reasons
+ * instead of its own.
+ */
+const GENERATOR_TOOL_NAMES = [
+  BUILT_IN_DOC_TOOL_TOKEN,
+  "docspace_generate_presentation",
+  "docspace_generate_form",
+  "docspace_knowledge_search",
+  "generate_image",
+];
+
+function isGeneratorTool(toolName: string | undefined): boolean {
+  return GENERATOR_TOOL_NAMES.includes(toolName ?? "");
 }
 
 /**
- * One HTTP outcome a server-executed tool reported. The engine writes its trace
- * into the tool result as text, ending in the line this reads:
+ * Where a server-executed tool actually sent its request, as the result reports
+ * it. Three spellings have been seen in one afternoon, and a test that reads only
+ * one of them goes red for the wrong reason or, worse, green:
  *
- *   GET https://<portal>/api/2.0/files/@my?…: 401 Unauthorized
+ *   * REFUSED — the engine's own trace:
+ *     `GET https://<portal>/api/2.0/files/@my?…: 401 Unauthorized`;
+ *   * SUCCEEDED — the DocSpace payload, which echoes the request in `links[].href`:
+ *     `"href": "https://<portal>/api/2.0/files/rooms?…"`;
+ *   * NEVER SENT — a DNS failure, which names no URL at all:
+ *     `fetch failed\n\tgetaddrinfo ENOTFOUND integration-test-portal-…`.
  *
- * so the request the ENGINE made is observable from the API side — which is what
- * lets a test say where the call went instead of what the model concluded from
- * it.
+ * `host` is therefore the only field always present, and the assertions are all
+ * on it. Matching the URL on the `/api/2.0/` path drops what is not a portal call
+ * (`get_room_types` answers with a JSON Schema that cites json-schema.org).
  */
-type ToolHttpCall = { url: string; host: string; status: number };
+type ToolHttpCall = { host: string; url?: string; status?: number };
 
 function toolHttpCalls(result: unknown): ToolHttpCall[] {
   if (typeof result !== "string") return [];
-  return [...result.matchAll(/(https?:\/\/[^\s"\\]+):\s*(\d{3})/g)].map(
-    (match) => ({
+  const calls: ToolHttpCall[] = [];
+
+  for (const match of result.matchAll(
+    /(https?:\/\/[^\s"\\]+\/api\/2\.0\/[^\s"\\]*?)(?:\\?["\s]|:\s*(\d{3})|$)/g,
+  )) {
+    calls.push({
       url: match[1],
       host: new URL(match[1]).host,
-      status: Number(match[2]),
-    }),
-  );
+      ...(match[2] === undefined ? {} : { status: Number(match[2]) }),
+    });
+  }
+  for (const match of result.matchAll(/ENOTFOUND\s+([A-Za-z0-9._-]+)/g)) {
+    calls.push({ host: match[1] });
+  }
+
+  return calls;
 }
 
 function toolIsError(result: unknown): boolean {
@@ -4849,18 +4881,34 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     //     401 elsewhere. Here it has to be served by the agent's own generator
     //     instead, which is also what keeps the negative half honest: the model
     //     acted, it just had nothing but built-in tools to act with.
+    //
+    // SKIPPED, and not because the test is wrong. Both halves held all morning on
+    // 2026-08-17 and stopped holding the same afternoon: the REST family is now
+    // offered in the agent scope too, so `get_my_folder` is called here (3 runs
+    // out of 3) — see the cross-tenant test at the bottom of this block, BUG
+    // XXXXX. Two reasons not to run it meanwhile:
+    //
+    //   * it would fail on the product's behaviour rather than on its own subject,
+    //     which the bug test already covers;
+    //   * the second half is worse than a red test. With the REST family present,
+    //     "создай файл в разделе Files" makes the model pick `upload_file`, and
+    //     that call lands on a portal that is not ours — measured twice, a
+    //     `тест.txt` really was created in two strangers' My Documents. A test
+    //     must not write into somebody else's portal on every run.
+    //
+    // Remove this skip when BUG 83172 is fixed: if the tools then point at the
+    // caller's own portal, the toolset question this test asks becomes meaningful
+    // again — and the answer may legitimately be a different one, so read the
+    // failure before changing the assertions.
+    test.skip(
+      true,
+      "BUG 83172: the REST family reaches the agent scope and writes into a foreign portal",
+    );
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const catalogue = await catalogueToolNames(aiTools);
-    expect(
-      catalogue,
-      "the catalogue advertises the folder tool this test asks for",
-    ).toContain("get_my_folder");
-
     const { profileId, agentId } = await setupChat(
       aiChat,
       "Autotest Agent Scope Tools",
@@ -4894,9 +4942,9 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
 
         expect(
           driven.calls
-            .map((call) => call.toolName ?? "")
-            .filter((name) => catalogue.includes(name)),
-          `a catalogue tool was called after all; the model answered "${driven.reply.slice(0, 200)}"`,
+            .map((call) => call.toolName)
+            .filter((name) => !isGeneratorTool(name)),
+          `a REST tool was called after all; the model answered "${driven.reply.slice(0, 200)}"`,
         ).toEqual([]);
 
         if (probe.expectSentinel) {
@@ -4916,29 +4964,32 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   // The user-visible symptom is an agent in an AI room telling a signed-in Owner
   // it could not reach Files because the service returned 401. That sentence is
   // the model's reading of a tool result; what the tool result actually carries is
-  // the request the ENGINE made, and its host is not this portal:
+  // the request the ENGINE made, and its host is never this portal.
+  //
+  // Measured on five freshly registered portals on 2026-08-14 — the same stranger
+  // every time and never the portal under test:
   //
   //   GET https://docspace-szxr6g.onlyoffice.io/api/2.0/files/@my?…: 401 Unauthorized
   //
-  // Measured on five freshly registered portals on 2026-08-14 — the host in the
-  // trace was the same stranger every time and never the portal under test, so it
-  // is a fixed base URL on the AI side rather than a stale session, an expired
-  // token or a permission of the caller's. That host answers an anonymous request
-  // 401 as well, so the status itself says nothing about the token.
+  // so it is a base URL the AI side resolves on its own rather than a stale
+  // session, an expired token or a permission of the caller's. That host answers
+  // an anonymous request 401 as well, so the status says nothing about the token.
   //
-  // The assertion is therefore the HOST, not the status: a fix that still answered
-  // 401 would at least have to stop calling a foreign portal, and a fix that
-  // changed the status without changing the target would not be one. `isError`
-  // follows it as the secondary check.
+  // Hence the assertion is the HOST and nothing else — the status cannot carry it,
+  // and neither can the model's sentence. `isError` stays as the secondary check,
+  // and deliberately not as the primary one: the call does not always fail. What
+  // happens when it succeeds is a separate finding with a separate bug — see the
+  // cross-tenant block at the bottom of this file, which is also why `toolHttpCalls`
+  // reads `links[].href` and not only the failure trace.
   //
   // Three scopes, because all three are reachable while the user is looking at an
   // AI room and none of them is the agent id that would have been served by the
   // generators alone: the agent's own two folders, and an ordinary folder as the
   // control that this is not something about agent rooms.
   //
-  // What is deliberately NOT asserted: whether the model recovers after the 401
-  // and produces the document anyway. It did in twelve runs and gave up in three,
-  // with the same request — that is the model's decision, not the API's.
+  // What is deliberately NOT asserted: whether the model recovers after a refused
+  // call and produces the document anyway. It did in twelve runs and gave up in
+  // three, with the same request — that is the model's decision, not the API's.
   const REST_TOOL_SCOPES: Array<{
     label: string;
     /** Which of the agent's folders to scope to; a plain folder when absent. */
@@ -4950,7 +5001,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   ];
 
   for (const scope of REST_TOOL_SCOPES) {
-    test(`BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - a server-executed DocSpace tool scoped to ${scope.label} sends its request to another portal and gets 401`, async ({
+    test(`BUG 83164: POST /api/2.0/ai/ai/approve-tool-call - a server-executed DocSpace tool scoped to ${scope.label} sends its request to another tenant's portal`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -4958,10 +5009,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
-      const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
       const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const catalogue = await catalogueToolNames(aiTools);
-
       const { profileId, agentId } = await setupChat(
         aiChat,
         "Autotest REST Tool Agent",
@@ -4997,12 +5045,12 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       // reach for a REST tool and the engine really ran it. Without this the
       // assertions below would be satisfied by a chat that never called
       // anything.
-      const restCalls = driven.calls.filter((call) =>
-        catalogue.includes(call.toolName ?? ""),
+      const restCalls = driven.calls.filter(
+        (call) => !isGeneratorTool(call.toolName),
       );
       expect(
         restCalls.map((call) => call.toolName),
-        `no catalogue tool was called; the model answered "${driven.reply.slice(0, 200)}"`,
+        `no REST tool was called; the model answered "${driven.reply.slice(0, 200)}"`,
       ).not.toEqual([]);
       for (const call of restCalls) {
         expect(call.result, `${call.toolName} was executed`).toBeDefined();
@@ -5015,6 +5063,14 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
         })),
       );
       const ourHost = new URL(apiSdk.tokenStore.portalBaseUrl).host;
+
+      // The other premise: the result really does say where the call went, in one
+      // of its two spellings. Without it an engine that stopped reporting the URL
+      // would leave `requested` empty and satisfy the host assertion by silence.
+      expect(
+        requested,
+        `no request target is visible in ${JSON.stringify(restCalls.map((call) => call.result))}`,
+      ).not.toEqual([]);
 
       test.fail();
       expect(
@@ -5029,4 +5085,124 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       ).toEqual([]);
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// The other half of "the tools call the wrong portal": sometimes that portal
+// answers them.
+//
+// BUG 83164 above is about the target — the request goes somewhere that is not
+// this portal. This block is about what came back on 2026-08-17, when the same
+// calls stopped being refused. Sixteen read-only calls in a row succeeded, and
+// the payload was another tenant's data. The host is in the response DocSpace
+// echoes back, so this is not an inference from the model's words:
+//
+//   "href": "https://design.onlyoffice.io/api/2.0/files/rooms?…"     -> 297 rooms, titles and ids
+//   "href": "https://design.onlyoffice.io/api/2.0/people/filter?…"   -> 98 users, real @onlyoffice.com
+//                                                                      addresses, names, departments
+//   "href": "https://design.onlyoffice.io/api/2.0/files/@my?…"       -> a stranger's 57 documents
+//   "href": "https://dvershinineutesting.onlyoffice.io/api/2.0/…"    -> a second tenant, same run
+//
+// Five distinct foreign hosts have been seen so far (`design`,
+// `dvershinineutesting`, `ilkem`, `docspace-17h05o`, `docspace-szxr6g`), and which
+// one a call lands on changes between calls inside one run — a pool of base URLs
+// with credentials that work, none of them the caller's.
+//
+// It is not read-only in practice. Asked the reported question — "создай файл в
+// разделе Files, назови тест" — from an agent-scoped chat, the model resolved the
+// section with `get_my_folder` and then called `upload_file`, which reported
+// `{"success":true,"data":{"id":2779216,"folderId":31908,"title":"тест.txt","uploaded":true}}`
+// against `ilkem.onlyoffice.io`, and `folderId: 5214682` against
+// `docspace-17h05o.onlyoffice.io` on the next attempt. Two files really were
+// created in two strangers' My Documents. That is why nothing here asks for a
+// write and why the neighbouring toolset test is skipped: a suite must not mutate
+// somebody else's portal, and reproducing a write is not needed to show the
+// access exists.
+//
+// The scope is the agent room id — the reported one, and the reason this is worth
+// a test of its own rather than a note on BUG 83164: the REST family used to be
+// absent there (measured all morning, 4 runs) and is now offered, so the leak is
+// one message away from a user who never left the AI room.
+//
+// The assertions, in the order they matter:
+//
+//   1. the folder the tool answered with is OUR My Documents. This is the
+//      cross-tenant question stated directly, and it is the one that fails on a
+//      leaking build with the foreign id printed;
+//   2. the host it talked to is ours — the same invariant BUG 83164 asserts, kept
+//      here so that a partial fix (right host, wrong data, or the reverse) still
+//      leaves one of the two red.
+//
+// Not asserted: the model's wording, the status code, and whether the model went
+// on to do anything with what it read.
+
+test.describe("MCP - the DocSpace tools and another tenant's data", () => {
+  test("BUG 83172: POST /api/2.0/ai/ai/send-with-stream - a server-executed DocSpace tool answers with another tenant's folder", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId } = await setupChat(
+      aiChat,
+      "Autotest Cross Tenant Agent",
+    );
+
+    // The oracle, read as the owner over the ordinary API: this is the folder a
+    // correctly wired `get_my_folder` has to come back with.
+    const { data: myFolder, status: myFolderStatus } =
+      await ownerApi.folders.getMyFolder({});
+    expect(myFolderStatus).toBe(200);
+    const ourMyFolderId = myFolder.response!.current!.id!;
+    const ourHost = new URL(apiSdk.tokenStore.portalBaseUrl).host;
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest cross tenant thread",
+      profileId,
+      agentId,
+    });
+
+    const driven = await driveToolCalls(aiChat, {
+      threadId,
+      profileId,
+      entityId: agentId,
+      message: ASK_FOR_MY_FOLDER,
+    });
+
+    // Premises, all of which hold on a fixed build too.
+    const restCalls = driven.calls.filter(
+      (call) => !isGeneratorTool(call.toolName),
+    );
+    expect(
+      restCalls.map((call) => call.toolName),
+      `no REST tool was called; the model answered "${driven.reply.slice(0, 200)}"`,
+    ).toContain("get_my_folder");
+
+    const answered = restCalls.find(
+      (call) => call.toolName === "get_my_folder",
+    );
+    expect(answered?.result, "the tool was executed").toBeDefined();
+
+    const folderIds = [
+      ...String(answered!.result).matchAll(/"id":\s*\\?"?(\d{3,})/g),
+    ].map((match) => Number(match[1]));
+    const requested = toolHttpCalls(answered!.result);
+    expect(
+      [...folderIds, ...requested.map((http) => http.host)],
+      `the result carries neither a folder id nor a request target: ${answered!.result}`,
+    ).not.toEqual([]);
+
+    test.fail();
+    expect(
+      folderIds,
+      `get_my_folder answered with ${JSON.stringify(folderIds)}; this portal's My Documents is ${ourMyFolderId}. Result: ${answered!.result}`,
+    ).toContain(ourMyFolderId);
+    expect(
+      requested.filter((http) => http.host !== ourHost),
+      `the engine talked to ${JSON.stringify(requested)} instead of ${ourHost}`,
+    ).toEqual([]);
+  });
 });
