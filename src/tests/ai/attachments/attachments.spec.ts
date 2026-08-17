@@ -2332,12 +2332,21 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // DocSpace file behind it — so "the model never sees it" has to be measured
     // separately rather than assumed to follow.
     //
-    // The probe is a colour instead of a code word: a solid red square cannot be
-    // guessed and cannot be inferred from the file name, so an answer of "red" is
-    // only possible if the picture itself reached the model. A model that cannot
-    // see images at all fails this the same way — and that is not a hole in the
-    // test, because the feature's promise is that an attached picture is usable,
-    // whichever half of the stack breaks it.
+    // The probe is a colour instead of a code word, and the colour is teal for a
+    // measured reason: it used to be red, and a model that was shown nothing
+    // guesses "red" for "a single solid colour" often enough to flip this test.
+    // On 2026-08-17 it reported "Expected to fail, but passed" on two runs out of
+    // three while the vision-pinned sibling below, the OCR test and both file
+    // tests all still failed — the pass was a lucky guess, not a fix. Teal is not
+    // a colour a guesser reaches for, and it still cannot be inferred from the
+    // file name, so a matching answer means the picture reached the model.
+    //
+    // Several names are accepted because a model that really sees this square may
+    // reasonably call it cyan or turquoise; none of them is a plausible blind
+    // guess, so widening the set costs nothing. A model that cannot see images at
+    // all fails this the same way — and that is not a hole in the test, because
+    // the feature's promise is that an attached picture is usable, whichever half
+    // of the stack breaks it.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2354,8 +2363,8 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
       agentId,
     });
 
-    const red = createPng(64, 64, { colorType: 2, fill: [255, 0, 0, 255] });
-    const base64 = `data:image/png;base64,${red.toString("base64")}`;
+    const teal = createPng(64, 64, { colorType: 2, fill: [0, 128, 128, 255] });
+    const base64 = `data:image/png;base64,${teal.toString("base64")}`;
     const id = await attachments.saveImageId(
       "owner",
       { name: "autotest-solid.png", base64 },
@@ -2395,12 +2404,14 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
 
     const reply = AiAgentChat.assistantText(messages);
 
-    // A word boundary, not a substring: "required", "answered" and "hundred"
-    // all contain "red", and any of them would turn a refusal into a pass. With
-    // the boundary the measured reply is "There is no image attached", the same
-    // answer the two file tests above get.
+    // A word boundary, not a substring: "steal" and "metallic" contain "teal",
+    // and either would turn a refusal into a pass. With the boundary the measured
+    // reply is "There is no image attached", the same answer the two file tests
+    // above get.
     test.fail();
-    expect(reply, `assistant reply: ${reply}`).toMatch(/\bred\b/i);
+    expect(reply, `assistant reply: ${reply}`).toMatch(
+      /\b(teal|cyan|turquoise|aqua)\b/i,
+    );
   });
 
   test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a model the catalogue calls vision-capable is not given the picture either", async ({
@@ -2426,7 +2437,9 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // Measured 2026-08-12 on gpt-5.6-sol: the reply is "Blue". Worth knowing,
     // because it is a worse symptom than the one the tests above see — a model
     // given nothing does not always say so, it can answer a confident wrong
-    // colour that a user has no way to tell from a real one.
+    // colour that a user has no way to tell from a real one. It is also why the
+    // square is teal in both tests and no longer red: a guess of "red" was
+    // frequent enough to flip the test above green (see the note there).
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2443,8 +2456,8 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
       `${profile.modelId} is advertised as able to read images`,
     ).toBe(AI_CAP_VISION);
 
-    const red = createPng(64, 64, { colorType: 2, fill: [255, 0, 0, 255] });
-    const base64 = `data:image/png;base64,${red.toString("base64")}`;
+    const teal = createPng(64, 64, { colorType: 2, fill: [0, 128, 128, 255] });
+    const base64 = `data:image/png;base64,${teal.toString("base64")}`;
     const id = await attachments.saveImageId(
       "owner",
       { name: "autotest-solid.png", base64 },
@@ -2476,10 +2489,10 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
 
     const reply = AiAgentChat.assistantText(messages);
 
-    // \b, because "requi*red*" and "answe*red*" would turn a refusal into a pass.
+    // \b, because "s*teal*" and "me*tal*lic" would turn a refusal into a pass.
     test.fail();
     expect(reply, `${profile.modelId} assistant reply: ${reply}`).toMatch(
-      /\bred\b/i,
+      /\b(teal|cyan|turquoise|aqua)\b/i,
     );
   });
 
@@ -2689,8 +2702,8 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     ).toBe(0);
     expect(profile.canUseTool, `${profile.modelId} is a chat model`).toBe(true);
 
-    const red = createPng(64, 64, { colorType: 2, fill: [255, 0, 0, 255] });
-    const base64 = `data:image/png;base64,${red.toString("base64")}`;
+    const teal = createPng(64, 64, { colorType: 2, fill: [0, 128, 128, 255] });
+    const base64 = `data:image/png;base64,${teal.toString("base64")}`;
     const id = await attachments.saveImageId(
       "owner",
       { name: "autotest-solid.png", base64 },
