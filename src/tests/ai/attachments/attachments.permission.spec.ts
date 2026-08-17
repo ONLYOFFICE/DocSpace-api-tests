@@ -15,12 +15,40 @@ import {
 
 // Permissions of /api/2.0/ai/attachments/*.
 //
-// The headline result, measured on a live portal on 2026-08-03: there is no
-// per-user scoping on this controller at all. An attachment id is a bearer
-// token. Any authenticated user — a plain User, a Guest with nothing but Read on
-// one agent — can read another user's draft in full, including its `content`,
-// and can delete it. The four tests in "cross-user access" pin that; they are
-// the reason this file exists.
+// This controller used to have no per-user scoping at all — measured 2026-08-03,
+// an attachment id was a bearer token and any authenticated user could read
+// another user's draft in full, including its `content`, and delete it. The
+// tests in "cross-user access" are the reason this file exists.
+//
+// Re-measured 2026-08-17: the scoping landed, but only for FILE drafts. The
+// split, from a probe that asked for the same two ids on both read routes:
+//
+//   * a file draft belonging to someone else resolves on neither `get` nor
+//     `get-many`, in 14 polled attempts each — BUG 82765/82768/82769 closed, and
+//     the six tests below that used to be `test.fail` now assert the rule;
+//   * an IMAGE draft still resolves for another user, on both routes, and does
+//     so intermittently, which is why polling is what catches it — BUG 82758 is
+//     still open and is still a `test.fail` here. So the surviving hole is about
+//     the KIND of draft, not about the route;
+//   * a delete of somebody else's draft answers `200 {"success":true}` and does
+//     not delete it. The refusal is silent, and indistinguishable from the
+//     `success` an unknown id has always reported (attachments.spec.ts). Pinned
+//     as observed rather than as a bug: from the caller's side a draft it may not
+//     see is a draft that does not exist.
+//
+// A Guest is handled by a different mechanism than a User, and both halves of it
+// look like collateral damage rather than the intent:
+//
+//   * `save-file` refuses a Guest outright, on a file the Guest can read. That is
+//     the BUG XXXXX test in "who may create a draft".
+//   * `get` and `get-many` answer a Guest 403 for ANY id, an unknown one included,
+//     where the owner gets `200 [null]`. So a Guest cannot read a draft — not
+//     somebody else's and not one of their own. It is not the AI stack shutting
+//     Guests out in general: the same Guest reads `/ai/config`, `/ai/config/user`
+//     and the agent list with 200.
+//
+// Both are why the Guest test below controls with the owner's own read rather than
+// with a draft of the Guest's, and why it pins the 403 instead of a null in place.
 //
 // Two constraints shape how they are written:
 //
@@ -40,7 +68,12 @@ import {
 //     it (see "intermittent reads and deletes" in attachments.spec.ts), so "the
 //     other user could not read it" has to mean "not in N attempts" and "the other
 //     user could not delete it" has to mean "not in N calls". Otherwise every leak
-//     test here would pass by accident about half the time.
+//     test here would pass by accident about half the time — which is exactly how
+//     the surviving image leak still behaves.
+//   * Every test that concludes "the other user got nothing" carries a positive
+//     control that the caller can read, or delete, a draft of its own in the same
+//     portal. Without it a dead endpoint or a lost session produces the same nulls
+//     as a working access check, and the test passes for the wrong reason.
 //
 // Agent membership is not part of the picture: attachments are not scoped by
 // agent either (`entityId` is accepted and never returned), so a member is
@@ -97,13 +130,27 @@ test.describe("AI Attachments - who may create a draft", () => {
     });
   }
 
-  test("POST /api/2.0/ai/attachments/save-file - a Guest attaches a file shared with them", async ({
+  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - a Guest attaches a file shared with them", async ({
     apiSdk,
   }) => {
-    // A Guest is not refused by user type — but they have no Documents of their
-    // own, and a file draft has to reference a file the caller can read. So the
-    // only file a Guest can attach is one shared with them, and that is what this
-    // measures: the room membership, not the user type, is what makes it possible.
+    // A Guest has no Documents of their own, and a file draft has to reference a
+    // file the caller can read, so the only file a Guest can attach is one shared
+    // with them. This used to work — the room membership, not the user type, was
+    // what made it possible.
+    //
+    // Since 2026-08-17 it is a bare `403 {"error":"Forbidden"}`, and the refusal
+    // is about the user type rather than about access to the file: the Guest can
+    // read the room and the file itself (asserted below), the owner attaches the
+    // same file id at the same moment, a plain User with the same FileShare.Read
+    // attaches a room file (attachments.spec.ts, "attaching by id is checked
+    // against the caller's access to the file"), and `save-image` answered a Guest
+    // 200 earlier the same day. A Guest who may open a document but may not attach
+    // it to the chat in the same room is not a rule the product states anywhere.
+    //
+    // It does not stand alone either: the read routes refuse a Guest too (see the
+    // note at the top of this file), so a Guest invited to an agent can chat but
+    // can neither attach a file nor read back a draft. That is filed rather than
+    // pinned because nothing in the product says a Guest may not use attachments.
     const ownerApi = apiSdk.forRole("owner");
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
@@ -147,6 +194,18 @@ test.describe("AI Attachments - who may create a draft", () => {
       "the Guest",
     );
 
+    // The premise, and the whole reason the 403 below is a bug rather than an
+    // access check doing its job: the Guest really can read the file that is about
+    // to be attached, through the ordinary files API.
+    const fileRead = await attachments.rawRequest(
+      "guest",
+      "get",
+      `/api/2.0/files/file/${shared.id}`,
+    );
+    expect(fileRead.status, "the Guest can read the shared file itself").toBe(
+      200,
+    );
+
     const { status, data } = await attachments.saveFile("guest", {
       input: {
         path: String(shared.id),
@@ -155,7 +214,8 @@ test.describe("AI Attachments - who may create a draft", () => {
       },
     });
 
-    expect(status).toBe(200);
+    test.fail();
+    expect(status, "a Guest attaching a file they can read").toBe(200);
     expect(data?.content, "the Guest gets the file's text").toBe(
       "shared with a guest",
     );
@@ -245,7 +305,7 @@ test.describe("AI Attachments - anonymous access", () => {
 });
 
 test.describe("AI Attachments - cross-user access", () => {
-  test("BUG 82765: POST /api/2.0/ai/attachments/get-many - a User reads another user's draft in full", async ({
+  test("BUG 82765: POST /api/2.0/ai/attachments/get-many - a User cannot read another user's file draft", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -267,19 +327,38 @@ test.describe("AI Attachments - cross-user access", () => {
     // leak look like ordinary self-access.
     await attachments.expectActingAs("user", memberData.response!.id!, "User");
 
+    // Positive control first: the member's own draft resolves through the very
+    // same call. Without it the null below could be a dead route, an empty store
+    // or a lost session rather than an access decision.
+    const memberDraft = await attachments.saveFileId("user", {
+      title: "Autotest member-own.docx",
+      content: "the caller's own",
+      type: FileType.Document,
+    });
+    const own = await attachments.expectStored(
+      "user",
+      memberDraft,
+      "the member's own draft",
+    );
+    expect(own.content, "the member reads its own payload").toBe(
+      "the caller's own",
+    );
+
     const leaked = await attachments.findAttachment("user", ownerDraft);
 
-    // Report what leaked, not just that something did.
+    // Report what leaked, not just that something did, if this ever regresses.
     if (leaked) {
       expect(leaked.content, "the leaked payload").toBe(secret);
       expect(leaked.title).toBe("Autotest owner-secret.docx");
     }
 
-    test.fail();
-    expect(leaked, "another user's draft must not be readable").toBeNull();
+    expect(
+      leaked,
+      `another user's draft must not be readable in ${READ_ATTEMPTS} attempts`,
+    ).toBeNull();
   });
 
-  test("BUG 82768: DELETE /api/2.0/ai/attachments/delete - a User deletes another user's draft", async ({
+  test("BUG 82768: DELETE /api/2.0/ai/attachments/delete - a User cannot delete another user's draft", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -300,17 +379,47 @@ test.describe("AI Attachments - cross-user access", () => {
     );
     await attachments.expectActingAs("user", memberData.response!.id!, "User");
 
-    // Repeated because one delete is intermittent: a single refused-looking
-    // outcome could just be the call that happened not to reach the record,
-    // which would let this test pass without the request having been denied.
+    // Repeated because one delete used to be intermittent: a single
+    // refused-looking outcome could just be the call that happened not to reach
+    // the record, which would let this test pass without the request having been
+    // denied.
     const statuses: number[] = [];
     for (let round = 0; round < PURGE_ROUNDS; round++) {
       statuses.push((await attachments.deleteOne("user", ownerDraft)).status);
     }
+    // The refusal is silent — `200 {"success":true}`, the same answer an unknown
+    // id gets. Pinned because a client cannot tell the two apart, and because a
+    // future 403 here would be a change worth noticing.
+    expect(
+      statuses,
+      "a refused delete still reports success on every round",
+    ).toEqual(Array(PURGE_ROUNDS).fill(200));
 
-    // The side effect is what matters, so it is measured as the owner before
-    // any status is asserted — and the context really has been handed back to
-    // the owner, or "the draft is gone" could just be the member reading it.
+    // Positive control: the member's delete calls do remove records, so the
+    // survivor below is a refusal and not a dead route. Its own draft is created
+    // and deleted with the same method, in the same session.
+    const memberDraft = await attachments.saveFileId("user", {
+      title: "Autotest member-victim.docx",
+      content: "x",
+      type: FileType.Document,
+    });
+    await attachments.expectStored(
+      "user",
+      memberDraft,
+      "the member's own draft",
+    );
+    for (let round = 0; round < PURGE_ROUNDS; round++) {
+      await attachments.deleteOne("user", memberDraft);
+    }
+    await attachments.expectAbsent(
+      "user",
+      memberDraft,
+      "the member's own draft after its own delete",
+    );
+
+    // The side effect is what matters, so it is measured as the owner — and the
+    // context really has been handed back to the owner, or "the draft is still
+    // there" could just be the member reading it.
     await apiSdk.authenticateOwner();
     await attachments.expectNotActingAs(
       "owner",
@@ -319,19 +428,27 @@ test.describe("AI Attachments - cross-user access", () => {
     );
     const survivor = await attachments.findAttachment("owner", ownerDraft);
 
-    test.fail();
     expect(
       survivor,
       `the draft must survive deletion by another user (delete answered ${statuses.join(",")})`,
     ).not.toBeNull();
   });
 
-  test("BUG 82765: POST /api/2.0/ai/attachments/get-many - a Guest reads the portal owner's draft", async ({
+  test("BUG 82765: POST /api/2.0/ai/attachments/get-many - a Guest cannot read the portal owner's file draft", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The sharpest form: a Guest is the least privileged principal there is,
-    // holds Read on a single agent, and still resolves the owner's draft.
+    // The sharpest form of the leak this closed: a Guest is the least privileged
+    // principal there is, holds Read on a single agent, and used to resolve the
+    // owner's draft through it.
+    //
+    // How it is closed for a Guest is not how it is closed for a User, and the
+    // controls below say so rather than letting the title imply per-id scoping:
+    // the read routes now answer a Guest 403 for ANY id, an id that exists
+    // nowhere included, while the owner gets `200 [null]` for the same unknown id.
+    // It is a gate on the user type, not a decision about this draft — and it is
+    // not the AI stack refusing Guests in general, since the same Guest reads
+    // `/ai/config`, `/ai/config/user` and the agent list with 200.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -367,24 +484,61 @@ test.describe("AI Attachments - cross-user access", () => {
     await attachments.expectActingAs("guest", guestData.response!.id!, "Guest");
 
     const leaked = await attachments.findAttachment("guest", ownerDraft);
+
+    // What the refusal is: a blanket 403 on the read route, identical for an id
+    // that exists nowhere. Pinned, because it is the whole reason `leaked` is null
+    // and because a later switch to `200 [null]` — the owner's answer for an
+    // unknown id — would mean real per-id scoping had replaced the user-type gate.
+    const asked = await attachments.getMany("guest", [ownerDraft]);
+    expect(asked.status, "a Guest asking for the owner's draft").toBe(403);
+    const askedUnknown = await attachments.getMany("guest", [MISSING_ID]);
+    expect(
+      askedUnknown.status,
+      "a Guest asking for an id that exists nowhere — same answer",
+    ).toBe(403);
+
     if (leaked) {
       expect(leaked.content, "the leaked payload").toBe(secret);
     }
 
-    test.fail();
-    expect(leaked, "a Guest must not read the owner's draft").toBeNull();
+    // Positive control: the draft is alive and readable for its owner at this very
+    // moment, so the Guest's null is not a draft that was never stored. Measured
+    // as the owner deliberately — a Guest cannot create a draft of their own to
+    // control with any more (`save-file` refuses them, the BUG XXXXX test at the
+    // top of this file), which rules out the usual own-draft control.
+    await apiSdk.authenticateOwner();
+    await attachments.expectNotActingAs(
+      "owner",
+      guestData.response!.id!,
+      "the Guest",
+    );
+    const forItsOwner = await attachments.expectStored(
+      "owner",
+      ownerDraft,
+      "the owner's draft, read by the owner",
+    );
+    expect(forItsOwner.content, "the owner still reads the payload").toBe(
+      secret,
+    );
+
+    expect(
+      leaked,
+      `a Guest must not read the owner's draft in ${READ_ATTEMPTS} attempts`,
+    ).toBeNull();
   });
 
-  test("BUG 82774: POST /api/2.0/ai/attachments/link-to-message - the caller's access to the target thread is not checked", async ({
+  test("BUG 82774: POST /api/2.0/ai/attachments/link-to-message - the caller's access to the target thread is checked", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Scope of the claim: this is about the authorization decision only. It does
-    // NOT show that a draft was written into someone else's thread — nothing is
-    // ever actually linked (see attachments.spec.ts), so there is no confirmed
-    // write. What is confirmed is that a caller with no access to the thread is
-    // not refused, which is broken access control on the decision even while the
-    // second defect keeps it from having an effect.
+    // Scope of the claim: this is about the authorization decision only, because
+    // nothing is ever actually linked (see attachments.spec.ts) — there is no
+    // write to observe either way. What is measured is that a caller with no
+    // access to the thread is refused, which used to be an unguarded 200.
+    //
+    // 403 rather than 404 on purpose: an id that exists nowhere answers 404 here,
+    // so the two are distinguishable and only the "exists, but not yours" case is
+    // this test's subject.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -425,15 +579,26 @@ test.describe("AI Attachments - cross-user access", () => {
       threadId,
     });
 
-    test.fail();
     expect(status, "linking into a thread the caller cannot read").toBe(403);
   });
 
   test("BUG 82758: POST /api/2.0/ai/attachments/get - a User reads another user's image draft including its payload", async ({
     apiSdk,
   }) => {
-    // Same defect through the single-id route and for the image kind, where the
-    // leaked field is the base64 payload rather than extracted text.
+    // The part of the leak that is still open, and the axis is the KIND of draft,
+    // not the route: the scoping that closed the tests above covers file drafts
+    // only, and an image draft still resolves for another user on `get` AND on
+    // `get-many`. Both are asked here for that reason — measuring only `get`
+    // would leave "maybe the single-id route was simply forgotten" open, and it is
+    // not that.
+    //
+    // The leaked field is the base64 payload rather than extracted text, and the
+    // read is intermittent: a single call comes back null often enough that
+    // without `findAttachment*`'s polling this test would flap green.
+    //
+    // Cannot run at all while `save-image` answers 500 (measured 2026-08-17,
+    // owner included, `save-file` unaffected): the setup below has no draft to
+    // make, so the failure is an error in setup rather than an expected failure.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const ownerDraft = await attachments.saveImageId("owner", {
       name: "owner-private.png",
@@ -447,23 +612,38 @@ test.describe("AI Attachments - cross-user access", () => {
     );
     await attachments.expectActingAs("user", memberData.response!.id!, "User");
 
+    // Positive control: the member can read a draft of its own, so a null in
+    // either position below would be an access decision and not a dead store.
+    const memberDraft = await attachments.saveImageId("user", {
+      name: "member-own.png",
+      base64: PNG_1X1,
+    });
+    await attachments.expectStored(
+      "user",
+      memberDraft,
+      "the member's own image draft",
+    );
+
     const leaked = await attachments.findAttachmentViaGet("user", ownerDraft);
+    const leakedViaMany = await attachments.findAttachment("user", ownerDraft);
     if (leaked) {
       expect(leaked.base64, "the leaked image payload").toBe(PNG_1X1);
     }
 
     test.fail();
     expect(
-      leaked,
-      "another user's image draft must not be readable",
-    ).toBeNull();
+      { get: leaked, getMany: leakedViaMany },
+      "another user's image draft must not be readable through either route",
+    ).toEqual({ get: null, getMany: null });
   });
 
-  test("BUG 82765: POST /api/2.0/ai/attachments/get-many - a mixed batch returns another user's draft alongside the caller's own", async ({
+  test("BUG 82765: POST /api/2.0/ai/attachments/get-many - a mixed batch returns the caller's own draft and null for another user's", async ({
     apiSdk,
   }) => {
-    // The batch form of the leak, and the shape a real client would hit: the
-    // caller asks for its own id and someone else's in one call, and gets both.
+    // The batch form, and the shape a real client would hit: the caller asks for
+    // its own id and someone else's in one call. It used to get both; it now gets
+    // its own and a null in place, with the batch still 200 and both positions
+    // kept — a refused id is reported exactly like an unknown one.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const secret = `OWNER-SECRET-${apiSdk.faker.generateString(8)}`;
     const ownerDraft = await attachments.saveFileId("owner", {
@@ -484,10 +664,11 @@ test.describe("AI Attachments - cross-user access", () => {
     });
 
     // Asking once is not enough and stopping at the first call that resolves the
-    // caller's own draft is not either: the foreign draft is intermittently
-    // unreadable, so a single call can show a null in its position for reasons
-    // that have nothing to do with authorization. Every attempt is made, and the
-    // question is whether the foreign payload came back on ANY of them.
+    // caller's own draft is not either: a draft is intermittently unreadable, so a
+    // single call can show a null in the foreign position for reasons that have
+    // nothing to do with authorization — and, the other way round, one lucky call
+    // is all a surviving leak needs. Every attempt is made, and the question is
+    // whether the foreign payload came back on ANY of them.
     let ownResolved = 0;
     let leaks = 0;
     for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
@@ -513,18 +694,20 @@ test.describe("AI Attachments - cross-user access", () => {
       "calls in which the caller's own draft resolved",
     ).toBeGreaterThan(0);
 
-    test.fail();
     expect(
       leaks,
       `calls out of ${READ_ATTEMPTS} that returned the other user's draft`,
     ).toBe(0);
   });
 
-  test("BUG 82769: DELETE /api/2.0/ai/attachments/delete-many - a mixed batch deletes another user's draft", async ({
+  test("BUG 82769: DELETE /api/2.0/ai/attachments/delete-many - a mixed batch deletes only the caller's own draft", async ({
     apiSdk,
   }) => {
-    // delete-many is a separate route from delete, and this is the form that
-    // does real damage: one batch containing somebody else's id.
+    // delete-many is a separate route from delete, and this is the form that used
+    // to do real damage: one batch containing somebody else's id. The batch is
+    // still accepted whole and still reports success — what changed is that the
+    // foreign id in it is now a no-op while the caller's own id in the same batch
+    // is deleted, which is also this test's positive control.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const ownerDraft = await attachments.saveFileId("owner", {
       title: "Autotest batch-victim.docx",
@@ -555,6 +738,17 @@ test.describe("AI Attachments - cross-user access", () => {
           .status,
       );
     }
+    expect(statuses, "the mixed batch is accepted on every round").toEqual(
+      Array(PURGE_ROUNDS).fill(200),
+    );
+
+    // Positive control, and the reason the survivor below is a refusal: the very
+    // same batches did delete the caller's own id.
+    await attachments.expectAbsent(
+      "user",
+      memberDraft,
+      "the caller's own draft in the mixed batch",
+    );
 
     await apiSdk.authenticateOwner();
     await attachments.expectNotActingAs(
@@ -564,7 +758,6 @@ test.describe("AI Attachments - cross-user access", () => {
     );
     const survivor = await attachments.findAttachment("owner", ownerDraft);
 
-    test.fail();
     expect(
       survivor,
       `the draft must survive another user's batch delete (which answered ${statuses.join(",")})`,
