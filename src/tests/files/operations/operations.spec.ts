@@ -6146,6 +6146,111 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
       ).toBe(false);
     },
   );
+
+  test.fail(
+    "BUG 82588: PUT /api/2.0/files/fileops/emptytrash - emptying Files section" +
+      " trash also clears Rooms and Forms section trash",
+    async ({ apiSdk }) => {
+      // emptyTrash has no rootFolderType parameter, so it empties the entire
+      // unified trash regardless of which section triggered it. The UI calls
+      // emptytrash?single=true from the Files section, but that empties Rooms
+      // and Forms section trash too — violating the expectation that each root
+      // section has an independent trash.
+      const ownerApi = apiSdk.forRole("owner");
+      const filesTitle =
+        "Autotest ET Files " + apiSdk.faker.generateString(8) + ".docx";
+      const roomsTitle =
+        "Autotest ET Rooms " + apiSdk.faker.generateString(8) + ".docx";
+      let formTitle: string;
+
+      await test.step("Setup: move one file from each section to trash", async () => {
+        const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+        const myDocsFolderId = myDocsData.response!.current!.id!;
+
+        const { data: filesFileData } = await ownerApi.files.createFile({
+          folderId: myDocsFolderId,
+          createFileJsonElement: { title: filesTitle },
+        });
+        await ownerApi.operations.deleteBatchItems({
+          deleteBatchRequestDto: {
+            fileIds: [filesFileData.response!.id!],
+            immediately: false,
+          },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest EmptyTrash Room " + apiSdk.faker.generateString(6),
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const { data: roomsFileData } = await ownerApi.files.createFile({
+          folderId: roomData.response!.id!,
+          createFileJsonElement: { title: roomsTitle },
+        });
+        await ownerApi.operations.deleteBatchItems({
+          deleteBatchRequestDto: {
+            fileIds: [roomsFileData.response!.id!],
+            immediately: false,
+          },
+        });
+        await waitForOperation(ownerApi.operations);
+
+        const { data: formRoomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title:
+              "Autotest EmptyTrash Form Room " + apiSdk.faker.generateString(6),
+            roomType: RoomType.FillingFormsRoom,
+          },
+        });
+        const formFileId = await createOoForm(
+          ownerApi,
+          formRoomData.response!.id!,
+        );
+        const { data: formFileInfo } = await ownerApi.files.getFileInfo({
+          fileId: formFileId,
+        });
+        formTitle = formFileInfo.response!.title!;
+        await ownerApi.operations.deleteBatchItems({
+          deleteBatchRequestDto: { fileIds: [formFileId], immediately: false },
+        });
+        await waitForOperation(ownerApi.operations);
+      });
+
+      const trashTitles = async () => {
+        const { data: trash } = await ownerApi.folders.getTrashFolder();
+        return (trash.response?.files ?? []).map((f) => f.title);
+      };
+
+      await test.step("Precondition: all three files are in trash", async () => {
+        const titles = await trashTitles();
+        expect(titles).toContain(filesTitle);
+        expect(titles).toContain(roomsTitle);
+        expect(titles).toContain(formTitle);
+      });
+
+      await test.step("Action: empty trash from Files section (single=true)", async () => {
+        const { status } = await ownerApi.operations.emptyTrash({
+          single: true,
+        });
+        expect(status).toBe(200);
+        await waitForOperation(ownerApi.operations);
+      });
+
+      await test.step("Assert: Files section trash is cleared", async () => {
+        expect(await trashTitles()).not.toContain(filesTitle);
+      });
+
+      await test.step("Assert: Rooms section trash is untouched", async () => {
+        expect(await trashTitles()).toContain(roomsTitle);
+      });
+
+      await test.step("Assert: Forms section trash is untouched", async () => {
+        expect(await trashTitles()).toContain(formTitle);
+      });
+    },
+  );
 });
 
 test.describe("GET /api/2.0/files/fileops - getOperationStatuses", () => {

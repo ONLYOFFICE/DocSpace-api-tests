@@ -2269,6 +2269,69 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems - Permissions", 
       expect(operation.finished).toBe(true);
     },
   );
+
+  test.fail(
+    "BUG 81906: PUT /api/2.0/files/fileops/copy - User (ContentCreator) copies" +
+      " a folder from room to My Documents returns 403",
+    async ({ apiSdk }) => {
+      // Folder-level permission check ignores ContentCreator role — copying
+      // returns 403 even though copying a file from the same folder succeeds.
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title:
+            "Autotest CopyFolder Perm Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: roomId,
+        createFolder: {
+          title:
+            "Autotest CopyFolder Perm Folder " + apiSdk.faker.generateString(6),
+        },
+      });
+      const folderId = folderData.response!.id!;
+
+      await ownerApi.files.createFile({
+        folderId,
+        createFileJsonElement: { title: "Autotest CopyFolder Perm File.docx" },
+      });
+
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { data: myDocsData } = await userApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data, status } = await userApi.operations.copyBatchItems({
+        batchRequestDto: {
+          folderIds: [folderId],
+          destFolderId: myDocsFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Copy);
+
+      const operation = await waitForOperation(userApi.operations);
+      expect(operation.finished).toBe(true);
+    },
+  );
 });
 
 test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFolder - Permissions", () => {
