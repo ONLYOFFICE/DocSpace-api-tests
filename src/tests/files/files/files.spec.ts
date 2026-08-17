@@ -13,6 +13,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { createOoForm } from "@/src/helpers/files";
+import config from "@/config";
 import { faker } from "@faker-js/faker";
 
 test.describe("POST /files/@my/file", () => {
@@ -841,6 +842,51 @@ test.describe("GET /files/favorites/:fileId - Change favorite status", () => {
     expect(status).toBe(200);
     expect(data.response).toBe(false);
   });
+
+  test.fail(
+    "BUG 82069: GET /files/favorites/:fileId - File in a Third-party room appears in Favorites after Mark as favorite",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: tpData } =
+        await ownerApi.thirdPartyIntegration.saveThirdParty({
+          thirdPartyRequestDto: {
+            url: config.NEXTCLOUD_URL,
+            login: config.NEXTCLOUD_LOGIN,
+            password: config.NEXTCLOUD_PASSWORD,
+            customerTitle: "Autotest Fav TP " + apiSdk.faker.generateString(6),
+            providerKey: "Nextcloud",
+          },
+        });
+
+      const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
+        id: tpData.response!.id!,
+        createThirdPartyRoom: {
+          title: "Autotest Fav TP Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id! as unknown as number;
+
+      const fileTitle =
+        "Autotest Fav TP File " + apiSdk.faker.generateString(6) + ".docx";
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: fileTitle },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { status } = await ownerApi.files.toggleFileFavorite({
+        fileId,
+        favorite: true,
+      });
+      expect(status).toBe(200);
+
+      const { data: favData } = await ownerApi.folders.getFavoritesFolder({});
+      const titles = (favData.response?.files ?? []).map((f) => f.title);
+      expect(titles).toContain(fileTitle);
+    },
+  );
 });
 
 test.describe("GET /files/file/:fileId - Get file info", () => {
@@ -1622,6 +1668,49 @@ test.describe("POST /files/file/:fileId/recent - Add file to recent", () => {
     expect(status).toBe(404);
     expect((data as any).error.message).toBe("The required file was not found");
   });
+
+  test.fail(
+    "BUG 82069: POST /files/file/:fileId/recent - File in a Third-party room appears in Recent after opening",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: tpData } =
+        await ownerApi.thirdPartyIntegration.saveThirdParty({
+          thirdPartyRequestDto: {
+            url: config.NEXTCLOUD_URL,
+            login: config.NEXTCLOUD_LOGIN,
+            password: config.NEXTCLOUD_PASSWORD,
+            customerTitle:
+              "Autotest Recent TP " + apiSdk.faker.generateString(6),
+            providerKey: "Nextcloud",
+          },
+        });
+
+      const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
+        id: tpData.response!.id!,
+        createThirdPartyRoom: {
+          title: "Autotest Recent TP Room " + apiSdk.faker.generateString(6),
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id! as unknown as number;
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "Autotest Recent TP File " + apiSdk.faker.generateString(6),
+        },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { status } = await ownerApi.files.addFileToRecent({ fileId });
+      expect(status).toBe(200);
+
+      const { data: recentData } = await ownerApi.folders.getRecentFolder();
+      const recentFiles = recentData.response?.files ?? [];
+      expect(recentFiles.some((f: any) => f.id === fileId)).toBe(true);
+    },
+  );
 });
 
 test.describe("DELETE /files/recent - Delete files from Recent section", () => {
