@@ -387,7 +387,7 @@ test.describe("PUT /people/resetquota - access control", () => {
     });
     expect(data.statusCode).toBe(400);
     expect((data as any).error.message).toBe(
-      "Failed to set quota per user. The entered value is greater than the total DocSpace storage.",
+      "Failed to set quota per user. The entered value is greater than the total storage.",
     );
   });
 });
