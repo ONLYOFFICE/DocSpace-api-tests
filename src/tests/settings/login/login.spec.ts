@@ -1,5 +1,7 @@
 import { expect } from "@playwright/test";
+import { MessageAction } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures/index";
+import { expectActionRecorded } from "@/src/helpers/tfa";
 import config from "@/config";
 
 test.describe("GET /api/2.0/settings/security/loginsettings - Get login settings", () => {
@@ -174,6 +176,16 @@ test.describe("POST /api/2.0/authentication - Login lockout after too many faile
         });
 
       expect(status).toBe(200);
+    });
+
+    await test.step("the lockout is recorded in login history as LoginFailBruteForce", async () => {
+      await expectActionRecorded(
+        () =>
+          apiSdk.forRole("owner").loginHistory.getLoginEventsByFilter({
+            action: MessageAction.LoginFailBruteForce,
+          }),
+        MessageAction.LoginFailBruteForce,
+      );
     });
   });
 });
