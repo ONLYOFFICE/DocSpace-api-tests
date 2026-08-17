@@ -4877,8 +4877,9 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     //
     //   * the tool asked for by name, answered with the sentinel — the inventory
     //     read that does not depend on how a refusal is phrased;
-    //   * "создай файл в разделе Files" — the request that produced the reported
-    //     401 elsewhere. Here it has to be served by the agent's own generator
+    //   * ASK_FOR_FILE_IN_FILES ("create a file in the Files section, name it
+    //     'test'") — the request that produced the reported 401 elsewhere.
+    //     Here it has to be served by the agent's own generator
     //     instead, which is also what keeps the negative half honest: the model
     //     acted, it just had nothing but built-in tools to act with.
     //
@@ -4891,10 +4892,11 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     //   * it would fail on the product's behaviour rather than on its own subject,
     //     which the bug test already covers;
     //   * the second half is worse than a red test. With the REST family present,
-    //     "создай файл в разделе Files" makes the model pick `upload_file`, and
-    //     that call lands on a portal that is not ours — measured twice, a
-    //     `тест.txt` really was created in two strangers' My Documents. A test
-    //     must not write into somebody else's portal on every run.
+    //     the "create a file in the Files section" request makes the model pick
+    //     `upload_file`, and that call lands on a portal that is not ours —
+    //     measured twice, the file really was created in two strangers' My
+    //     Documents. A test must not write into somebody else's portal on every
+    //     run.
     //
     // Remove this skip when BUG 83172 is fixed: if the tools then point at the
     // caller's own portal, the toolset question this test asks becomes meaningful
@@ -5108,10 +5110,10 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
 // one a call lands on changes between calls inside one run — a pool of base URLs
 // with credentials that work, none of them the caller's.
 //
-// It is not read-only in practice. Asked the reported question — "создай файл в
-// разделе Files, назови тест" — from an agent-scoped chat, the model resolved the
-// section with `get_my_folder` and then called `upload_file`, which reported
-// `{"success":true,"data":{"id":2779216,"folderId":31908,"title":"тест.txt","uploaded":true}}`
+// It is not read-only in practice. Asked the reported question — "create a file
+// in the Files section, name it 'test'" — from an agent-scoped chat, the model
+// resolved the section with `get_my_folder` and then called `upload_file`, which
+// reported `{"success":true,"data":{"id":2779216,"folderId":31908,"title":"<name>.txt","uploaded":true}}`
 // against `ilkem.onlyoffice.io`, and `folderId: 5214682` against
 // `docspace-17h05o.onlyoffice.io` on the next attempt. Two files really were
 // created in two strangers' My Documents. That is why nothing here asks for a
