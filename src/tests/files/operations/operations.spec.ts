@@ -8795,7 +8795,11 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
     const { data: statusData } = await ownerApi.operations.getOperationStatuses(
       { id: operationId },
     );
-    expect(statusData.response).toHaveLength(0);
+    // In CI, parallel workers may have their own active operations visible in the
+    // shared list — assert our specific operation is gone, not the entire list.
+    expect((statusData.response ?? []).map((op) => op.id)).not.toContain(
+      operationId,
+    );
   });
 
   test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate already-completed operation returns 200 with empty response", async ({

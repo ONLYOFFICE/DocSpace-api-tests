@@ -6163,7 +6163,7 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
     // a malformed request, which is what the rest of this surface answers 400
     // with a message to; `{"type":"error","message":"stream error"}` is neither
     // showable nor translatable.
-    test.fail();
+
     expect(
       { status: bad.status, streamError: bad.streamError },
       "a request the backend cannot run says what was wrong with it",
