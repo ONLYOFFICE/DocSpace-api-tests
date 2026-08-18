@@ -9,6 +9,13 @@ import { AiAccessClient, setPortalAiAccess } from "./ai-access";
 
 export const walletServices = {
   aiTools: TenantWalletService.AITools,
+  /**
+   * The "AI search" add-on in Billing → Add-ons. This, and nothing on
+   * `/ai/web-search/*`, is how web search is switched on: enabling it configures
+   * the portal's own ONLYOFFICE provider and the searches are billed to the
+   * wallet. No Exa key is involved. See ai-web-search.ts.
+   */
+  aiSearch: TenantWalletService.AISearch,
   backup: TenantWalletService.Backup,
   storage: TenantWalletService.Storage,
 } as const;
@@ -113,6 +120,31 @@ export async function enableAiToolsWithoutAiCredit(
     await isWalletServiceEnabled(payment, "aiTools"),
     "AI Tools in the portal's enabled wallet services after enabling it",
   ).toBe(true);
+}
+
+/**
+ * Switches the AI search add-on on or off and proves the portal really is in
+ * that state — everything about web search hangs off this one flag, so a test
+ * that assumed it instead of asserting it would report on the wrong portal.
+ */
+export async function setAiSearchAddon(
+  paymentApi: Pick<
+    PaymentApi,
+    "changeTenantWalletServiceState" | "getTenantWalletServiceSettings"
+  >,
+  enabled: boolean,
+): Promise<void> {
+  const { status } = enabled
+    ? await enableWalletService(paymentApi, "aiSearch")
+    : await disableWalletService(paymentApi, "aiSearch");
+  expect(status, `POST /portal/payment/servicestate AISearch=${enabled}`).toBe(
+    200,
+  );
+
+  expect(
+    await isWalletServiceEnabled(paymentApi, "aiSearch"),
+    `AI search in the portal's enabled wallet services after setting it to ${enabled}`,
+  ).toBe(enabled);
 }
 
 /** Whether the portal currently has this wallet service in its enabled list. */
