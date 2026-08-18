@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import {
   FolderType,
+  FormFillingManageAction,
   RoomType,
   SearchArea,
   SortOrder,
@@ -20,6 +21,8 @@ import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-templa
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import type { ApiSDK } from "@/src/services/api-sdk";
 import type { Role } from "@/src/services/token-store";
+import { readFileSync } from "fs";
+import path from "path";
 
 /**
  * Form filling rooms were moved out of the Rooms section into their own root
@@ -3050,4 +3053,78 @@ test.describe("Room templates and form templates are separate collections", () =
       expect(ownerTitles).not.toContain("Stolen Form Room");
     });
   });
+});
+
+// A room's primary external link is what a non-member visits to view/fill a
+// FillingFormsRoom without being invited to it. Established against a live
+// portal: an authenticated user with no access to the room can obtain access
+// via GET /files/share/{requestToken}?folderId={roomId} (the same call the
+// external-link landing page makes) - after that, GET /files/rooms/{id}
+// returns 200 for them (external: true, sharedForUser: false). That access
+// is real: the room then shows up for them under searchArea=Any. But it
+// never appears under searchArea=Forms, so the room is unreachable from the
+// Forms section despite the user having just viewed it via the link.
+test.describe("BUG TBD: Forms room visited via external link does not appear in the Forms section", () => {
+  test.fail(
+    "BUG TBD: GET /files/rooms?searchArea=Forms - a form room opened via its external link by a user with no direct access is missing from the Forms section",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest External Link Forms Visibility",
+          roomType: RoomType.FillingFormsRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const buffer = readFileSync(
+        path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
+      );
+      const { data: insertData } = await apiSdk.insertBinaryFile(
+        "owner",
+        roomId,
+        buffer,
+        "oo-form-empty.pdf",
+      );
+      const formId = insertData.response.id as number;
+      await ownerApi.files.manageFormFilling({
+        fileId: String(formId),
+        manageFormFillingDtoInteger: {
+          formId,
+          action: FormFillingManageAction.Start,
+        },
+      });
+
+      const { data: linkData } =
+        await ownerApi.rooms.getRoomsPrimaryExternalLink({ id: roomId });
+      const requestToken = linkData.response!.sharedLink!.requestToken!;
+
+      // A second authenticated portal user with no direct access to this room.
+      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "RoomAdmin",
+      );
+
+      await test.step("Open the room via its external link", async () => {
+        const { status } = await roomAdminApi.sharing.getExternalShareData({
+          key: requestToken,
+          folderId: String(roomId),
+        });
+        expect(status).toBe(200);
+
+        // Confirms the visit actually granted access - not a no-op.
+        const { data: info, status: infoStatus } =
+          await roomAdminApi.rooms.getRoomInfo({ id: roomId });
+        expect(infoStatus).toBe(200);
+        expect(info.response!.external).toBe(true);
+      });
+
+      const { data: forms, status } = await roomAdminApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Forms,
+      });
+      expect(status).toBe(200);
+      expect(folderIds(forms)).toContain(roomId);
+    },
+  );
 });
