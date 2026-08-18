@@ -39,9 +39,11 @@ import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
 // Guests at Read and Read cannot use the agent, so the two cannot be separated
 // here.
 //
-// Validation is mostly soft: bad input comes back as HTTP 200 with
-// `{success:false, error:{field, message}}`. Only a missing `config` on add is
-// a real 400.
+// Validation is mixed. A duplicate name, an unknown server and an underscore in
+// a name are soft — HTTP 200 with `{success:false, error:{field, message}}`. A
+// blank name, a name over 128 characters, a name containing a path separator or
+// control character, and a missing `config` are hard 400s carrying `{error}` and
+// no `success` field at all.
 
 const SERVER_CONFIG = { url: "https://mcp.example.invalid/sse" };
 const UPDATED_CONFIG = { url: "https://mcp-updated.example.invalid/sse" };
@@ -510,34 +512,34 @@ test.describe("MCP - Anonymous access", () => {
 });
 
 test.describe("MCP - Custom server validation", () => {
-  for (const { name, body, message } of [
+  for (const { name, body } of [
+    { name: "an empty name", body: { name: "", config: SERVER_CONFIG } },
+    { name: "a missing name", body: { config: SERVER_CONFIG } },
     {
-      name: "an empty name",
-      body: { name: "", config: SERVER_CONFIG },
-      message: "Server name is required",
-    },
-    {
-      name: "a missing name",
-      body: { config: SERVER_CONFIG },
-      message: "Server name is required",
+      name: "a whitespace-only name",
+      body: { name: "   ", config: SERVER_CONFIG },
     },
   ]) {
     test(`POST /api/2.0/ai/tools/add-custom-server - rejects ${name}`, async ({
       apiSdk,
       paymentsApi,
     }) => {
+      // A hard 400 naming the rule, not the soft `{success:false, error:{field,
+      // message}}` most other refusals on this route use. All three spellings of
+      // "no name" collapse to the same answer — a name made only of spaces used
+      // to slip past the check and come back as a generic "Bad Request".
       const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
 
-      const { data, status } = await aiTools.addCustomServer("owner", {
+      const { status, error } = await aiTools.addCustomServer("owner", {
         ...body,
         agentId,
       });
 
-      // Soft failure: HTTP 200 with success:false.
-      expect(data?.success).toBe(false);
-      expect(data?.error?.field).toBe("name");
-      expect(data?.error?.message).toBe(message);
-      expect(status).toBe(200);
+      const { data: list } = await aiTools.listCustomServers("owner", agentId);
+      expect(list, "nothing was stored").toEqual({});
+
+      expect(error).toBe("name is required");
+      expect(status).toBe(400);
     });
   }
 
@@ -816,8 +818,9 @@ test.describe("MCP - Custom server name validation", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    // 128 is accepted, 129 is a hard 400 with no body of its own — a model-binding
-    // refusal, unlike the soft `{success:false}` an empty name gets.
+    // 128 is accepted, 129 is a hard 400 carrying only a generic "Bad Request" — a
+    // model-binding refusal, unlike the named `name is required` and path-character
+    // messages the route raises for itself.
     const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
 
     const atLimit = "n".repeat(128);
@@ -841,27 +844,6 @@ test.describe("MCP - Custom server name validation", () => {
     expect(accepted.status).toBe(200);
     expect(refused.error).toBe("Bad Request");
     expect(refused.status).toBe(400);
-  });
-
-  test("POST /api/2.0/ai/tools/add-custom-server - a whitespace-only name is a hard 400", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    // An empty name is a soft `{success:false, error:{message:"Server name is
-    // required"}}` (above); a name made of spaces never reaches that check.
-    const { aiTools, agentId } = await agentForOwner(apiSdk, paymentsApi);
-
-    const { status, error } = await aiTools.addCustomServer("owner", {
-      name: "   ",
-      config: SERVER_CONFIG,
-      agentId,
-    });
-
-    const { data: list } = await aiTools.listCustomServers("owner", agentId);
-    expect(list).toEqual({});
-
-    expect(error).toBe("Bad Request");
-    expect(status).toBe(400);
   });
 });
 

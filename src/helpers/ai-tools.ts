@@ -41,11 +41,16 @@ import { AiHttp, AgentRole } from "./ai-http";
 // Error style is mixed and matters for assertions: most failures come back as
 // HTTP 200 with `{success:false, error:{field, message}}` — `replace-all` uses
 // `errors: [{name, error}]` and rejects the whole map atomically. Assert
-// `data.success` / `data.error.message`, not just the status. The hard 400s are
-// the exceptions: a name over 128 characters or made only of whitespace, and any
-// `config` the binder reads as absent — `{}`, `null`, a number, or nothing at all
-// — which is also the "copy the portal-level server of this name into this
-// entity" path when such a server does exist.
+// `data.success` / `data.error.message`, not just the status. The hard 400s, which
+// carry `{error: "…"}` and no `success` field at all, are the exceptions:
+//   - a blank name — missing, empty or whitespace-only: `name is required`
+//   - `.`, `..`, either slash, any control character: `name must not be ".",
+//     ".." or contain a path separator or control character`, on add, update and
+//     replace-all alike
+//   - a name over 128 characters: a bare `Bad Request` from the model binder
+//   - any `config` the binder reads as absent — `{}`, `null`, a number, or
+//     nothing at all — which is also the "copy the portal-level server of this
+//     name into this entity" path when such a server does exist.
 //
 // A stored config is whatever was sent, minus nothing, as long as it is an object
 // carrying `url` (HTTP) or `command` (stdio); update replaces it wholesale rather
@@ -63,12 +68,15 @@ import { AiHttp, AgentRole } from "./ai-http";
 // anywhere in a name ("reserved for tool-token format" — the engine addresses a
 // tool as `server_tool`, e.g. `docspace_generate_docx`). The duplicate check is
 // case-insensitive while the key keeps its original casing, names are not trimmed
-// and not Unicode-normalised, and 128 characters is the cap. Open bugs, all in
-// the names block of mcp/mcp.spec.ts: `/`, `.` and `..` register and list but are
-// unreachable by name afterwards; an emoji answers 500; `constructor`/`toString`
-// are refused as if their config were broken, which is what gives away that the
-// map is a bare JS object; and `replace-all` skips the duplicate check, storing
-// two case-variants of one name of which only one can ever be read.
+// and not Unicode-normalised, and 128 characters is the cap. A dot that is only
+// part of a name is fine (`.a`, `a.`, `a.b`), as are `%2F`, `#`, `?`, `%`, a
+// space and an emoji. `remove-custom-server` is outside all of it: it validates
+// nothing and reports `{success:true}` for any name — except `.`, which the router
+// answers 405. Open bugs, both in the names block of mcp/mcp.spec.ts:
+// `constructor`/`toString` are refused as if their config were broken, which is
+// what gives away that the map is a bare JS object; and `replace-all` skips the
+// duplicate check, storing two case-variants of one name of which only one can
+// ever be read.
 //
 // Nothing here reaches the model. A real, credentialed, reachable MCP server
 // registered on an agent is not offered to it — see the conversation block of
