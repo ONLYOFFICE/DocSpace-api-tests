@@ -2,7 +2,6 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import {
   FolderType,
-  FormFillingManageAction,
   RoomType,
   SearchArea,
   SortOrder,
@@ -15,14 +14,12 @@ import {
   folderTitles,
   roomsAreaRoomTypes,
 } from "@/src/helpers/rooms";
-import { createOoForm } from "@/src/helpers/files";
+import { createOoForm, startFormFilling } from "@/src/helpers/files";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-template";
 import { waitForRoomTemplate } from "@/src/helpers/wait-for-room-template";
 import type { ApiSDK } from "@/src/services/api-sdk";
 import type { Role } from "@/src/services/token-store";
-import { readFileSync } from "fs";
-import path from "path";
 
 /**
  * Form filling rooms were moved out of the Rooms section into their own root
@@ -3078,23 +3075,7 @@ test.describe("BUG 83228: Forms room visited via external link does not appear i
       });
       const roomId = roomData.response!.id!;
 
-      const buffer = readFileSync(
-        path.join(__dirname, "../../../assets/oo-form-empty.pdf"),
-      );
-      const { data: insertData } = await apiSdk.insertBinaryFile(
-        "owner",
-        roomId,
-        buffer,
-        "oo-form-empty.pdf",
-      );
-      const formId = insertData.response.id as number;
-      await ownerApi.files.manageFormFilling({
-        fileId: String(formId),
-        manageFormFillingDtoInteger: {
-          formId,
-          action: FormFillingManageAction.Start,
-        },
-      });
+      await startFormFilling(apiSdk, "owner", roomId);
 
       const { data: linkData } =
         await ownerApi.rooms.getRoomsPrimaryExternalLink({ id: roomId });
