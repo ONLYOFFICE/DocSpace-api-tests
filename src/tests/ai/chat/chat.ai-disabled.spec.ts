@@ -202,25 +202,27 @@ test.describe("AI Chat - AI Disabled", () => {
     });
   }
 
-  test("BUG 82724: POST /api/2.0/ai/ai/send-with-stream - reports the refusal inside a 200 instead of returning 403", async ({
+  test("POST /api/2.0/ai/ai/send-with-stream - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Every other thread route answers a clean 403 once the portal AI switch is
-    // off. This one answers HTTP 200 and puts the refusal in the stream body as
-    // `{"type":"error","message":"stream error"}` — an opaque message a client
-    // cannot act on, and a status a client will read as success.
+    // Kept apart from the GATED_ROUTES matrix above because it needs a real
+    // agent and thread created while AI was still on: a fake threadId produces
+    // the same refusal for a different reason and would prove nothing.
     //
-    // Inference itself IS blocked: nothing reaches the model and nothing is
-    // stored in the thread, which is what the assertions below establish before
-    // the status is checked. The defect is the response contract, not access.
+    // Was BUG 82724: this route used to answer HTTP 200 and put the refusal in
+    // the stream body as `{"type":"error","message":"stream error"}` — an opaque
+    // message a client cannot act on, under a status a client reads as success.
+    // Fixed 2026-08-18. Inference was blocked even then, so what changed is the
+    // response contract; the assertions below still establish that nothing
+    // reached the model or the thread before the status is checked.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const context = await withAiSwitchedOff(apiSdk);
     const { aiChat, profileId, agentId, threadId } = context;
 
-    const { status, streamError } = await aiChat.sendMessage("owner", {
+    const { status, error, streamError } = await aiChat.sendMessage("owner", {
       threadId,
       profileId,
       agentId,
@@ -240,12 +242,11 @@ test.describe("AI Chat - AI Disabled", () => {
     expect(AiAgentChat.messageText(messages[0])).toBe(REAL_MESSAGE);
     expect(AiAgentChat.assistantMessages(messages)).toHaveLength(0);
 
-    // What the endpoint actually does today.
-    expect(streamError).toBe("stream error");
-
-    // What it should do: refuse like every neighbouring route.
-    test.fail();
     expect(status).toBe(403);
+    expect(error).toBe("Forbidden");
+    expect(streamError, "the refusal is the status, not a stream frame").toBe(
+      undefined,
+    );
   });
 });
 
@@ -369,9 +370,12 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     });
     expect(quota.status).toBe(200);
 
+    // The catalogue is empty on a paid portal too — the built-in tools were
+    // hidden on 2026-08-18 — so what an unpaid portal has to match here is the
+    // 200, not a list of tools.
     const systemTools = await tools.listSystemTools("owner");
     expect(systemTools.status).toBe(200);
-    expect((systemTools.data?.docspace ?? []).length).toBeGreaterThan(0);
+    expect(systemTools.data).toEqual({});
 
     const addedServer = await tools.addCustomServer("owner", {
       name: "autotest-unpaid-server",

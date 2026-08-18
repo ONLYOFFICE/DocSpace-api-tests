@@ -4,6 +4,7 @@ import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
+  AgentRole,
   AiAgentChat,
   AiMessageContentPart,
   AiThreadMessage,
@@ -12,8 +13,14 @@ import {
   inviteToAgent,
 } from "@/src/helpers/ai-agent-chat";
 import { AiTools } from "@/src/helpers/ai-tools";
-import { agentStorageFolderId } from "@/src/helpers/device-upload";
+import {
+  agentStorageFolderId,
+  downloadFile,
+} from "@/src/helpers/device-upload";
+import { extractDocxText, listDocxEntries } from "@/src/helpers/docx";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
+import { ApiSDK } from "@/src/services/api-sdk";
+import { Role } from "@/src/services/token-store";
 import {
   CALCULATOR_MCP_SERVER,
   isMcpServerConfigured,
@@ -47,26 +54,51 @@ import {
 
 const SERVER_CONFIG = { url: "https://mcp.example.invalid/sse" };
 
+/**
+ * A real built-in tool, spelled out rather than read from the API.
+ *
+ * `list-system-tools` published 20+ `docspace` entries until the tools were
+ * hidden on 2026-08-18 and several tests took their names from it. It now
+ * publishes nothing, so the name lives here — `docspace` + `generate_docx` is
+ * the pair the engine really offers, which the conversation block further down
+ * drives end to end.
+ */
+const BUILT_IN_DOC_TOOL = "generate_docx";
+
 test.describe("MCP - System tools catalogue", () => {
-  test("GET /api/2.0/ai/tools/list-system-tools - Owner gets the built-in DocSpace tools", async ({
+  test("GET /api/2.0/ai/tools/list-system-tools - the catalogue publishes nothing", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // The route answers 200 with an empty object in every scope. That is
+    // deliberate as of 2026-08-18 — the built-in tools were hidden on purpose,
+    // and until then the unscoped read returned 20+ `docspace` entries while
+    // the scoped one was already `{}` (the old BUG 82991 asymmetry, now gone
+    // because both ends are empty).
+    //
+    // The consequence is worth pinning rather than deleting: there is no other
+    // listing route (`list-tools`, `list-all-tools`, `list-custom-tools`,
+    // `list-server-tools`, `get-server-tools` are all 404), so no API tells a
+    // client what tools an entity actually has — while the model still gets a
+    // real toolset, see the conversation block below.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Catalogue Agent",
+      profileId,
+    });
 
-    const { data, status } = await aiTools.listSystemTools("owner");
-    const docspaceTools = data?.docspace ?? [];
+    const unscoped = await aiTools.listSystemTools("owner");
+    expect(unscoped.status).toBe(200);
+    expect(unscoped.data).toEqual({});
 
-    expect(status).toBe(200);
-    expect(docspaceTools.length).toBeGreaterThan(0);
-    for (const tool of docspaceTools) {
-      expect(tool.name).toBeTruthy();
-      expect(tool.description).toBeTruthy();
-      expect(tool.inputSchema).toBeDefined();
-    }
+    const scoped = await aiTools.listSystemTools("owner", agentId);
+    expect(scoped.status).toBe(200);
+    expect(scoped.data).toEqual({});
   });
 });
 
@@ -222,11 +254,21 @@ test.describe("MCP - Custom server lifecycle", () => {
   });
 });
 
+// The built-in `docspace` server is the one serverType that cannot be disabled:
+// hiding its tools on 2026-08-18 took the switch with them, and a write naming
+// it is accepted and dropped. Everything else — a registered server, an invented
+// type — still round-trips, so the two cases are tested apart.
+const DISABLE_TARGET_SERVER = "autotest-disable-target";
+
 test.describe("MCP - Disabling individual tools", () => {
-  test("PUT /api/2.0/ai/tools/set-disabled - Owner disables and re-enables a built-in tool", async ({
+  test("PUT /api/2.0/ai/tools/set-disabled - the built-in DocSpace tools cannot be switched off", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Worth a test of its own rather than a deletion: the route still answers
+    // `{success:true}`, so nothing in the response tells a client that its write
+    // was thrown away. The registered server at the end is the positive control
+    // — without it, an empty read would equally describe a broken write path.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -247,7 +289,7 @@ test.describe("MCP - Disabling individual tools", () => {
       agentId,
     });
     expect(status).toBe(200);
-    expect(data?.success).toBe(true);
+    expect(data?.success, "the write reports success").toBe(true);
 
     const { data: after } = await aiTools.getDisabledTools("owner", agentId);
     const { data: isDisabled } = await aiTools.isToolDisabled("owner", {
@@ -256,19 +298,78 @@ test.describe("MCP - Disabling individual tools", () => {
       agentId,
     });
 
-    expect(after?.docspace).toEqual(["delete_file"]);
+    expect(after, "and stores nothing").toEqual({});
+    expect(isDisabled).toBe(false);
+
+    // The same call against a registered server does store — so the empty read
+    // above is the `docspace` rule, not a dead route.
+    expect(
+      (
+        await aiTools.addCustomServer("owner", {
+          name: DISABLE_TARGET_SERVER,
+          config: SERVER_CONFIG,
+          agentId,
+        })
+      ).data?.success,
+    ).toBe(true);
+    await aiTools.setDisabledTools("owner", {
+      serverType: DISABLE_TARGET_SERVER,
+      toolNames: ["calculate"],
+      agentId,
+    });
+    expect((await aiTools.getDisabledTools("owner", agentId)).data).toEqual({
+      [DISABLE_TARGET_SERVER]: ["calculate"],
+    });
+  });
+
+  test("PUT /api/2.0/ai/tools/set-disabled - Owner disables and re-enables a tool of a registered server", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "MCP Agent",
+      profileId,
+    });
+    await aiTools.addCustomServer("owner", {
+      name: DISABLE_TARGET_SERVER,
+      config: SERVER_CONFIG,
+      agentId,
+    });
+
+    const { data, status } = await aiTools.setDisabledTools("owner", {
+      serverType: DISABLE_TARGET_SERVER,
+      toolNames: ["calculate"],
+      agentId,
+    });
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
+
+    const { data: after } = await aiTools.getDisabledTools("owner", agentId);
+    const { data: isDisabled } = await aiTools.isToolDisabled("owner", {
+      serverType: DISABLE_TARGET_SERVER,
+      toolName: "calculate",
+      agentId,
+    });
+
+    expect(after?.[DISABLE_TARGET_SERVER]).toEqual(["calculate"]);
     expect(isDisabled).toBe(true);
 
     // Re-enable by writing an empty list back.
     await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
+      serverType: DISABLE_TARGET_SERVER,
       toolNames: [],
       agentId,
     });
 
     const { data: cleared } = await aiTools.isToolDisabled("owner", {
-      serverType: "docspace",
-      toolName: "delete_file",
+      serverType: DISABLE_TARGET_SERVER,
+      toolName: "calculate",
       agentId,
     });
 
@@ -295,17 +396,29 @@ test.describe("MCP - Disabling individual tools", () => {
     });
 
     await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
-      toolNames: ["delete_file"],
+      serverType: DISABLE_TARGET_SERVER,
+      toolNames: ["calculate"],
       agentId: firstAgent,
     });
 
     const { data: other } = await aiTools.isToolDisabled("owner", {
-      serverType: "docspace",
-      toolName: "delete_file",
+      serverType: DISABLE_TARGET_SERVER,
+      toolName: "calculate",
       agentId: secondAgent,
     });
 
+    // The write landed in the first agent's scope and nowhere else. Both halves
+    // are asserted: an unstored write would leave the second agent `false` too.
+    expect(
+      (
+        await aiTools.isToolDisabled("owner", {
+          serverType: DISABLE_TARGET_SERVER,
+          toolName: "calculate",
+          agentId: firstAgent,
+        })
+      ).data,
+      "the agent it was written for",
+    ).toBe(true);
     expect(other).toBe(false);
   });
 });
@@ -733,7 +846,7 @@ test.describe("MCP - tool-call confirmation validation", () => {
     expect((await aiChat.denyToolCall("anonymous", body)).status).toBe(401);
   });
 
-  test("BUG 82837: POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - a non-member of the agent may decide on another user's tool call", async ({
+  test("POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - a non-member of the agent cannot decide on another user's tool call", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -780,37 +893,30 @@ test.describe("MCP - tool-call confirmation validation", () => {
       profileId: profile.id,
     };
 
-    // Every neighbouring route refuses this member outright, so the thread really
-    // is out of their reach.
+    // The confirmation routes carry the same membership check as every neighbouring
+    // route, which is section 16.1's "Allow of someone else's request id": a user
+    // outside the agent cannot answer the model's permission prompt in a thread they
+    // cannot even read. They used to answer 200 here (BUG 82837).
     expect(
       (await aiChat.getThread("user", threadId)).status,
       "the thread itself is closed to them",
     ).toBe(403);
     expect((await aiChat.getMessageById("user", messageId)).status).toBe(403);
 
-    // The confirmation routes are not: section 16.1's "Allow of someone else's
-    // request id" is accepted. Nothing happens here only because the referenced
-    // message carries no pending tool call — with a real one, a user outside the
-    // room would be answering the model's permission prompt.
     const approve = await aiChat.approveToolCall("user", body);
     const deny = await aiChat.denyToolCall("user", body);
-    expect(approve.status).toBe(200);
-    expect(deny.status).toBe(200);
 
     await apiSdk.authenticateOwner();
     const messages = await aiChat.readMessages("owner", threadId);
     expect(messages.data.map((message) => message.id)).toEqual([messageId]);
 
-    test.fail();
-    expect(
-      approve.status,
-      "deciding on a tool call in someone else's thread must be refused",
-    ).toBe(403);
+    expect(approve.status, "approve").toBe(403);
+    expect(deny.status, "deny").toBe(403);
   });
 });
 
 test.describe("MCP - tool-call confirmation with AI Disabled", () => {
-  test("BUG 82838: POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - both are still accepted when AI access is disabled", async ({
+  test("POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - both are refused when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -857,19 +963,14 @@ test.describe("MCP - tool-call confirmation with AI Disabled", () => {
       "reading the thread is gated",
     ).toBe(403);
 
-    // Section 3.2 lists "an MCP tool cannot be invoked" among the things the
-    // switch has to stop. These two routes are the decision half of that flow and
-    // neither one checks it.
+    // Section 3.2 lists "an MCP tool cannot be invoked" among the things the switch
+    // has to stop. These two routes are the decision half of that flow and both now
+    // honour it — they used to be accepted with the switch off (BUG 82838).
     const approve = await aiChat.approveToolCall("owner", body);
     const deny = await aiChat.denyToolCall("owner", body);
-    expect(approve.status).toBe(200);
-    expect(deny.status).toBe(200);
 
-    test.fail();
-    expect(
-      approve.status,
-      "tool-call decisions must be refused when AI access is disabled",
-    ).toBe(403);
+    expect(approve.status, "approve").toBe(403);
+    expect(deny.status, "deny").toBe(403);
   });
 });
 
@@ -2625,6 +2726,10 @@ test.describe("MCP - server types", () => {
     // and reports it back. A test that assumed the editor's tool groups —
     // `editor`, `document`, `form`, `presentation` — were validated names would
     // pass for the wrong reason; they are simply stored.
+    //
+    // `docspace` is deliberately not in the list: it is the one name the store
+    // drops instead of keeping, which the disabling block at the top of this
+    // file pins. Every other string, known or invented, behaves alike.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2637,7 +2742,6 @@ test.describe("MCP - server types", () => {
     });
 
     const serverTypes = [
-      "docspace",
       "editor",
       "document",
       "form",
@@ -2671,10 +2775,12 @@ test.describe("MCP - server types", () => {
       expect(isDisabled.data, serverType).toBe(true);
     }
 
-    // Only the built-in server has tools to enumerate, whatever was stored above.
+    // Invented server types are stored as disabled-tool keys and nothing more:
+    // the catalogue is unaffected by any of it (it publishes nothing at all —
+    // see the system tools block at the top of this file).
     const system = await aiTools.listSystemTools("owner");
     expect(system.status).toBe(200);
-    expect(Object.keys(system.data ?? {})).toEqual(["docspace"]);
+    expect(system.data).toEqual({});
   });
 });
 
@@ -2720,10 +2826,6 @@ test.describe("MCP - the agent body and the per-entity server map", () => {
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
 
-    const builtInTool = (await aiTools.listSystemTools("owner")).data
-      ?.docspace?.[0]?.name;
-    expect(builtInTool, "a built-in tool to measure against").toBeTruthy();
-
     for (const attachDefaultTools of [true, false, undefined]) {
       const label = `attachDefaultTools=${attachDefaultTools}`;
 
@@ -2741,7 +2843,7 @@ test.describe("MCP - the agent body and the per-entity server map", () => {
       const disabled = await aiTools.getDisabledTools("owner", agentId!);
       const isDisabled = await aiTools.isToolDisabled("owner", {
         serverType: "docspace",
-        toolName: builtInTool!,
+        toolName: BUILT_IN_DOC_TOOL,
         agentId: agentId!,
       });
 
@@ -3356,22 +3458,32 @@ test.describe("MCP - server names as map keys", () => {
     expect(trimmed.data?.success).toBe(true);
   });
 
-  // A path-shaped name registers and lists, then cannot be addressed: get answers
-  // null, update reports "Server not registered", and the entry survives every
-  // attempt to delete it. Only replace-all, which rewrites the whole scope, can
-  // clear it — so one mistyped name leaves a permanent entry in an agent's tool
-  // configuration.
+  // `.`, `..`, either slash and any control character are refused up front with a
+  // 400 naming the rule, on all three routes that write a name: add, update and the
+  // bulk replace-all. A refused replace-all is atomic — the scope it would have
+  // overwritten is left alone.
   //
-  // `.` and `..` behave the same way as `a/b`, which is the interesting part: the
-  // name is not being resolved as a path (`%2F`, `#`, `?`, `%` and `\` all work
-  // fine, see the test below), it is the by-name lookup that cannot see keys the
-  // list can. `.` goes one further and answers 405 Method Not Allowed on remove.
-  for (const { label, name } of [
-    { label: "a slash", name: "autotest/nested-name" },
-    { label: "a single dot", name: "." },
-    { label: "two dots", name: ".." },
+  // `remove-custom-server` is the exception, as it is for every other bad input:
+  // it validates nothing and reports `{success:true}` for a name that could never
+  // have been stored. `.` is the one name it cannot even reach — the router answers
+  // 405 Method Not Allowed before the handler sees it.
+  //
+  // This closed BUG 82985. These names used to register and list, then be
+  // unaddressable: get answered null, update reported "Server not registered", and
+  // the entry survived every delete, so one mistyped name left a permanent entry in
+  // an agent's tool configuration.
+  for (const { label, name, removeStatus } of [
+    { label: "a slash", name: "autotest/nested-name", removeStatus: 200 },
+    { label: "a backslash", name: "autotest\\backslash", removeStatus: 200 },
+    {
+      label: "a control character",
+      name: "autotest\u0001ctl",
+      removeStatus: 200,
+    },
+    { label: "a single dot", name: ".", removeStatus: 405 },
+    { label: "two dots", name: "..", removeStatus: 200 },
   ]) {
-    test(`BUG 82985: POST /api/2.0/ai/tools/add-custom-server - a server named with ${label} can be registered but never read, edited or removed`, async ({
+    test(`POST /api/2.0/ai/tools/add-custom-server - a name containing ${label} is refused`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -3386,39 +3498,50 @@ test.describe("MCP - server names as map keys", () => {
         profileId,
       });
 
+      const message =
+        'name must not be ".", "..", or contain a path separator or control character';
+
+      // A legal neighbour, so "the scope holds exactly this one server" afterwards
+      // proves the list can see keys at all — and that the refused replace-all did
+      // not wipe what was already there.
+      const legal = await aiTools.addCustomServer("owner", {
+        name: "autotest-legal",
+        config: SERVER_CONFIG,
+        agentId,
+      });
+      expect(legal.data?.success, "the legal name is stored").toBe(true);
+
       const added = await aiTools.addCustomServer("owner", {
         name,
         config: SERVER_CONFIG,
         agentId,
       });
-      expect(added.data?.success, "the name is accepted").toBe(true);
-      expect(
-        Object.keys(await serverMap(aiTools, agentId)),
-        "and listed under that key",
-      ).toEqual([name]);
-
-      const read = await aiTools.getCustomServer("owner", name, agentId);
       const updated = await aiTools.updateCustomServer("owner", {
         name,
         config: OTHER_CONFIG,
+        agentId,
+      });
+      const replaced = await aiTools.replaceAllCustomServers("owner", {
+        map: { [name]: SERVER_CONFIG },
         agentId,
       });
       const removed = await aiTools.removeCustomServer("owner", {
         name,
         agentId,
       });
-      const afterRemove = await serverMap(aiTools, agentId);
 
-      test.fail();
-      expect(read.data, "a registered server is readable by name").toEqual(
-        SERVER_CONFIG,
-      );
-      expect(updated.data?.success, "and editable by name").toBe(true);
-      expect(removed.status, "and removable by name").toBe(200);
       expect(
-        Object.keys(afterRemove),
-        "a successful remove empties the scope",
-      ).toEqual([]);
+        Object.keys(await serverMap(aiTools, agentId)),
+        "the refused name was never stored and the legal one survived",
+      ).toEqual(["autotest-legal"]);
+
+      expect(added.error, "add").toBe(message);
+      expect(added.status, "add").toBe(400);
+      expect(updated.error, "update").toBe(message);
+      expect(updated.status, "update").toBe(400);
+      expect(replaced.error, "replace-all").toBe(message);
+      expect(replaced.status, "replace-all").toBe(400);
+      expect(removed.status, "remove validates nothing").toBe(removeStatus);
     });
   }
 
@@ -3426,11 +3549,12 @@ test.describe("MCP - server names as map keys", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    // The counterweight to the bug above: nothing about "a name that looks like it
-    // could be interpolated somewhere" is broken in general. An already-encoded
-    // slash, a fragment, a query separator, a bare percent and a backslash all
-    // survive the full add/get/update/remove cycle unchanged — which is what
-    // narrows the bug down to `/`, `.` and `..`.
+    // The counterweight to the refusals above: "a name that looks like it could be
+    // interpolated somewhere" is not rejected in general. An already-encoded slash,
+    // a fragment, a query separator and a bare percent all survive the full
+    // add/get/update/remove cycle unchanged, and so does a dot that is only *part*
+    // of a name — leading, trailing or in the middle. Only a bare `.`/`..`, a real
+    // separator and control characters are refused.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3447,9 +3571,10 @@ test.describe("MCP - server names as map keys", () => {
       "autotest#fragment",
       "autotest?query=1",
       "autotest%percent",
-      "autotest\\backslash",
       "autotest server",
       "autotest.dotted",
+      ".autotest",
+      "autotest.",
     ];
 
     for (const name of names) {
@@ -3636,14 +3761,14 @@ test.describe("MCP - server names as map keys", () => {
     expect(second.data?.success).toBe(true);
   });
 
-  test("BUG 82987: POST /api/2.0/ai/tools/add-custom-server - an emoji in the server name answers 500", async ({
+  test("POST /api/2.0/ai/tools/add-custom-server - an emoji in the server name round-trips", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Every other rejected name is either a soft `{success:false}` or a 400. An
-    // emoji is an unhandled failure, and the following read of that name is a 500
-    // as well — so the name is stored somewhere the reads cannot cope with. The
-    // contract asserted here is only "not a 500": either store it or refuse it.
+    // A non-BMP name is stored and addressable like any other. It used to be the one
+    // input on this route that answered an unhandled 500 — on the add and on every
+    // later read of that name (BUG 82987) — while every other rejected name was
+    // either a soft `{success:false}` or a 400.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3661,13 +3786,34 @@ test.describe("MCP - server names as map keys", () => {
       config: SERVER_CONFIG,
       agentId,
     });
-    const read = await aiTools.getCustomServer("owner", name, agentId);
+    expect(added.data?.success, "an emoji name is accepted").toBe(true);
+    expect(added.status).toBe(200);
 
-    test.fail();
-    expect(added.status, "an emoji name is handled, not a server error").toBe(
-      200,
-    );
-    expect(read.status).toBe(200);
+    expect(
+      Object.keys(await serverMap(aiTools, agentId)),
+      "and listed under the key as sent",
+    ).toEqual([name]);
+    expect(
+      (await aiTools.getCustomServer("owner", name, agentId)).data,
+      "and readable by name",
+    ).toEqual(SERVER_CONFIG);
+
+    const updated = await aiTools.updateCustomServer("owner", {
+      name,
+      config: OTHER_CONFIG,
+      agentId,
+    });
+    expect(updated.data?.success, "and editable by name").toBe(true);
+    expect(
+      (await aiTools.getCustomServer("owner", name, agentId)).data,
+    ).toEqual(OTHER_CONFIG);
+
+    const removed = await aiTools.removeCustomServer("owner", {
+      name,
+      agentId,
+    });
+    expect(removed.data?.success, "and removable by name").toBe(true);
+    expect(Object.keys(await serverMap(aiTools, agentId))).toEqual([]);
   });
 });
 
@@ -3892,38 +4038,11 @@ test.describe("MCP - a registered server and the conversation", () => {
     ).toBe(true);
   });
 
-  test("BUG 82991: GET /api/2.0/ai/tools/list-system-tools - the catalogue is empty when scoped to an entity", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    // `entityId` is REQUIRED on this route in the SDK, and supplying it empties
-    // the answer: unscoped, 20+ built-in `docspace` tools; scoped to an agent the
-    // caller owns, `{}`. Combined with there being no other listing route (every
-    // spelling of list-tools / list-server-tools is 404), a client has no way to
-    // ask what tools an agent actually has.
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest Scoped Catalogue Agent",
-      profileId,
-    });
-
-    const unscoped = await aiTools.listSystemTools("owner");
-    expect(
-      unscoped.data?.docspace?.length,
-      "the unscoped catalogue is the positive control",
-    ).toBeGreaterThan(0);
-
-    const scoped = await aiTools.listSystemTools("owner", agentId);
-
-    test.fail();
-    expect(scoped.status).toBe(200);
-    expect(Object.keys(scoped.data ?? {})).toEqual(["docspace"]);
-  });
+  // BUG 82991 ("the catalogue is empty when scoped to an entity") lived here.
+  // It was the asymmetry between a full unscoped read and an empty scoped one;
+  // since the tools were hidden on 2026-08-18 both ends answer `{}`, so there is
+  // no asymmetry left to pin and the empty catalogue itself is covered by the
+  // system tools block at the top of this file.
 });
 
 // ---------------------------------------------------------------------------
@@ -3951,7 +4070,6 @@ test.describe("MCP - a registered server and the conversation", () => {
 // (BUG 82861), so a test built on it could not tell "the tool was withheld"
 // apart from "the tool ran and never came back".
 
-const BUILT_IN_DOC_TOOL = "generate_docx";
 /** What the model sees, and what set-disabled's two fields spell out together. */
 const BUILT_IN_DOC_TOOL_TOKEN = `docspace_${BUILT_IN_DOC_TOOL}`;
 
@@ -4036,18 +4154,20 @@ test.describe("MCP - disabling a tool the model really has", () => {
     expect(asked.frames).toContain("tool-call-pending");
   });
 
-  test("BUG 83013: PUT /api/2.0/ai/tools/set-disabled - a disabled built-in tool is still offered to the model", async ({
+  test("PUT /api/2.0/ai/tools/set-disabled - the built-in tool stays offered to the model whatever is written", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // set-disabled stores the setting, is-tool-disabled reads it back, and the
-    // model is never told: the same prompt still produces the same tool call.
+    // This was BUG 83013: the setting was stored, read back as disabled, and
+    // never reached the model. Since the built-in tools were hidden on
+    // 2026-08-18 there is nothing to store either — `docspace` writes are
+    // dropped — and the tools are not meant to be switchable at all, so the
+    // model keeping them is now the requirement rather than the defect.
     //
-    // Both spellings of the name are disabled, so the finding does not rest on
-    // guessing which one the engine matches — the bare `generate_docx` that
-    // list-system-tools' own entries are named like, and the full
-    // `docspace_generate_docx` token the model sees. Both scopes are written too:
-    // the agent's and the portal's.
+    // Both spellings are written, in both scopes, so "nothing happened" does
+    // not rest on guessing which name the engine would have matched — the bare
+    // `generate_docx` and the full `docspace_generate_docx` token the model
+    // sees, in the agent scope and portal-wide.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -4065,20 +4185,19 @@ test.describe("MCP - disabling a tool the model really has", () => {
         toolNames,
         ...scope,
       });
-      expect(data?.success, "the tool is disabled").toBe(true);
+      expect(data?.success, "the write is accepted").toBe(true);
     }
 
-    // The setting really is in force before the question is asked — otherwise a
-    // tool call below would say nothing about disabling.
+    // Accepted and dropped: neither read shows it.
     const { data: stored } = await aiTools.getDisabledTools("owner", agentId);
-    expect(stored?.docspace).toEqual(toolNames);
+    expect(stored).toEqual({});
     for (const toolName of toolNames) {
       const { data: isDisabled } = await aiTools.isToolDisabled("owner", {
         serverType: "docspace",
         toolName,
         agentId,
       });
-      expect(isDisabled, `${toolName} reads back as disabled`).toBe(true);
+      expect(isDisabled, `${toolName} is not disabled`).toBe(false);
     }
 
     const asked = await askForDocument(aiChat, {
@@ -4087,62 +4206,16 @@ test.describe("MCP - disabling a tool the model really has", () => {
       title: "Built-in tool disabled",
     });
 
-    test.fail();
-    expect(
-      asked.calledTools,
-      `a disabled tool was called anyway; the model answered "${asked.reply.slice(0, 120)}"`,
-    ).not.toContain(BUILT_IN_DOC_TOOL_TOKEN);
-  });
-
-  test("PUT /api/2.0/ai/tools/set-disabled - a tool disabled and enabled again is callable", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    // The closing leg of the cycle, and the one assertion of it that means the
-    // same thing before and after the bug above is fixed: whatever disabling
-    // does, clearing the list must leave the tool usable.
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const { profileId, agentId } = await setupChat(
-      aiChat,
-      "Autotest Re-enabled Tool Agent",
-    );
-
-    await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
-      toolNames: [BUILT_IN_DOC_TOOL, BUILT_IN_DOC_TOOL_TOKEN],
-      agentId,
-    });
-    const { data: cleared } = await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
-      toolNames: [],
-      agentId,
-    });
-    expect(cleared?.success).toBe(true);
-
-    for (const toolName of [BUILT_IN_DOC_TOOL, BUILT_IN_DOC_TOOL_TOKEN]) {
-      const { data: isDisabled } = await aiTools.isToolDisabled("owner", {
-        serverType: "docspace",
-        toolName,
-        agentId,
-      });
-      expect(isDisabled, `${toolName} is enabled again`).toBe(false);
-    }
-
-    const asked = await askForDocument(aiChat, {
-      profileId,
-      agentId,
-      title: "Built-in tool re-enabled",
-    });
-
     expect(
       asked.calledTools,
       `the model answered "${asked.reply.slice(0, 120)}"; frames were ${asked.frames.join(", ")}`,
     ).toContain(BUILT_IN_DOC_TOOL_TOKEN);
   });
+
+  // "a tool disabled and enabled again is callable" stood here: the closing leg
+  // of a disable/enable cycle that no longer exists for the built-in server.
+  // Both of its halves are covered above — the tool is callable, and clearing a
+  // list that was never written changes nothing.
 });
 
 // ---------------------------------------------------------------------------
@@ -4160,16 +4233,16 @@ test.describe("MCP - disabling a tool the model really has", () => {
 // These tests pin that shape so that a real server switch, if one is ever added,
 // shows up as a change here rather than as an untested feature.
 
-/** Every tool name the built-in server publishes, in catalogue order. */
-async function builtInToolNames(aiTools: AiTools) {
-  const { data, status } = await aiTools.listSystemTools("owner");
-  expect(status, "the built-in catalogue is the source of names").toBe(200);
-  const names = (data?.docspace ?? [])
-    .map((tool) => tool.name ?? "")
-    .filter(Boolean);
-  expect(names.length, "the catalogue is not empty").toBeGreaterThan(1);
-  return names;
-}
+/**
+ * The tools this block switches off.
+ *
+ * A registered server's rather than the built-in ones: `docspace` writes are
+ * dropped since the built-in tools were hidden on 2026-08-18 (see the disabling
+ * block at the top of this file), so that serverType can no longer carry a
+ * storage test. The names are arbitrary on purpose — `set-disabled` never
+ * validates them, and what is measured here is the list semantics.
+ */
+const WHOLE_SERVER_TOOLS = ["calculate", "get_time", "convert_units"];
 
 test.describe("MCP - switching a whole server off", () => {
   test("PUT /api/2.0/ai/tools/set-disabled - a whole server goes off in one call and the list is a full replacement", async ({
@@ -4179,9 +4252,9 @@ test.describe("MCP - switching a whole server off", () => {
     // Switching a server off is not an operation the API has; it is this call
     // with every one of the server's tools in `toolNames`. Two consequences
     // worth pinning, because a client that models the UI switch as "add this
-    // tool to the disabled list" gets them wrong: the whole catalogue fits in
-    // one call, and writing a shorter list afterwards re-enables everything it
-    // omits instead of merging.
+    // tool to the disabled list" gets them wrong: the whole list fits in one
+    // call, and writing a shorter one afterwards re-enables everything it omits
+    // instead of merging.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -4192,11 +4265,20 @@ test.describe("MCP - switching a whole server off", () => {
       title: "Autotest Whole Server Agent",
       profileId,
     });
+    expect(
+      (
+        await aiTools.addCustomServer("owner", {
+          name: DISABLE_TARGET_SERVER,
+          config: SERVER_CONFIG,
+          agentId,
+        })
+      ).data?.success,
+    ).toBe(true);
 
-    const allNames = await builtInToolNames(aiTools);
+    const allNames = WHOLE_SERVER_TOOLS;
 
     const off = await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
+      serverType: DISABLE_TARGET_SERVER,
       toolNames: allNames,
       agentId,
     });
@@ -4206,12 +4288,13 @@ test.describe("MCP - switching a whole server off", () => {
     );
 
     const { data: stored } = await aiTools.getDisabledTools("owner", agentId);
-    expect(stored?.docspace, "every name is stored, in order").toEqual(
-      allNames,
-    );
+    expect(
+      stored?.[DISABLE_TARGET_SERVER],
+      "every name is stored, in order",
+    ).toEqual(allNames);
     for (const toolName of [allNames[0], allNames[allNames.length - 1]]) {
       const { data: isDisabled } = await aiTools.isToolDisabled("owner", {
-        serverType: "docspace",
+        serverType: DISABLE_TARGET_SERVER,
         toolName,
         agentId,
       });
@@ -4222,21 +4305,21 @@ test.describe("MCP - switching a whole server off", () => {
     // other tool of that server is on again.
     const survivor = allNames[0];
     const narrowed = await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
+      serverType: DISABLE_TARGET_SERVER,
       toolNames: [survivor],
       agentId,
     });
     expect(narrowed.data?.success).toBe(true);
 
     const { data: after } = await aiTools.getDisabledTools("owner", agentId);
-    expect(after?.docspace).toEqual([survivor]);
+    expect(after?.[DISABLE_TARGET_SERVER]).toEqual([survivor]);
     const { data: stillDisabled } = await aiTools.isToolDisabled("owner", {
-      serverType: "docspace",
+      serverType: DISABLE_TARGET_SERVER,
       toolName: survivor,
       agentId,
     });
     const { data: reEnabled } = await aiTools.isToolDisabled("owner", {
-      serverType: "docspace",
+      serverType: DISABLE_TARGET_SERVER,
       toolName: allNames[1],
       agentId,
     });
@@ -4376,78 +4459,13 @@ test.describe("MCP - switching a whole server off", () => {
     expect(isDisabled, "and no tool of it reads back as off").toBe(false);
   });
 
-  test("BUG 83013: PUT /api/2.0/ai/tools/set-disabled - a server switched off tool by tool still leaves the model every tool", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    // The whole-server case of BUG 83013, and the only place the requirement can
-    // be checked against the model at all: a custom server's tools never reach it
-    // (BUG 82989), so `docspace` — the one server whose tools the model really
-    // has — is the only subject available.
-    //
-    // Everything the catalogue publishes is disabled, plus the three tool tokens
-    // the model actually answers with, in both scopes. Nothing is left that could
-    // legitimately be called. The positive control is the first test of the block
-    // above: the same prompt on an untouched agent calls
-    // `docspace_generate_docx`.
-    //
-    // The assertion is deliberately a compound one, the same reading as BUG 82989.
-    // "No tool was called" alone is not enough to call the server off: the model
-    // sometimes answers a document request in prose without reaching for anything,
-    // and that would look like a fix. A server that is really off means both
-    // halves — no tool call AND the model saying it has none, in the exact words
-    // the prompt asks for. Either half missing is the bug, and the failure message
-    // says which.
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-    const { profileId, agentId } = await setupChat(
-      aiChat,
-      "Autotest Server Off Agent",
-    );
-
-    const realTools = [
-      "generate_docx",
-      "generate_presentation",
-      "generate_form",
-    ];
-    const toolNames = [
-      ...new Set([
-        ...(await builtInToolNames(aiTools)),
-        ...realTools,
-        ...realTools.map((name) => `docspace_${name}`),
-      ]),
-    ];
-
-    for (const scope of [{ agentId }, {}]) {
-      const { data } = await aiTools.setDisabledTools("owner", {
-        serverType: "docspace",
-        toolNames,
-        ...scope,
-      });
-      expect(data?.success, "the whole built-in server is off").toBe(true);
-    }
-
-    const { data: stored } = await aiTools.getDisabledTools("owner", agentId);
-    expect(
-      stored?.docspace,
-      "the setting is in force before the question",
-    ).toEqual(toolNames);
-
-    const asked = await askForDocument(aiChat, {
-      profileId,
-      agentId,
-      title: "Whole built-in server off",
-    });
-
-    test.fail();
-    expect(
-      asked.calledTools.length === 0 && asked.reply.includes(NO_TOOL_SENTINEL),
-      `the whole server was off; the model called [${asked.calledTools.join(", ") || "nothing"}] and answered "${asked.reply.slice(0, 160)}"`,
-    ).toBe(true);
-  });
+  // The whole-server case of BUG 83013 stood here: `docspace` switched off tool
+  // by tool, both name spellings, both scopes, and the model still calling every
+  // one of them. It cannot be staged any more — a `docspace` write is dropped
+  // rather than stored since the built-in tools were hidden on 2026-08-18, and
+  // they are not meant to be switchable at all. What is left of the subject is
+  // in "MCP - disabling a tool the model really has": the write is accepted, the
+  // reads stay empty, and the model keeps the tool.
 });
 
 // ---------------------------------------------------------------------------
@@ -4570,10 +4588,14 @@ test.describe("MCP - a registered server in the tool list", () => {
       "credentials included",
     ).toEqual(CALCULATOR_MCP_SERVER);
 
-    // Control 3: the route itself works — the built-in tools are there.
+    // Control 3: the route itself answers. It cannot be a stronger control than
+    // that any more — since the tools were hidden on 2026-08-18 the catalogue is
+    // empty for everyone, so "the registered server is missing from it" no
+    // longer says anything specific about custom servers. Kept because the
+    // registration controls above still do: the server is stored, readable and
+    // credentialed, and the model is never offered it.
     const catalogue = await aiTools.listSystemTools("owner");
     expect(catalogue.status).toBe(200);
-    expect(catalogue.data?.docspace?.length).toBeGreaterThan(0);
 
     const listed = Object.entries(catalogue.data ?? {}).flatMap(
       ([serverType, tools]) =>
@@ -4667,7 +4689,9 @@ function isGeneratorTool(toolName: string | undefined): boolean {
  *   * SUCCEEDED — the DocSpace payload, which echoes the request in `links[].href`:
  *     `"href": "https://<portal>/api/2.0/files/rooms?…"`;
  *   * NEVER SENT — a DNS failure, which names no URL at all:
- *     `fetch failed\n\tgetaddrinfo ENOTFOUND integration-test-portal-…`.
+ *     `fetch failed\n\tgetaddrinfo ENOTFOUND integration-test-portal-…`. This one
+ *     is the signature of a bad `Origin` on our side rather than of a broken
+ *     engine — that host is the portal's registration name, see `AiHttp.headers()`.
  *
  * `host` is therefore the only field always present, and the assertions are all
  * on it. Matching the URL on the `/api/2.0/` path drops what is not a portal call
@@ -4721,10 +4745,13 @@ async function driveToolCalls(
     entityId: number | string;
     message: string;
     rounds?: number;
+    /** Whose chat it is; the owner's unless a test says otherwise. */
+    role?: AgentRole;
   },
 ) {
+  const role = body.role ?? "owner";
   let stream: { status: number; text: string } = await aiChat.sendMessage(
-    "owner",
+    role,
     {
       threadId: body.threadId,
       profileId: body.profileId,
@@ -4739,7 +4766,7 @@ async function driveToolCalls(
   for (let round = 0; round < (body.rounds ?? 5); round += 1) {
     const pending = AiAgentChat.pendingToolCall(stream.text);
     if (!pending) break;
-    stream = await aiChat.approveToolCall("owner", {
+    stream = await aiChat.approveToolCall(role, {
       threadId: body.threadId,
       messageId: pending.messageId,
       idx: pending.idx ?? 0,
@@ -4749,7 +4776,7 @@ async function driveToolCalls(
     });
   }
 
-  const { data: messages } = await aiChat.readMessages("owner", body.threadId);
+  const { data: messages } = await aiChat.readMessages(role, body.threadId);
   const calls = AiAgentChat.assistantMessages(messages).flatMap((message) =>
     AiAgentChat.toolCalls(message),
   );
@@ -4761,20 +4788,464 @@ async function driveToolCalls(
   };
 }
 
+/**
+ * The three generators the requirement names — "tools for creating docx, forms
+ * and presentations: confirming the call opens the finished file".
+ *
+ * One row per tool: the flow is identical, and everything that differs is what
+ * the client is finally handed — which is the half of the requirement a file id
+ * does not prove. `generate_image` is the fourth of the family and deliberately
+ * absent: it never resolves (BUG 82861) and has tests of its own in chat.spec.ts.
+ *
+ * `promised` is what each tool's NAME commits it to, not what it does. Measured
+ * on 2026-08-18, all three answer with the same thing — one blank 6942-byte
+ * `.docx`, `documentType: "word"`, `isForm: false`, identical byte length across
+ * the three, and `word/document.xml` with no text in it at all. So the shared
+ * flow is asserted in the green test below (a file is created, filed and opens),
+ * and each `promised` field is asserted in a `test.fail` test of its own, where
+ * the correct value is stated rather than the current one.
+ */
+type GeneratorSpec = {
+  label: string;
+  toolName: string;
+  /**
+   * The request. Steered onto the built-in generator for the reason
+   * `ASK_FOR_DOCX` spells out — the REST family is offered in an agent scope
+   * too, and `upload_file` must not be what answers a "make me a document".
+   */
+  ask: string;
+  promised: {
+    extension: string;
+    /** `documentType` of the editor config, i.e. which editor opens it. */
+    documentType: string;
+    /** `document.isForm` — whether it opens in form-filling mode. */
+    isForm: boolean;
+    /** An OOXML member every valid file of this kind carries. */
+    zipEntry: string;
+  };
+};
+
+const GENERATORS: GeneratorSpec[] = [
+  {
+    label: "a document",
+    toolName: BUILT_IN_DOC_TOOL_TOKEN,
+    ask: ASK_FOR_DOCX,
+    promised: {
+      extension: ".docx",
+      documentType: "word",
+      isForm: false,
+      zipEntry: "word/document.xml",
+    },
+  },
+  {
+    label: "a presentation",
+    toolName: "docspace_generate_presentation",
+    ask:
+      "Generate a presentation titled ProbeDeck with three slides about the water cycle. " +
+      "Use only your built-in presentation generator — do not call any DocSpace file, folder, room or people API tool. " +
+      `If you have no tool for that, reply with exactly: ${NO_TOOL_SENTINEL}`,
+    promised: {
+      extension: ".pptx",
+      documentType: "slide",
+      isForm: false,
+      zipEntry: "ppt/presentation.xml",
+    },
+  },
+  {
+    label: "a form",
+    toolName: "docspace_generate_form",
+    ask:
+      "Generate a fillable form titled ProbeForm with a field for a full name and a field for an email address. " +
+      "Use only your built-in form generator — do not call any DocSpace file, folder, room or people API tool. " +
+      `If you have no tool for that, reply with exactly: ${NO_TOOL_SENTINEL}`,
+    promised: {
+      // A DocSpace form is a PDF; the flag below is the format-independent half
+      // of the claim and the one the test asserts.
+      extension: ".pdf",
+      documentType: "pdf",
+      isForm: true,
+      zipEntry: "",
+    },
+  },
+];
+
+/** The `{"data":{"id":…,"title":"….docx","parentId":…}}` a generator reports. */
+function generatedFile(result: unknown): {
+  id?: number;
+  title?: string;
+  parentId?: number;
+} {
+  try {
+    return (
+      (
+        JSON.parse(String(result)) as {
+          data?: { id?: number; title?: string; parentId?: number };
+        }
+      ).data ?? {}
+    );
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * "Confirming the call opens the finished file" — the clause a stored file id
+ * says nothing about, in the three readings a client goes through:
+ *
+ *   * `getFileInfo` — DocSpace has an entry, with bytes and a URL to open;
+ *   * `openEditFile` — the editor configuration the "open the file" step is
+ *     built from really resolves: a document key, an editor url, no
+ *     `errorMessage`. This is the call the client makes on confirmation, so it
+ *     is the requirement stated directly;
+ *   * the bytes — a package something could actually parse. Neither read above
+ *     looks inside the file, and DocSpace serves an editor config for a `.docx`
+ *     that is not a zip at all just as happily.
+ *
+ * Format-independent on purpose. What KIND of file each tool owes the user is
+ * asserted per generator in the `promised` tests below, where today's answer is
+ * the wrong one — pinning it here would bake it into every caller of this
+ * helper.
+ */
+async function expectGeneratedFileOpens(
+  apiSdk: ApiSDK,
+  role: Role,
+  fileId: number,
+) {
+  const api = apiSdk.forRole(role);
+
+  const info = await api.files.getFileInfo({ fileId });
+  expect(info.status, `${role} reads the generated file`).toBe(200);
+  expect(
+    info.data.response?.pureContentLength ?? 0,
+    "the generated file is not empty",
+  ).toBeGreaterThan(0);
+  expect(
+    info.data.response?.webUrl,
+    "the client is given a URL to open it with",
+  ).toBeTruthy();
+
+  const opened = await api.files.openEditFile({ fileId });
+  expect(opened.status, "the editor configuration is served").toBe(200);
+  const config = opened.data.response;
+  expect(
+    config?.errorMessage ?? null,
+    "the editor config reports no error",
+  ).toBeNull();
+  expect(config?.document?.key, "the document has an editor key").toBeTruthy();
+  expect(config?.editorUrl, "the config names an editor").toBeTruthy();
+  expect(
+    config?.document?.title,
+    "the editor opens the file that was generated",
+  ).toBe(info.data.response?.title);
+
+  const bytes = await downloadFile(apiSdk, role, fileId);
+  expect(bytes.length, "the stored file has bytes").toBeGreaterThan(0);
+  expect(
+    bytes.subarray(0, 2).toString("latin1"),
+    "the generated file is a zip package",
+  ).toBe("PK");
+
+  return { info: info.data.response, config, bytes };
+}
+
+/**
+ * Drives one generator to a finished file and hands back everything the
+ * assertions need. Shared by the green test and the three `promised` ones, so a
+ * defect test cannot drift from the flow it is a defect of.
+ */
+async function generateFile(
+  apiSdk: ApiSDK,
+  aiChat: AiAgentChat,
+  generator: GeneratorSpec,
+  agentTitle: string,
+) {
+  const ownerApi = apiSdk.forRole("owner");
+  const profileId = await aiChat.defaultProfileId("owner");
+  const agentId = await aiChat.createAgentId("owner", {
+    title: agentTitle,
+    profileId,
+  });
+  const resultStorageId = await agentStorageFolderId(
+    ownerApi,
+    agentId,
+    FolderType.ResultStorage,
+  );
+  const threadId = await aiChat.createThreadId("owner", {
+    title: `Autotest ${generator.toolName} thread`,
+    profileId,
+    agentId,
+  });
+
+  const driven = await driveToolCalls(aiChat, {
+    threadId,
+    profileId,
+    entityId: agentId,
+    message: generator.ask,
+  });
+  const call = driven.calls.find(
+    (item) => item.toolName === generator.toolName,
+  );
+  expect(
+    call,
+    `the model called ${JSON.stringify(driven.calls.map((item) => item.toolName))} and answered "${driven.reply.slice(0, 160)}"`,
+  ).toBeDefined();
+
+  const created = generatedFile(call!.result);
+  expect(created.id, `tool result was ${call!.result}`).toEqual(
+    expect.any(Number),
+  );
+
+  return { agentId, profileId, threadId, resultStorageId, driven, created };
+}
+
 test.describe("MCP - the server-executed DocSpace tools", () => {
-  test("POST /api/2.0/ai/ai/approve-tool-call - an agent's generate_docx really writes the document into Result Storage", async ({
+  for (const generator of GENERATORS) {
+    test(`POST /api/2.0/ai/ai/approve-tool-call - an agent's ${generator.toolName} writes ${generator.label} into Result Storage, and it opens`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      // The positive control for the whole family, and the one that says the tool
+      // ran rather than that the model said it had: the approval is answered with
+      // the created file's id, that file is then read back out of DocSpace, and
+      // the editor configuration a client would open it with is built from it.
+      //
+      // Result Storage, not "the Files section the user asked for": the agent room
+      // root takes no files at all, so an agent-scoped chat has exactly one place
+      // to put what it produces. The model's own sentence about where the file went
+      // is deliberately not asserted — it is prose, and on the measured runs it
+      // claimed "in your Files section" for a file that landed here.
+      test.setTimeout(300000);
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const { profileId, agentId } = await setupChat(
+        aiChat,
+        "Autotest Server Tool Agent",
+      );
+      const resultStorageId = await agentStorageFolderId(
+        ownerApi,
+        agentId,
+        FolderType.ResultStorage,
+      );
+      const threadId = await aiChat.createThreadId("owner", {
+        title: `Autotest ${generator.toolName} thread`,
+        profileId,
+        agentId,
+      });
+
+      const { data: myDocs } = await ownerApi.folders.getMyFolder({});
+      const myDocsId = myDocs.response!.current!.id!;
+
+      const driven = await driveToolCalls(aiChat, {
+        threadId,
+        profileId,
+        entityId: agentId,
+        message: generator.ask,
+      });
+
+      // The pause is the engine's, not a client tool's: nothing was offered in
+      // actionArgs, and the frame says the server will run the call.
+      expect(
+        driven.firstPending,
+        `the model did not ask for a tool; frames were ${driven.sendFrames.join(", ")}`,
+      ).toBeDefined();
+      expect(driven.firstPending!.serverExecuted).toBe(true);
+
+      const generated = driven.calls.filter(
+        (call) => call.toolName === generator.toolName,
+      );
+      expect(
+        generated.map((call) => call.toolName),
+        `the model called ${JSON.stringify(driven.calls.map((call) => call.toolName))} and answered "${driven.reply.slice(0, 160)}"`,
+      ).toEqual([generator.toolName]);
+      expect(generated[0].args).toMatchObject({ fileName: expect.any(String) });
+
+      // What the engine reported back — the created file, not a string a client
+      // made up: `{"data":{"id":…,"title":"….docx","parentId":…}}`.
+      const created = generatedFile(generated[0].result);
+      expect(created.id, `tool result was ${generated[0].result}`).toEqual(
+        expect.any(Number),
+      );
+      expect(created.title, "the result names the file it created").toEqual(
+        expect.any(String),
+      );
+      expect(
+        created.parentId,
+        `${generator.label} is filed in the agent's Result Storage`,
+      ).toBe(resultStorageId);
+
+      // And DocSpace really has it — the tool result alone would only prove the
+      // engine claimed a file id.
+      const { data: storage, status } =
+        await ownerApi.folders.getFolderByFolderId({
+          folderId: resultStorageId,
+        });
+      expect(status).toBe(200);
+      const stored = (storage.response?.files ?? []) as Array<{
+        id?: number;
+        title?: string;
+      }>;
+      expect(stored.map((file) => file.id)).toContain(created.id);
+      expect(stored.map((file) => file.title)).toContain(created.title);
+
+      // "Confirming the call opens the finished file" — everything above proves
+      // a row in a folder listing, this proves a file the editor can open.
+      // WHAT it opens is the three tests after this one.
+      await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
+
+      // And it is not ALSO in personal documents — the agent had a section of its
+      // own, so My Documents is not a destination it may fall back to. Matched on
+      // the created id rather than on a before/after count: a fresh portal is still
+      // seeding its four sample files while the chat runs, and counting them would
+      // make this race.
+      const personal = ((
+        await ownerApi.folders.getFolderByFolderId({ folderId: myDocsId })
+      ).data.response?.files ?? []) as Array<{ id?: number; title?: string }>;
+      expect(
+        personal.map((file) => file.id),
+        `My Documents holds ${JSON.stringify(personal.map((file) => file.title))}`,
+      ).not.toContain(created.id);
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // What the finished file actually IS. The test above proves a file was
+  // created, filed and openable; these three ask whether it is the thing the
+  // tool is named after, which is the whole of "tools for creating docx, forms
+  // and presentations".
+  //
+  // Measured on 2026-08-18: all three tools answer identically — one blank
+  // `.docx` of 6942 bytes, byte-for-byte the same length whichever tool ran,
+  // `documentType: "word"`, `isForm: false`, `word/document.xml` present and
+  // empty. The arguments the model sends are not the problem: the presentation
+  // call carried `{topic: "water cycle", slideCount: "3", style: "modern"}` and
+  // the form call a description of both fields, and none of it reaches the file.
+  //
+  // Three tests rather than one so a partial fix reads correctly, and each one
+  // `test.fail` on the CORRECT expectation rather than green on today's answer.
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The positive control for the whole family, and the one that says the tool
-    // ran rather than that the model said it had: the approval is answered with
-    // the created file's id, and that file is then read back out of DocSpace.
+    // The requirement says the finished file opens. It opens and it is empty:
+    // the sentence the call described is nowhere in it, and the assistant adds
+    // no text of its own either.
     //
-    // Result Storage, not "the Files section the user asked for": the agent room
-    // root takes no files at all, so an agent-scoped chat has exactly one place
-    // to put what it produces. The model's own sentence about where the file went
-    // is deliberately not asserted — it is prose, and on the measured runs it
-    // claimed "in your Files section" for a file that landed here.
+    // Two ways out are accepted, because there are two designs the product
+    // could mean and only the user-visible result is being asserted: either the
+    // bytes carry the document, or the editor configuration carries the state
+    // that would let the editor produce it — `generationToolCallState`, which
+    // the DTO documents as "used to run the agent flow in the editor". Today
+    // neither holds: the field is absent from the config.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { created } = await generateFile(
+      apiSdk,
+      aiChat,
+      GENERATORS[0],
+      "Autotest Blank Document Agent",
+    );
+
+    // Read everything before the verdict: nothing between here and test.fail()
+    // may assert, or a build that fixed this would stay red for another reason.
+    const opened = await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
+    const text = extractDocxText(opened.bytes);
+    const continued = opened.config?.generationToolCallState?.toolName;
+
+    test.fail();
+    expect(
+      { text: text.slice(0, 200), generationToolCallState: continued },
+      "the generated document holds the content the call described, or the editor is told to produce it",
+    ).not.toEqual({ text: "", generationToolCallState: undefined });
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a text document", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // `docspace_generate_presentation` produces `ProbeDeck.docx`, which the Word
+    // editor opens. There is no way for the user to get a deck out of this: the
+    // container has no slides to hold and a `.docx` cannot be edited into one.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const generator = GENERATORS[1];
+    const { created } = await generateFile(
+      apiSdk,
+      aiChat,
+      generator,
+      "Autotest Presentation Agent",
+    );
+    const opened = await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
+    const measured = {
+      fileExst: opened.info?.fileExst,
+      documentType: opened.config?.documentType,
+      hasSlides: listDocxEntries(opened.bytes).includes(
+        generator.promised.zipEntry,
+      ),
+    };
+
+    test.fail();
+    expect(measured, `the tool created "${created.title}"`).toEqual({
+      fileExst: generator.promised.extension,
+      documentType: generator.promised.documentType,
+      hasSlides: true,
+    });
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - the form generator writes an ordinary document, not a form", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // `docspace_generate_form` produces `ProbeForm.docx` with `isForm: false`,
+    // so the editor opens it for editing and no one can fill it in — the fields
+    // the call described do not exist as fields.
+    //
+    // `isForm` is the assertion rather than the extension: it is the flag the
+    // editor decides form-filling mode on, so it stays correct whichever
+    // container DocSpace forms are cast in.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { created } = await generateFile(
+      apiSdk,
+      aiChat,
+      GENERATORS[2],
+      "Autotest Form Agent",
+    );
+    const opened = await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
+    const isForm = opened.config?.document?.isForm ?? false;
+
+    test.fail();
+    expect(
+      isForm,
+      `the tool created "${created.title}", which the editor opens as an ordinary document`,
+    ).toBe(true);
+  });
+
+  test("POST /api/2.0/ai/ai/deny-tool-call - a refused generator writes no file at all", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The other half of the confirmation dialog. Deny is covered for a
+    // client-supplied tool — the refusal reaches the model and the reply finishes
+    // — but a client tool has nothing to leave behind. A server-executed one
+    // does: the engine, not the client, would run it, so "the user said no" has
+    // to mean the document was never written.
+    //
+    // Both decisions are taken in one test on purpose. "Result Storage is empty"
+    // is also what a portal where the tool never ran at all would report, so the
+    // approve leg below is the positive control that makes the empty read mean
+    // something — the same agent, the same request, one thread apart.
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -4782,84 +5253,378 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const { profileId, agentId } = await setupChat(
       aiChat,
-      "Autotest Server Tool Agent",
+      "Autotest Denied Generator Agent",
     );
     const resultStorageId = await agentStorageFolderId(
       ownerApi,
       agentId,
       FolderType.ResultStorage,
     );
-    const threadId = await aiChat.createThreadId("owner", {
-      title: "Autotest server-executed tool thread",
+
+    const storedFiles = async () => {
+      const { data, status } = await ownerApi.folders.getFolderByFolderId({
+        folderId: resultStorageId,
+      });
+      expect(status, "the agent's Result Storage is readable").toBe(200);
+      return (data.response?.files ?? []) as Array<{
+        id?: number;
+        title?: string;
+      }>;
+    };
+
+    // Setup premise: nothing is in there before the conversation, or the
+    // assertions below would be measuring the portal's seed data.
+    expect(await storedFiles(), "Result Storage starts empty").toEqual([]);
+
+    await test.step("the refused call", async () => {
+      const threadId = await aiChat.createThreadId("owner", {
+        title: "Autotest denied generator thread",
+        profileId,
+        agentId,
+      });
+
+      let stream: { status: number; text: string } = await aiChat.sendMessage(
+        "owner",
+        {
+          threadId,
+          profileId,
+          agentId,
+          message: ASK_FOR_DOCX,
+          timeoutMs: 180000,
+        },
+      );
+      const pending = AiAgentChat.pendingToolCall(stream.text);
+      expect(
+        pending,
+        `the model did not ask for a tool; frames were ${AiAgentChat.frameTypes(stream.text).join(", ")}`,
+      ).toBeDefined();
+      expect(pending!.serverExecuted).toBe(true);
+
+      // Denying once is not enough to end the turn: the model may ask again, and
+      // a run that stopped at the first refusal would leave a second, unanswered
+      // call pending and could not tell whether anything was written.
+      for (let round = 0; round < 3; round += 1) {
+        const next = AiAgentChat.pendingToolCall(stream.text);
+        if (!next) break;
+        stream = await aiChat.denyPendingToolCall("owner", next, {
+          threadId,
+          profileId,
+          agentId,
+        });
+        expect(stream.status, `deny ${round}`).toBe(200);
+      }
+
+      // The refusal is a decision, not a failure: the thread carries on.
+      const { data: messages } = await aiChat.readMessages("owner", threadId);
+      const calls = AiAgentChat.assistantMessages(messages).flatMap((message) =>
+        AiAgentChat.toolCalls(message),
+      );
+      expect(
+        calls.map((call) => call.toolName),
+        "the tool call stays in the transcript",
+      ).toContain(BUILT_IN_DOC_TOOL_TOKEN);
+      for (const call of calls.filter(
+        (item) => item.toolName === BUILT_IN_DOC_TOOL_TOKEN,
+      )) {
+        expect(
+          generatedFile(call.result).id,
+          `a denied call reported a file: ${call.result}`,
+        ).toBeUndefined();
+      }
+
+      expect(
+        await storedFiles(),
+        "nothing was written for a call the user refused",
+      ).toEqual([]);
+    });
+
+    await test.step("the same request, approved", async () => {
+      const threadId = await aiChat.createThreadId("owner", {
+        title: "Autotest approved generator thread",
+        profileId,
+        agentId,
+      });
+
+      const driven = await driveToolCalls(aiChat, {
+        threadId,
+        profileId,
+        entityId: agentId,
+        message: ASK_FOR_DOCX,
+      });
+      const generated = driven.calls.find(
+        (call) => call.toolName === BUILT_IN_DOC_TOOL_TOKEN,
+      );
+      expect(
+        generated,
+        `the control leg called ${JSON.stringify(driven.calls.map((call) => call.toolName))}`,
+      ).toBeDefined();
+
+      const created = generatedFile(generated!.result);
+      expect(created.id, `tool result was ${generated!.result}`).toEqual(
+        expect.any(Number),
+      );
+      expect(
+        (await storedFiles()).map((file) => file.id),
+        "an approved call does write into Result Storage",
+      ).toContain(created.id);
+    });
+  });
+
+  test("POST /api/2.0/ai/ai/approve-tool-call - Allow with allowAlways stops the generator asking again", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The dialog's checkbox, on the tools the dialog is really shown for. It is
+    // covered for a client-supplied tool, and that says nothing about these: the
+    // built-in `docspace` server was hidden from the tools surface on 2026-08-18
+    // and its `set-disabled` writes are dropped (see the disabling block above),
+    // so whether the persisted pre-approval still applies to a generator is a
+    // separate question with a user-visible answer — a confirmation dialog that
+    // cannot be turned off.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId } = await setupChat(
+      aiChat,
+      "Autotest Generator Allow Always Agent",
+    );
+
+    /**
+     * One turn that reaches the generator, in a thread of its own.
+     *
+     * Retried, because "did a dialog come up" can only be read off a turn that
+     * asked for the tool at all, and the model sometimes answers the same request
+     * in prose (measured once in four). A retry is honest here in a way it would
+     * not be for the decision itself: nothing about the pre-approval changes
+     * between attempts, and a turn with no tool call carries no answer to the
+     * question either way.
+     *
+     * `pending` absent while `usedTool` holds is not a failed read — it is the
+     * strongest form of "no dialog": the engine ran the tool without stopping.
+     */
+    const askForDocx = async (title: string) => {
+      let frames: string[] = [];
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const threadId = await aiChat.createThreadId("owner", {
+          title: `${title} #${attempt}`,
+          profileId,
+          agentId,
+        });
+        const sent = await aiChat.sendMessage("owner", {
+          threadId,
+          profileId,
+          agentId,
+          message: ASK_FOR_DOCX,
+          timeoutMs: 180000,
+        });
+        frames = AiAgentChat.frameTypes(sent.text);
+        const pending = AiAgentChat.pendingToolCall(sent.text);
+        const { data: messages } = await aiChat.readMessages("owner", threadId);
+        const usedTool = AiAgentChat.assistantMessages(messages)
+          .flatMap((message) => AiAgentChat.toolCalls(message))
+          .some((call) => call.toolName === BUILT_IN_DOC_TOOL_TOKEN);
+
+        if (pending || usedTool) {
+          return { threadId, pending, usedTool, frames };
+        }
+      }
+      throw new Error(
+        `${title}: the model never reached for the generator in 3 turns; last frames were ${frames.join(", ")}`,
+      );
+    };
+
+    const first = await askForDocx("Autotest generator before allow-always");
+    expect(
+      first.pending,
+      `the first call has to prompt, or there is no checkbox to tick; frames were ${first.frames.join(", ")}`,
+    ).toBeDefined();
+    expect(first.pending!.autoAllow, "the first call prompts").toBe(false);
+
+    // Approved through the dialog's own transport — the checkbox rides along
+    // with the decision. No `result`: the engine runs a server-executed tool
+    // itself.
+    const firstPending = first.pending!;
+    const approve = await aiChat.approveToolCall("owner", {
+      threadId: first.threadId,
+      messageId: firstPending.messageId,
+      idx: firstPending.idx ?? 0,
+      message: firstPending.message,
+      entityId: String(agentId),
+      profileId,
+      allowAlways: true,
+    });
+    expect(approve.status).toBe(200);
+
+    // Persisted where the settings screen reads it, or the checkbox was
+    // decoration. Both spellings are accepted answers: the model is offered
+    // `docspace_generate_docx` and the pair the setting is keyed on is
+    // (`docspace`, `generate_docx`).
+    const stored = await aiTools.getAllowAlways("owner", agentId);
+    expect(stored.status).toBe(200);
+    expect(
+      (stored.data ?? []).filter((name) =>
+        [BUILT_IN_DOC_TOOL, BUILT_IN_DOC_TOOL_TOKEN].includes(name),
+      ),
+      `the pre-approval list holds ${JSON.stringify(stored.data)}`,
+    ).not.toEqual([]);
+
+    // The requirement itself: the next document does not stop for a dialog. A
+    // fresh thread, so only the stored decision can carry it over.
+    //
+    // "No dialog" has two shapes and both count: the pause frame comes back
+    // flagged `autoAllow`, or there is no pause at all because the engine ran
+    // the tool straight through. What must not happen is a frame that prompts.
+    const second = await askForDocx("Autotest generator after allow-always");
+    expect(
+      second.pending === undefined || second.pending.autoAllow === true,
+      `the generator still stopped for a dialog; frames were ${second.frames.join(", ")}`,
+    ).toBe(true);
+  });
+
+  test("POST /api/2.0/ai/ai/approve-tool-call - a member of the agent generates a document and can open it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Every generator test in this file drives the chat as the portal owner, who
+    // can write anywhere. A member cannot: ContentCreator is the lowest level
+    // that may use an agent at all, and the file lands in a folder the member
+    // does not own. Two things are worth pinning because the UI has no other
+    // outcome to offer — the document is filed in the agent's Result Storage the
+    // same way, and the member who asked for it can open it.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId } = await setupChat(
+      aiChat,
+      "Autotest Member Generator Agent",
+    );
+    const resultStorageId = await agentStorageFolderId(
+      ownerApi,
+      agentId,
+      FolderType.ResultStorage,
+    );
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+    await inviteToAgent(ownerApi.rooms, agentId, memberId);
+    // Setup premise: the conversation below really is the member's. A shared
+    // request context that fell back to the owner's session would make this test
+    // a second owner run wearing a member's name.
+    await aiChat.expectActingAs("user", memberId, "the invited member");
+
+    const threadId = await aiChat.createThreadId("user", {
+      title: "Autotest member generator thread",
       profileId,
       agentId,
     });
-
-    const { data: myDocs } = await ownerApi.folders.getMyFolder({});
-    const myDocsId = myDocs.response!.current!.id!;
 
     const driven = await driveToolCalls(aiChat, {
       threadId,
       profileId,
       entityId: agentId,
       message: ASK_FOR_DOCX,
+      role: "user",
     });
 
-    // The pause is the engine's, not a client tool's: nothing was offered in
-    // actionArgs, and the frame says the server will run the call.
     expect(
       driven.firstPending,
       `the model did not ask for a tool; frames were ${driven.sendFrames.join(", ")}`,
     ).toBeDefined();
-    expect(driven.firstPending!.serverExecuted).toBe(true);
-
-    const generated = driven.calls.filter(
+    const generated = driven.calls.find(
       (call) => call.toolName === BUILT_IN_DOC_TOOL_TOKEN,
     );
     expect(
-      generated.map((call) => call.toolName),
-      `the model answered "${driven.reply.slice(0, 160)}"`,
-    ).toEqual([BUILT_IN_DOC_TOOL_TOKEN]);
-    expect(generated[0].args).toMatchObject({ fileName: expect.any(String) });
+      generated,
+      `the member's chat called ${JSON.stringify(driven.calls.map((call) => call.toolName))} and answered "${driven.reply.slice(0, 160)}"`,
+    ).toBeDefined();
 
-    // What the engine reported back — the created file, not a string a client
-    // made up: `{"data":{"id":…,"title":"….docx","parentId":…}}`.
-    const created = JSON.parse(String(generated[0].result)) as {
-      data?: { id?: number; title?: string; parentId?: number };
-    };
-    expect(created.data?.id, `tool result was ${generated[0].result}`).toEqual(
+    const created = generatedFile(generated!.result);
+    expect(created.id, `tool result was ${generated!.result}`).toEqual(
       expect.any(Number),
     );
-    expect(created.data?.title).toMatch(/\.docx$/);
     expect(
-      created.data?.parentId,
-      "the document is filed in the agent's Result Storage",
+      created.parentId,
+      "a member's document is filed in the agent's Result Storage too",
     ).toBe(resultStorageId);
 
-    // And DocSpace really has it — the tool result alone would only prove the
-    // engine claimed a file id.
-    const { data: storage, status } =
-      await ownerApi.folders.getFolderByFolderId({ folderId: resultStorageId });
+    // The member's own read, which is the one the requirement is about: they
+    // confirmed the call, so the finished file has to open for them.
+    await expectGeneratedFileOpens(apiSdk, "user", created.id!);
+  });
+
+  test("POST /api/2.0/ai/ai/approve-tool-call - a document generated in a room chat is filed in that room", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The same tool from the other kind of chat. An agent scope has exactly one
+    // place to put a file, which is what makes the tests above easy; a chat
+    // opened on an ordinary room does not, and nothing in the API says where the
+    // result goes. The room the chat is about is the only answer a client could
+    // present as "your file is ready" — anywhere else and the user is told a
+    // document was created and cannot find it.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { data: room, status: roomStatus } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Generator Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    expect(roomStatus, "the room the chat is opened on").toBe(200);
+    const roomId = room.response!.id!;
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest room generator thread",
+      profileId,
+      agentId: roomId,
+    });
+
+    const driven = await driveToolCalls(aiChat, {
+      threadId,
+      profileId,
+      entityId: roomId,
+      message: ASK_FOR_DOCX,
+    });
+
+    const generated = driven.calls.find(
+      (call) => call.toolName === BUILT_IN_DOC_TOOL_TOKEN,
+    );
+    expect(
+      generated,
+      `the room chat called ${JSON.stringify(driven.calls.map((call) => call.toolName))} and answered "${driven.reply.slice(0, 160)}"`,
+    ).toBeDefined();
+
+    const created = generatedFile(generated!.result);
+    expect(created.id, `tool result was ${generated!.result}`).toEqual(
+      expect.any(Number),
+    );
+
+    const { data: listing, status } =
+      await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
     expect(status).toBe(200);
-    const stored = (storage.response?.files ?? []) as Array<{
+    const stored = (listing.response?.files ?? []) as Array<{
       id?: number;
       title?: string;
     }>;
-    expect(stored.map((file) => file.id)).toContain(created.data!.id);
-    expect(stored.map((file) => file.title)).toContain(created.data!.title);
-
-    // And it is not ALSO in personal documents — the agent had a section of its
-    // own, so My Documents is not a destination it may fall back to. Matched on
-    // the created id rather than on a before/after count: a fresh portal is still
-    // seeding its four sample files while the chat runs, and counting them would
-    // make this race.
-    const personal = ((
-      await ownerApi.folders.getFolderByFolderId({ folderId: myDocsId })
-    ).data.response?.files ?? []) as Array<{ id?: number; title?: string }>;
     expect(
-      personal.map((file) => file.id),
-      `My Documents holds ${JSON.stringify(personal.map((file) => file.title))}`,
-    ).not.toContain(created.data!.id);
+      created.parentId,
+      `the document went to folder ${created.parentId}, not to the room the chat was opened on`,
+    ).toBe(roomId);
+    expect(stored.map((file) => file.id)).toContain(created.id);
+
+    await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
   });
 
   test("POST /api/2.0/ai/ai/send-with-stream - an agent-scoped chat is offered no REST DocSpace tool at all", async ({
@@ -4963,26 +5728,25 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     }
   });
 
-  // The user-visible symptom is an agent in an AI room telling a signed-in Owner
-  // it could not reach Files because the service returned 401. That sentence is
-  // the model's reading of a tool result; what the tool result actually carries is
-  // the request the ENGINE made, and its host is never this portal.
+  // Where a server-executed DocSpace tool sends its request, which is the one
+  // thing about this family a test can pin down: the tool result carries the URL
+  // the ENGINE called, and its host must be the caller's own portal.
   //
-  // Measured on five freshly registered portals on 2026-08-14 — the same stranger
-  // every time and never the portal under test:
+  // This started as BUG 83164 — every call reported a host that was not this
+  // portal, first a stranger's (`docspace-szxr6g…`, 401) and later
+  // `ENOTFOUND integration-test-portal-<rand>-<ts>`. It was OUR bug, closed on
+  // 2026-08-18: the engine resolves the target portal from the request's `Origin`,
+  // and `AiHttp.headers()` was sending the portal's REGISTRATION NAME instead of
+  // its domain — see the note there. `Origin` alone decides it; `Referer`,
+  // `X-Forwarded-Host` and `X-Forwarded-Proto` were measured and change nothing.
   //
-  //   GET https://docspace-szxr6g.onlyoffice.io/api/2.0/files/@my?…: 401 Unauthorized
-  //
-  // so it is a base URL the AI side resolves on its own rather than a stale
-  // session, an expired token or a permission of the caller's. That host answers
-  // an anonymous request 401 as well, so the status says nothing about the token.
-  //
-  // Hence the assertion is the HOST and nothing else — the status cannot carry it,
-  // and neither can the model's sentence. `isError` stays as the secondary check,
-  // and deliberately not as the primary one: the call does not always fail. What
-  // happens when it succeeds is a separate finding with a separate bug — see the
-  // cross-tenant block at the bottom of this file, which is also why `toolHttpCalls`
-  // reads `links[].href` and not only the failure trace.
+  // So this is now the regression test for that: get the header wrong and the
+  // whole family talks to a portal that is not ours, which no status code and no
+  // sentence of the model's would reveal. Hence the assertion is the HOST, with
+  // `isError` as the secondary check — a refused call is the mild outcome, a
+  // stranger's ANSWER is the other one, which is why `toolHttpCalls` reads
+  // `links[].href` too and not only the failure trace (see the cross-tenant block
+  // at the bottom of this file, BUG 83172).
   //
   // Three scopes, because all three are reachable while the user is looking at an
   // AI room and none of them is the agent id that would have been served by the
@@ -5003,7 +5767,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   ];
 
   for (const scope of REST_TOOL_SCOPES) {
-    test(`BUG 83164: POST /api/2.0/ai/ai/approve-tool-call - a server-executed DocSpace tool scoped to ${scope.label} sends its request to another tenant's portal`, async ({
+    test(`POST /api/2.0/ai/ai/approve-tool-call - a server-executed DocSpace tool scoped to ${scope.label} runs against the caller's own portal`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -5074,7 +5838,6 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
         `no request target is visible in ${JSON.stringify(restCalls.map((call) => call.result))}`,
       ).not.toEqual([]);
 
-      test.fail();
       expect(
         requested.filter((http) => http.host !== ourHost),
         `the engine called ${JSON.stringify(requested)} instead of ${ourHost}`,
@@ -5206,5 +5969,461 @@ test.describe("MCP - the DocSpace tools and another tenant's data", () => {
       requested.filter((http) => http.host !== ourHost),
       `the engine talked to ${JSON.stringify(requested)} instead of ${ourHost}`,
     ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "A tool or a server that goes away mid-conversation does not hang the chat:
+// the turn reports the tool as unavailable and the dialogue carries on. A failed
+// server shows an error icon with an expandable log in its row."
+//
+// The blocks above cover the stored side of the switch — what set-disabled keeps,
+// that a whole server goes off in one call, that `remove-custom-server` really
+// unregisters. What none of them covers is the *timing*: every one of them writes
+// the tool state before the first message, so nothing said anything about a write
+// that lands after a conversation has already started.
+//
+// Two constraints shape what can be staged here, and both are other people's bugs
+// rather than gaps in this block:
+//
+//   * A registered server's tools never reach the model (BUG 82989/83163), and
+//     the built-in `docspace` ones cannot be switched off at all — the write is
+//     dropped and the tool stays offered ("MCP - disabling a tool the model
+//     really has"). So "the model lost a tool it had" cannot be staged through
+//     either of those surfaces: there is no observable difference to measure.
+//   * Client-supplied host tools are the one place where a tool the model really
+//     has can be taken away — they live for one request, so withdrawing one from
+//     the next request, or answering its call with a failure, *is* the mid-dialogue
+//     switch as far as the API can see it.
+//
+// So the resilience half is measured on host tools and on the tool-scope writes
+// that happen around them, and the assertions are always the same pair: the turn
+// terminates (`message-end`, no stream error) and the thread answers the next
+// question. A hang shows up as a missing `message-end` or as a send that never
+// returns, not as a status code.
+//
+// The icon-and-log half is not testable beyond its precondition, and the last
+// test pins exactly that: there is no per-server state anywhere on the surface.
+// `/ai/tools/*` has 13 routes (see the header of src/helpers/ai-tools.ts) and none
+// of them reports whether a server answered — `get-custom-server` gives back the
+// config that was written and nothing else. Drawing the icon needs a UI test
+// against whatever the client learns at call time; drawing it from the API is not
+// possible today.
+
+/** A server that is registered and cannot possibly answer. */
+const DEAD_SERVER_CONFIG = {
+  type: "http",
+  url: "https://mcp.example.invalid/mcp",
+};
+
+/**
+ * What a host surface reports when the tool the model asked for is gone — the
+ * "unavailable" of the requirement, in the only shape the API takes it: the
+ * result of an approved call.
+ */
+const TOOL_UNAVAILABLE_RESULT =
+  "Error: get_weather is unavailable - the MCP server providing it was switched off.";
+
+const ASK_FOR_TOOL_AGAIN =
+  "What is the weather in Berlin? Call the get_weather tool.";
+
+/** Answerable without any tool, so a stalled thread is the only way to fail it. */
+const CARRY_ON = "Forget the weather. Reply with the single word: OK.";
+
+test.describe("MCP - a tool that is not available any more", () => {
+  test('POST /api/2.0/ai/ai/approve-tool-call - a tool that answers "unavailable" finishes the reply and the thread carries on', async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The requirement's happy path for a dead tool. The pause is resumed with a
+    // failure instead of a result — which is what a client does when the server
+    // behind the tool has gone — and the two things that must not happen are that
+    // the turn never terminates and that the thread stops taking questions.
+    //
+    // The wording of the model's answer is deliberately not asserted: the reply
+    // is prose, and the failure text itself is not localised (BUG 83046). What is
+    // asserted is that the failure is persisted as the call's result, so re-opening
+    // the thread still shows which call failed.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Unavailable Tool Agent",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text);
+    expect(
+      pending,
+      `the model did not ask for the tool; frames were ${AiAgentChat.frameTypes(sent.text).join(", ")}`,
+    ).toBeDefined();
+
+    const approve = await aiChat.approvePendingToolCall("owner", pending!, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: TOOL_UNAVAILABLE_RESULT,
+    });
+
+    expect(AiAgentChat.streamError(approve.text)).toBeUndefined();
+    expect(
+      AiAgentChat.frameTypes(approve.text),
+      "the reply terminates instead of hanging on the failed call",
+    ).toContain("message-end");
+    expect(approve.status).toBe(200);
+
+    // The transcript is what the user is left with, and it outlives the stream.
+    const first = await aiChat.readMessages("owner", threadId);
+    const replies = AiAgentChat.assistantMessages(first.data);
+    expect(replies).toHaveLength(1);
+    expect(
+      AiAgentChat.toolCalls(replies[0])[0]?.result,
+      "the failure is stored as the call's result",
+    ).toBe(TOOL_UNAVAILABLE_RESULT);
+    expect(
+      replies[0].status?.error,
+      "a failed tool is not a failed reply",
+    ).toBeUndefined();
+    expect(
+      AiAgentChat.messageText(replies[0]).length,
+      "the model answered around the failure",
+    ).toBeGreaterThan(0);
+
+    // And the dialogue continues in the same thread.
+    const next = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: CARRY_ON,
+    });
+    expect(next.streamError).toBeUndefined();
+    expect(AiAgentChat.frameTypes(next.text)).toContain("message-end");
+    expect(next.status).toBe(200);
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReplies("owner", threadId, 2),
+      2,
+    );
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a tool withdrawn from the next message does not stall the thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // "The tool was switched off mid-dialogue", staged the only way the API allows
+    // it: the first message carries the tool and the model uses it, the second one
+    // asks for the same thing with the tool no longer offered. Host tools live for
+    // one request, so leaving it out of the second send is exactly what a client
+    // does when the user turns the tool off between two questions.
+    //
+    // Both halves matter. The stream must not stop at a pause for a tool that is
+    // not there any more — a `tool-call-pending` here would be a dialog the client
+    // cannot answer and a chat that never finishes — and the thread must still be
+    // answered.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Withdrawn Tool Agent",
+    );
+
+    // The control: with the tool offered, this model in this thread calls it.
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text);
+    expect(
+      pending,
+      `the model did not ask for the tool; frames were ${AiAgentChat.frameTypes(sent.text).join(", ")}`,
+    ).toBeDefined();
+    const approve = await aiChat.approvePendingToolCall("owner", pending!, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "21C and sunny",
+    });
+    expect(approve.status).toBe(200);
+    expect(AiAgentChat.frameTypes(approve.text)).toContain("message-end");
+
+    // The switch: the same request, without the tool.
+    const withdrawn = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL_AGAIN,
+    });
+
+    expect(withdrawn.streamError).toBeUndefined();
+    expect(
+      AiAgentChat.pendingToolCall(withdrawn.text),
+      "the stream must not pause for a tool the request did not offer",
+    ).toBeUndefined();
+    expect(
+      AiAgentChat.frameTypes(withdrawn.text),
+      "the turn runs to completion",
+    ).toContain("message-end");
+    expect(withdrawn.status).toBe(200);
+
+    const messages = await aiChat.waitForAssistantReplies(
+      "owner",
+      threadId,
+      2,
+      120000,
+    );
+    expectHealthyAssistantReply(messages, 2);
+    const second = AiAgentChat.assistantMessages(messages)[1];
+    expect(
+      AiAgentChat.toolCalls(second).map((call) => call.toolName),
+      "the withdrawn tool was not called again",
+    ).not.toContain(WEATHER_TOOL.name);
+  });
+});
+
+test.describe("MCP - a server that goes away mid-conversation", () => {
+  test("DELETE /api/2.0/ai/tools/remove-custom-server - a server removed between two messages of one thread costs the next one nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The companion of "registering an unreachable server leaves an ordinary reply
+    // unaffected", moved to the moment the requirement is about: the server is in
+    // the agent's scope while the first question is answered and gone before the
+    // second one is asked, in the same thread.
+    //
+    // Narrow on purpose, the same way that test is: this says the write does not
+    // damage the conversation. It does not say the server was consulted — as of
+    // 2026-08-18 a registered server's tools do not reach the model at all
+    // (BUG 82989), so there is nothing yet for its removal to take away.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Vanishing Server Agent",
+    );
+
+    const name = "autotest-vanishing-server";
+    const registered = await aiTools.addCustomServer("owner", {
+      name,
+      config: DEAD_SERVER_CONFIG,
+      agentId,
+    });
+    expect(registered.data?.success, "the server is registered").toBe(true);
+    expect(
+      Object.keys(await serverMap(aiTools, agentId)),
+      "and it is in the agent's scope for the first question",
+    ).toEqual([name]);
+
+    const before = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Reply with the single word: pong",
+    });
+    expect(before.streamError).toBeUndefined();
+    expect(before.status).toBe(200);
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    // The switch, mid-dialogue, verified as state rather than trusted from the
+    // `{success:true}`: the scope is empty when the second question is asked.
+    const removed = await aiTools.removeCustomServer("owner", {
+      name,
+      agentId,
+    });
+    expect(removed.status).toBe(200);
+    expect(removed.data?.success).toBe(true);
+    expect(Object.keys(await serverMap(aiTools, agentId))).toEqual([]);
+
+    const after = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: CARRY_ON,
+    });
+
+    expect(after.streamError).toBeUndefined();
+    expect(
+      AiAgentChat.frameTypes(after.text),
+      "the thread answers with the server gone",
+    ).toContain("message-end");
+    expect(after.status).toBe(200);
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReplies("owner", threadId, 2),
+      2,
+    );
+  });
+
+  test("POST /api/2.0/ai/ai/approve-tool-call - a pause decided after the server left the scope still resumes", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The sharpest moment the requirement has: the tool scope is rewritten while a
+    // call is waiting for the user's decision. A pause that could not be resumed
+    // afterwards is the hang the requirement forbids, and nothing else can end it
+    // — approve and deny are the only routes that resume a stream (there is no
+    // stop, cancel or abort route).
+    //
+    // The pending call is a host tool's rather than the removed server's, and it
+    // has to be: a registered server's tools never reach the model (BUG 82989), so
+    // there is no way to make one pause the stream. What is measured is therefore
+    // the tool-scope write landing under an open pause, not the removal of the
+    // paused tool itself.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Pause Survives Removal Agent",
+    );
+
+    const name = "autotest-removed-under-pause";
+    const registered = await aiTools.addCustomServer("owner", {
+      name,
+      config: DEAD_SERVER_CONFIG,
+      agentId,
+    });
+    expect(registered.data?.success, "the server is registered").toBe(true);
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text);
+    expect(
+      pending,
+      `the model did not ask for the tool; frames were ${AiAgentChat.frameTypes(sent.text).join(", ")}`,
+    ).toBeDefined();
+
+    // The scope changes while the call waits.
+    const removed = await aiTools.removeCustomServer("owner", {
+      name,
+      agentId,
+    });
+    expect(removed.status).toBe(200);
+    expect(removed.data?.success).toBe(true);
+    expect(
+      Object.keys(await serverMap(aiTools, agentId)),
+      "the scope really was rewritten under the open pause",
+    ).toEqual([]);
+
+    const approve = await aiChat.approvePendingToolCall("owner", pending!, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "21C and sunny",
+    });
+
+    expect(AiAgentChat.streamError(approve.text)).toBeUndefined();
+    expect(
+      AiAgentChat.frameTypes(approve.text),
+      "the decision still resumes the reply",
+    ).toContain("message-end");
+    expect(approve.status).toBe(200);
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    const replies = AiAgentChat.assistantMessages(messages.data);
+    expect(replies).toHaveLength(1);
+    expect(
+      AiAgentChat.toolCalls(replies[0])[0]?.result,
+      "the result of the decision landed on the call",
+    ).toBe("21C and sunny");
+    expect(AiAgentChat.messageText(replies[0]).length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/ai/tools/get-custom-server, list-custom-servers - an unreachable server carries no status or log field", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The precondition of "a failed server shows an error icon with an expandable
+    // log in its row", and it does not hold: no route on the tools surface reports
+    // anything about a server beyond the config that was written into it. A client
+    // has nothing to draw the icon from and nothing to fill the log with, other
+    // than whatever it observes itself at call time.
+    //
+    // Deep equality is the assertion rather than a list of `not.toHaveProperty`
+    // checks: any field the backend starts adding — `status`, `error`, `lastError`,
+    // `log`, `connected` — breaks this test, which is where such a change should
+    // show up.
+    //
+    // The reads are taken after a real turn has run with the dead server in scope,
+    // so this is not "nothing was ever attempted": had the engine tried and failed,
+    // this is the moment a status field would exist. And the equality is its own
+    // positive control — an empty or refused read would fail it too, since the
+    // config has to come back whole.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Server Status Agent",
+    );
+
+    const name = "autotest-failed-server";
+    const registered = await aiTools.addCustomServer("owner", {
+      name,
+      config: DEAD_SERVER_CONFIG,
+      agentId,
+    });
+    expect(registered.data?.success, "the server is registered").toBe(true);
+
+    const fresh = await aiTools.getCustomServer("owner", name, agentId);
+    expect(fresh.status).toBe(200);
+    expect(
+      fresh.data,
+      "a freshly registered server reads back as its config and nothing else",
+    ).toEqual(DEAD_SERVER_CONFIG);
+
+    // A turn with the dead server in the agent's scope.
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Reply with the single word: pong",
+    });
+    expect(sent.streamError).toBeUndefined();
+    expect(sent.status).toBe(200);
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    const after = await aiTools.getCustomServer("owner", name, agentId);
+    expect(after.status).toBe(200);
+    expect(
+      after.data,
+      "and it still reads back as its config after a turn ran with it in scope",
+    ).toEqual(DEAD_SERVER_CONFIG);
+    expect(
+      await serverMap(aiTools, agentId),
+      "the listing carries no per-server state either",
+    ).toEqual({ [name]: DEAD_SERVER_CONFIG });
   });
 });

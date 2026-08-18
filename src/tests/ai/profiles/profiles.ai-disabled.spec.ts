@@ -3,6 +3,7 @@ import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
+import { RESOLVABLE_NON_PROVIDER_URL } from "@/src/helpers/ssrf-payloads";
 import config from "@/config";
 
 // The profile routes with the portal AI switch (PUT /settings/ai-access) off.
@@ -112,12 +113,18 @@ test.describe("AI Profiles - AI Disabled", () => {
     // (200 + success:false) rather than by the read-only gate — see
     // profiles.spec.ts. So if the switch were checked last, this body would keep
     // producing that soft error after the disable.
-    const before = await profiles.createProfile("owner", {
+    //
+    // The baseUrl has to resolve for that to be true: the baseUrl guard runs ahead
+    // of provider resolution, so an `.invalid` host answers 400 both before and
+    // after the disable and the comparison would prove nothing about the switch.
+    const unknownProvider = {
       name: "Autotest unknown provider",
       providerType: "totally-unknown",
-      baseUrl: "https://example.invalid",
+      baseUrl: RESOLVABLE_NON_PROVIDER_URL,
       modelId: "m",
-    });
+    };
+
+    const before = await profiles.createProfile("owner", unknownProvider);
     expect(before.status).toBe(200);
     expect(before.data?.success).toBe(false);
 
@@ -126,12 +133,7 @@ test.describe("AI Profiles - AI Disabled", () => {
 
     // It does not: the AI switch wins over body validation on this route, unlike
     // text-to-docx where validation runs first.
-    const { status } = await profiles.createProfile("owner", {
-      name: "Autotest unknown provider",
-      providerType: "totally-unknown",
-      baseUrl: "https://example.invalid",
-      modelId: "m",
-    });
+    const { status } = await profiles.createProfile("owner", unknownProvider);
     expect(status).toBe(403);
   });
 

@@ -1366,20 +1366,21 @@ test.describe("AI Messages - exporting a thread", () => {
     }
   });
 
-  test("BUG 83037: GET read-messages + POST /api/2.0/ai/text-to-docx - an edited turn is exported out of place", async ({
+  test("GET read-messages + POST /api/2.0/ai/text-to-docx - an edited turn is exported in place", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The consequence of BUG 83037 for this requirement. `update-message` stamps
-    // `createdAt` with the time of the edit and `read-messages` is ordered by
-    // `createdAt`, so editing an earlier message moves it to the end of the
-    // thread — and an export renders the thread in the order it is read, which
-    // puts the edited turn last in the document too.
+    // Was BUG 83037 for this requirement: `update-message` used to stamp
+    // `createdAt` with the time of the edit, and since `read-messages` is
+    // ordered by `createdAt`, editing an earlier message moved it to the end of
+    // the thread — an export renders the thread in the order it is read, so the
+    // edited turn landed last in the document too. Fixed 2026-08-18; the edit
+    // now keeps the message where it was.
     //
-    // Two stored messages and no inference are enough: the reordering is the
+    // Two stored messages and no inference are enough: the ordering is the
     // store's, and a document whose turns are in the wrong order is wrong
-    // whatever produced them. The answered-question form of the same defect is
-    // in "an edited question moves to the end of the transcript" above.
+    // whatever produced them. The answered-question form of the same behaviour
+    // is in "an edited question stays where it was in the transcript" below.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -1450,13 +1451,11 @@ test.describe("AI Messages - exporting a thread", () => {
     );
     expect(exported, `no "${title}.docx" in My Documents`).toBeDefined();
 
-    // Both turns are in the document — the export itself is fine. What is wrong
-    // is where the edited one sits.
+    // Both turns are in the document, and the edited one sits where it belongs.
     const text = await readExportedDocxText(apiSdk, "owner", exported!.id);
     expect(text).toContain("EDITEDWORD");
     expect(text).toContain("SECONDWORD");
 
-    test.fail();
     expect(
       text.indexOf("EDITEDWORD"),
       "the edited turn has to be exported where it belongs, before the turn that followed it",
@@ -1714,14 +1713,15 @@ test.describe("AI Messages - text-to-docx validation", () => {
     });
   }
 
-  // A folderId that is present but unusable is a client error in every one of
-  // these shapes, and every one of them crashes the request instead. Grouped so
-  // that the fix for one does not silently leave the others red.
+  // A folderId that is present but out of range is a client error, not a server
+  // crash. Was BUG 82713 for these two shapes (both 500ed); fixed 2026-08-18.
+  // The string-typed shape below is still open under the same number, so these
+  // stay grouped separately rather than sharing a test.fail.
   for (const { name, folderId } of [
     { name: "folderId 0", folderId: 0 },
     { name: "folderId -1", folderId: -1 },
   ]) {
-    test(`BUG 82713: POST /api/2.0/ai/text-to-docx - ${name} returns 500 instead of 400`, async ({
+    test(`POST /api/2.0/ai/text-to-docx - rejects ${name}`, async ({
       apiSdk,
     }) => {
       const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
@@ -1732,7 +1732,6 @@ test.describe("AI Messages - text-to-docx validation", () => {
         folderId,
       });
 
-      test.fail();
       expect(status).toBe(400);
     });
   }
@@ -1758,7 +1757,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG 82714: POST /api/2.0/ai/text-to-docx - a non-existent folderId returns 500 instead of 404", async ({
+  test("POST /api/2.0/ai/text-to-docx - a non-existent folderId is refused", async ({
     apiSdk,
   }) => {
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
@@ -1769,12 +1768,12 @@ test.describe("AI Messages - text-to-docx validation", () => {
       folderId: 999999999,
     });
 
-    // An unreachable target folder is a client error, not a server crash.
-    test.fail();
+    // An unreachable target folder is a client error, not a server crash. Was
+    // BUG 82714 (500); fixed 2026-08-18.
     expect(status).toBe(404);
   });
 
-  test("BUG 82714: POST /api/2.0/ai/text-to-docx - a deleted folderId returns 500 instead of 404", async ({
+  test("POST /api/2.0/ai/text-to-docx - a deleted folderId is refused", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1789,7 +1788,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     });
     const subFolderId = subData.response!.id!;
 
-    // The folder is reachable first, so the 500 below is about it being gone
+    // The folder is reachable first, so the refusal below is about it being gone
     // rather than about it never having existed.
     const before = await aiSettings.textToDocx("owner", {
       title: `Exported ${apiSdk.faker.generateString(6)}`,
@@ -1810,11 +1809,10 @@ test.describe("AI Messages - text-to-docx validation", () => {
       folderId: subFolderId,
     });
 
-    test.fail();
     expect(status).toBe(404);
   });
 
-  test("BUG 82714: POST /api/2.0/ai/text-to-docx - a file id as folderId returns 500 instead of 404", async ({
+  test("POST /api/2.0/ai/text-to-docx - a file id as folderId is refused", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1831,7 +1829,6 @@ test.describe("AI Messages - text-to-docx validation", () => {
       folderId: fileId,
     });
 
-    test.fail();
     expect(status).toBe(404);
   });
 
@@ -2298,25 +2295,31 @@ test.describe("AI Messages - per-message routes with AI Disabled", () => {
 // the in-flight `send-with-stream` request — so hanging up on the stream IS the
 // stop gesture, and what the backend does about it is testable.
 //
-// What it does about it, measured live on 2026-08-06: nothing. The growth curve
-// of the stored reply after cutting the connection at 5 s, against a prompt an
-// uninterrupted run needs 31 s to answer:
+// What it did about it on 2026-08-06 was nothing — BUG 82898. The reply went on
+// growing for twenty seconds after the client was gone and the whole answer was
+// billed and stored, so the abort stopped the *display* and not the generation.
 //
-//   t=5.6s   no assistant message at all
-//   t=21.7s  3689 chars
-//   t=24.9s  7490 chars, ending in the sentinel — the complete answer
-//   t=132s   unchanged
+// Fixed, re-measured on 2026-08-18. The same abort at 5 s against a prompt an
+// uninterrupted run needs ~24 s to answer, watched for 164 s:
 //
-// The model kept running for twenty seconds after the client was gone and the
-// whole answer was billed and stored. So "Stop generation" cannot be built on
-// the abort alone: it stops the *display*, not the generation. That is the bug
-// below, and it is also why there is no "was it marked as stopped?" test — the
-// reply is not stopped, it is complete.
+//   t=5.6s … t=164s   assistants=1, content length 0, sentinel never appears
+//   final message      {"role":"assistant","status":{"type":"incomplete",
+//                       "reason":"cancelled"},"content":""}
+//
+// So the hang-up now reaches the generation: it is cancelled, and the thread
+// keeps a placeholder reply carrying that status. Two consequences for the
+// assertions below — the status is what tells "cancelled" apart from "not
+// written yet", and the five seconds of text that had already streamed are
+// discarded rather than kept as a truncated answer, so the stored reply is
+// empty and its length cannot carry the check on its own.
 //
 // The sentinel is what makes completeness checkable without guessing at
 // lengths: the model is told to end with FINISHED, so the control run proves
-// the marker arrives on a finished answer and its presence after an abort means
-// the answer ran to its end anyway.
+// the marker arrives on a finished answer and its absence long after an abort
+// means the answer never ran to its end.
+//
+// The wait is calibrated on the control rather than fixed: "no sentinel yet"
+// only means something once more time has passed than a whole answer takes.
 
 const LONG_ANSWER_PROMPT =
   "Write a detailed essay of at least 600 words about the history of typography. " +
@@ -2330,8 +2333,40 @@ const STOP_AFTER_MS = 5000;
 /** No growth for this long counts as "the backend has finished with it". */
 const QUIET_MS = 20000;
 
+/**
+ * Head-room on top of a whole uninterrupted answer before a stopped reply that
+ * is still empty counts as never resumed.
+ */
+const QUIET_MARGIN_MS = 30000;
+
+type SettledReply = Awaited<
+  ReturnType<AiAgentChat["waitForStableAssistantText"]>
+>;
+
+/**
+ * What a hung-up-on turn leaves behind now that the abort is a real stop: one
+ * placeholder reply, empty and marked cancelled. The two recovery tests below
+ * need it only as their premise — they are about what happens NEXT, so they
+ * assert the placeholder is there and settled rather than re-testing the
+ * cancellation itself.
+ */
+function expectCancelledPlaceholder(settled: SettledReply): void {
+  expect(
+    settled.message,
+    "the abandoned turn left a reply behind",
+  ).toBeDefined();
+  expect(
+    AiAgentChat.messageStatus(settled.message!)?.reason,
+    "the abandoned reply is marked cancelled",
+  ).toBe("cancelled");
+  expect(
+    settled.text,
+    `the cancelled reply holds no text; lengths seen: ${settled.lengths.join(" -> ")}`,
+  ).toBe("");
+}
+
 test.describe("AI Messages - stopping a stream", () => {
-  test("BUG 82898: POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream does not stop the generation", async ({
+  test("POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream cancels the generation", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2407,27 +2442,33 @@ test.describe("AI Messages - stopping a stream", () => {
         SENTINEL,
       );
 
+      // Watched for longer than a whole answer takes, so "still not finished"
+      // cannot be "not finished yet".
+      const quietMs = controlMs + QUIET_MARGIN_MS;
       const settled = await aiChat.waitForStableAssistantText(
         "owner",
         threadId,
-        QUIET_MS,
+        quietMs,
+        quietMs + 60000,
       );
 
-      // The reply grew after the client had gone: the model was still running
-      // with nobody listening, and the tokens were spent all the same.
-      expect(
-        settled.text.length,
-        `the stored reply after the disconnect: ${settled.lengths.join(" -> ")}`,
-      ).toBeGreaterThan(partial.length);
-
-      // The question is kept either way, so the turn can be retried.
-      expect(AiAgentChat.userMessages(atStop.data)).toHaveLength(1);
-
-      test.fail();
       expect(
         settled.text,
-        "a generation the user stopped must not run to its end",
+        `a generation the user stopped must not run to its end; the stored reply over ${quietMs} ms: ${settled.lengths.join(" -> ")}`,
       ).not.toContain(SENTINEL);
+
+      // What makes that absence a cancellation rather than a reply the backend
+      // is still writing: the thread says so. Without this the assertion above
+      // would also pass on a build that simply lost the answer.
+      const status = AiAgentChat.messageStatus(settled.message!);
+      expect(status?.type, "the stopped reply is marked incomplete").toBe(
+        "incomplete",
+      );
+      expect(status?.reason, "…because it was cancelled").toBe("cancelled");
+      expect(status?.error, "a cancellation is not an error").toBeUndefined();
+
+      // The question is kept, so the turn can be retried.
+      expect(AiAgentChat.userMessages(atStop.data)).toHaveLength(1);
     });
   });
 
@@ -2463,14 +2504,14 @@ test.describe("AI Messages - stopping a stream", () => {
     });
     expect(aborted).toBe(true);
 
-    // The abandoned reply is allowed to land before the next turn — sending
-    // into a thread the backend is still writing to is a different test.
+    // The cancellation is allowed to settle before the next turn — sending into
+    // a thread the backend is still writing to is a different test.
     const abandoned = await aiChat.waitForStableAssistantText(
       "owner",
       threadId,
       QUIET_MS,
     );
-    expect(abandoned.text.length).toBeGreaterThan(0);
+    expectCancelledPlaceholder(abandoned);
 
     const resumed = await aiChat.sendMessage("owner", {
       threadId,
@@ -2494,10 +2535,17 @@ test.describe("AI Messages - stopping a stream", () => {
     expect(second.status?.error).toBeUndefined();
     expect(AiAgentChat.messageText(second).length).toBeGreaterThan(0);
     expect(second.id).not.toBe(abandoned.message?.id);
+
+    // The cancelled turn is left as it was: still its own message, still marked
+    // cancelled. Comparing the text alone would now be ""==="" and pass on a
+    // build that reused the placeholder for the new answer.
+    expect(replies[0].id, "the abandoned reply is still there").toBe(
+      abandoned.message?.id,
+    );
     expect(
-      AiAgentChat.messageText(replies[0]),
-      "the abandoned reply is left as it was",
-    ).toBe(abandoned.text);
+      AiAgentChat.messageStatus(replies[0])?.reason,
+      "the abandoned reply was not taken over by the next turn",
+    ).toBe("cancelled");
   });
 
   test("POST /api/2.0/ai/ai/regenerate-stream - regenerating after a hang-up replaces the abandoned reply", async ({
@@ -2534,7 +2582,7 @@ test.describe("AI Messages - stopping a stream", () => {
       threadId,
       QUIET_MS,
     );
-    expect(abandoned.text.length).toBeGreaterThan(0);
+    expectCancelledPlaceholder(abandoned);
 
     const { status, streamError } = await aiChat.regenerateStream("owner", {
       threadId,
@@ -2837,7 +2885,7 @@ test.describe("AI Messages - regenerate", () => {
     expect(AiAgentChat.assistantMessages(messages.data)).toEqual([]);
   });
 
-  test("POST /api/2.0/ai/ai/regenerate-stream - an unknown thread reports the failure inside the stream", async ({
+  test("POST /api/2.0/ai/ai/regenerate-stream - an unknown thread is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2857,16 +2905,23 @@ test.describe("AI Messages - regenerate", () => {
       profileId: profile.id,
     });
 
-    const { status, streamError } = await aiChat.regenerateStream("owner", {
-      threadId: "019fcc1d-3c16-7527-90c2-bb509d2f8136",
-      entityId: String(agentId),
-      profileId: profile.id,
-    });
+    const { status, error, streamError } = await aiChat.regenerateStream(
+      "owner",
+      {
+        threadId: "019fcc1d-3c16-7527-90c2-bb509d2f8136",
+        entityId: String(agentId),
+        profileId: profile.id,
+      },
+    );
 
-    // Same shape as BUG 82723 on send-with-stream: the refusal is a frame inside a
-    // 200, not an HTTP status.
-    expect(status).toBe(200);
-    expect(streamError).toBe("stream error");
+    // Used to arrive in the shape of BUG 82723 on send-with-stream — HTTP 200
+    // with an error frame in the body. Fixed 2026-08-18: a thread that does not
+    // exist is refused before any stream is opened.
+    expect(status).toBe(404);
+    expect(error).toBe("Not Found");
+    expect(streamError, "the refusal is the status, not a stream frame").toBe(
+      undefined,
+    );
   });
 
   test("POST /api/2.0/ai/ai/regenerate-stream - a multi-turn thread loses only its last reply", async ({
@@ -3271,11 +3326,9 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
     // The positive control: the thread was perfectly able to produce a new
     // answer, the edit just is not what asks for one.
     //
-    // Deliberately neutral about replace-vs-append. On an unedited thread a
-    // regenerate replaces the last reply (see "AI Messages - regenerate"), but
-    // the edit above moves the question to the end of the transcript, and a
-    // regenerate on a trailing question appends instead — the test.fail below.
-    // All this control needs is that generation happened at all.
+    // Deliberately neutral about replace-vs-append: replace-vs-append after an
+    // edit is the subject of "AI Messages - regenerate", not of this control,
+    // which only needs generation to have happened at all.
     const regenerated = await aiChat.regenerateStream("owner", {
       threadId,
       entityId: String(agentId),
@@ -3293,29 +3346,26 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
       "the regenerate produced the answer the edit did not",
     ).toHaveLength(1);
     // Health checked on the new reply alone, for the same reason the count above
-    // is: whether the old one is still there is the test.fail below, not this.
+    // is: whether the old one is still there is not this test's subject.
     expectHealthyAssistantReply(newReplies);
   });
 
-  test("BUG 83037: PUT /api/2.0/ai/threads/update-message - an edited question moves to the end of the transcript", async ({
+  test("PUT /api/2.0/ai/threads/update-message - an edited question stays where it was in the transcript", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // `update-message` keeps the message id but stamps `createdAt` with the time
-    // of the edit, and `read-messages` is ordered by `createdAt`. So editing the
-    // question of an answered turn leaves the conversation reading
+    // Was BUG 83037: `update-message` kept the message id but stamped
+    // `createdAt` with the time of the edit, and `read-messages` is ordered by
+    // `createdAt`. So editing the question of an answered turn left the
+    // conversation reading
     //
     //   assistant "ONE"                      <- the answer
     //   user      "Reply with … TWO."        <- the question that produced it
     //
-    // The question now sits after its own answer. "update-message - rewrites the
-    // content in place" does not catch this: it reads the message back by id,
+    // with the question sitting after its own answer. Fixed 2026-08-18. Worth
+    // keeping as a regression guard, because "update-message - rewrites the
+    // content in place" cannot catch a relapse: it reads the message back by id,
     // never looking at the order.
-    //
-    // The knock-on effect is what made this visible: with the question trailing,
-    // `regenerate-stream` sees a thread whose last message is unanswered and
-    // appends a second reply instead of replacing the first, so the button under
-    // an answer stops replacing it for the rest of that conversation.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3360,7 +3410,6 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
       "and it is the same message, not a new one",
     ).toBe(question.id);
 
-    test.fail();
     expect(
       afterEdit.map((message) => message.role),
       "an edit must not move the question after the answer it produced",
@@ -3369,17 +3418,17 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
 });
 
 test.describe("AI Messages - regenerate someone else's reply", () => {
-  test("BUG 82717: POST /api/2.0/ai/ai/regenerate-stream - a non-member is blocked in another user's thread, but with a 200 instead of 403", async ({
+  test("POST /api/2.0/ai/ai/regenerate-stream - a non-member cannot regenerate in another user's thread", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The regenerate half of BUG 82717 — the same wrong response contract the
-    // send half has on someone else's thread (see chat.permission.spec.ts).
-    // Access itself is fine: nothing is generated and the owner's reply is the
-    // object it was, which the assertions below establish before the status is
-    // looked at. What is wrong is that the refusal arrives as HTTP 200 with
-    // `{"type":"error","message":"stream error"}` in the body — a status a client
-    // reads as success and a message it cannot act on.
+    // Was the regenerate half of BUG 82717 (the send half is in
+    // chat.permission.spec.ts): the block was always real — nothing generated,
+    // the owner's reply untouched — but the refusal arrived as HTTP 200 with
+    // `{"type":"error","message":"stream error"}` in the body. Fixed
+    // 2026-08-18; it now refuses like every non-streaming route into someone
+    // else's thread. The side effect is still checked first: a 403 that had
+    // already regenerated the reply would be the worse bug.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3405,11 +3454,14 @@ test.describe("AI Messages - regenerate someone else's reply", () => {
     );
     await aiChat.expectActingAs("user", memberData.response!.id!, "User");
 
-    const { status, streamError } = await aiChat.regenerateStream("user", {
-      threadId,
-      entityId: String(agentId),
-      profileId,
-    });
+    const { status, error, streamError } = await aiChat.regenerateStream(
+      "user",
+      {
+        threadId,
+        entityId: String(agentId),
+        profileId,
+      },
+    );
 
     await new Promise((resolve) => setTimeout(resolve, REGENERATE_SETTLE_MS));
     await apiSdk.authenticateOwner();
@@ -3422,23 +3474,21 @@ test.describe("AI Messages - regenerate someone else's reply", () => {
     expect(replies[0].id, "and it is the same reply").toBe(reply.id);
     expect(AiAgentChat.messageText(replies[0])).toBe(replyText);
 
-    // What the endpoint actually does today.
-    expect(streamError).toBe("stream error");
-
-    // What it should do: refuse the way every non-streaming route into someone
-    // else's thread does (see "cross-user access to one message" above).
-    test.fail();
     expect(status).toBe(403);
+    expect(error).toBe("Forbidden");
+    expect(streamError, "the refusal is the status, not a stream frame").toBe(
+      undefined,
+    );
   });
 
-  test("BUG 82717: POST /api/2.0/ai/ai/regenerate-stream - a member of the agent is blocked in another member's thread, but with a 200 instead of 403", async ({
+  test("POST /api/2.0/ai/ai/regenerate-stream - a member of the agent cannot regenerate in another member's thread", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // Membership buys the agent, not other people's conversations — threads are
     // per user. Worth its own case because the entityId in the body IS a room the
     // caller belongs to, so a check that only looked at the entity would pass it.
-    // The block holds; as above, only the way it is reported is wrong.
+    // Was the second half of BUG 82717, fixed 2026-08-18 with the case above.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3467,11 +3517,14 @@ test.describe("AI Messages - regenerate someone else's reply", () => {
       "RoomAdmin",
     );
 
-    const { status, streamError } = await aiChat.regenerateStream("roomAdmin", {
-      threadId,
-      entityId: String(agentId),
-      profileId,
-    });
+    const { status, error, streamError } = await aiChat.regenerateStream(
+      "roomAdmin",
+      {
+        threadId,
+        entityId: String(agentId),
+        profileId,
+      },
+    );
 
     await new Promise((resolve) => setTimeout(resolve, REGENERATE_SETTLE_MS));
     await apiSdk.authenticateOwner();
@@ -3484,26 +3537,27 @@ test.describe("AI Messages - regenerate someone else's reply", () => {
     );
     expect(AiAgentChat.messageText(replies[0])).toBe(replyText);
 
-    expect(streamError).toBe("stream error");
-
-    test.fail();
     expect(status).toBe(403);
+    expect(error).toBe("Forbidden");
+    expect(streamError, "the refusal is the status, not a stream frame").toBe(
+      undefined,
+    );
   });
 });
 
 test.describe("AI Messages - regenerate with AI Disabled", () => {
-  test("BUG 82724: POST /api/2.0/ai/ai/regenerate-stream - the portal AI switch stops the regenerate, but reports it inside a 200", async ({
+  test("POST /api/2.0/ai/ai/regenerate-stream - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // An enabled -> disabled transition rather than an end state: the regenerate
     // that worked before the flip is what makes the one after it mean something.
     //
-    // The regenerate half of BUG 82724 (the send half is in
-    // chat.ai-disabled.spec.ts). Inference really is stopped — nothing is
-    // generated, which the assertions below establish first — the defect is that
-    // the refusal comes back as HTTP 200 with an opaque "stream error" while
-    // every non-streaming route answers a clean 403.
+    // Was the regenerate half of BUG 82724 (the send half is in
+    // chat.ai-disabled.spec.ts): inference was stopped either way, but the
+    // refusal used to come back as HTTP 200 with an opaque "stream error".
+    // Fixed 2026-08-18. "Nothing was generated" is still established first —
+    // the status alone would not tell a refusal from a silent regenerate.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3564,12 +3618,12 @@ test.describe("AI Messages - regenerate with AI Disabled", () => {
     expect(replies[0].id).toBe(survivor.id);
     expect(AiAgentChat.messageText(replies[0])).toBe(survivorText);
 
-    // What the endpoint actually does today.
-    expect(refused.streamError).toBe("stream error");
-
-    // 403 is what every neighbouring route answers with the switch off.
-    test.fail();
     expect(refused.status).toBe(403);
+    expect(refused.error).toBe("Forbidden");
+    expect(
+      refused.streamError,
+      "the refusal is the status, not a stream frame",
+    ).toBe(undefined);
   });
 });
 

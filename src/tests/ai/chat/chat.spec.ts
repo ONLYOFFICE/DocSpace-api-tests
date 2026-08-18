@@ -4553,6 +4553,701 @@ test.describe("AI Chat - the model of an agent room", () => {
       "an agent the caller is not in is refused, not crashed",
     ).toEqual({ getAll: 403, resolve: 403 });
   });
+
+  // The three edge cases of a model choice — a profile carried by the open call,
+  // a blank one and one that no longer resolves — are pinned for a room in "the
+  // model of one thread". They are staged there because that is where the picker
+  // is shown, and they are repeated here because inside an agent the same input
+  // means something different: the client has no picker to have produced it, and
+  // the user has no picker to correct it with. A room's user who ends up on the
+  // wrong model picks again; an agent's cannot.
+
+  // The same well-formed GUID naming no profile that `create` answers 404 to.
+  // Kept local on purpose — the room block has its own copy, and the two blocks
+  // are read separately.
+  const UNRESOLVABLE_PROFILE_ID = "019ed118-0000-0000-0000-0000000000ff";
+
+  test("POST /api/2.0/ai/threads/open-or-create - opening an agent thread with another profile does not stamp it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The one route a picker-less client cannot avoid naming a profile on: the
+    // open call requires a whole `AiProfile` object, not just an id (pinned in
+    // "AI Threads - open-or-create"), and in an agent there is no picker for
+    // that object to have come from — so it is whatever the client happens to
+    // hold: a stale pick, the portal default, the first entry of the catalogue.
+    // None of them may become the model of a conversation in an agent, or simply
+    // opening a chat would move it off the model the room fixes.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const routes = new ThreadRoutes(apiSdk.request, apiSdk.tokenStore);
+    const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Fixed Model Agent",
+      profileId: first.id,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    // Setup premise: the agent really is fixed on the first profile, so the
+    // second one below is a model this conversation has no business running on.
+    expect(
+      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      "the agent is bound to the first profile",
+    ).toBe(first.id);
+
+    // Started the way a client with no picker starts one: no profileId at all.
+    const created = await routes.post("owner", "/api/2.0/ai/threads/create", {
+      title: "Autotest agent thread",
+      entityId: String(agentId),
+    });
+    expect(created.status).toBe(200);
+    const threadId = created.data?.threadId ?? "";
+    expect(threadId).toBeTruthy();
+    expect(
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "the thread starts with no model of its own",
+    ).toBeUndefined();
+
+    const opened = await aiChat.openOrCreateThread("owner", {
+      threadId,
+      profile: second,
+      entityId: String(agentId),
+      firstMessage: {
+        role: "user",
+        content: [{ type: "text", text: "hello" }],
+      },
+    });
+    expect(opened.status).toBe(200);
+    expect(opened.data?.threadId, "the existing thread is reused").toBe(
+      threadId,
+    );
+
+    expect(
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "the open did not write the profile it carried",
+    ).toBeUndefined();
+
+    // Positive control, and the point of the test in one step: the conversation
+    // that follows the open runs on the agent's model. Without it "nothing was
+    // written" would also be true of a thread whose model is never stored at
+    // all, and a send with no profileId is exactly what the picker-less client
+    // sends next.
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      agentId,
+      message: "Reply with the single word OK.",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+    expect(
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "the agent's own model is what the conversation ended up on",
+    ).toBe(first.id);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a blank profileId in an agent does not let the portal's model in", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // `""` is what a client sends when its picker holds nothing — which in an
+    // agent is every request, since the picker is hidden. It must not behave
+    // like an omitted `profileId` does outside an agent: that one resolves the
+    // portal-wide binding and writes it onto the thread (BUG 82860). The binding
+    // here points at the second profile and the agent at the first, so a portal
+    // leak is visible as a stored id and cannot be confused with the agent's
+    // own model.
+    //
+    // Two outcomes are correct — the blank is ignored and the thread stays
+    // modelless, or it resolves the agent's binding and lands on the first
+    // profile — because both are "the room decides". Which model actually
+    // produced the text is not observable (the stored reply carries no marker),
+    // so the stored id is the honest assertion.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const routes = new ThreadRoutes(apiSdk.request, apiSdk.tokenStore);
+    const [first, second] = twoTextProfiles(await aiChat.listProfiles("owner"));
+
+    const bound = await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: second.id,
+    });
+    expect(bound.data?.success).toBe(true);
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Fixed Model Agent",
+      profileId: first.id,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    // Setup premise: the two bindings really do point at different models, or
+    // "the portal's model did not get in" is unobservable.
+    expect(
+      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      "the agent is bound to the first profile",
+    ).toBe(first.id);
+    expect(
+      (await profiles.getAllAssignments("owner")).data?.Chat,
+      "and the portal to the second one",
+    ).toBe(second.id);
+
+    const created = await routes.post("owner", "/api/2.0/ai/threads/create", {
+      title: "Autotest agent thread",
+      entityId: String(agentId),
+    });
+    expect(created.status).toBe(200);
+    const threadId = created.data?.threadId ?? "";
+    expect(threadId).toBeTruthy();
+
+    const blank = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: "",
+      agentId,
+      message: "Reply with the single word OK.",
+      timeoutMs: STREAM_CAP_MS,
+    });
+    expect(blank.status).toBe(200);
+    expect(blank.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    const stored = (await aiChat.getThread("owner", threadId)).data?.profileId;
+    expect(
+      [undefined, first.id],
+      "a blank pick leaves the agent deciding, not the portal",
+    ).toContain(stored);
+    expect(
+      (await aiChat.listThreads("owner", agentId)).data.find(
+        (thread) => thread.threadId === threadId,
+      )?.profileId,
+      "and the list agrees with get-by-id",
+    ).toBe(stored);
+  });
+
+  test("BUG 83160: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is answered in an agent too", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The room half of this is in "the model of one thread": an id the backend
+    // cannot resolve is dropped in silence, the question is answered by whatever
+    // model was picked instead, and the client is told nothing. Same defect,
+    // same number — repeated here because the consequence is not the same. In a
+    // room the user can see the picker is pointing at a model that has gone away
+    // and choose another; in an agent there is nothing to look at and nothing to
+    // change, so every turn of every conversation in it silently runs on a model
+    // neither the author nor the user chose.
+    //
+    // Reachable through a plain client, too: an agent built on a profile that is
+    // later deleted leaves exactly this id in the composer's hands.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const [first] = twoTextProfiles(await aiChat.listProfiles("owner"));
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Fixed Model Agent",
+      profileId: first.id,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    expect(
+      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      "the agent is bound to the first profile",
+    ).toBe(first.id);
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest thread on the agent's own model",
+      profileId: first.id,
+      agentId,
+    });
+
+    const bad = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId: UNRESOLVABLE_PROFILE_ID,
+      agentId,
+      message: "Reply with the single word OK.",
+      timeoutMs: STREAM_CAP_MS,
+    });
+
+    // The thread was not corrupted — it neither took the unresolvable id nor
+    // lost the agent's model. Asserted before the report, so a fix cannot land
+    // on a suite that has stopped checking this.
+    expect(
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "the thread stays on the agent's model",
+    ).toBe(first.id);
+
+    // The reply is only read while the send is accepted: a fix that refuses it
+    // leaves nothing to wait for, and this has to report an unexpected pass
+    // rather than time out here.
+    if (bad.status === 200 && bad.streamError === undefined) {
+      expectHealthyAssistantReply(
+        await aiChat.waitForAssistantReply("owner", threadId),
+      );
+    }
+
+    // Fix-agnostic: a 4xx, or an `error` frame inside the 200 the way a model
+    // failure is reported. Only today's silent success fails.
+    test.fail();
+    expect(
+      bad.status !== 200 || bad.streamError !== undefined,
+      "a model choice the backend cannot resolve is reported, not dropped",
+    ).toBe(true);
+  });
+
+  test("GET /api/2.0/ai/profiles/list - the catalogue is served whole inside an agent, for a member as well", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // What the API says about the hidden picker: nothing. The catalogue route
+    // takes no entity scope at all, so there is no request a client can make
+    // that means "I am in an agent, give me the models I may use here" — it
+    // always answers the whole list, to the agent's author and to a member of
+    // it alike. That is the documenting half of BUG 82914 / BUG 82915 above:
+    // the fixation is drawn by the composer over a catalogue that never stopped
+    // offering the alternatives, so anything not going through that composer has
+    // them all.
+    //
+    // Green on purpose. Should the route ever start scoping itself, this is the
+    // test that says so, and the two BUG tests above become the fix.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await aiChat.listProfiles("owner");
+    const [first, second] = twoTextProfiles(catalogue);
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Fixed Model Agent",
+      profileId: first.id,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+    expect(
+      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      "the agent is fixed on the first profile",
+    ).toBe(first.id);
+
+    // The agent's own model is in the list, and so is at least one other — the
+    // list a hidden picker is hiding.
+    const ids = catalogue.map((profile) => profile.id);
+    expect(ids).toContain(first.id);
+    expect(
+      ids,
+      "the model the agent was not built on is offered just the same",
+    ).toContain(second.id);
+
+    // A member of the agent — the user whose picker is hidden — reads the same
+    // list. Compared as sets, since the order of the catalogue is not a
+    // contract.
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await inviteToAgent(ownerApi.rooms, agentId, memberData.response!.id!);
+
+    const memberCatalogue = await aiChat.getProfiles("user");
+    expect(memberCatalogue.status).toBe(200);
+    expect([...(memberCatalogue.data ?? [])].map((p) => p.id).sort()).toEqual(
+      [...ids].sort(),
+    );
+
+    // And nothing in the entity's own scope narrows it either: the agent
+    // publishes one model, which is a default to draw a label from and not a
+    // list of what is allowed.
+    const resolved = await profiles.resolveForAction("user", "Chat", agentId);
+    expect(resolved.status).toBe(200);
+    expect(resolved.data?.profileId).toBe(first.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The composer's agent picker, used from somewhere that is not the agent's room.
+//
+// The product statement is: outside an agent room the composer can pick an AI
+// agent; the header then shows that agent's name, its model answers, with its
+// tools and the context of its room, and reopening the thread restores the pick.
+//
+// There is no "picked agent" field anywhere in the API. `entityId` is the only
+// channel — `threads/create`, `send-with-stream`, `open-or-create` and
+// `threads/list` each take one — so picking an agent *is* `entityId = <agent id>`,
+// and where the user was standing when they picked it is never sent at all. That
+// makes two halves of the statement testable and one half not:
+//
+//   * the model, the tools and the room context follow the entity, and the agent
+//     scope is a real one (the tool families differ from a room's — see the
+//     server-executed DocSpace tools block in mcp/mcp.spec.ts);
+//   * the pick survives a reopen only through the client: a thread record carries
+//     no entity (asserted below, and in the mismatched-location test above), so
+//     `threads/list?entityId=` is the whole of "the agent came back", and the name
+//     in the header can only be re-read off the agent itself.
+//
+// What the picker cannot do is carry both a location and an agent: one entityId
+// goes out, so a thread started from a room with an agent picked belongs to the
+// agent and leaves the room's list — which is the second test here.
+
+/** A formatting rule, not a request to reveal anything: asking an agent about its
+ *  own instructions makes the model refuse, which would read as "not applied". */
+const instructionsEndingWith = (marker: string) =>
+  `You are a helpful test assistant. Keep answers very short. Formatting rule: finish every reply with the exact token ${marker}.`;
+/** Whose prompt reached the model: the one stored on the agent, or the one the
+ *  request carried. Two tokens, so a reply names the source instead of only
+ *  proving that some prompt got through. */
+const AGENT_MARKER = "ZZPICKEDAGENTZZ";
+const REQUEST_MARKER = "ZZREQUESTPROMPTZZ";
+const MARKER_INSTRUCTIONS = instructionsEndingWith(AGENT_MARKER);
+/** Bounded, so a token that only appears as part of a longer run of characters
+ *  does not read as the model having followed the rule. */
+const markerProbe = (marker: string) => new RegExp(`\\b${marker}\\b`);
+
+test.describe("AI Chat - an agent picked in the composer from another location", () => {
+  test("GET /api/2.0/ai/agents, POST /api/2.0/ai/threads/create, GET /api/2.0/ai/threads/list - a picked agent answers on its own model and comes back when the thread is reopened", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const routes = new ThreadRoutes(apiSdk.request, apiSdk.tokenStore);
+    const [agentProfile, otherProfile] = twoTextProfiles(
+      await aiChat.listProfiles("owner"),
+    );
+
+    // The portal-wide Chat binding points elsewhere, so "the agent's model
+    // answered" cannot be "the portal's default did".
+    const bound = await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: otherProfile.id,
+    });
+    expect(bound.data?.success).toBe(true);
+
+    const agentTitle = "Autotest Picked Agent";
+    const agentId = await aiChat.createAgentId("owner", {
+      title: agentTitle,
+      profileId: agentProfile.id,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+
+    // 1. What the picker is drawn from. The agent list is portal-wide and takes no
+    //    entity, which is what makes picking one from anywhere possible at all.
+    const picker = await aiChat.getAgents("owner");
+    expect(picker.status).toBe(200);
+    const offered = (picker.data?.response?.folders ?? []).find(
+      (agent) => agent.id === agentId,
+    );
+    expect(offered, "the agent the composer offers").toBeDefined();
+    expect(offered?.title, "under the name the header will show").toBe(
+      agentTitle,
+    );
+
+    // 2. And the model shown beside that name, read off the agent record.
+    const info = await aiChat.getAgentInfo("owner", agentId);
+    expect(info.status).toBe(200);
+    expect(info.data?.response?.profileId).toBe(agentProfile.id);
+
+    // 3. The pick itself: the entity is the agent, and a composer whose picker is
+    //    hidden behind the agent sends no profileId of its own.
+    const created = await routes.post("owner", "/api/2.0/ai/threads/create", {
+      title: "Autotest picked-agent thread",
+      entityId: String(agentId),
+    });
+    expect(created.status).toBe(200);
+    const threadId = created.data?.threadId ?? "";
+    expect(threadId).toBeTruthy();
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      agentId,
+      message: "Reply with the single word OK.",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    // The agent's model is what answered and what the thread now carries.
+    expect(
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "the agent's model answered, not the portal-wide one",
+    ).toBe(agentProfile.id);
+
+    // 4. Reopening. The thread record does not name the agent — there is no field
+    //    for it — so the list keyed on the entity is the whole restore path, and
+    //    the header name has to be re-read off the agent.
+    const record = await aiChat.getThread("owner", threadId);
+    expect(
+      Object.keys(record.data ?? {}),
+      "a thread record still carries no entity field",
+    ).not.toContain("entityId");
+
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.status).toBe(200);
+    expect(
+      listed.data.map((thread) => thread.threadId),
+      "the thread is found again through the agent it was started under",
+    ).toContain(threadId);
+
+    const reopened = await aiChat.openOrCreateThread("owner", {
+      threadId,
+      profile: agentProfile,
+      entityId: String(agentId),
+      firstMessage: {
+        role: "user",
+        content: [{ type: "text", text: "hello" }],
+      },
+    });
+    expect(reopened.status).toBe(200);
+    expect(reopened.data?.threadId, "the same thread is reopened").toBe(
+      threadId,
+    );
+    expect(
+      reopened.data?.priorMessages,
+      "with the conversation held with the agent",
+    ).toHaveLength(2);
+    expect(
+      (await aiChat.getThread("owner", threadId)).data?.profileId,
+      "and still on the agent's model",
+    ).toBe(agentProfile.id);
+    expect(
+      (await aiChat.getAgentInfo("owner", agentId)).data?.response?.title,
+      "the name the reopened header is redrawn from",
+    ).toBe(agentTitle);
+  });
+
+  test("GET /api/2.0/ai/threads/list - picking an agent moves the thread out of the room the composer was opened in", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // One entityId goes out with a thread, so the location and the pick cannot
+    // both be carried. Picking an agent while looking at a room therefore takes
+    // the conversation out of that room's list — a client that expects to find it
+    // there afterwards will not.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const [agentProfile, otherProfile] = twoTextProfiles(
+      await aiChat.listProfiles("owner"),
+    );
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Picker Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Picked Agent",
+      profileId: agentProfile.id,
+      prompt: SHORT_ANSWER_PROMPT,
+    });
+
+    // Two threads from the same place: one with nothing picked, one with the
+    // agent picked. The first is the positive control — an empty room list would
+    // otherwise pass the absence check below on its own.
+    const roomThreadId = await aiChat.createThreadId("owner", {
+      title: "Autotest room thread",
+      profileId: otherProfile.id,
+      agentId: roomId,
+    });
+    const pickedThreadId = await aiChat.createThreadId("owner", {
+      title: "Autotest picked-agent thread",
+      profileId: agentProfile.id,
+      agentId,
+    });
+
+    const roomList = await aiChat.listThreads("owner", roomId);
+    expect(roomList.status).toBe(200);
+    const roomThreadIds = roomList.data.map((thread) => thread.threadId);
+    expect(
+      roomThreadIds,
+      "the thread started with nothing picked stays with the room",
+    ).toContain(roomThreadId);
+    expect(
+      roomThreadIds,
+      "the picked agent's thread is not listed for the room it was started from",
+    ).not.toContain(pickedThreadId);
+
+    const agentList = await aiChat.listThreads("owner", agentId);
+    expect(agentList.status).toBe(200);
+    const agentThreadIds = agentList.data.map((thread) => thread.threadId);
+    expect(
+      agentThreadIds,
+      "it is listed for the agent that was picked",
+    ).toContain(pickedThreadId);
+    expect(
+      agentThreadIds,
+      "and the room's own thread did not follow the pick",
+    ).not.toContain(roomThreadId);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a per-request prompt applies where no agent prompt competes with it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The control for the two tests below: `actionArgs.prompt` on an entity that
+    // carries no instructions of its own — an ordinary room. Without it, "the
+    // agent's prompt won" could equally be "the request's prompt goes nowhere at
+    // all", and the marker probe itself would be unproven.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Prompt Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest instructed room thread",
+      profileId,
+      agentId: roomId,
+    });
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Hi there!",
+      instructions: instructionsEndingWith(REQUEST_MARKER),
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(messages);
+    expect(
+      AiAgentChat.assistantText(messages),
+      "the prompt sent with the request reached the model",
+    ).toMatch(markerProbe(REQUEST_MARKER));
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a per-request prompt replaces the picked agent's own AI Instructions", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Now that the backend applies the agent's stored prompt by itself (the test
+    // below), `actionArgs.prompt {mode:"replace"}` has something to replace — and
+    // it does not: measured 2026-08-18, the reply follows the agent's marker and
+    // never the request's. The documented per-request override is silently
+    // dropped for an agent entity, while it works on a room (the control above),
+    // so a composer offering "instructions for this message" against a picked
+    // agent changes nothing and says nothing.
+    //
+    // Two markers rather than one, so the reply names the prompt that won instead
+    // of only showing that some prompt did.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Instructed Agent",
+      profileId,
+      prompt: MARKER_INSTRUCTIONS,
+    });
+    expect(
+      await aiChat.getAgentInstructions("owner", agentId),
+      "the agent holds the instructions the request is about to override",
+    ).toBe(MARKER_INSTRUCTIONS);
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest instructed thread",
+      profileId,
+      agentId,
+    });
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Hi there!",
+      instructions: instructionsEndingWith(REQUEST_MARKER),
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(messages);
+    const text = AiAgentChat.assistantText(messages);
+
+    test.fail();
+    expect(
+      {
+        request: markerProbe(REQUEST_MARKER).test(text),
+        agent: markerProbe(AGENT_MARKER).test(text),
+      },
+      "the request's prompt replaced the agent's stored one",
+    ).toEqual({ request: true, agent: false });
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a picked agent answers under the AI Instructions stored on it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // "Its model answers" includes the agent's own AI Instructions, and a composer
+    // that only knows the agent's id has nothing else to send: the send carries no
+    // actionArgs at all here.
+    //
+    // This was not always so. Measured on 2026-07-30 the backend ignored
+    // chatSettings.prompt entirely and the client had to re-send it per request;
+    // as of 2026-08-18 the stored prompt reaches the model on its own (three runs,
+    // three passes). Model non-compliance would fail this test too — the paired
+    // test above is what rules that out, since a prompt that arrives by the other
+    // route still produces its marker.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Instructed Agent",
+      profileId,
+      prompt: MARKER_INSTRUCTIONS,
+    });
+    expect(
+      await aiChat.getAgentInstructions("owner", agentId),
+      "the agent really holds the instructions under test",
+    ).toBe(MARKER_INSTRUCTIONS);
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest instructed thread",
+      profileId,
+      agentId,
+    });
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Hi there!",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(messages);
+    expect(
+      AiAgentChat.assistantText(messages),
+      "the agent answered under its own stored instructions",
+    ).toMatch(markerProbe(AGENT_MARKER));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -4922,19 +5617,26 @@ test.describe("AI Chat - image generation", () => {
     const calls = AiAgentChat.toolCalls(reply);
     expect(calls.map((call) => call.toolName)).toContain("generate_image");
 
-    // …which is the engine's own: no client offered it and it is not in the
-    // catalogue the tools API publishes.
+    // …which is the engine's own: no client offered it, and the tools API does
+    // not advertise it — nor anything else, the catalogue publishes nothing at
+    // all now (see the system tools block in mcp.spec.ts).
     const system = await aiTools.listSystemTools("owner");
     expect(
-      (system.data?.docspace ?? []).map((tool) => tool.name),
+      Object.values(system.data ?? {}).flatMap((tools) =>
+        (tools ?? []).map((tool) => tool.name),
+      ),
       "generate_image is server-side, not an advertised DocSpace tool",
     ).not.toContain("generate_image");
 
-    // Nothing ever came back for it, and the message carries no failure either —
-    // it is simply abandoned mid-reply.
+    // What comes back for the call is an empty picture, so the answer has
+    // nothing to carry on with; the reply is left `cancelled` by our own cap
+    // rather than finished by the backend.
     const drawing = calls.find((call) => call.toolName === "generate_image")!;
-    expect(drawing.result).toBeUndefined();
-    expect(reply.status).toBeUndefined();
+    expect(drawing.result, "an empty picture came back").toContain(
+      '"base64":""',
+    );
+    expect(reply.status?.type).toBe("incomplete");
+    expect(reply.status?.reason).toBe("cancelled");
 
     test.fail();
     expect(finished, `the stream ended within ${STREAM_CAP_MS} ms`).toBe(true);
@@ -5351,22 +6053,21 @@ test.describe("AI Chat - image generation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Changing a thread while the model is still writing into it.
-//
-// This block only became reachable once it was established that hanging up on
-// `send-with-stream` does NOT stop the generation (see the stop block in
-// messages.spec.ts): the backend keeps writing for roughly twenty seconds after
-// the client is gone. That gives an API test a window in which the thread is
-// genuinely being written to by someone else, which is exactly the race a user
+// Changing a thread while the model is still writing into it — the race a user
 // creates by renaming, clearing or deleting a chat mid-reply.
 //
-// The window is opened with `sendAndAbort` — the send hands back control at the
-// cap while the reply is still on its way — and the mutation is issued straight
-// afterwards. Each test then waits the whole generation out before looking, so
-// what it asserts is the settled state rather than a snapshot mid-flight.
+// The window used to be opened with `sendAndAbort`, back when hanging up did
+// not stop the generation and the backend kept writing for another twenty
+// seconds. Since 2026-08-18 the disconnect IS honoured (see the stop block in
+// messages.spec.ts): the reply is stored `incomplete`/`cancelled` and empty, so
+// an aborted send leaves nothing in flight and there is no race left to test.
+//
+// The window is therefore held open instead of hung up on: the send is started
+// and NOT awaited, the mutation is issued a few seconds in, and the send is
+// awaited afterwards.
 
-/** Comfortably longer than the ~25 s a full reply needs after the disconnect. */
-const GENERATION_WINDOW_MS = 60000;
+/** How long a late write is given to show up after the stream has ended. */
+const GENERATION_WINDOW_MS = 20000;
 
 /** Long enough that the reply is certainly still being written at the cut. */
 const RACE_PROMPT =
@@ -5377,6 +6078,32 @@ const RACE_CUT_MS = 5000;
 
 async function settleGeneration(ms = GENERATION_WINDOW_MS) {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Starts a reply and hands back control `RACE_CUT_MS` in, while the model is
+ * still writing it and the connection is still open.
+ *
+ * `stillWriting()` is the control every test in this block needs: a mutation is
+ * only a mid-reply mutation if the send had not finished when it was issued,
+ * and a test that skipped this would keep passing against a build that answers
+ * instantly. It is the only evidence available — a partial reply cannot be read
+ * through the API while the stream is open, `read-messages` returns no
+ * assistant message at all until the stream ends.
+ */
+async function startReply(
+  aiChat: AiAgentChat,
+  body: { threadId: string; profileId: string; agentId: number },
+) {
+  let done = false;
+  const inFlight = aiChat
+    .sendMessage("owner", { ...body, message: RACE_PROMPT })
+    .finally(() => {
+      done = true;
+    });
+
+  await new Promise((resolve) => setTimeout(resolve, RACE_CUT_MS));
+  return { inFlight, stillWriting: () => !done };
 }
 
 test.describe("AI Threads - mutated while the model is still writing", () => {
@@ -5400,23 +6127,27 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       agentId,
     });
 
-    const { aborted } = await aiChat.sendAndAbort("owner", {
+    const { inFlight, stillWriting } = await startReply(aiChat, {
       threadId,
       profileId,
       agentId,
-      message: RACE_PROMPT,
-      afterMs: RACE_CUT_MS,
     });
-    expect(aborted, "the reply was still being written").toBe(true);
 
     const renamed = await aiChat.renameThread(
       "owner",
       threadId,
       "Autotest renamed mid-reply",
     );
+    expect(
+      stillWriting(),
+      "the reply was still being written when the rename landed",
+    ).toBe(true);
     expect(renamed.status).toBe(200);
 
     // The reply lands after the rename; neither write loses to the other.
+    const sent = await inFlight;
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
     const settled = await aiChat.waitForStableAssistantText("owner", threadId);
     expect(settled.text.length, "the reply still arrived").toBeGreaterThan(0);
 
@@ -5459,16 +6190,24 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       agentId,
     });
 
-    const { aborted } = await aiChat.sendAndAbort("owner", {
+    const { inFlight, stillWriting } = await startReply(aiChat, {
       threadId: doomed,
       profileId,
       agentId,
-      message: RACE_PROMPT,
-      afterMs: RACE_CUT_MS,
     });
-    expect(aborted).toBe(true);
 
-    expect((await aiChat.deleteThread("owner", doomed)).status).toBe(200);
+    const deleted = await aiChat.deleteThread("owner", doomed);
+    expect(
+      stillWriting(),
+      "the reply was still being written when the thread was deleted",
+    ).toBe(true);
+    expect(deleted.status).toBe(200);
+
+    // Losing the thread under it ends the stream: the reply that was on its way
+    // comes back as an error frame instead of a message.
+    const sent = await inFlight;
+    expect(sent.status).toBe(200);
+    expect(sent.frames.map((frame) => frame.type)).toContain("error");
     await settleGeneration();
 
     const listed = await aiChat.listThreads("owner", agentId);
@@ -5502,18 +6241,20 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       agentId,
     });
 
-    const { aborted } = await aiChat.sendAndAbort("owner", {
+    const { inFlight, stillWriting } = await startReply(aiChat, {
       threadId,
       profileId,
       agentId,
-      message: RACE_PROMPT,
-      afterMs: RACE_CUT_MS,
     });
-    expect(aborted).toBe(true);
 
-    expect((await aiChat.clearThreadMessages("owner", threadId)).status).toBe(
-      200,
-    );
+    const cleared = await aiChat.clearThreadMessages("owner", threadId);
+    expect(
+      stillWriting(),
+      "the reply was still being written when the thread was cleared",
+    ).toBe(true);
+    expect(cleared.status).toBe(200);
+
+    await inFlight;
     await settleGeneration();
 
     // Whether the late reply is dropped or lands in the emptied thread is the
