@@ -46,6 +46,51 @@ export const INTERNAL_SERVICE_MARKER = "INTERNAL-SERVICE-MARKER";
 export const ATTACKER_HOST = "ssrf-attacker.invalid";
 export const INTERNAL_HOST = "ssrf-internal.invalid";
 
+/**
+ * ---------------------------------------------------------------------------
+ * The `baseUrl` egress guard on /ai/profiles (measured 2026-08-18)
+ * ---------------------------------------------------------------------------
+ * `POST /ai/profiles/create` and `POST /ai/profiles/list-provider-models` now
+ * validate `baseUrl` BEFORE resolving `providerType`. Three refusals, all 400:
+ *
+ *   * loopback / private / link-local / metadata → "baseUrl host is not allowed"
+ *     — a real pre-connection egress guard, and what closed BUG 83005.
+ *   * a host that does not resolve, i.e. every `.invalid` name above
+ *     → "baseUrl host could not be resolved"
+ *   * (list-provider-models only) a host that answers but not like an
+ *     OpenAI-compatible endpoint → "Invalid base URL — expected an
+ *     OpenAI-compatible endpoint (e.g. ending in /v1)"
+ *
+ * The consequence for tests: an `.invalid` host can no longer be used to observe
+ * what these two routes do *downstream* — provider-type resolution, the
+ * read-only gate, the provider probe — because the request never gets there.
+ * Reaching past the guard needs a host that really resolves, which is what the
+ * two constants below are for.
+ *
+ * Note the third refusal is NOT a path check: `https://example.com/v1` gets it
+ * too, while a closed port on the same host gets 502. So the portal still dials
+ * any *public* caller-supplied host; only unresolvable and private targets are
+ * refused up front.
+ */
+
+/**
+ * IANA's reserved example domain: it resolves and completes TLS, but is not a
+ * model server. Use it to reach a route's provider probe — the probe fails, so
+ * nothing can be created, and no real provider is contacted.
+ */
+export const RESOLVABLE_NON_PROVIDER_URL = "https://example.com";
+
+/**
+ * The same resolvable host on a filtered port — the only "unreachable provider"
+ * the egress guard still lets through, and therefore the only way left to
+ * observe the 502 `The AI provider is unreachable …` branch.
+ */
+export const RESOLVABLE_UNREACHABLE_URL = "https://example.com:9999/v1";
+
+/** The 502 both routes answer once a resolvable host fails to connect. */
+export const PROVIDER_UNREACHABLE_ERROR =
+  "The AI provider is unreachable — check the base URL and that the service is running";
+
 export type ProxyResult = { status: number; text: string; data: unknown };
 
 /**
