@@ -285,18 +285,22 @@ const MEMBER_OPS: MemberOp[] = [
     },
   },
   {
+    // Not `serverType: "docspace"`: the built-in tools were hidden on
+    // 2026-08-18 and a write naming them is accepted and dropped, which would
+    // make the read-back below fail for the roles that ARE allowed. Any other
+    // string is stored — see the server-types block in mcp.spec.ts.
     label: "PUT /api/2.0/ai/tools/set-disabled",
     run: (tools, role, agentId) =>
       tools.setDisabledTools(role, {
-        serverType: "docspace",
-        toolNames: ["delete_file"],
+        serverType: "autotest-permission-server",
+        toolNames: ["calculate"],
         agentId,
       }),
     expectAllowed: async ({ data }, tools, role, agentId) => {
       expect((data as McpMutationResult)?.success).toBe(true);
       const { data: disabled } = await tools.isToolDisabled(role, {
-        serverType: "docspace",
-        toolName: "delete_file",
+        serverType: "autotest-permission-server",
+        toolName: "calculate",
         agentId,
       });
       expect(disabled).toBe(true);
@@ -392,6 +396,10 @@ test.describe("MCP - Tool state permissions", () => {
       apiSdk,
       paymentsApi,
     }) => {
+      // Open to every role, Guest included — the route is not membership- or
+      // admin-gated, which is the point here. It hands back an empty catalogue
+      // since the tools were hidden on 2026-08-18, so the role matrix is about
+      // who gets a 200 rather than about who sees what.
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -401,7 +409,7 @@ test.describe("MCP - Tool state permissions", () => {
       const { data, status } = await aiTools.listSystemTools(role);
 
       expect(status).toBe(200);
-      expect((data?.docspace ?? []).length).toBeGreaterThan(0);
+      expect(data).toEqual({});
     });
   }
 });

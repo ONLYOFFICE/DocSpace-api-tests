@@ -25,9 +25,23 @@ export class AiHttp {
     protected readonly tokenStore: TokenStore,
   ) {}
 
+  /**
+   * `Origin` is the portal's real base URL here, and it has to be — unlike
+   * everywhere else in the suite, where `http://${newTenantDomain}` is the
+   * convention and harmless.
+   *
+   * The AI engine resolves which DocSpace portal a server-executed tool talks to
+   * from this header. `newTenantDomain` holds `apisystem.portalName` — the name
+   * the portal was REGISTERED under (`integration-test-portal-<rand>-<ts>`), not
+   * its domain (`docspace-xxxxxx.onlyoffice.io`) — so that spelling sent the
+   * engine to a host that does not resolve, and every DocSpace tool came back
+   * `ENOTFOUND integration-test-portal-…`. That is what BUG 83164 was re-opened
+   * on; measured on 2026-08-18, `Origin` alone decides it, while `Referer`,
+   * `X-Forwarded-Host` and `X-Forwarded-Proto` change nothing.
+   */
   protected headers(role: AgentRole) {
     const headers: Record<string, string> = {
-      Origin: `http://${this.tokenStore.newTenantDomain}`,
+      Origin: this.tokenStore.portalBaseUrl,
       "Content-Type": "application/json",
     };
     if (role !== "anonymous") {

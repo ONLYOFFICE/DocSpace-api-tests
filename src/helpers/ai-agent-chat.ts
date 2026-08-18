@@ -532,9 +532,10 @@ export class AiAgentChat extends AiHttp {
    * in-flight `send-with-stream` request. Hanging up is therefore the only stop
    * gesture there is, which is what this does.
    *
-   * The backend does not act on it — it finishes the answer and stores it, see
-   * the stop block in messages.spec.ts — so a test using this must not assume
-   * the reply is truncated.
+   * Since 2026-08-18 the backend acts on it: the reply is stored empty with
+   * `status {type:"incomplete", reason:"cancelled"}`, and the text already
+   * streamed is discarded rather than kept truncated. Until then it finished and
+   * stored the whole answer — see the stop block in messages.spec.ts.
    *
    * `aborted` is returned rather than assumed: a stream that happened to finish
    * inside the window would otherwise let a stop test pass without ever having
