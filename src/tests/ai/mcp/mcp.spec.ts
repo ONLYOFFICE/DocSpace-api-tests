@@ -839,7 +839,7 @@ test.describe("MCP - tool-call confirmation validation", () => {
     expect((await aiChat.denyToolCall("anonymous", body)).status).toBe(401);
   });
 
-  test("BUG 82837: POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - a non-member of the agent may decide on another user's tool call", async ({
+  test("POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - a non-member of the agent cannot decide on another user's tool call", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -886,37 +886,30 @@ test.describe("MCP - tool-call confirmation validation", () => {
       profileId: profile.id,
     };
 
-    // Every neighbouring route refuses this member outright, so the thread really
-    // is out of their reach.
+    // The confirmation routes carry the same membership check as every neighbouring
+    // route, which is section 16.1's "Allow of someone else's request id": a user
+    // outside the agent cannot answer the model's permission prompt in a thread they
+    // cannot even read. They used to answer 200 here (BUG 82837).
     expect(
       (await aiChat.getThread("user", threadId)).status,
       "the thread itself is closed to them",
     ).toBe(403);
     expect((await aiChat.getMessageById("user", messageId)).status).toBe(403);
 
-    // The confirmation routes are not: section 16.1's "Allow of someone else's
-    // request id" is accepted. Nothing happens here only because the referenced
-    // message carries no pending tool call — with a real one, a user outside the
-    // room would be answering the model's permission prompt.
     const approve = await aiChat.approveToolCall("user", body);
     const deny = await aiChat.denyToolCall("user", body);
-    expect(approve.status).toBe(200);
-    expect(deny.status).toBe(200);
 
     await apiSdk.authenticateOwner();
     const messages = await aiChat.readMessages("owner", threadId);
     expect(messages.data.map((message) => message.id)).toEqual([messageId]);
 
-    test.fail();
-    expect(
-      approve.status,
-      "deciding on a tool call in someone else's thread must be refused",
-    ).toBe(403);
+    expect(approve.status, "approve").toBe(403);
+    expect(deny.status, "deny").toBe(403);
   });
 });
 
 test.describe("MCP - tool-call confirmation with AI Disabled", () => {
-  test("BUG 82838: POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - both are still accepted when AI access is disabled", async ({
+  test("POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - both are refused when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -963,19 +956,14 @@ test.describe("MCP - tool-call confirmation with AI Disabled", () => {
       "reading the thread is gated",
     ).toBe(403);
 
-    // Section 3.2 lists "an MCP tool cannot be invoked" among the things the
-    // switch has to stop. These two routes are the decision half of that flow and
-    // neither one checks it.
+    // Section 3.2 lists "an MCP tool cannot be invoked" among the things the switch
+    // has to stop. These two routes are the decision half of that flow and both now
+    // honour it — they used to be accepted with the switch off (BUG 82838).
     const approve = await aiChat.approveToolCall("owner", body);
     const deny = await aiChat.denyToolCall("owner", body);
-    expect(approve.status).toBe(200);
-    expect(deny.status).toBe(200);
 
-    test.fail();
-    expect(
-      approve.status,
-      "tool-call decisions must be refused when AI access is disabled",
-    ).toBe(403);
+    expect(approve.status, "approve").toBe(403);
+    expect(deny.status, "deny").toBe(403);
   });
 });
 
@@ -3463,22 +3451,32 @@ test.describe("MCP - server names as map keys", () => {
     expect(trimmed.data?.success).toBe(true);
   });
 
-  // A path-shaped name registers and lists, then cannot be addressed: get answers
-  // null, update reports "Server not registered", and the entry survives every
-  // attempt to delete it. Only replace-all, which rewrites the whole scope, can
-  // clear it — so one mistyped name leaves a permanent entry in an agent's tool
-  // configuration.
+  // `.`, `..`, either slash and any control character are refused up front with a
+  // 400 naming the rule, on all three routes that write a name: add, update and the
+  // bulk replace-all. A refused replace-all is atomic — the scope it would have
+  // overwritten is left alone.
   //
-  // `.` and `..` behave the same way as `a/b`, which is the interesting part: the
-  // name is not being resolved as a path (`%2F`, `#`, `?`, `%` and `\` all work
-  // fine, see the test below), it is the by-name lookup that cannot see keys the
-  // list can. `.` goes one further and answers 405 Method Not Allowed on remove.
-  for (const { label, name } of [
-    { label: "a slash", name: "autotest/nested-name" },
-    { label: "a single dot", name: "." },
-    { label: "two dots", name: ".." },
+  // `remove-custom-server` is the exception, as it is for every other bad input:
+  // it validates nothing and reports `{success:true}` for a name that could never
+  // have been stored. `.` is the one name it cannot even reach — the router answers
+  // 405 Method Not Allowed before the handler sees it.
+  //
+  // This closed BUG 82985. These names used to register and list, then be
+  // unaddressable: get answered null, update reported "Server not registered", and
+  // the entry survived every delete, so one mistyped name left a permanent entry in
+  // an agent's tool configuration.
+  for (const { label, name, removeStatus } of [
+    { label: "a slash", name: "autotest/nested-name", removeStatus: 200 },
+    { label: "a backslash", name: "autotest\\backslash", removeStatus: 200 },
+    {
+      label: "a control character",
+      name: "autotest\u0001ctl",
+      removeStatus: 200,
+    },
+    { label: "a single dot", name: ".", removeStatus: 405 },
+    { label: "two dots", name: "..", removeStatus: 200 },
   ]) {
-    test(`BUG 82985: POST /api/2.0/ai/tools/add-custom-server - a server named with ${label} can be registered but never read, edited or removed`, async ({
+    test(`POST /api/2.0/ai/tools/add-custom-server - a name containing ${label} is refused`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -3493,39 +3491,50 @@ test.describe("MCP - server names as map keys", () => {
         profileId,
       });
 
+      const message =
+        'name must not be ".", "..", or contain a path separator or control character';
+
+      // A legal neighbour, so "the scope holds exactly this one server" afterwards
+      // proves the list can see keys at all — and that the refused replace-all did
+      // not wipe what was already there.
+      const legal = await aiTools.addCustomServer("owner", {
+        name: "autotest-legal",
+        config: SERVER_CONFIG,
+        agentId,
+      });
+      expect(legal.data?.success, "the legal name is stored").toBe(true);
+
       const added = await aiTools.addCustomServer("owner", {
         name,
         config: SERVER_CONFIG,
         agentId,
       });
-      expect(added.data?.success, "the name is accepted").toBe(true);
-      expect(
-        Object.keys(await serverMap(aiTools, agentId)),
-        "and listed under that key",
-      ).toEqual([name]);
-
-      const read = await aiTools.getCustomServer("owner", name, agentId);
       const updated = await aiTools.updateCustomServer("owner", {
         name,
         config: OTHER_CONFIG,
+        agentId,
+      });
+      const replaced = await aiTools.replaceAllCustomServers("owner", {
+        map: { [name]: SERVER_CONFIG },
         agentId,
       });
       const removed = await aiTools.removeCustomServer("owner", {
         name,
         agentId,
       });
-      const afterRemove = await serverMap(aiTools, agentId);
 
-      test.fail();
-      expect(read.data, "a registered server is readable by name").toEqual(
-        SERVER_CONFIG,
-      );
-      expect(updated.data?.success, "and editable by name").toBe(true);
-      expect(removed.status, "and removable by name").toBe(200);
       expect(
-        Object.keys(afterRemove),
-        "a successful remove empties the scope",
-      ).toEqual([]);
+        Object.keys(await serverMap(aiTools, agentId)),
+        "the refused name was never stored and the legal one survived",
+      ).toEqual(["autotest-legal"]);
+
+      expect(added.error, "add").toBe(message);
+      expect(added.status, "add").toBe(400);
+      expect(updated.error, "update").toBe(message);
+      expect(updated.status, "update").toBe(400);
+      expect(replaced.error, "replace-all").toBe(message);
+      expect(replaced.status, "replace-all").toBe(400);
+      expect(removed.status, "remove validates nothing").toBe(removeStatus);
     });
   }
 
@@ -3533,11 +3542,12 @@ test.describe("MCP - server names as map keys", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    // The counterweight to the bug above: nothing about "a name that looks like it
-    // could be interpolated somewhere" is broken in general. An already-encoded
-    // slash, a fragment, a query separator, a bare percent and a backslash all
-    // survive the full add/get/update/remove cycle unchanged — which is what
-    // narrows the bug down to `/`, `.` and `..`.
+    // The counterweight to the refusals above: "a name that looks like it could be
+    // interpolated somewhere" is not rejected in general. An already-encoded slash,
+    // a fragment, a query separator and a bare percent all survive the full
+    // add/get/update/remove cycle unchanged, and so does a dot that is only *part*
+    // of a name — leading, trailing or in the middle. Only a bare `.`/`..`, a real
+    // separator and control characters are refused.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3554,9 +3564,10 @@ test.describe("MCP - server names as map keys", () => {
       "autotest#fragment",
       "autotest?query=1",
       "autotest%percent",
-      "autotest\\backslash",
       "autotest server",
       "autotest.dotted",
+      ".autotest",
+      "autotest.",
     ];
 
     for (const name of names) {
@@ -3743,14 +3754,14 @@ test.describe("MCP - server names as map keys", () => {
     expect(second.data?.success).toBe(true);
   });
 
-  test("BUG 82987: POST /api/2.0/ai/tools/add-custom-server - an emoji in the server name answers 500", async ({
+  test("POST /api/2.0/ai/tools/add-custom-server - an emoji in the server name round-trips", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Every other rejected name is either a soft `{success:false}` or a 400. An
-    // emoji is an unhandled failure, and the following read of that name is a 500
-    // as well — so the name is stored somewhere the reads cannot cope with. The
-    // contract asserted here is only "not a 500": either store it or refuse it.
+    // A non-BMP name is stored and addressable like any other. It used to be the one
+    // input on this route that answered an unhandled 500 — on the add and on every
+    // later read of that name (BUG 82987) — while every other rejected name was
+    // either a soft `{success:false}` or a 400.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3768,13 +3779,34 @@ test.describe("MCP - server names as map keys", () => {
       config: SERVER_CONFIG,
       agentId,
     });
-    const read = await aiTools.getCustomServer("owner", name, agentId);
+    expect(added.data?.success, "an emoji name is accepted").toBe(true);
+    expect(added.status).toBe(200);
 
-    test.fail();
-    expect(added.status, "an emoji name is handled, not a server error").toBe(
-      200,
-    );
-    expect(read.status).toBe(200);
+    expect(
+      Object.keys(await serverMap(aiTools, agentId)),
+      "and listed under the key as sent",
+    ).toEqual([name]);
+    expect(
+      (await aiTools.getCustomServer("owner", name, agentId)).data,
+      "and readable by name",
+    ).toEqual(SERVER_CONFIG);
+
+    const updated = await aiTools.updateCustomServer("owner", {
+      name,
+      config: OTHER_CONFIG,
+      agentId,
+    });
+    expect(updated.data?.success, "and editable by name").toBe(true);
+    expect(
+      (await aiTools.getCustomServer("owner", name, agentId)).data,
+    ).toEqual(OTHER_CONFIG);
+
+    const removed = await aiTools.removeCustomServer("owner", {
+      name,
+      agentId,
+    });
+    expect(removed.data?.success, "and removable by name").toBe(true);
+    expect(Object.keys(await serverMap(aiTools, agentId))).toEqual([]);
   });
 });
 
