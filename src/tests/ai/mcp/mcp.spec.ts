@@ -5125,7 +5125,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   // Three tests rather than one so a partial fix reads correctly, and each one
   // `test.fail` on the CORRECT expectation rather than green on today's answer.
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
+  test("BUG 83231: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5164,7 +5164,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     ).not.toEqual({ text: "", generationToolCallState: undefined });
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a text document", async ({
+  test("BUG 83232: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a text document", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5200,7 +5200,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     });
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - the form generator writes an ordinary document, not a form", async ({
+  test("BUG 83233: POST /api/2.0/ai/ai/approve-tool-call - the form generator writes an ordinary document, not a form", async ({
     apiSdk,
     paymentsApi,
   }) => {

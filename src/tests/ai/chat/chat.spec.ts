@@ -5138,7 +5138,7 @@ test.describe("AI Chat - an agent picked in the composer from another location",
     ).toMatch(markerProbe(REQUEST_MARKER));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a per-request prompt replaces the picked agent's own AI Instructions", async ({
+  test("BUG 83236: POST /api/2.0/ai/ai/send-with-stream - a per-request prompt replaces the picked agent's own AI Instructions", async ({
     apiSdk,
     paymentsApi,
   }) => {

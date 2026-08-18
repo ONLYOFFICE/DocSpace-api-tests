@@ -40,7 +40,7 @@ import {
 // look like collateral damage rather than the intent:
 //
 //   * `save-file` refuses a Guest outright, on a file the Guest can read. That is
-//     the BUG XXXXX test in "who may create a draft".
+//     the BUG 83237 test in "who may create a draft".
 //   * `get` and `get-many` answer a Guest 403 for ANY id, an unknown one included,
 //     where the owner gets `200 [null]`. So a Guest cannot read a draft — not
 //     somebody else's and not one of their own. It is not the AI stack shutting
@@ -130,7 +130,7 @@ test.describe("AI Attachments - who may create a draft", () => {
     });
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - a Guest attaches a file shared with them", async ({
+  test("BUG 83237: POST /api/2.0/ai/attachments/save-file - a Guest attaches a file shared with them", async ({
     apiSdk,
   }) => {
     // A Guest has no Documents of their own, and a file draft has to reference a
@@ -504,7 +504,7 @@ test.describe("AI Attachments - cross-user access", () => {
     // Positive control: the draft is alive and readable for its owner at this very
     // moment, so the Guest's null is not a draft that was never stored. Measured
     // as the owner deliberately — a Guest cannot create a draft of their own to
-    // control with any more (`save-file` refuses them, the BUG XXXXX test at the
+    // control with any more (`save-file` refuses them, the BUG 83237 test at the
     // top of this file), which rules out the usual own-draft control.
     await apiSdk.authenticateOwner();
     await attachments.expectNotActingAs(

@@ -1200,7 +1200,7 @@ test.describe("AI Web Search - permissions", () => {
     ).toBe(200);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/web-search/test-connection - a Guest cannot read the configuration but may still validate a key through the portal", async ({
+  test("BUG 83234: POST /api/2.0/ai/web-search/test-connection - a Guest cannot read the configuration but may still validate a key through the portal", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1307,7 +1307,7 @@ test.describe("AI Web Search - AI Disabled", () => {
     ).toBe(403);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/web-search/test-connection - the portal AI switch does not gate the provider probe", async ({
+  test("BUG 83235: POST /api/2.0/ai/web-search/test-connection - the portal AI switch does not gate the provider probe", async ({
     apiSdk,
     paymentsApi,
   }) => {
