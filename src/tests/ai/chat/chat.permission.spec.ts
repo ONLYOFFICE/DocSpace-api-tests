@@ -337,22 +337,21 @@ test.describe("Threads - isolation between members of the same agent", () => {
       });
     }
 
-    test(`BUG 82717: POST /api/2.0/ai/ai/send-with-stream - ${role} invited to the agent gets 200 instead of 403 on Owner's thread`, async ({
+    test(`POST /api/2.0/ai/ai/send-with-stream - ${role} invited to the agent cannot send into Owner's thread`, async ({
       apiSdk,
       paymentsApi,
     }) => {
-      // Every other operation on someone else's thread is a clean 403. Sending
-      // into it answers HTTP 200 with `{"type":"error","message":"stream error"}`
-      // in the body instead. The thread is not actually touched — the
-      // assertions below establish that before the status is checked — so this
-      // is a wrong response contract rather than a data leak.
+      // Was BUG 82717: this was the one operation on someone else's thread that
+      // answered HTTP 200 with `{"type":"error","message":"stream error"}` in
+      // the body instead of the 403 all its neighbours return. Fixed
+      // 2026-08-18 — it now refuses like the rest of the matrix above.
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const context = await ownerThreadWithMember(apiSdk, type);
       const { aiChat, profileId, agentId, threadId } = context;
 
-      const { status, streamError } = await aiChat.sendMessage(role, {
+      const { status, error, streamError } = await aiChat.sendMessage(role, {
         threadId,
         profileId,
         agentId,
@@ -365,10 +364,12 @@ test.describe("Threads - isolation between members of the same agent", () => {
       // straight away could mistake a slow write for no write at all.
       await new Promise((resolve) => setTimeout(resolve, 10000));
       await expectOwnerThreadIntact(apiSdk, context);
-      expect(streamError).toBe("stream error");
 
-      test.fail();
       expect(status).toBe(403);
+      expect(error).toBe("Forbidden");
+      expect(streamError, "the refusal is the status, not a stream frame").toBe(
+        undefined,
+      );
     });
   }
 });
@@ -1165,10 +1166,13 @@ test.describe("Threads - validation", () => {
     expect(AiAgentChat.assistantMessages(messages.data)).toEqual([]);
   });
 
-  test("BUG 82723: POST /api/2.0/ai/ai/send-with-stream - an unknown thread reports the failure inside a 200", async ({
+  test("POST /api/2.0/ai/ai/send-with-stream - an unknown thread is refused with a 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Was BUG 82723: the refusal used to arrive as HTTP 200 carrying
+    // {"type":"error","message":"stream error"} in the streamed body — a status
+    // a client reads as success. Fixed 2026-08-18; the stream now never opens.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -1179,17 +1183,17 @@ test.describe("Threads - validation", () => {
       profileId,
     });
 
-    const { status, streamError } = await aiChat.sendMessage("owner", {
+    const { status, error, streamError } = await aiChat.sendMessage("owner", {
       threadId: "019f0000-0000-7000-8000-000000000000",
       profileId,
       agentId,
       message: "Hello",
     });
 
-    // The body carries {"type":"error","message":"stream error"} under a 200.
-    expect(streamError).toBe("stream error");
-
-    test.fail();
     expect(status).toBe(404);
+    expect(error).toBe("Not Found");
+    expect(streamError, "the refusal is the status, not a stream frame").toBe(
+      undefined,
+    );
   });
 });

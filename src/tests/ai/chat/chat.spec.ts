@@ -4922,19 +4922,26 @@ test.describe("AI Chat - image generation", () => {
     const calls = AiAgentChat.toolCalls(reply);
     expect(calls.map((call) => call.toolName)).toContain("generate_image");
 
-    // …which is the engine's own: no client offered it and it is not in the
-    // catalogue the tools API publishes.
+    // …which is the engine's own: no client offered it, and the tools API does
+    // not advertise it — nor anything else, the catalogue publishes nothing at
+    // all now (see the system tools block in mcp.spec.ts).
     const system = await aiTools.listSystemTools("owner");
     expect(
-      (system.data?.docspace ?? []).map((tool) => tool.name),
+      Object.values(system.data ?? {}).flatMap((tools) =>
+        (tools ?? []).map((tool) => tool.name),
+      ),
       "generate_image is server-side, not an advertised DocSpace tool",
     ).not.toContain("generate_image");
 
-    // Nothing ever came back for it, and the message carries no failure either —
-    // it is simply abandoned mid-reply.
+    // What comes back for the call is an empty picture, so the answer has
+    // nothing to carry on with; the reply is left `cancelled` by our own cap
+    // rather than finished by the backend.
     const drawing = calls.find((call) => call.toolName === "generate_image")!;
-    expect(drawing.result).toBeUndefined();
-    expect(reply.status).toBeUndefined();
+    expect(drawing.result, "an empty picture came back").toContain(
+      '"base64":""',
+    );
+    expect(reply.status?.type).toBe("incomplete");
+    expect(reply.status?.reason).toBe("cancelled");
 
     test.fail();
     expect(finished, `the stream ended within ${STREAM_CAP_MS} ms`).toBe(true);
@@ -5351,22 +5358,21 @@ test.describe("AI Chat - image generation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Changing a thread while the model is still writing into it.
-//
-// This block only became reachable once it was established that hanging up on
-// `send-with-stream` does NOT stop the generation (see the stop block in
-// messages.spec.ts): the backend keeps writing for roughly twenty seconds after
-// the client is gone. That gives an API test a window in which the thread is
-// genuinely being written to by someone else, which is exactly the race a user
+// Changing a thread while the model is still writing into it — the race a user
 // creates by renaming, clearing or deleting a chat mid-reply.
 //
-// The window is opened with `sendAndAbort` — the send hands back control at the
-// cap while the reply is still on its way — and the mutation is issued straight
-// afterwards. Each test then waits the whole generation out before looking, so
-// what it asserts is the settled state rather than a snapshot mid-flight.
+// The window used to be opened with `sendAndAbort`, back when hanging up did
+// not stop the generation and the backend kept writing for another twenty
+// seconds. Since 2026-08-18 the disconnect IS honoured (see the stop block in
+// messages.spec.ts): the reply is stored `incomplete`/`cancelled` and empty, so
+// an aborted send leaves nothing in flight and there is no race left to test.
+//
+// The window is therefore held open instead of hung up on: the send is started
+// and NOT awaited, the mutation is issued a few seconds in, and the send is
+// awaited afterwards.
 
-/** Comfortably longer than the ~25 s a full reply needs after the disconnect. */
-const GENERATION_WINDOW_MS = 60000;
+/** How long a late write is given to show up after the stream has ended. */
+const GENERATION_WINDOW_MS = 20000;
 
 /** Long enough that the reply is certainly still being written at the cut. */
 const RACE_PROMPT =
@@ -5377,6 +5383,32 @@ const RACE_CUT_MS = 5000;
 
 async function settleGeneration(ms = GENERATION_WINDOW_MS) {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Starts a reply and hands back control `RACE_CUT_MS` in, while the model is
+ * still writing it and the connection is still open.
+ *
+ * `stillWriting()` is the control every test in this block needs: a mutation is
+ * only a mid-reply mutation if the send had not finished when it was issued,
+ * and a test that skipped this would keep passing against a build that answers
+ * instantly. It is the only evidence available — a partial reply cannot be read
+ * through the API while the stream is open, `read-messages` returns no
+ * assistant message at all until the stream ends.
+ */
+async function startReply(
+  aiChat: AiAgentChat,
+  body: { threadId: string; profileId: string; agentId: number },
+) {
+  let done = false;
+  const inFlight = aiChat
+    .sendMessage("owner", { ...body, message: RACE_PROMPT })
+    .finally(() => {
+      done = true;
+    });
+
+  await new Promise((resolve) => setTimeout(resolve, RACE_CUT_MS));
+  return { inFlight, stillWriting: () => !done };
 }
 
 test.describe("AI Threads - mutated while the model is still writing", () => {
@@ -5400,23 +5432,27 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       agentId,
     });
 
-    const { aborted } = await aiChat.sendAndAbort("owner", {
+    const { inFlight, stillWriting } = await startReply(aiChat, {
       threadId,
       profileId,
       agentId,
-      message: RACE_PROMPT,
-      afterMs: RACE_CUT_MS,
     });
-    expect(aborted, "the reply was still being written").toBe(true);
 
     const renamed = await aiChat.renameThread(
       "owner",
       threadId,
       "Autotest renamed mid-reply",
     );
+    expect(
+      stillWriting(),
+      "the reply was still being written when the rename landed",
+    ).toBe(true);
     expect(renamed.status).toBe(200);
 
     // The reply lands after the rename; neither write loses to the other.
+    const sent = await inFlight;
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
     const settled = await aiChat.waitForStableAssistantText("owner", threadId);
     expect(settled.text.length, "the reply still arrived").toBeGreaterThan(0);
 
@@ -5459,16 +5495,24 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       agentId,
     });
 
-    const { aborted } = await aiChat.sendAndAbort("owner", {
+    const { inFlight, stillWriting } = await startReply(aiChat, {
       threadId: doomed,
       profileId,
       agentId,
-      message: RACE_PROMPT,
-      afterMs: RACE_CUT_MS,
     });
-    expect(aborted).toBe(true);
 
-    expect((await aiChat.deleteThread("owner", doomed)).status).toBe(200);
+    const deleted = await aiChat.deleteThread("owner", doomed);
+    expect(
+      stillWriting(),
+      "the reply was still being written when the thread was deleted",
+    ).toBe(true);
+    expect(deleted.status).toBe(200);
+
+    // Losing the thread under it ends the stream: the reply that was on its way
+    // comes back as an error frame instead of a message.
+    const sent = await inFlight;
+    expect(sent.status).toBe(200);
+    expect(sent.frames.map((frame) => frame.type)).toContain("error");
     await settleGeneration();
 
     const listed = await aiChat.listThreads("owner", agentId);
@@ -5502,18 +5546,20 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       agentId,
     });
 
-    const { aborted } = await aiChat.sendAndAbort("owner", {
+    const { inFlight, stillWriting } = await startReply(aiChat, {
       threadId,
       profileId,
       agentId,
-      message: RACE_PROMPT,
-      afterMs: RACE_CUT_MS,
     });
-    expect(aborted).toBe(true);
 
-    expect((await aiChat.clearThreadMessages("owner", threadId)).status).toBe(
-      200,
-    );
+    const cleared = await aiChat.clearThreadMessages("owner", threadId);
+    expect(
+      stillWriting(),
+      "the reply was still being written when the thread was cleared",
+    ).toBe(true);
+    expect(cleared.status).toBe(200);
+
+    await inFlight;
     await settleGeneration();
 
     // Whether the late reply is dropped or lands in the emptied thread is the

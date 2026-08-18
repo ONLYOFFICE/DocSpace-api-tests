@@ -34,6 +34,16 @@ const SERVER_CONFIG = { url: "https://mcp.example.invalid/sse" };
 const UPDATED_CONFIG = { url: "https://mcp-updated.example.invalid/sse" };
 const DISABLED_CONFIG = { url: "https://mcp-written-while-off.invalid/sse" };
 
+/**
+ * The serverType the disabled-tools tests stage their state under.
+ *
+ * Not `docspace`: the built-in tools were hidden on 2026-08-18 and a write
+ * naming them is accepted and dropped, so it can no longer stand for "there is
+ * state here to be refused". Any other string is stored — see the server-types
+ * block in mcp.spec.ts.
+ */
+const DISABLE_SERVER = "autotest-disable-server";
+
 type OwnerApi = Parameters<typeof setPortalAiAccess>[0];
 
 /** Flips the portal AI switch off and proves it actually stored the value. */
@@ -79,7 +89,9 @@ test.describe("MCP - AI Disabled", () => {
     paymentsApi,
   }) => {
     // Deliberately pinned: the built-in tool catalogue is the one tools route
-    // the portal AI switch does not gate.
+    // the portal AI switch does not gate. What it returns is an empty catalogue
+    // either way (the tools were hidden on 2026-08-18), so the subject is the
+    // 200 — every neighbouring route in this file answers 403 with AI off.
     const { ownerApi, aiTools } = await mcpSetup(apiSdk, paymentsApi);
 
     const before = await aiTools.listSystemTools("owner");
@@ -90,7 +102,7 @@ test.describe("MCP - AI Disabled", () => {
     const { data, status } = await aiTools.listSystemTools("owner");
 
     expect(status).toBe(200);
-    expect((data?.docspace ?? []).length).toBeGreaterThan(0);
+    expect(data).toEqual({});
   });
 
   test("GET /api/2.0/ai/tools/list-custom-servers - returns 403 when AI access is disabled", async ({
@@ -264,13 +276,13 @@ test.describe("MCP - AI Disabled", () => {
     const { ownerApi, aiTools, agentId } = await mcpSetup(apiSdk, paymentsApi);
 
     await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
-      toolNames: ["delete_file"],
+      serverType: DISABLE_SERVER,
+      toolNames: ["calculate"],
       agentId,
     });
     const before = await aiTools.getDisabledTools("owner", agentId);
     expect(before.status).toBe(200);
-    expect(before.data?.docspace).toEqual(["delete_file"]);
+    expect(before.data?.[DISABLE_SERVER]).toEqual(["calculate"]);
 
     await turnAiOff(ownerApi);
 
@@ -287,8 +299,8 @@ test.describe("MCP - AI Disabled", () => {
     const { ownerApi, aiTools, agentId } = await mcpSetup(apiSdk, paymentsApi);
 
     const before = await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
-      toolNames: ["delete_file"],
+      serverType: DISABLE_SERVER,
+      toolNames: ["calculate"],
       agentId,
     });
     expect(before.status).toBe(200);
@@ -297,14 +309,14 @@ test.describe("MCP - AI Disabled", () => {
 
     // Clearing the list, so a write that slipped through would be visible.
     const { status, error } = await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
+      serverType: DISABLE_SERVER,
       toolNames: [],
       agentId,
     });
 
     await turnAiOn(ownerApi);
     const { data: after } = await aiTools.getDisabledTools("owner", agentId);
-    expect(after?.docspace).toEqual(["delete_file"]);
+    expect(after?.[DISABLE_SERVER]).toEqual(["calculate"]);
 
     expect(error).toBe("Forbidden");
     expect(status).toBe(403);
@@ -317,13 +329,13 @@ test.describe("MCP - AI Disabled", () => {
     const { ownerApi, aiTools, agentId } = await mcpSetup(apiSdk, paymentsApi);
 
     await aiTools.setDisabledTools("owner", {
-      serverType: "docspace",
-      toolNames: ["delete_file"],
+      serverType: DISABLE_SERVER,
+      toolNames: ["calculate"],
       agentId,
     });
     const before = await aiTools.isToolDisabled("owner", {
-      serverType: "docspace",
-      toolName: "delete_file",
+      serverType: DISABLE_SERVER,
+      toolName: "calculate",
       agentId,
     });
     expect(before.status).toBe(200);
@@ -332,8 +344,8 @@ test.describe("MCP - AI Disabled", () => {
     await turnAiOff(ownerApi);
 
     const { status, error } = await aiTools.isToolDisabled("owner", {
-      serverType: "docspace",
-      toolName: "delete_file",
+      serverType: DISABLE_SERVER,
+      toolName: "calculate",
       agentId,
     });
 
@@ -457,9 +469,11 @@ test.describe("MCP - AI Tools wallet service not paid for", () => {
     });
 
     await test.step("GET list-system-tools", async () => {
+      // Empty on a paid portal too — the tools were hidden on 2026-08-18 — so
+      // the wallet reading here is the 200, not the contents.
       const { status, data } = await aiTools.listSystemTools("owner");
       expect(status).toBe(200);
-      expect((data?.docspace ?? []).length).toBeGreaterThan(0);
+      expect(data).toEqual({});
     });
 
     await test.step("POST add-custom-server", async () => {
@@ -504,20 +518,23 @@ test.describe("MCP - AI Tools wallet service not paid for", () => {
     });
 
     await test.step("PUT set-disabled, GET get-disabled and is-tool-disabled", async () => {
+      // Against the server registered above, not `docspace`: the built-in tools
+      // were hidden on 2026-08-18 and a write naming them is dropped on a paid
+      // portal too, so it could not tell a wallet gate from the general rule.
       const { status } = await aiTools.setDisabledTools("owner", {
-        serverType: "docspace",
-        toolNames: ["delete_file"],
+        serverType: "autotest-unpaid-server",
+        toolNames: ["calculate"],
         agentId,
       });
       expect(status).toBe(200);
 
       const disabled = await aiTools.getDisabledTools("owner", agentId);
       expect(disabled.status).toBe(200);
-      expect(disabled.data?.docspace).toEqual(["delete_file"]);
+      expect(disabled.data?.["autotest-unpaid-server"]).toEqual(["calculate"]);
 
       const one = await aiTools.isToolDisabled("owner", {
-        serverType: "docspace",
-        toolName: "delete_file",
+        serverType: "autotest-unpaid-server",
+        toolName: "calculate",
         agentId,
       });
       expect(one.status).toBe(200);
