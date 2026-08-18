@@ -13,6 +13,9 @@ import {
   unsafeSchemeUrls,
   nonResolvingAttackerUrls,
   ATTACKER_HOST,
+  RESOLVABLE_NON_PROVIDER_URL,
+  RESOLVABLE_UNREACHABLE_URL,
+  PROVIDER_UNREACHABLE_ERROR,
 } from "@/src/helpers/ssrf-payloads";
 import config from "@/config";
 
@@ -40,9 +43,17 @@ import config from "@/config";
 //   * `list-provider-models`, the one route that really talks to a provider and
 //     therefore carries the whole of 4.2's key/URL error contract.
 //
-// `list-provider-models` is also a live egress surface: it dials any http(s) URL
-// the caller supplies. The runnable payloads here stay on non-resolving
-// RFC 6761 `.invalid` hosts per the policy in ssrf-payloads.ts.
+// `list-provider-models` is also a live egress surface, though a narrower one
+// than it used to be: since 2026-08-18 both it and `create` refuse a `baseUrl`
+// that does not resolve or points at a private/loopback/metadata address, BEFORE
+// opening a socket — see the guard's contract in ssrf-payloads.ts. Any *public*
+// host the caller supplies is still dialled.
+//
+// That guard is why the tests below reach the provider probe through the
+// resolvable `example.com` rather than through a `.invalid` name: on these two
+// routes an `.invalid` host now stops at the guard and never exercises provider
+// resolution, the read-only gate, or the probe at all. Payloads whose whole point
+// IS to be refused still use `.invalid`, per the policy in ssrf-payloads.ts.
 
 // Section 4 states the profile form carries no generation tuning: no
 // temperature, no token limit. `reasoning` and `capabilities` are model
@@ -386,10 +397,15 @@ test.describe("AI Profiles - the gateway catalogue is read-only", () => {
 
     // Provider-type resolution runs before the read-only gate, which is the only
     // way any of section 4.1's create validation is observable on this build.
+    //
+    // The host has to resolve to get this far: the baseUrl guard runs before
+    // provider resolution, so an `.invalid` name would be answered 400 "baseUrl
+    // host could not be resolved" and this test would be pinning the guard
+    // instead of the validation error it is about.
     const { status, data } = await profiles.createProfile("owner", {
       name: "Autotest unknown provider",
       providerType: "totally-unknown",
-      baseUrl: "https://example.invalid",
+      baseUrl: RESOLVABLE_NON_PROVIDER_URL,
       modelId: "m",
     });
 
@@ -442,17 +458,21 @@ test.describe("AI Profiles - the gateway catalogue is read-only", () => {
 //   1. resolve the provider type — an unknown name is HTTP 200 +
 //      `{success:false, error:{message:"Unknown provider type: …"}}`, and no
 //      built-in name ever answers that. This is the oracle for the 17.
-//   2. probe the provider with the caller's baseUrl and key. With an unreachable
-//      base URL every built-in transport stops here, with either a local
-//      "Invalid URL" or an outbound "Failed to connect" / "Connection error." —
-//      still HTTP 200 + success:false.
+//   2. probe the provider with the caller's baseUrl and key. Against a host that
+//      resolves but is not a model server, every built-in transport stops here
+//      with a `{field:"key"|"url"}` complaint — still HTTP 200 + success:false.
 //   3. only then the gateway's read-only 403 (the deepseek step of the read-only
 //      test above reaches it, because api.deepseek.com answers the probe).
 //
 // So the gate is LAST, not first, which is the bug two tests down: a route that
 // can never create anything still spends an outbound request on a caller-supplied
-// host. Runnable payloads stay on the non-resolving `.invalid` host of
-// ssrf-payloads.ts.
+// host.
+//
+// Step 0, since 2026-08-18, is the baseUrl egress guard, and it is what forced
+// these bodies onto a resolvable host: it refuses an unresolvable or private
+// `baseUrl` with a 400 before step 1 runs, so the `.invalid` name these tests
+// used to carry never reached provider resolution and turned the whole block into
+// a test of the guard. See ssrf-payloads.ts.
 //
 // The names are read out of the SDK enum instead of being retyped, so a provider
 // dropped or renamed in the API breaks these tests rather than quietly shrinking
@@ -481,11 +501,18 @@ const NON_IDENTIFIERS = [
   "local",
 ];
 
-/** A create body whose provider can never be reached — see the policy note above. */
-const unreachableProfile = (providerType: string) => ({
+/**
+ * A create body that gets as far as the provider probe and fails there, so no
+ * profile can result — see the policy note above.
+ *
+ * The host resolves on purpose. It has to: the baseUrl guard is step 0 and would
+ * refuse an unresolvable one before the provider type is even looked at. The key
+ * is bogus and the host is not a model server, so the probe cannot succeed.
+ */
+const probedProfile = (providerType: string) => ({
   name: `Autotest ${providerType}`,
   providerType,
-  baseUrl: `https://api.${ATTACKER_HOST}`,
+  baseUrl: RESOLVABLE_NON_PROVIDER_URL,
   key: "sk-autotest-not-a-real-key",
   modelId: "autotest-model",
 });
@@ -513,7 +540,7 @@ test.describe("AI Profiles - the built-in provider types", () => {
     for (const providerType of TRANSPORT_PROVIDER_TYPES) {
       const { status, data } = await profiles.createProfile(
         "owner",
-        unreachableProfile(providerType),
+        probedProfile(providerType),
       );
       outcomes.push({
         type: providerType,
@@ -532,16 +559,22 @@ test.describe("AI Profiles - the built-in provider types", () => {
       "these provider types are no longer known to the backend",
     ).toEqual([]);
 
-    // Each one got as far as its own provider probe and failed there, which is
-    // what "resolved" means on this route: a soft 200 carrying a URL/connection
-    // complaint rather than a plumbing 400 or a crash.
+    // Each one got past resolution into the part of `create` that is specific to
+    // it, which is what "resolved" means on this route. There are two shapes that
+    // count, and both are the opposite of a plumbing 400 or a crash:
+    //
+    //   * the provider probe ran and refused — a soft 200 naming the field it
+    //     blames (`key` for the cloud transports, `url` for the local ones), or
+    //   * the probe was satisfied and the read-only gate refused instead — a hard
+    //     403, which proves resolution more strongly than the soft error does.
+    //     `stabilityai` is the one transport that lands here today.
+    const unexpected = outcomes.filter(
+      (outcome) =>
+        outcome.status !== 403 && !(outcome.status === 200 && outcome.message),
+    );
     expect(
-      outcomes.filter((outcome) => outcome.status !== 200),
-      "a resolved provider type answers a soft 200",
-    ).toEqual([]);
-    expect(
-      outcomes.filter((outcome) => !outcome.message),
-      "and says why it refused",
+      unexpected,
+      "a resolved provider type is either probed and refused, or gated",
     ).toEqual([]);
 
     // Sixteen refusals were sixteen refusals.
@@ -567,7 +600,7 @@ test.describe("AI Profiles - the built-in provider types", () => {
     for (const providerType of NON_IDENTIFIERS) {
       const { status, data } = await profiles.createProfile(
         "owner",
-        unreachableProfile(providerType),
+        probedProfile(providerType),
       );
 
       expect(status, `${providerType} is not a provider identifier`).toBe(200);
@@ -587,22 +620,29 @@ test.describe("AI Profiles - the built-in provider types", () => {
 
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
 
-    // openrouter answers "Failed to connect" for a host in the RFC 6761 `.invalid`
-    // TLD. That message can only come from a failed outbound lookup, so the portal
-    // really did try to reach the caller's host — on a route that cannot create a
-    // profile under any circumstances.
+    // The tell is that the portal hands back CONTENT it could only have fetched
+    // from the caller's host: lm-studio reports the probe failure by quoting the
+    // upstream reply, and the reply is example.com's own page. A body that
+    // contains "Example Domain" cannot have been produced locally — the portal
+    // made the request itself, on a route that cannot create a profile under any
+    // circumstances.
+    //
+    // This replaces the old "Failed to connect" tell, which was measured on an
+    // `.invalid` host and is no longer reachable: the baseUrl guard now refuses an
+    // unresolvable host with a 400 before the provider is dialled at all. Egress to
+    // a resolvable public host is not guarded, so the bug itself is unchanged.
     const dialled = await profiles.createProfile(
       "owner",
-      unreachableProfile("openrouter"),
+      probedProfile("lm-studio"),
     );
     expect(dialled.data?.success).toBe(false);
     expect(
       dialled.data?.error?.message,
-      "the portal attempted the connection itself",
-    ).toBe("Failed to connect");
+      "the portal fetched the caller's host and quoted the reply back",
+    ).toContain("Example Domain");
 
     // Positive control that the gate does exist for this exact body shape: swap
-    // the unreachable host for one that answers the probe and the same call is
+    // the caller's host for one that answers the probe and the same call is
     // refused with 403 (same as the deepseek step of the read-only test above).
     const gated = await profiles.createProfile("owner", {
       name: "Autotest gate control",
@@ -638,14 +678,14 @@ test.describe("AI Profiles - the built-in provider types", () => {
     // soft validation error naming the missing `basedOn`, would be an answer.
     const bare = await profiles.createProfile(
       "owner",
-      unreachableProfile(EXTERNAL_PROVIDER_TYPE),
+      probedProfile(EXTERNAL_PROVIDER_TYPE),
     );
     expect(bare.data?.error?.message, "no reason is reported").toBeUndefined();
 
     // `basedOn` is the inner provider `external` parses replies with, so a missing
     // one is the obvious suspect — it makes no difference.
     const withBasedOn = await profiles.createProfile("owner", {
-      ...unreachableProfile(EXTERNAL_PROVIDER_TYPE),
+      ...probedProfile(EXTERNAL_PROVIDER_TYPE),
       basedOn: "openai",
     });
     expect(withBasedOn.status, "supplying basedOn does not help").toBe(
@@ -824,21 +864,35 @@ test.describe("AI Profiles - provider model discovery", () => {
 
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
 
-    // 502 "unreachable" is the tell that the request was actually attempted: the
-    // host is a non-resolving `.invalid` name, so a reply can only come from a
-    // failed outbound lookup. There is no allow-list in front of this route —
-    // which is what makes the loopback / metadata cases below meaningful, and why
-    // they must not be run against shared infrastructure.
+    // 502 "unreachable" is the tell that the connection was actually attempted:
+    // the host resolves, so the only way to learn that its port does not answer is
+    // to have tried it.
+    //
+    // The guard in front of this route filters by ADDRESS, not by allow-list: it
+    // refuses what cannot resolve and what is private, and lets every other public
+    // host through to be dialled. So a caller still chooses who this portal talks
+    // to, within the public internet.
     const { status, error } = await profiles.listProviderModels("owner", {
       providerType: "deepseek",
-      baseUrl: `http://${ATTACKER_HOST}:9999`,
+      baseUrl: RESOLVABLE_UNREACHABLE_URL,
       apiKey: config.DEEPSEEK_API_KEY,
     });
 
     expect(status).toBe(502);
-    expect(error).toBe(
-      "The AI provider is unreachable — check the base URL and that the service is running",
+    expect(error).toBe(PROVIDER_UNREACHABLE_ERROR);
+
+    // The other half of the guard's shape, and the reason the loopback / metadata
+    // cases below are no longer reachable: an unresolvable host is refused up
+    // front, with an address complaint rather than a connection one.
+    const unresolvable = await profiles.listProviderModels("owner", {
+      providerType: "deepseek",
+      baseUrl: `http://${ATTACKER_HOST}:9999`,
+      apiKey: config.DEEPSEEK_API_KEY,
+    });
+    expect(unresolvable.status, "an unresolvable host never gets dialled").toBe(
+      400,
     );
+    expect(unresolvable.error).toBe("baseUrl host could not be resolved");
   });
 
   for (const { name, url } of nonResolvingAttackerUrls) {
@@ -865,17 +919,59 @@ test.describe("AI Profiles - provider model discovery", () => {
   }
 
   // ------------------------------------------------------------------------
-  // Loopback / private / link-local / metadata targets (BUG 83005).
+  // Loopback / private / link-local / metadata targets (BUG 83005 — FIXED).
   //
-  // BUG 83005 confirmed this route has NO pre-connection egress guard: a closed
-  // loopback port answers 502 (connection refused) and a filtered private host
-  // hangs for the full 30s connect timeout, so `forbiddenSpecialUrls` really are
-  // dialled rather than rejected. There is deliberately no test here — running
-  // those payloads on shared infrastructure would connect to internal addresses
-  // (and the metadata targets could return credentials). The safe half of the
-  // egress contract is already covered by the `nonResolvingAttackerUrls` loop
-  // above, which never leaves a `.invalid` host.
+  // BUG 83005 was filed because this route had NO pre-connection egress guard: a
+  // closed loopback port answered 502 (connection refused) and a filtered private
+  // host hung for the full 30s connect timeout, which proved the addresses were
+  // dialled rather than rejected. Running them was therefore unsafe on shared
+  // infrastructure and the case was left untested.
+  //
+  // Measured 2026-08-18: the guard now exists and refuses these addresses BEFORE
+  // opening a socket, which is what makes the test below safe to run at last — the
+  // 400 arrives without anything being contacted, so no internal service is
+  // touched and no metadata endpoint can return credentials.
   // ------------------------------------------------------------------------
+
+  for (const { name, url } of [
+    { name: "loopback 127.0.0.1", url: "http://127.0.0.1:11434/v1" },
+    { name: "cloud metadata", url: "http://169.254.169.254/latest/meta-data/" },
+    { name: "private 10.x", url: "http://10.0.0.1:9999/v1" },
+  ]) {
+    test(`POST /api/2.0/ai/profiles/list-provider-models - ${name} is refused before any connection`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+      const { status, error, data } = await profiles.listProviderModels(
+        "owner",
+        {
+          providerType: AiBuiltinProviderType.Deepseek,
+          baseUrl: url,
+          apiKey: config.DEEPSEEK_API_KEY,
+        },
+      );
+
+      // The message is the whole point: an ADDRESS complaint means the guard
+      // classified the host and stopped. A 502 "unreachable" here would mean the
+      // socket was opened after all — the original bug — and a 200 would mean an
+      // internal service answered.
+      expect(status, `${name} must not be dialled`).toBe(400);
+      expect(error).toBe("baseUrl host is not allowed");
+      expect(Array.isArray(data)).toBe(false);
+    });
+  }
+
+  // Still out of reach here: the normalization variants of `forbiddenSpecialUrls`
+  // (decimal / hex / octal / short-form loopback, IPv6 literals). Whether the
+  // guard canonicalises those before classifying them cannot be established
+  // safely on shared infrastructure — if one slipped through it would be dialled,
+  // which is the exact thing that must not happen on a live portal. Verifying
+  // them needs the isolated canary environment of ssrf-payloads.ts.
+  test.fixme("POST /api/2.0/ai/profiles/list-provider-models - loopback normalization variants are refused too", () => {});
 });
 
 // ===========================================================================
@@ -897,6 +993,9 @@ test.describe("AI Profiles - provider model discovery", () => {
 //     the wording, and these tests pin the wording;
 //   * a local provider is unreachable from a shared portal, so the observable
 //     half of "works without a key" is that the key is not part of the decision.
+//     Note the stand-in for a dead local server is a filtered PUBLIC port, not a
+//     loopback address: since 2026-08-18 the baseUrl guard refuses loopback with an
+//     address error, which would answer a different question than the one asked.
 // ===========================================================================
 
 /** The host+transport pair that really answers, used as the control everywhere. */
@@ -905,8 +1004,16 @@ const REACHABLE_PROVIDER = {
   baseUrl: "https://api.deepseek.com",
 };
 
-/** A local model server's address that can never resolve — see ssrf-payloads.ts. */
-const LOCAL_SERVER_URL = `http://${ATTACKER_HOST}:11434`;
+/**
+ * Stands in for a local model server that is not running.
+ *
+ * It cannot be an actual local address: `127.0.0.1:11434` is refused by the
+ * baseUrl guard with an address complaint, which says nothing about how a local
+ * transport reports a dead server. A resolvable public host on a filtered port is
+ * the closest reachable equivalent — the connection is attempted and fails, which
+ * is exactly what a stopped Ollama would produce.
+ */
+const LOCAL_SERVER_URL = RESOLVABLE_UNREACHABLE_URL;
 
 /**
  * The transports a locally hosted model server is reached through. Read off the
@@ -1183,7 +1290,7 @@ test.describe("AI Profiles - which field the model picker blames", () => {
     // provider type from an unreachable one.
     const created = await profiles.createProfile(
       "owner",
-      unreachableProfile("not-a-provider"),
+      probedProfile("not-a-provider"),
     );
     expect(created.status, "create resolves the provider type first").toBe(200);
     expect(created.data?.error?.message).toBe(
@@ -1274,9 +1381,10 @@ test.describe("AI Profiles - local providers need no key", () => {
 
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
 
-    // Control: the other two local transports call the same non-resolving host
+    // Control: the other two local transports call the very same dead server
     // unreachable, so what follows is a gpt4all verdict and not the policy of the
-    // route.
+    // route. It also pins that the host really is dialled — a 400 here would mean
+    // the baseUrl guard answered instead and the comparison proved nothing.
     for (const providerType of [
       AiBuiltinProviderType.Ollama,
       AiBuiltinProviderType.LmStudio,
@@ -1286,9 +1394,7 @@ test.describe("AI Profiles - local providers need no key", () => {
         baseUrl: LOCAL_SERVER_URL,
       });
       expect(status, `${providerType} on an unreachable server`).toBe(502);
-      expect(error).toBe(
-        "The AI provider is unreachable — check the base URL and that the service is running",
-      );
+      expect(error).toBe(PROVIDER_UNREACHABLE_ERROR);
     }
 
     const { status } = await profiles.listProviderModels("owner", {
