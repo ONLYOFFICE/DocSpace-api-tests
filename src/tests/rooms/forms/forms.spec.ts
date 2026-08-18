@@ -3064,9 +3064,9 @@ test.describe("Room templates and form templates are separate collections", () =
 // is real: the room then shows up for them under searchArea=Any. But it
 // never appears under searchArea=Forms, so the room is unreachable from the
 // Forms section despite the user having just viewed it via the link.
-test.describe("BUG TBD: Forms room visited via external link does not appear in the Forms section", () => {
+test.describe("BUG 83228: Forms room visited via external link does not appear in the Forms section", () => {
   test.fail(
-    "BUG TBD: GET /files/rooms?searchArea=Forms - a form room opened via its external link by a user with no direct access is missing from the Forms section",
+    "BUG 83228: GET /files/rooms?searchArea=Forms - a form room opened via its external link by a user with no direct access is missing from the Forms section",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
