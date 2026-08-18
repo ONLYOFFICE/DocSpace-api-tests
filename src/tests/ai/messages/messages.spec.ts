@@ -1366,20 +1366,21 @@ test.describe("AI Messages - exporting a thread", () => {
     }
   });
 
-  test("BUG 83037: GET read-messages + POST /api/2.0/ai/text-to-docx - an edited turn is exported out of place", async ({
+  test("GET read-messages + POST /api/2.0/ai/text-to-docx - an edited turn is exported in place", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The consequence of BUG 83037 for this requirement. `update-message` stamps
-    // `createdAt` with the time of the edit and `read-messages` is ordered by
-    // `createdAt`, so editing an earlier message moves it to the end of the
-    // thread — and an export renders the thread in the order it is read, which
-    // puts the edited turn last in the document too.
+    // Was BUG 83037 for this requirement: `update-message` used to stamp
+    // `createdAt` with the time of the edit, and since `read-messages` is
+    // ordered by `createdAt`, editing an earlier message moved it to the end of
+    // the thread — an export renders the thread in the order it is read, so the
+    // edited turn landed last in the document too. Fixed 2026-08-18; the edit
+    // now keeps the message where it was.
     //
-    // Two stored messages and no inference are enough: the reordering is the
+    // Two stored messages and no inference are enough: the ordering is the
     // store's, and a document whose turns are in the wrong order is wrong
-    // whatever produced them. The answered-question form of the same defect is
-    // in "an edited question moves to the end of the transcript" above.
+    // whatever produced them. The answered-question form of the same behaviour
+    // is in "an edited question stays where it was in the transcript" below.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -1450,13 +1451,11 @@ test.describe("AI Messages - exporting a thread", () => {
     );
     expect(exported, `no "${title}.docx" in My Documents`).toBeDefined();
 
-    // Both turns are in the document — the export itself is fine. What is wrong
-    // is where the edited one sits.
+    // Both turns are in the document, and the edited one sits where it belongs.
     const text = await readExportedDocxText(apiSdk, "owner", exported!.id);
     expect(text).toContain("EDITEDWORD");
     expect(text).toContain("SECONDWORD");
 
-    test.fail();
     expect(
       text.indexOf("EDITEDWORD"),
       "the edited turn has to be exported where it belongs, before the turn that followed it",
@@ -1714,14 +1713,15 @@ test.describe("AI Messages - text-to-docx validation", () => {
     });
   }
 
-  // A folderId that is present but unusable is a client error in every one of
-  // these shapes, and every one of them crashes the request instead. Grouped so
-  // that the fix for one does not silently leave the others red.
+  // A folderId that is present but out of range is a client error, not a server
+  // crash. Was BUG 82713 for these two shapes (both 500ed); fixed 2026-08-18.
+  // The string-typed shape below is still open under the same number, so these
+  // stay grouped separately rather than sharing a test.fail.
   for (const { name, folderId } of [
     { name: "folderId 0", folderId: 0 },
     { name: "folderId -1", folderId: -1 },
   ]) {
-    test(`BUG 82713: POST /api/2.0/ai/text-to-docx - ${name} returns 500 instead of 400`, async ({
+    test(`POST /api/2.0/ai/text-to-docx - rejects ${name}`, async ({
       apiSdk,
     }) => {
       const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
@@ -1732,7 +1732,6 @@ test.describe("AI Messages - text-to-docx validation", () => {
         folderId,
       });
 
-      test.fail();
       expect(status).toBe(400);
     });
   }
@@ -1758,7 +1757,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG 82714: POST /api/2.0/ai/text-to-docx - a non-existent folderId returns 500 instead of 404", async ({
+  test("POST /api/2.0/ai/text-to-docx - a non-existent folderId is refused", async ({
     apiSdk,
   }) => {
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
@@ -1769,12 +1768,12 @@ test.describe("AI Messages - text-to-docx validation", () => {
       folderId: 999999999,
     });
 
-    // An unreachable target folder is a client error, not a server crash.
-    test.fail();
+    // An unreachable target folder is a client error, not a server crash. Was
+    // BUG 82714 (500); fixed 2026-08-18.
     expect(status).toBe(404);
   });
 
-  test("BUG 82714: POST /api/2.0/ai/text-to-docx - a deleted folderId returns 500 instead of 404", async ({
+  test("POST /api/2.0/ai/text-to-docx - a deleted folderId is refused", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1789,7 +1788,7 @@ test.describe("AI Messages - text-to-docx validation", () => {
     });
     const subFolderId = subData.response!.id!;
 
-    // The folder is reachable first, so the 500 below is about it being gone
+    // The folder is reachable first, so the refusal below is about it being gone
     // rather than about it never having existed.
     const before = await aiSettings.textToDocx("owner", {
       title: `Exported ${apiSdk.faker.generateString(6)}`,
@@ -1810,11 +1809,10 @@ test.describe("AI Messages - text-to-docx validation", () => {
       folderId: subFolderId,
     });
 
-    test.fail();
     expect(status).toBe(404);
   });
 
-  test("BUG 82714: POST /api/2.0/ai/text-to-docx - a file id as folderId returns 500 instead of 404", async ({
+  test("POST /api/2.0/ai/text-to-docx - a file id as folderId is refused", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1831,7 +1829,6 @@ test.describe("AI Messages - text-to-docx validation", () => {
       folderId: fileId,
     });
 
-    test.fail();
     expect(status).toBe(404);
   });
 
@@ -2888,7 +2885,7 @@ test.describe("AI Messages - regenerate", () => {
     expect(AiAgentChat.assistantMessages(messages.data)).toEqual([]);
   });
 
-  test("POST /api/2.0/ai/ai/regenerate-stream - an unknown thread reports the failure inside the stream", async ({
+  test("POST /api/2.0/ai/ai/regenerate-stream - an unknown thread is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2908,16 +2905,23 @@ test.describe("AI Messages - regenerate", () => {
       profileId: profile.id,
     });
 
-    const { status, streamError } = await aiChat.regenerateStream("owner", {
-      threadId: "019fcc1d-3c16-7527-90c2-bb509d2f8136",
-      entityId: String(agentId),
-      profileId: profile.id,
-    });
+    const { status, error, streamError } = await aiChat.regenerateStream(
+      "owner",
+      {
+        threadId: "019fcc1d-3c16-7527-90c2-bb509d2f8136",
+        entityId: String(agentId),
+        profileId: profile.id,
+      },
+    );
 
-    // Same shape as BUG 82723 on send-with-stream: the refusal is a frame inside a
-    // 200, not an HTTP status.
-    expect(status).toBe(200);
-    expect(streamError).toBe("stream error");
+    // Used to arrive in the shape of BUG 82723 on send-with-stream — HTTP 200
+    // with an error frame in the body. Fixed 2026-08-18: a thread that does not
+    // exist is refused before any stream is opened.
+    expect(status).toBe(404);
+    expect(error).toBe("Not Found");
+    expect(streamError, "the refusal is the status, not a stream frame").toBe(
+      undefined,
+    );
   });
 
   test("POST /api/2.0/ai/ai/regenerate-stream - a multi-turn thread loses only its last reply", async ({
@@ -3322,11 +3326,9 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
     // The positive control: the thread was perfectly able to produce a new
     // answer, the edit just is not what asks for one.
     //
-    // Deliberately neutral about replace-vs-append. On an unedited thread a
-    // regenerate replaces the last reply (see "AI Messages - regenerate"), but
-    // the edit above moves the question to the end of the transcript, and a
-    // regenerate on a trailing question appends instead — the test.fail below.
-    // All this control needs is that generation happened at all.
+    // Deliberately neutral about replace-vs-append: replace-vs-append after an
+    // edit is the subject of "AI Messages - regenerate", not of this control,
+    // which only needs generation to have happened at all.
     const regenerated = await aiChat.regenerateStream("owner", {
       threadId,
       entityId: String(agentId),
@@ -3344,29 +3346,26 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
       "the regenerate produced the answer the edit did not",
     ).toHaveLength(1);
     // Health checked on the new reply alone, for the same reason the count above
-    // is: whether the old one is still there is the test.fail below, not this.
+    // is: whether the old one is still there is not this test's subject.
     expectHealthyAssistantReply(newReplies);
   });
 
-  test("BUG 83037: PUT /api/2.0/ai/threads/update-message - an edited question moves to the end of the transcript", async ({
+  test("PUT /api/2.0/ai/threads/update-message - an edited question stays where it was in the transcript", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // `update-message` keeps the message id but stamps `createdAt` with the time
-    // of the edit, and `read-messages` is ordered by `createdAt`. So editing the
-    // question of an answered turn leaves the conversation reading
+    // Was BUG 83037: `update-message` kept the message id but stamped
+    // `createdAt` with the time of the edit, and `read-messages` is ordered by
+    // `createdAt`. So editing the question of an answered turn left the
+    // conversation reading
     //
     //   assistant "ONE"                      <- the answer
     //   user      "Reply with … TWO."        <- the question that produced it
     //
-    // The question now sits after its own answer. "update-message - rewrites the
-    // content in place" does not catch this: it reads the message back by id,
+    // with the question sitting after its own answer. Fixed 2026-08-18. Worth
+    // keeping as a regression guard, because "update-message - rewrites the
+    // content in place" cannot catch a relapse: it reads the message back by id,
     // never looking at the order.
-    //
-    // The knock-on effect is what made this visible: with the question trailing,
-    // `regenerate-stream` sees a thread whose last message is unanswered and
-    // appends a second reply instead of replacing the first, so the button under
-    // an answer stops replacing it for the rest of that conversation.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3411,7 +3410,6 @@ test.describe("AI Messages - editing a question is not a re-ask", () => {
       "and it is the same message, not a new one",
     ).toBe(question.id);
 
-    test.fail();
     expect(
       afterEdit.map((message) => message.role),
       "an edit must not move the question after the answer it produced",
