@@ -698,6 +698,65 @@ test.describe("GET /api/2.0/portal/payment/customer/operations - permissions", (
   });
 });
 
+// Per-service spending is the same billing data as `customer/operations`, only
+// aggregated, so it has to be behind the same door.
+test.describe("GET /api/2.0/portal/payment/customer/usage - permissions", () => {
+  test("GET /api/2.0/portal/payment/customer/usage - Anonymous cannot get service usage", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getCustomerServiceUsage();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage - RoomAdmin cannot get service usage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCustomerServiceUsage();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage - User cannot get service usage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCustomerServiceUsage();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage - Guest cannot get service usage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCustomerServiceUsage();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
 test.describe("POST /api/2.0/portal/payment/customer/operationsreport - permissions", () => {
   test("POST /api/2.0/portal/payment/customer/operationsreport - Anonymous cannot create operations report", async ({
     apiSdk,

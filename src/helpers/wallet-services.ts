@@ -3,6 +3,8 @@ import {
   TenantWalletService,
   PaymentApi,
   PaymentApiChangeTenantWalletServiceStateRequest,
+  CustomerServiceUsageDto,
+  OperationDto,
 } from "@onlyoffice/docspace-api-sdk";
 import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
 import { AiAccessClient, setPortalAiAccess } from "./ai-access";
@@ -21,6 +23,19 @@ export const walletServices = {
 } as const;
 
 export type WalletServiceName = keyof typeof walletServices;
+
+/**
+ * How the accounting service spells each wallet service. These are the values
+ * `serviceName` filters take on `customer/operations` and `customer/usage`, and
+ * the values that come back in `OperationDto.service` — the catalogue's
+ * `serviceName`, not the `TenantWalletService` id.
+ */
+export const walletServiceNames = {
+  aiTools: "ai-tools",
+  aiSearch: "ai-search",
+  backup: "backup",
+  storage: "disk-storage-1-hour",
+} as const satisfies Record<WalletServiceName, string>;
 
 export async function topUpDeposit(
   paymentApi: Pick<PaymentApi, "topUpDeposit">,
@@ -145,6 +160,111 @@ export async function setAiSearchAddon(
     await isWalletServiceEnabled(paymentApi, "aiSearch"),
     `AI search in the portal's enabled wallet services after setting it to ${enabled}`,
   ).toBe(enabled);
+}
+
+/**
+ * The period both accounting routes want. They are period queries, and a call
+ * without one is a different question from "what has this portal been charged
+ * for today", so every helper here asks the same explicit window.
+ */
+function accountingPeriod(days = 30) {
+  const now = new Date();
+  const startDate = new Date(now);
+  startDate.setDate(startDate.getDate() - days);
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(now);
+  endDate.setHours(23, 59, 59, 0);
+
+  return {
+    startDate: startDate.toISOString().slice(0, 19),
+    endDate: endDate.toISOString().slice(0, 19),
+  };
+}
+
+/**
+ * The accounting service's aggregate row for one wallet service, or `undefined`
+ * when it has never been billed on this portal. This is the per-service side of
+ * the wallet: what proves an add-on is charged as a service of its own rather
+ * than folded into another one's total.
+ */
+export async function getServiceUsage(
+  paymentApi: Pick<PaymentApi, "getCustomerServiceUsage">,
+  service: WalletServiceName,
+): Promise<CustomerServiceUsageDto | undefined> {
+  const serviceName = walletServiceNames[service];
+  const { data, status } = await paymentApi.getCustomerServiceUsage({
+    serviceName: [serviceName],
+    ...accountingPeriod(),
+  });
+
+  expect(status, `GET /portal/payment/customer/usage ${serviceName}`).toBe(200);
+  return (data.response?.collection ?? []).find(
+    (row) => row.service === serviceName,
+  );
+}
+
+/** Every operation billed to one wallet service in the last 30 days. */
+export async function getServiceOperations(
+  paymentApi: Pick<PaymentApi, "getCustomerOperations">,
+  service: WalletServiceName,
+): Promise<OperationDto[]> {
+  const serviceName = walletServiceNames[service];
+  const { data, status } = await paymentApi.getCustomerOperations({
+    offset: 0,
+    limit: 100,
+    serviceName: [serviceName],
+    credit: true,
+    debit: true,
+    ...accountingPeriod(),
+  });
+
+  expect(status, `GET /portal/payment/customer/operations ${serviceName}`).toBe(
+    200,
+  );
+  return data.response?.collection ?? [];
+}
+
+/**
+ * Identity of one billed operation. `OperationDto` carries no id, so the
+ * baseline for "a new charge appeared" is this tuple — the fields the
+ * accounting service varies per operation. Comparing counts instead would pass
+ * on any unrelated charge landing in the same window.
+ */
+export function operationKey(operation: OperationDto): string {
+  return [
+    operation.date?.utcTime,
+    operation.service,
+    operation.description,
+    operation.details,
+    operation.quantity,
+    operation.debit,
+    operation.credit,
+    operation.agentId,
+  ].join("|");
+}
+
+/**
+ * Waits for a charge to land on one wallet service that was not in `seen`.
+ * Billing is written asynchronously, well after the API call that caused it has
+ * answered, so a single read right afterwards is a false negative. Returns
+ * `undefined` on timeout — the caller decides whether that is the expected
+ * outcome, so this can serve an absence check too.
+ */
+export async function waitForServiceOperation(
+  paymentApi: Pick<PaymentApi, "getCustomerOperations">,
+  service: WalletServiceName,
+  seen: Set<string>,
+  timeoutMs = 120000,
+): Promise<OperationDto | undefined> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const operations = await getServiceOperations(paymentApi, service);
+    const fresh = operations.find(
+      (operation) => !seen.has(operationKey(operation)),
+    );
+    if (fresh || Date.now() > deadline) return fresh;
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
 }
 
 /** Whether the portal currently has this wallet service in its enabled list. */

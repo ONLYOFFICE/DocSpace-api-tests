@@ -24,7 +24,10 @@ import {
 //
 //   * DocSpaceAdmin, RoomAdmin and User all get 202 for their own My Documents.
 //   * a Guest, who has no My Documents at all, gets 202 for a room where they
-//     hold Content Creator.
+//     hold Content Creator — and that one is a defect rather than the contract.
+//     A Guest has no access to the AI stack (how BUG 83237 was resolved), so
+//     "the caller may create files here" must not be the whole check for them.
+//     See the last test of the target-folder block.
 //   * the Owner gets 403 for another user's My Documents, and so does a
 //     DocSpaceAdmin.
 //   * a room member with Viewer or Editor access gets 403, exactly as
@@ -180,7 +183,9 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
   }
 
   // Access levels that do carry it. RoomManager is granted to a RoomAdmin
-  // because a User or a Guest cannot hold it.
+  // because a User or a Guest cannot hold it. A Guest holding the same
+  // ContentCreator access is NOT here: the export works for them too, and that is
+  // the defect at the end of this block rather than a row of this matrix.
   for (const { label, access, type, role } of [
     {
       label: "ContentCreator",
@@ -193,12 +198,6 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
       access: FileShare.RoomManager,
       type: "RoomAdmin",
       role: "roomAdmin",
-    },
-    {
-      label: "ContentCreator",
-      access: FileShare.ContentCreator,
-      type: "Guest",
-      role: "guest",
     },
   ] as Array<{
     label: string;
@@ -253,6 +252,93 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
       expect(exported, `no "${title}.docx" in the room`).toBeDefined();
     });
   }
+
+  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a Guest with Content Creator access exports a document", async ({
+    apiSdk,
+  }) => {
+    // The one AI feature a Guest can actually use. The endpoint checks "may the
+    // caller create files in this folder" and nothing else, so a Guest holding
+    // Content Creator passes it, gets a 202, and the .docx really lands in the
+    // room — measured 2026-08-19, and it is filed under the Guest's own name (see
+    // the author test below for how that is established for a User).
+    //
+    // A Guest is refused everywhere else on the surface this endpoint belongs to:
+    // they cannot open a thread, send a message, attach a file or read a prompt.
+    // Exporting an assistant answer into a room is the same feature seen from its
+    // other end.
+    //
+    // The room listing comes before the status, and both are written as the
+    // contract a fix produces: the two files the Guest is allowed to have there and
+    // no third one, plus the 403.
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TextToDocx Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    // Same purpose as in the refusal tests above: a file the Guest may see, so the
+    // listing at the end cannot be confused with a room they could not read.
+    const { data: control } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Control" },
+    });
+    const controlId = control.response!.id!;
+
+    const { data: guestData, userData } = await apiSdk.addMember(
+      "owner",
+      "Guest",
+    );
+    const { status: shareStatus } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          {
+            id: guestData.response!.id!,
+            access: FileShare.ContentCreator,
+          },
+        ],
+        notify: false,
+      },
+    });
+    expect(shareStatus).toBe(200);
+
+    const guestApi = await apiSdk.authenticateMember(userData, "Guest");
+
+    // The premise: this Guest really may create files here, so the 403 a fix
+    // brings can only be about the user type — and it is what makes the export's
+    // own check pass today.
+    const { status: createStatus, data: direct } =
+      await guestApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Direct Create" },
+      });
+    expect(createStatus, "the Guest may create files in the room").toBe(200);
+    const directId = direct.response!.id!;
+
+    const title = `Exported ${apiSdk.faker.generateString(8)}`;
+    const { status } = await aiSettings.textToDocx("guest", {
+      title,
+      content: "The assistant said hello.",
+      folderId: roomId,
+    });
+
+    await waitForExportToSettle();
+    const ids = (await listFolderFiles(guestApi, roomId))
+      .map((file) => file.id)
+      .sort((a, b) => a - b);
+
+    test.fail();
+    expect(
+      ids,
+      `a Guest must not have exported "${title}.docx" into the room`,
+    ).toEqual([controlId, directId].sort((a, b) => a - b));
+    expect(status).toBe(403);
+  });
 
   test("POST /api/2.0/ai/text-to-docx - the saved document is authored by the caller, not by the room owner", async ({
     apiSdk,

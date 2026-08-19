@@ -15,6 +15,18 @@ import { UserType } from "@/src/services/api-sdk";
 //
 // Error bodies are `{"error":"Forbidden"}` / `{"error":"Unauthorized"}` — the
 // old `data.error.message` ("Access denied") no longer exists.
+//
+// Guest column of this surface, measured 2026-08-19:
+//
+//   GET  /ai/config                    200  <- defect
+//   GET  /ai/config/user               200  <- defect
+//   PUT  /ai/config/user               200, and it persists  <- defect
+//   GET  /ai/config/vectorization      403 (403 for the Owner too)
+//   PUT  /ai/config/vectorization      403 (403 for the Owner too)
+//   GET  /ai/web-search/is-configured  403
+//   GET  /ai/web-search/get-active-config 403
+//   POST /ai/vectorization/tasks       200  <- defect, vectorization.permission.spec.ts
+//   POST /ai/text-to-docx              202  <- defect, messages.permission.spec.ts
 
 const NON_OWNER_ROLES: Array<{ type: UserType; role: AgentRole }> = [
   { type: "DocSpaceAdmin", role: "docSpaceAdmin" },
@@ -28,8 +40,19 @@ const ALL_ROLES: Array<{ type?: UserType; role: AgentRole }> = [
   ...NON_OWNER_ROLES,
 ];
 
+/**
+ * A Guest has no access to the AI stack — that is how BUG 83237 was resolved, and
+ * every other route on this surface honours it (`/ai/config/vectorization` and
+ * both web-search reads are 403 for a Guest here, and so is the whole of
+ * `/ai/prompts/*`, `/ai/preferences/*`, `/ai/threads/*` and `/ai/attachments/*`).
+ * The two `/ai/config*` reads and the per-user write are the exceptions, so they
+ * are measured as Guest defects below instead of inside the role matrices.
+ */
+const ROLES_WITHOUT_GUEST = ALL_ROLES.filter((entry) => entry.role !== "guest");
+
 test.describe("AI Settings - getAiSettings permissions", () => {
-  // Every member type gets 200 — see settings.spec.ts for the response contract.
+  // Every member type except a Guest gets 200 — see settings.spec.ts for the
+  // response contract.
   test("GET /api/2.0/ai/config - Anonymous gets 401 Unauthorized", async ({
     apiSdk,
   }) => {
@@ -39,6 +62,38 @@ test.describe("AI Settings - getAiSettings permissions", () => {
 
     expect(error).toBe("Unauthorized");
     expect(status).toBe(401);
+  });
+
+  test("BUG XXXXX: GET /api/2.0/ai/config - a Guest reads the portal's AI settings", async ({
+    apiSdk,
+  }) => {
+    // What comes back is the portal's whole AI configuration — `aiReady`,
+    // `systemAiEnabled`, `vectorizationEnabled`, the embedding model and the
+    // recommended model for forms — to a user type that may not use a single AI
+    // feature. Measured 2026-08-19.
+    //
+    // Both assertions state the contract a fix has to produce, so a fix turns this
+    // into an unexpected pass. The neighbouring 403 read below is the control: the
+    // Guest is refused on `/ai/config/vectorization` in the very same session, so
+    // this 200 is not a portal whose AI gate is simply open.
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    await aiSettings.expectActingAs("guest", guestData.response!.id!, "Guest");
+
+    const blocked = await aiSettings.getVectorizationSettings("guest");
+    expect(blocked.status, "the Guest really is refused elsewhere").toBe(403);
+
+    const { status, data } = await aiSettings.getAiConfig("guest");
+
+    test.fail();
+    expect(
+      data?.response,
+      "a Guest must not be handed the portal's AI settings",
+    ).toBeUndefined();
+    expect(status).toBe(403);
   });
 });
 
@@ -180,9 +235,10 @@ test.describe("AI Settings - web search state permissions", () => {
 });
 
 test.describe("AI Settings - per-user chat config permissions", () => {
-  // The preference is per-user and not gated by role — every type may read and
-  // set their own. Isolation between users is proven in settings.spec.ts.
-  for (const { type, role } of ALL_ROLES) {
+  // The preference is per-user and not gated by role — every type but a Guest may
+  // read and set their own. Isolation between users is proven in settings.spec.ts,
+  // and the Guest case is the defect at the end of this block.
+  for (const { type, role } of ROLES_WITHOUT_GUEST) {
     test(`GET /api/2.0/ai/config/user - ${role} reads their own preference`, async ({
       apiSdk,
     }) => {
@@ -248,5 +304,40 @@ test.describe("AI Settings - per-user chat config permissions", () => {
 
     expect(error).toBe("Unauthorized");
     expect(status).toBe(401);
+  });
+
+  test("BUG XXXXX: GET|PUT /api/2.0/ai/config/user - a Guest reads and changes their AI chat preference", async ({
+    apiSdk,
+  }) => {
+    // The one AI write a Guest can make. `chatRecommendedModelVisible` is a
+    // preference of the AI chat — a surface a Guest is refused on entirely
+    // (`/ai/threads/*` is 403 in every scope, chat.permission.spec.ts) — and the
+    // PUT does not merely answer 200, it persists: measured 2026-08-19 the value
+    // flipped from `true` to `false` and the Guest's own re-read confirmed it.
+    //
+    // The stored-state assertion comes first and is written as the contract a fix
+    // produces: after a fix the read is 403 and `chatRecommendedModelVisible` is
+    // undefined, which is `not.toBe(target)` too.
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    await aiSettings.expectActingAs("guest", guestData.response!.id!, "Guest");
+
+    const before = await aiSettings.getUserConfig("guest");
+    const target = !before.data?.response?.chatRecommendedModelVisible;
+    const written = await aiSettings.setUserConfig("guest", {
+      chatRecommendedModelVisible: target,
+    });
+    const after = await aiSettings.getUserConfig("guest");
+
+    test.fail();
+    expect(
+      after.data?.response?.chatRecommendedModelVisible,
+      "a Guest's write must not have been stored",
+    ).not.toBe(target);
+    expect(before.status, "a Guest must not read the preference").toBe(403);
+    expect(written.status, "a Guest must not write the preference").toBe(403);
   });
 });
