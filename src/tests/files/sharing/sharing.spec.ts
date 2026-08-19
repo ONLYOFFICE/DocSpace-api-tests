@@ -988,9 +988,9 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
 });
 
 test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
-  // BUG XXXXX: DELETE /api/2.0/files/share - removeSecurityInfo does not remove sharing entry for a single file
+  // BUG 83259: DELETE /api/2.0/files/share - removeSecurityInfo does not remove sharing entry for a single file
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/share - Owner removes sharing from a single file",
+    "BUG 83259: DELETE /api/2.0/files/share - Owner removes sharing from a single file",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1031,9 +1031,9 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     },
   );
 
-  // BUG XXXXX: DELETE /api/2.0/files/share - removeSecurityInfo does not remove sharing entry for a folder
+  // BUG 83259: DELETE /api/2.0/files/share - removeSecurityInfo does not remove sharing entry for a folder
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/share - Owner removes sharing from a folder",
+    "BUG 83259: DELETE /api/2.0/files/share - Owner removes sharing from a folder",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1076,9 +1076,9 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     },
   );
 
-  // BUG XXXXX: DELETE /api/2.0/files/share - removeSecurityInfo does not remove sharing entries for multiple files
+  // BUG 83259: DELETE /api/2.0/files/share - removeSecurityInfo does not remove sharing entries for multiple files
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/share - Owner removes sharing from multiple files in one request",
+    "BUG 83259: DELETE /api/2.0/files/share - Owner removes sharing from multiple files in one request",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1142,9 +1142,9 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     },
   );
 
-  // BUG XXXXX: DELETE /api/2.0/files/share - removeSecurityInfo does not remove sharing entries for files and folders
+  // BUG 83259: DELETE /api/2.0/files/share - removeSecurityInfo does not remove sharing entries for files and folders
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/share - Owner removes sharing from files and folders in one request",
+    "BUG 83259: DELETE /api/2.0/files/share - Owner removes sharing from files and folders in one request",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1234,9 +1234,9 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     expect(data.response).toBe(true);
   });
 
-  // BUG XXXXX: DELETE /api/2.0/files/share - removeSecurityInfo returns 200 but does not remove the sharing entry
+  // BUG 83259: DELETE /api/2.0/files/share - removeSecurityInfo returns 200 but does not remove the sharing entry
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/share - Shared user entry is removed from security info after sharing removal",
+    "BUG 83259: DELETE /api/2.0/files/share - Shared user entry is removed from security info after sharing removal",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1275,9 +1275,9 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     },
   );
 
-  // BUG XXXXX: DELETE /api/2.0/files/share - removeSecurityInfo returns 200 but user retains access
+  // BUG 83259: DELETE /api/2.0/files/share - removeSecurityInfo returns 200 but user retains access
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/share - Formerly shared user loses access to file after sharing removal",
+    "BUG 83259: DELETE /api/2.0/files/share - Formerly shared user loses access to file after sharing removal",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 

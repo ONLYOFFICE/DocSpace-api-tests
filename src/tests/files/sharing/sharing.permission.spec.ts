@@ -199,9 +199,9 @@ test.describe("PUT /api/2.0/files/share", () => {
     expect(status).toBe(403);
   });
 
-  // BUG XXXXX: PUT /api/2.0/files/share - Guest can set security info on owner file (returns 200 instead of 403)
+  // BUG 83263: PUT /api/2.0/files/share - Guest can set security info on owner file (returns 200 instead of 403)
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/share - Guest cannot set security info on owner file returns 403",
+    "BUG 83263: PUT /api/2.0/files/share - Guest cannot set security info on owner file returns 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -561,9 +561,9 @@ test.describe("PUT /api/2.0/files/file/{fileId}/share", () => {
     expect(status).toBe(403);
   });
 
-  // BUG XXXXX: PUT /api/2.0/files/file/{fileId}/share - Guest can set file security info on owner file (returns 200 instead of 403)
+  // BUG 83263: PUT /api/2.0/files/file/{fileId}/share - Guest can set file security info on owner file (returns 200 instead of 403)
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/file/{fileId}/share - Guest cannot set file security info on owner file returns 403",
+    "BUG 83263: PUT /api/2.0/files/file/{fileId}/share - Guest cannot set file security info on owner file returns 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1018,9 +1018,9 @@ test.describe("DELETE /api/2.0/files/share - Remove security info - access contr
     expect(data.response).toBe(true);
   });
 
-  // BUG XXXXX: DELETE /api/2.0/files/share - User can remove sharing from owner file (returns 200 instead of 403)
+  // BUG 83262: DELETE /api/2.0/files/share - User can remove sharing from owner file (returns 200 instead of 403)
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/share - User cannot remove sharing from owner file returns 403",
+    "BUG 83262: DELETE /api/2.0/files/share - User cannot remove sharing from owner file returns 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1042,9 +1042,9 @@ test.describe("DELETE /api/2.0/files/share - Remove security info - access contr
     },
   );
 
-  // BUG XXXXX: DELETE /api/2.0/files/share - Guest can remove sharing from owner file (returns 200 instead of 403)
+  // BUG 83262: DELETE /api/2.0/files/share - Guest can remove sharing from owner file (returns 200 instead of 403)
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/share - Guest cannot remove sharing from owner file returns 403",
+    "BUG 83262: DELETE /api/2.0/files/share - Guest cannot remove sharing from owner file returns 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -1073,9 +1073,9 @@ test.describe("DELETE /api/2.0/files/share - Remove security info - access contr
     },
   );
 
-  // BUG XXXXX: DELETE /api/2.0/files/share - User can remove sharing from another user file (IDOR, returns 200 instead of 403)
+  // BUG 83262: DELETE /api/2.0/files/share - User can remove sharing from another user file (IDOR, returns 200 instead of 403)
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/files/share - User cannot remove sharing from another user file (IDOR) returns 403",
+    "BUG 83262: DELETE /api/2.0/files/share - User cannot remove sharing from another user file (IDOR) returns 403",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
