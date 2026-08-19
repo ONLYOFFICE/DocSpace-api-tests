@@ -4,12 +4,13 @@ import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { ApiSDK } from "@/src/services/api-sdk";
 import { folderIds, roomAccesses } from "@/src/helpers/rooms";
 
-// SKIPPED (2026-08-14): the Private Rooms feature is postponed to the next
-// release and is being temporarily removed from the current one, so neither the
-// PrivacyroomApi nor private rooms (createRoom({ private: true })) are available
-// here. The tests are parked rather than deleted because the feature is coming
-// back — drop the .skip on the describes below and re-verify the role matrix and
-// the open bugs (82524 / 82803 / 82956) against the live portal when it does.
+// SKIPPED (2026-08-14, re-verified 2026-08-19): the Private Rooms feature is
+// postponed to the next release and is being temporarily removed from the
+// current one, so neither the PrivacyroomApi nor private rooms
+// (createRoom({ private: true })) are available on a release portal. The tests
+// are parked rather than deleted because the feature is coming back — drop the
+// .skip on the describes below and re-verify the role matrix and the open bugs
+// (82803 / 82956) against the live portal when it does.
 // See the matching note in privacyroom.spec.ts.
 
 /**
@@ -17,10 +18,14 @@ import { folderIds, roomAccesses } from "@/src/helpers/rooms";
  *
  * Encryption keys are personal and per-caller: every authenticated user manages
  * ONLY their own keys, and there is no parameter to target another user's keys.
- * Anonymous requests get 401. Guests currently get 403 on set/replace, which is
- * a bug (BUG 82524) — they should be able to manage their own keys; as a knock-on
- * effect a Guest can never be a member of a private room, since membership
- * requires a key.
+ * Anonymous requests get 401.
+ *
+ * A Guest is READ-ONLY on the key surface, by design: getUserKeys answers 200
+ * (with an always-empty set), while setKeys and replaceKey are refused with 403
+ * "Access denied". This was previously reported as BUG 82524 and is NOT a bug —
+ * a Guest is not meant to own encryption key material. Two consequences are
+ * pinned below: a Guest has no key to delete, and a Guest can never be a member
+ * of a private room, since membership requires the invitee to hold a key.
  *
  * Room key sets (GET /privacyroom/{roomId}/access) are MEMBERSHIP-scoped, not
  * role-scoped: a DocSpaceAdmin who is not a member is denied, while any member
@@ -102,11 +107,21 @@ test.describe.skip("GET /api/2.0/privacyroom/keys - access control", () => {
     expect(data.response?.map((k) => k.publicKey)).toEqual([publicKey]);
   });
 
-  test("GET /api/2.0/privacyroom/keys - Guest reads their own (empty) key set", async ({
+  test("GET /api/2.0/privacyroom/keys - Guest reads their own (always empty) key set", async ({
     apiSdk,
   }) => {
-    // Guest cannot create a key (BUG 82524), so reading returns their OWN empty
-    // set (200, count 0) — never another user's keys.
+    // Reading is open to a Guest (200); creating is not (403, see the POST
+    // describe), so a Guest's own set is always empty — and it is never another
+    // user's keys. The owner's populated read is the positive control: it proves
+    // the endpoint does report keys in this portal, so the Guest's empty 200 is
+    // scoping and not a broken read.
+    const owner = apiSdk.forRole("owner");
+    const ownerPk = "owner-" + apiSdk.faker.generateString(16);
+    await owner.privacyroom.setKeys({
+      encryptionKeyRequestDto: { publicKey: ownerPk, privateKeyEnc: "op" },
+    });
+    expect((await owner.privacyroom.getUserKeys()).data.count).toBe(1);
+
     await apiSdk.addAuthenticatedMember("owner", "Guest");
     const { data, status } = await apiSdk
       .forRole("guest")
@@ -183,20 +198,21 @@ test.describe.skip("POST /api/2.0/privacyroom/keys - access control", () => {
     expect(status).toBe(201);
   });
 
-  test("POST /api/2.0/privacyroom/keys - Guest can set keys", async ({
+  test("POST /api/2.0/privacyroom/keys - Guest cannot set keys", async ({
     apiSdk,
   }) => {
-    // Guests should be able to manage their own encryption keys (expect 200),
-    // but the API currently denies them with 403.
-    test.fail(
-      true,
-      "BUG 82524: Guest cannot set encryption keys (403 instead of 200)",
-    );
+    // By design: a Guest may read the key surface but must not own key material,
+    // so creating a key is refused with 403 "Access denied". Nothing is stored —
+    // checked first, so a 403 that still wrote a key could not pass.
     await apiSdk.addAuthenticatedMember("owner", "Guest");
-    const { status } = await apiSdk
-      .forRole("guest")
-      .privacyroom.setKeys(dto(apiSdk));
-    expect(status).toBe(200);
+    const guest = apiSdk.forRole("guest");
+    const { status, data } = await guest.privacyroom.setKeys(dto(apiSdk));
+
+    expect((await guest.privacyroom.getUserKeys()).data.count).toBe(0);
+    expect(status).toBe(403);
+    expect(
+      (data as unknown as { error?: { message?: string } }).error?.message,
+    ).toBe("Access denied");
   });
 
   test("POST /api/2.0/privacyroom/keys - Anonymous cannot set keys", async ({
@@ -249,22 +265,22 @@ test.describe.skip("PUT /api/2.0/privacyroom/keys - access control", () => {
     expect(status).toBe(200);
   });
 
-  test("PUT /api/2.0/privacyroom/keys - Guest can replace their own key", async ({
+  test("PUT /api/2.0/privacyroom/keys - Guest cannot replace keys", async ({
     apiSdk,
   }) => {
-    // Replacing requires an existing key, but a guest cannot create one because
-    // setKeys is denied today (BUG 82524), so the replace-own-key flow cannot be
-    // exercised. Marked test.fail on the setKeys prerequisite.
-    // TODO(BUG 82524): once guests can set keys, finish this test — create a key,
-    // replace it, and assert getUserKeys returns the new value.
-    test.fail(
-      true,
-      "BUG 82524: Guest cannot set encryption keys, so the replace-own-key flow cannot be exercised",
-    );
+    // replaceKey shares the create path's access check, so a Guest is refused
+    // here for the same by-design reason as on POST: no key material for guests.
+    // A Guest also never has a key to replace in the first place — the empty
+    // read afterwards pins both halves of that.
     await apiSdk.addAuthenticatedMember("owner", "Guest");
     const guest = apiSdk.forRole("guest");
-    const { status } = await guest.privacyroom.setKeys(dto(apiSdk));
-    expect(status).toBe(200);
+    const { status, data } = await guest.privacyroom.replaceKey(dto(apiSdk));
+
+    expect((await guest.privacyroom.getUserKeys()).data.count).toBe(0);
+    expect(status).toBe(403);
+    expect(
+      (data as unknown as { error?: { message?: string } }).error?.message,
+    ).toBe("Access denied");
   });
 
   test("PUT /api/2.0/privacyroom/keys - Anonymous cannot replace keys", async ({
@@ -343,23 +359,28 @@ test.describe
     expect(status).toBe(204);
   });
 
-  test("DELETE /api/2.0/privacyroom/keys/{id} - Guest can delete their own key", async ({
+  test("DELETE /api/2.0/privacyroom/keys/{id} - Guest never has a key to delete", async ({
     apiSdk,
   }) => {
-    // A guest cannot create a key because setKeys is denied today (BUG 82524),
-    // so there is never a real key to delete — deleting the absent zero-GUID key
-    // would only be an idempotent no-op that proves nothing. Marked test.fail on
-    // the setKeys prerequisite.
-    // TODO(BUG 82524): once guests can set keys, finish this test — create a key,
-    // delete it, and assert getUserKeys no longer returns it.
-    test.fail(
-      true,
-      "BUG 82524: Guest cannot set encryption keys, so the delete-own-key flow cannot be exercised",
-    );
+    // A Guest is refused on create by design, so they can never hold a key and
+    // delete has nothing to act on. Delete itself is NOT where a Guest is
+    // stopped: the owner deleting a key they do not have is the control and
+    // answers exactly the same way (200 today — that a missing key is not 404 is
+    // BUG 82552, covered in privacyroom.spec.ts, so the value is compared rather
+    // than hard-coded here).
+    const owner = apiSdk.forRole("owner");
     await apiSdk.addAuthenticatedMember("owner", "Guest");
     const guest = apiSdk.forRole("guest");
-    const { status } = await guest.privacyroom.setKeys(dto(apiSdk));
-    expect(status).toBe(200);
+
+    // Pin the premise this test rests on: the Guest really cannot create a key.
+    const create = await guest.privacyroom.setKeys(dto(apiSdk));
+    expect(create.status).toBe(403);
+
+    const control = await owner.privacyroom.deleteKeys({ id: ZERO_GUID });
+    const { status } = await guest.privacyroom.deleteKeys({ id: ZERO_GUID });
+
+    expect((await guest.privacyroom.getUserKeys()).data.count).toBe(0);
+    expect(status).toBe(control.status);
   });
 
   test("DELETE /api/2.0/privacyroom/keys/{id} - Anonymous cannot delete keys", async ({
@@ -566,8 +587,8 @@ test.describe
   test("PUT /files/rooms/{id}/share - A Guest can never be a member of a private room", async ({
     apiSdk,
   }) => {
-    // Membership requires an encryption key and a Guest cannot create one
-    // (BUG 82524), so every invitation of a Guest to a private room is refused.
+    // Membership requires an encryption key and a Guest cannot create one (by
+    // design), so every invitation of a Guest to a private room is refused.
     // The plain room is the positive control: the same Guest, the same access
     // level and the same call succeed there, so the 403 is about the private
     // room's key requirement and not about guests being uninvitable in general.

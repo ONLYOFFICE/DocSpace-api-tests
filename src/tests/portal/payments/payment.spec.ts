@@ -1113,6 +1113,87 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
   });
 });
 
+// The per-service side of the wallet: `customer/operations` lists the charges
+// one by one, this aggregates them per service. It is what makes "billed as a
+// service of its own" observable — an add-on gets its own row here, with its own
+// unit, quantity and total. The add-on that actually produces a row is covered
+// in ai/web-search/web-search.spec.ts, which spends one before reading it back.
+test.describe("GET /api/2.0/portal/payment/customer/usage", () => {
+  test("GET /api/2.0/portal/payment/customer/usage - Owner gets usage aggregated per service", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 30);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(now);
+    endDate.setHours(23, 59, 59, 0);
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getCustomerServiceUsage({
+        offset: 0,
+        limit: 25,
+        startDate: startDate.toISOString().slice(0, 19),
+        endDate: endDate.toISOString().slice(0, 19),
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.offset).toBe(0);
+    expect(data.response?.currentPage).toBe(1);
+    expect(data.response?.totalQuantity).toBeGreaterThanOrEqual(0);
+    expect(data.response?.collection).toBeDefined();
+    // Unlike `customer/operations`, this route does not echo the requested page
+    // size: `limit` comes back as the number of rows actually returned (0 with an
+    // empty collection), so a test asserting the 25 it asked for would fail.
+    expect(data.response?.limit).toBe(data.response?.collection?.length);
+
+    // A fresh portal may have been charged for nothing yet, so the rows are
+    // asserted only if there are any — their shape is the contract either way.
+    for (const row of data.response?.collection ?? []) {
+      expect(row.service?.length).toBeGreaterThan(0);
+      expect(row.operationCount).toBeGreaterThanOrEqual(0);
+      expect(row.totalAmount).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage - DocSpaceAdmin filters usage by service name", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 30);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(now);
+    endDate.setHours(23, 59, 59, 0);
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getCustomerServiceUsage({
+        offset: 0,
+        limit: 25,
+        serviceName: ["ai-search"],
+        startDate: startDate.toISOString().slice(0, 19),
+        endDate: endDate.toISOString().slice(0, 19),
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.collection).toBeDefined();
+    // Whatever the filter returns, it must be about the service that was asked
+    // for — the filter, not the totals, is what this test pins down.
+    for (const row of data.response?.collection ?? []) {
+      expect(row.service).toBe("ai-search");
+    }
+  });
+});
+
 test.describe("POST /api/2.0/portal/payment/request", () => {
   const SALES_REQUEST = {
     userName: "nctTest",
@@ -1256,6 +1337,40 @@ test.describe("GET /api/2.0/portal/payment/walletservice", () => {
     expect(data.response?.id).toBe(TenantWalletService.Storage);
     expect(data.response?.serviceName).toBe("disk-storage-1-hour");
     expect(data.response?.price?.value).toBeGreaterThan(0);
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+
+  // Web search is sold as an add-on of its own, with its own management page,
+  // and this is the endpoint that page reads. Priced like ai-tools: the switch
+  // costs nothing, the searches are billed to the wallet as they happen.
+  test("GET /api/2.0/portal/payment/walletservice - Owner gets AISearch service info", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getWalletService({ service: TenantWalletService.AISearch });
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(TenantWalletService.AISearch);
+    expect(data.response?.serviceName).toBe("ai-search");
+    expect(data.response?.price?.value).toBe(0);
+    expect(data.response?.price?.isoCurrencySymbol).toBe("USD");
+    expect(data.response?.features?.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - DocSpaceAdmin gets AISearch service info", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getWalletService({ service: TenantWalletService.AISearch });
+
+    expect(status).toBe(200);
+    expect(data.response?.id).toBe(TenantWalletService.AISearch);
+    expect(data.response?.serviceName).toBe("ai-search");
+    expect(data.response?.price?.value).toBe(0);
     expect(data.response?.features?.length).toBeGreaterThan(0);
   });
 

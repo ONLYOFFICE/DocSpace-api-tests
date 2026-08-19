@@ -2,7 +2,11 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { FileShare } from "@onlyoffice/docspace-api-sdk";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
-import { AiAgentChat, AgentRole } from "@/src/helpers/ai-agent-chat";
+import {
+  AiAgentChat,
+  AgentRole,
+  inviteToAgent,
+} from "@/src/helpers/ai-agent-chat";
 import { UserType } from "@/src/services/api-sdk";
 
 // Driven through AiAgentChat rather than the SDK's AgentsApi — see the route
@@ -27,6 +31,13 @@ import { UserType } from "@/src/services/api-sdk";
 //
 // Quota is scoped to the agent's author, not to the portal owner: an admin who
 // created an agent may set quota on it. That is covered in agents.spec.ts.
+//
+// The three 200s in the Guest column are defects, not the contract: a Guest has no
+// access to the AI stack (how BUG 83237 was resolved), and every write here already
+// refuses them. They are the last block of this file, and the sharpest of the three
+// is `GET /agents/{id}` — a Guest invited to an agent room reads the agent's AI
+// Instructions out of `chatSettings.prompt`, which is the same payload the "a plain
+// room member can read the agent's AI Instructions" test measures for a User.
 
 const QUOTA_MINIMAL_BYTES = 104857600; // 100 MB
 const DEFAULT_QUOTA_AGENT_BYTES = 524288000; // 500 MB
@@ -41,6 +52,15 @@ const NON_OWNER_ROLES: Array<{
   { label: "User", type: "User", role: "user" },
   { label: "Guest", type: "Guest", role: "guest" },
 ];
+
+/**
+ * The reads a Guest still gets a 200 from are measured in the Guest block at the
+ * end of this file, as the defects they are, so the matrices above must not carry
+ * a Guest row asserting that 200 as the contract.
+ */
+const NON_GUEST_ROLES = NON_OWNER_ROLES.filter(
+  (entry) => entry.role !== "guest",
+);
 
 test.describe("POST /ai/agents - Create AI agent access control", () => {
   for (const { label, type, role } of [
@@ -96,7 +116,7 @@ test.describe("POST /ai/agents - Create AI agent access control", () => {
 });
 
 test.describe("GET /ai/agents - Get AI agents access control", () => {
-  for (const { label, type, role } of NON_OWNER_ROLES) {
+  for (const { label, type, role } of NON_GUEST_ROLES) {
     test(`GET /ai/agents - ${label} does not see an agent created by Owner they were not invited to`, async ({
       apiSdk,
       paymentsApi,
@@ -804,5 +824,146 @@ test.describe("AI Instructions - stored HTML injection", () => {
 
     expect(seenByMember).toContain(INJECTION_MARKER);
     expect(status).toBe(200);
+  });
+});
+
+// A Guest has no access to the AI stack — that is how BUG 83237 was resolved, and
+// the writes on this surface honour it. Three reads do not. Measured 2026-08-19
+// against a Guest invited into the agent room at Read, the highest level an agent
+// room grants a Guest:
+//
+//   GET /ai/agents        200, and the agent they were invited to is in the list
+//   GET /ai/agents/{id}   200, chatSettings.prompt (the AI Instructions) included
+//   GET /ai/agents/news   200
+//
+// Every test below asserts the contract a fix has to produce, so a fix reports an
+// unexpected pass rather than a regression. Each one also carries a refusal the
+// same Guest gets in the same session, because a 403 that arrived because the
+// invite never landed would prove nothing about user types.
+test.describe("AI Agents - a Guest reaches the agent surface", () => {
+  const GUEST_INSTRUCTIONS = "Autotest guest-visible instructions";
+
+  test("BUG XXXXX: GET /ai/agents - a Guest sees the agent they were invited to", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Guest Visible Agent",
+      profileId,
+    });
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+    // Asserted inside the helper. Read is the ceiling for a Guest in an agent
+    // room, so this is as much access as a Guest can be given here.
+    await inviteToAgent(ownerApi.rooms, agentId, guestId, FileShare.Read);
+    await aiChat.expectActingAs("guest", guestId, "the Guest");
+
+    // The control: the same Guest, in the same session, is refused on the write
+    // side of this very controller.
+    const refused = await aiChat.createAgent("guest", {
+      title: "Autotest Guest Agent",
+      profileId,
+      prompt: "You are a test assistant",
+    });
+    expect(refused.status, "the Guest really is refused elsewhere").toBe(403);
+
+    const { status, data } = await aiChat.getAgents("guest");
+    const visibleIds = data?.response?.folders?.map((folder) => folder.id);
+
+    test.fail();
+    expect(
+      visibleIds ?? [],
+      "a Guest must not be shown an agent they are a member of",
+    ).not.toContain(agentId);
+    expect(status).toBe(403);
+  });
+
+  test("BUG XXXXX: GET /ai/agents/:id - a Guest reads the agent's AI Instructions", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The sharpest of the three: the payload is the agent's own configuration,
+    // `chatSettings.prompt` included. A Guest cannot chat with the agent at all
+    // (`/ai/threads/*` is 403 for them in every scope, chat.permission.spec.ts),
+    // so there is no feature this read serves.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Guest Instructions Agent",
+      profileId,
+      prompt: GUEST_INSTRUCTIONS,
+    });
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+    await inviteToAgent(ownerApi.rooms, agentId, guestId, FileShare.Read);
+    await aiChat.expectActingAs("guest", guestId, "the Guest");
+
+    // The control, and the reason the read below is about the user type: the same
+    // Guest is refused when they try to change the same agent.
+    const refused = await aiChat.updateAgent("guest", agentId, {
+      title: "Autotest hijacked",
+    });
+    expect(refused.status, "the Guest really is refused elsewhere").toBe(403);
+
+    const { status, data } = await aiChat.getAgentInfo("guest", agentId);
+
+    test.fail();
+    expect(
+      data?.response?.chatSettings?.prompt,
+      "a Guest must not be handed the agent's AI Instructions",
+    ).toBeUndefined();
+    expect(status).toBe(403);
+  });
+
+  test("BUG XXXXX: GET /ai/agents/news - a Guest reads the agent news feed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Status-only on purpose: the feed is empty for everyone on a fresh portal, so
+    // there is nothing to leak here yet — what is wrong is that the route answers
+    // a user type that may not open an agent at all.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Guest News Agent",
+      profileId,
+    });
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+    await inviteToAgent(ownerApi.rooms, agentId, guestId, FileShare.Read);
+    await aiChat.expectActingAs("guest", guestId, "the Guest");
+
+    const refused = await aiChat.resetAgentsQuota("guest", {
+      roomIds: [agentId],
+    });
+    expect(refused.status, "the Guest really is refused elsewhere").toBe(403);
+
+    const { status } = await aiChat.getAgentsNewItems("guest");
+
+    test.fail();
+    expect(status).toBe(403);
   });
 });

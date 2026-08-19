@@ -422,9 +422,16 @@ export class AiAgentChat extends AiHttp {
 
   // ----------------------------------------------------------------- threads
 
+  /**
+   * `agentId` is the `entityId` scope token, and it is optional here for one
+   * reason: the AI Chat opened from the portal's own header is not looking at an
+   * agent, a room or a folder, so its create call carries no entity at all.
+   * Omitting it leaves `entityId` out of the body entirely — the same shape
+   * `listThreads` already allows — rather than sending "undefined".
+   */
   async createThread(
     role: AgentRole,
-    body: { title: string; profileId: string; agentId: number | string },
+    body: { title: string; profileId: string; agentId?: number | string },
   ) {
     const { status, data, error } = await this.call<{ threadId: string }>(
       role,
@@ -433,7 +440,9 @@ export class AiAgentChat extends AiHttp {
       {
         title: body.title,
         profileId: body.profileId,
-        entityId: String(body.agentId),
+        ...(body.agentId === undefined
+          ? {}
+          : { entityId: String(body.agentId) }),
       },
     );
     return { status, error, threadId: data?.threadId ?? "" };
@@ -445,7 +454,7 @@ export class AiAgentChat extends AiHttp {
    */
   async createThreadId(
     role: AgentRole,
-    body: { title: string; profileId: string; agentId: number | string },
+    body: { title: string; profileId: string; agentId?: number | string },
   ): Promise<string> {
     const { status, error, threadId } = await this.createThread(role, body);
     if (status !== 200 || !threadId) {
@@ -474,7 +483,12 @@ export class AiAgentChat extends AiHttp {
        * from the entity's / portal's assignment instead.
        */
       profileId?: string;
-      agentId: number | string;
+      /**
+       * The `entityId` scope. Optional for the same reason as on `createThread`:
+       * a chat opened from the portal header sends no entity. Omitted from the
+       * body when undefined.
+       */
+      agentId?: number | string;
       message: string;
       instructions?: string;
       /** Client-supplied tools for this request only — see `HostTool`. */
@@ -502,7 +516,9 @@ export class AiAgentChat extends AiHttp {
       "/api/2.0/ai/ai/send-with-stream",
       {
         threadId: body.threadId,
-        entityId: String(body.agentId),
+        ...(body.agentId === undefined
+          ? {}
+          : { entityId: String(body.agentId) }),
         ...(body.profileId === undefined ? {} : { profileId: body.profileId }),
         ...(Object.keys(actionArgs).length > 0 ? { actionArgs } : {}),
         userMessage: {

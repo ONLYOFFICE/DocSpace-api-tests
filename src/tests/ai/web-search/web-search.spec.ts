@@ -2,9 +2,15 @@ import { expect } from "@playwright/test";
 import { RoomType, TenantWalletService } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import {
+  disableWalletService,
   enableAiGateway,
+  enableWalletService,
+  getServiceOperations,
+  getServiceUsage,
   isWalletServiceEnabled,
+  operationKey,
   setAiSearchAddon,
+  waitForServiceOperation,
 } from "@/src/helpers/wallet-services";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
@@ -485,6 +491,183 @@ test.describe("AI Web Search - the AI search add-on", () => {
     );
     await setPortalAiAccess(ownerApi, true);
     expect((await webSearch.isConfigured("owner")).data).toBe(true);
+  });
+});
+
+// "A separate paid service" is two claims, and the block above only proves the
+// first one: web search has a switch of its own. This block covers the second —
+// that the switch is a billing add-on with a meter of its own.
+//
+// Measured 2026-08-19: a search is charged to `ai-search` in Results, next to
+// the same conversation's `ai-tools` charge in Tokens — two lines, two units. It
+// is *separately billed but not free-standing*: `servicestate` refuses to enable
+// it while AI Tools is off ("AI Tools service must be enabled before Search"),
+// and switching AI Tools off later takes it down with it.
+//
+// The catalogue side of the same requirement (`ai-search` has its own entry, id
+// and price, which is what its management page reads) is in
+// portal/payments/payment.spec.ts, together with `customer/usage`.
+test.describe("AI Web Search - billed as a service of its own", () => {
+  test("GET /api/2.0/portal/payment/customer/operations, customer/usage - a web search is charged to ai-search", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    await setAiSearchAddon(ownerApi.payment, true);
+    expect(
+      (await webSearch.isConfigured("owner")).data,
+      "the premise of the whole test",
+    ).toBe(true);
+
+    // Baseline keyed per operation, not counted: the portal is charged for other
+    // things while the test runs, so "one row more than before" would also pass
+    // on someone else's charge landing in the same window.
+    const before = new Set(
+      (await getServiceOperations(ownerApi.payment, "aiSearch")).map(
+        operationKey,
+      ),
+    );
+    const usageBefore = await getServiceUsage(ownerApi.payment, "aiSearch");
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Web Search Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Billed web search",
+      profileId,
+      agentId,
+    });
+
+    await aiChat.sendMessage("owner", {
+      threadId,
+      agentId,
+      profileId,
+      message: WEB_SEARCH_QUESTION,
+      timeoutMs: 240000,
+    });
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+    expectHealthyAssistantReply(messages);
+
+    // The charge is only expected because a search really happened — without this
+    // the test would be asserting billing for something that never ran.
+    const reply = AiAgentChat.assistantMessages(messages).at(-1)!;
+    expectWebSearchSources(reply);
+
+    const charged = await waitForServiceOperation(
+      ownerApi.payment,
+      "aiSearch",
+      before,
+    );
+    expect(
+      charged,
+      "a search the model really ran must be billed to ai-search",
+    ).toBeDefined();
+    expect(charged?.service).toBe("ai-search");
+    expect(charged?.description).toBe("AI search");
+    // Searches are sold by result, not by token — its own unit is the clearest
+    // sign this is a service of its own and not part of the AI Tools meter.
+    expect(charged?.serviceUnit).toBe("Results");
+    expect(charged?.quantity).toBeGreaterThan(0);
+    expect(charged?.currency).toBe("USD");
+    // "Paid" means money actually left the wallet, not just that a row appeared.
+    expect(charged?.debit).toBeGreaterThan(0);
+    expect(charged?.credit).toBe(0);
+    // Charged to the person who searched, which is what the wallet report groups by.
+    expect(charged?.participantName?.length).toBeGreaterThan(0);
+
+    // And it shows up in the per-service aggregate, which is what a billing page
+    // shows: the add-on has a line of its own.
+    const usageAfter = await getServiceUsage(ownerApi.payment, "aiSearch");
+    expect(usageAfter?.service).toBe("ai-search");
+    expect(usageAfter?.title).toBe("AI search");
+    expect(usageAfter?.serviceUnit).toBe("Results");
+    expect(usageAfter?.totalAmount).toBeGreaterThan(0);
+    expect(usageAfter?.operationCount ?? 0).toBeGreaterThan(
+      usageBefore?.operationCount ?? 0,
+    );
+
+    // The same conversation also burned AI Tools tokens, and that is billed on a
+    // line of its own with a different unit — the two are not one meter. Without
+    // this the ai-search row above could be any AI charge under a new label.
+    const aiTools = await getServiceUsage(ownerApi.payment, "aiTools");
+    expect(aiTools?.service).toBe("ai-tools");
+    expect(aiTools?.serviceUnit).toBe("Tokens");
+    expect(aiTools?.totalQuantity).toBeGreaterThan(0);
+    expect(aiTools?.serviceUnit).not.toBe(usageAfter?.serviceUnit);
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - the AI search add-on can only be bought on top of AI Tools", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    // Deliberately not `enableAiGateway`: that turns AI Tools on, and the point
+    // here is what web search does without it. A billing customer is still
+    // needed, or `servicestate` answers 404 before any add-on can be flipped.
+    await paymentsApi.setupPayment();
+    await paymentsApi.makeWalletTopUp(1000);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+
+    expect(
+      await isWalletServiceEnabled(ownerApi.payment, "aiTools"),
+      "AI Tools is off to start with",
+    ).toBe(false);
+
+    // Separately billed, but not free-standing: the add-on is refused outright
+    // while AI Tools is off, and says so.
+    const refused = await enableWalletService(ownerApi.payment, "aiSearch");
+    expect(refused.status).toBe(403);
+    expect((refused.data as any)?.error?.message).toBe(
+      "AI Tools service must be enabled before Search",
+    );
+    expect(
+      await isWalletServiceEnabled(ownerApi.payment, "aiSearch"),
+      "a refused purchase leaves nothing enabled",
+    ).toBe(false);
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+
+    // With the prerequisite in place the same call goes through, and the two
+    // add-ons sit in the enabled list side by side.
+    expect(
+      (await enableWalletService(ownerApi.payment, "aiTools")).status,
+    ).toBe(200);
+    await setAiSearchAddon(ownerApi.payment, true);
+    expect((await webSearch.isConfigured("owner")).data).toBe(true);
+    expect(await isWalletServiceEnabled(ownerApi.payment, "aiTools")).toBe(
+      true,
+    );
+
+    // The dependency is one-way: dropping web search keeps AI Tools, so this is
+    // two switches and not one under two names.
+    await setAiSearchAddon(ownerApi.payment, false);
+    expect(
+      await isWalletServiceEnabled(ownerApi.payment, "aiTools"),
+      "AI Tools survives web search being switched off",
+    ).toBe(true);
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+    expect((await webSearch.getActiveConfig("owner")).data).toBeNull();
+
+    // And the other way round it cascades: switching AI Tools off is accepted
+    // and takes web search down with it rather than leaving it paid for on top
+    // of a prerequisite that is gone.
+    await setAiSearchAddon(ownerApi.payment, true);
+    expect(
+      (await disableWalletService(ownerApi.payment, "aiTools")).status,
+    ).toBe(200);
+    expect(
+      await isWalletServiceEnabled(ownerApi.payment, "aiSearch"),
+      "web search is switched off with its prerequisite",
+    ).toBe(false);
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
   });
 });
 

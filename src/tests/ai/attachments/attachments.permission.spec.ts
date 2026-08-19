@@ -37,18 +37,23 @@ import {
 //     see is a draft that does not exist.
 //
 // A Guest is handled by a different mechanism than a User, and both halves of it
-// look like collateral damage rather than the intent:
+// are the intended contract: a Guest has no access to the AI stack at all, which
+// is how BUG 83237 was resolved.
 //
-//   * `save-file` refuses a Guest outright, on a file the Guest can read. That is
-//     the BUG 83237 test in "who may create a draft".
+//   * `save-file` refuses a Guest outright, on a file the Guest can read — the
+//     refusal is about the user type, not about access to the file. That is the
+//     first test in "who may create a draft", and the owner attaching the same
+//     file id is its control.
 //   * `get` and `get-many` answer a Guest 403 for ANY id, an unknown one included,
 //     where the owner gets `200 [null]`. So a Guest cannot read a draft — not
-//     somebody else's and not one of their own. It is not the AI stack shutting
-//     Guests out in general: the same Guest reads `/ai/config`, `/ai/config/user`
-//     and the agent list with 200.
+//     somebody else's and not one of their own.
 //
 // Both are why the Guest test below controls with the owner's own read rather than
 // with a draft of the Guest's, and why it pins the 403 instead of a null in place.
+// The routes where a Guest still gets an answer are defects of their own and live
+// with the surface they belong to — see the guest blocks of
+// settings.permission.spec.ts, agents.permission.spec.ts, mcp.permission.spec.ts,
+// vectorization.permission.spec.ts and messages.permission.spec.ts.
 //
 // Two constraints shape how they are written:
 //
@@ -130,27 +135,20 @@ test.describe("AI Attachments - who may create a draft", () => {
     });
   }
 
-  test("BUG 83237: POST /api/2.0/ai/attachments/save-file - a Guest attaches a file shared with them", async ({
+  test("POST /api/2.0/ai/attachments/save-file - a Guest cannot attach a file shared with them", async ({
     apiSdk,
   }) => {
     // A Guest has no Documents of their own, and a file draft has to reference a
-    // file the caller can read, so the only file a Guest can attach is one shared
-    // with them. This used to work — the room membership, not the user type, was
-    // what made it possible.
+    // file the caller can read, so the only file a Guest could attach is one
+    // shared with them. Since 2026-08-17 even that is a bare
+    // `403 {"error":"Forbidden"}`, and the refusal is about the user type, not
+    // about access to the file. Filed as BUG 83237 and resolved as the intended
+    // behaviour: a Guest has no access to the AI stack.
     //
-    // Since 2026-08-17 it is a bare `403 {"error":"Forbidden"}`, and the refusal
-    // is about the user type rather than about access to the file: the Guest can
-    // read the room and the file itself (asserted below), the owner attaches the
-    // same file id at the same moment, a plain User with the same FileShare.Read
-    // attaches a room file (attachments.spec.ts, "attaching by id is checked
-    // against the caller's access to the file"), and `save-image` answered a Guest
-    // 200 earlier the same day. A Guest who may open a document but may not attach
-    // it to the chat in the same room is not a rule the product states anywhere.
-    //
-    // It does not stand alone either: the read routes refuse a Guest too (see the
-    // note at the top of this file), so a Guest invited to an agent can chat but
-    // can neither attach a file nor read back a draft. That is filed rather than
-    // pinned because nothing in the product says a Guest may not use attachments.
+    // Which is why the two premises below are the load-bearing part. The Guest
+    // reads the room and the file itself, and the owner attaches that same file id
+    // in the same portal, so the 403 cannot be a lost invite or an unattachable
+    // file. Without them this test would pass on any broken setup.
     const ownerApi = apiSdk.forRole("owner");
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
@@ -170,6 +168,21 @@ test.describe("AI Attachments - who may create a draft", () => {
       "text/plain",
     );
 
+    // Second premise, taken as the owner while the shared context is still theirs:
+    // that exact file id IS attachable. A 403 for the Guest below therefore cannot
+    // be the file, the room or the gateway.
+    const asOwner = await attachments.saveFile("owner", {
+      input: {
+        path: String(shared.id),
+        content: "",
+        type: FileType.Document,
+      },
+    });
+    expect(asOwner.status, "the owner attaches the same file id").toBe(200);
+    expect(asOwner.data?.content, "the owner gets the file's text").toBe(
+      "shared with a guest",
+    );
+
     const { data: guestData, userData } = await apiSdk.addMember(
       "owner",
       "Guest",
@@ -181,8 +194,8 @@ test.describe("AI Attachments - who may create a draft", () => {
         notify: false,
       },
     });
-    // The premise of the whole test: without the invite a 403 below would look
-    // like a rule about Guests.
+    // First premise: without the invite the 403 below would say nothing about
+    // user types.
     expect(invited.status, "the owner shares the room with the Guest").toBe(
       200,
     );
@@ -194,9 +207,8 @@ test.describe("AI Attachments - who may create a draft", () => {
       "the Guest",
     );
 
-    // The premise, and the whole reason the 403 below is a bug rather than an
-    // access check doing its job: the Guest really can read the file that is about
-    // to be attached, through the ordinary files API.
+    // The Guest really can read the file that is about to be attached, through
+    // the ordinary files API.
     const fileRead = await attachments.rawRequest(
       "guest",
       "get",
@@ -206,7 +218,7 @@ test.describe("AI Attachments - who may create a draft", () => {
       200,
     );
 
-    const { status, data } = await attachments.saveFile("guest", {
+    const { status, data, error } = await attachments.saveFile("guest", {
       input: {
         path: String(shared.id),
         content: "",
@@ -214,12 +226,11 @@ test.describe("AI Attachments - who may create a draft", () => {
       },
     });
 
-    test.fail();
-    expect(status, "a Guest attaching a file they can read").toBe(200);
-    expect(data?.content, "the Guest gets the file's text").toBe(
-      "shared with a guest",
-    );
-    await attachments.expectStored("guest", data!.id!, "the Guest's draft");
+    // No draft came back, so there is nothing to poll for: the refusal happens
+    // before anything is stored.
+    expect(data?.id, "a refused Guest gets no draft id").toBeUndefined();
+    expect(error).toBe("Forbidden");
+    expect(status, "a Guest may not attach a file they can read").toBe(403);
   });
 
   for (const { type, role } of MEMBER_TYPES) {
@@ -504,8 +515,8 @@ test.describe("AI Attachments - cross-user access", () => {
     // Positive control: the draft is alive and readable for its owner at this very
     // moment, so the Guest's null is not a draft that was never stored. Measured
     // as the owner deliberately — a Guest cannot create a draft of their own to
-    // control with any more (`save-file` refuses them, the BUG 83237 test at the
-    // top of this file), which rules out the usual own-draft control.
+    // control with any more (`save-file` refuses them, the first test at the top
+    // of this file), which rules out the usual own-draft control.
     await apiSdk.authenticateOwner();
     await attachments.expectNotActingAs(
       "owner",

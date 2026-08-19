@@ -13,7 +13,7 @@ import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
 // is covered, for every role:
 //
 //                            owner  DSAdmin  RoomAdmin  User  Guest  anon
-//   list-system-tools          200    200      200      200    200   401
+//   list-system-tools          200    200      200      200    200*  401
 //   list-custom-servers        200    200      200      200    403   401
 //   get-custom-server          200    200      200      200    403   401
 //   get-disabled               200    200      200      200    403   401
@@ -31,6 +31,10 @@ import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
 // individual tools is open to any non-guest member. `list-system-tools` is the
 // only route with no membership requirement at all — but it still needs a
 // session, so anonymous is 401 across the board.
+//
+// (*) and it is the only route here that does not refuse a Guest, which is a
+// defect rather than that lack of a membership requirement: a Guest has no access
+// to the AI stack at all. See the last test of "MCP - Tool state permissions".
 //
 // A DocSpaceAdmin's 200s are membership, not rank: the same admin outside the
 // agent is 403 on every route, reads included — see the last block of this file.
@@ -394,14 +398,17 @@ test.describe("MCP - Tool state permissions", () => {
       });
     }
 
+    if (role === "guest") continue;
+
     test(`GET /api/2.0/ai/tools/list-system-tools - ${role} reads the catalogue`, async ({
       apiSdk,
       paymentsApi,
     }) => {
-      // Open to every role, Guest included — the route is not membership- or
+      // Open to every non-guest role — the route is not membership- or
       // admin-gated, which is the point here. It hands back an empty catalogue
       // since the tools were hidden on 2026-08-18, so the role matrix is about
-      // who gets a 200 rather than about who sees what.
+      // who gets a 200 rather than about who sees what. The Guest case is the
+      // defect below.
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -414,6 +421,33 @@ test.describe("MCP - Tool state permissions", () => {
       expect(data).toEqual({});
     });
   }
+
+  test("BUG XXXXX: GET /api/2.0/ai/tools/list-system-tools - a Guest reads the tool catalogue", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The one route of the thirteen that answers a Guest. A Guest has no access to
+    // the AI stack (how BUG 83237 was resolved) and is 403 on the twelve others —
+    // the control below is one of them, in the same session and on the same agent.
+    //
+    // Status-only: the catalogue has been empty for everyone since the tools were
+    // hidden on 2026-08-18, so nothing is disclosed today. What is wrong is that a
+    // Guest is not refused, and that stops being invisible the moment the
+    // catalogue is populated again.
+    const { aiTools, agentId } = await agentWithMember(
+      apiSdk,
+      paymentsApi,
+      "Guest",
+    );
+
+    const refused = await aiTools.listCustomServers("guest", agentId);
+    expect(refused.status, "the Guest really is refused elsewhere").toBe(403);
+
+    const { status } = await aiTools.listSystemTools("guest");
+
+    test.fail();
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("MCP - Anonymous access", () => {
