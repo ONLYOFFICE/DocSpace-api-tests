@@ -7,6 +7,7 @@ import {
   FileOperationType,
   FileShare,
   FolderDtoInteger,
+  FolderType,
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
@@ -6147,7 +6148,7 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
     },
   );
 
-  test.fail(
+  test(
     "BUG 82588: PUT /api/2.0/files/fileops/emptytrash - emptying Files section" +
       " trash also clears Rooms and Forms section trash",
     async ({ apiSdk }) => {
@@ -6231,8 +6232,8 @@ test.describe("PUT /api/2.0/files/fileops/emptytrash - emptyTrash", () => {
       });
 
       await test.step("Action: empty trash from Files section (single=true)", async () => {
-        const { status } = await ownerApi.operations.emptyTrash({
-          single: true,
+        const { status } = await ownerApi.operations.emptyTrash(undefined, {
+          params: { single: true, folderType: FolderType.USER },
         });
         expect(status).toBe(200);
         await waitForOperation(ownerApi.operations);
