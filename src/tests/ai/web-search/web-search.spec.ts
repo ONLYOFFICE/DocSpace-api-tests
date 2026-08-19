@@ -2,15 +2,19 @@ import { expect } from "@playwright/test";
 import { RoomType, TenantWalletService } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import {
+  AI_SEARCH_DEPENDENCY_MESSAGE,
   disableWalletService,
   enableAiGateway,
   enableWalletService,
+  getEnabledWalletServices,
   getServiceOperations,
   getServiceUsage,
   isWalletServiceEnabled,
   operationKey,
   setAiSearchAddon,
   waitForServiceOperation,
+  walletServiceErrorMessage,
+  walletServices,
 } from "@/src/helpers/wallet-services";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
@@ -626,8 +630,8 @@ test.describe("AI Web Search - billed as a service of its own", () => {
     // while AI Tools is off, and says so.
     const refused = await enableWalletService(ownerApi.payment, "aiSearch");
     expect(refused.status).toBe(403);
-    expect((refused.data as any)?.error?.message).toBe(
-      "AI Tools service must be enabled before Search",
+    expect(walletServiceErrorMessage(refused.data)).toBe(
+      AI_SEARCH_DEPENDENCY_MESSAGE,
     );
     expect(
       await isWalletServiceEnabled(ownerApi.payment, "aiSearch"),
@@ -668,6 +672,382 @@ test.describe("AI Web Search - billed as a service of its own", () => {
       "web search is switched off with its prerequisite",
     ).toBe(false);
     expect((await webSearch.isConfigured("owner")).data).toBe(false);
+  });
+});
+
+// The dependency between Web Search and AI Features — section 17.1.
+//
+// The requirement is written from the UI: enabling Web Search while AI Features
+// is off opens a dependency dialog; confirming enables both services, declining
+// leaves Web Search off; and Web Search can be switched off on its own.
+//
+// "AI Features" is the **AI Tools** wallet service, so both halves of the dialog
+// are the same route, `POST /portal/payment/servicestate`. The dialog itself is
+// not API-visible, and neither is "declining" — that is the client not sending a
+// second call. What the API owes the client is everything around it:
+//
+//   * a refusal that says *which* service is missing, so a client can tell
+//     "enable both?" apart from "you may not do this at all" — the 403 text, not
+//     just the status;
+//   * a refusal that changes nothing, since declining must leave the portal
+//     exactly as it was;
+//   * a dependency that guards **activation only**, so switching Web Search off
+//     is never refused for a reason about switching it on;
+//   * no resurrection: a Web Search that was switched off, or dragged off by the
+//     cascade, must stay off until it is bought again. It is billed per search
+//     ([[ai_search_addon_billing_contract]]), so a stale flag coming back to
+//     life is money.
+//
+// The happy path (refuse → enable AI Tools → enable AI search → both on, and the
+// one-way cascade) is in "billed as a service of its own" above; these tests
+// cover the branches that one cannot reach in a single linear story.
+test.describe("AI Web Search - the AI Features dependency", () => {
+  test("POST /api/2.0/portal/payment/servicestate - a refused Web Search purchase enables neither service, and confirming enables both", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    // Not `enableAiGateway`: it turns AI Tools on, which is the state this test
+    // starts *before*. A billing customer is still needed or `servicestate`
+    // answers 404 before the dependency is ever consulted.
+    await paymentsApi.setupPayment();
+    await paymentsApi.makeWalletTopUp(1000);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+
+    const before = await getEnabledWalletServices(ownerApi.payment);
+    expect(before, "AI Features is off to start with").not.toContain(
+      walletServices.aiTools,
+    );
+    expect(before, "Web Search is off to start with").not.toContain(
+      walletServices.aiSearch,
+    );
+
+    // What makes the dialog possible: the portal names the missing service.
+    const refused = await enableWalletService(ownerApi.payment, "aiSearch");
+    expect(refused.status).toBe(403);
+    expect(
+      walletServiceErrorMessage(refused.data),
+      "the refusal names AI Tools, so the client can offer to enable both",
+    ).toBe(AI_SEARCH_DEPENDENCY_MESSAGE);
+
+    // Declining is the client not sending the second call, so what is left to
+    // check is that the refused first one was a no-op — on *both* services.
+    // Asserting only AI search here would pass on a portal that enabled AI
+    // Features on its way to refusing, which is the one outcome a user who
+    // declined must never get.
+    const afterRefusal = await getEnabledWalletServices(ownerApi.payment);
+    expect(
+      afterRefusal,
+      "a refused purchase does not enable AI Features either",
+    ).not.toContain(walletServices.aiTools);
+    expect(afterRefusal, "declining leaves Web Search off").not.toContain(
+      walletServices.aiSearch,
+    );
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+
+    // Confirming is those same two calls, in order, and both must land — read
+    // back in one call so "both" is one portal state and not two moments.
+    expect(
+      (await enableWalletService(ownerApi.payment, "aiTools")).status,
+      "AI Features is enabled first",
+    ).toBe(200);
+    expect(
+      (await enableWalletService(ownerApi.payment, "aiSearch")).status,
+      "Web Search is then accepted",
+    ).toBe(200);
+
+    const afterConfirm = await getEnabledWalletServices(ownerApi.payment);
+    expect(afterConfirm, "confirming leaves both services enabled").toEqual(
+      expect.arrayContaining([walletServices.aiTools, walletServices.aiSearch]),
+    );
+    expect((await webSearch.isConfigured("owner")).data).toBe(true);
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - the dependency is checked on activation only", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+    await setAiSearchAddon(ownerApi.payment, true);
+
+    // Buying an add-on the portal already has is accepted and idempotent — the
+    // dialog can be reached from a stale page, so a second confirm must not
+    // fail.
+    expect(
+      (await enableWalletService(ownerApi.payment, "aiSearch")).status,
+      "enabling Web Search when it is already on",
+    ).toBe(200);
+    expect(await isWalletServiceEnabled(ownerApi.payment, "aiSearch")).toBe(
+      true,
+    );
+
+    // Off while the prerequisite is on — the requirement's last sentence, and
+    // the premise of the two cases after it.
+    await setAiSearchAddon(ownerApi.payment, false);
+    expect(
+      await isWalletServiceEnabled(ownerApi.payment, "aiTools"),
+      "AI Features survives Web Search being switched off",
+    ).toBe(true);
+
+    // Off when it is already off.
+    expect(
+      (await disableWalletService(ownerApi.payment, "aiSearch")).status,
+      "disabling Web Search when it is already off",
+    ).toBe(200);
+    expect(await isWalletServiceEnabled(ownerApi.payment, "aiSearch")).toBe(
+      false,
+    );
+
+    // And off while the prerequisite itself is gone. This is the case the
+    // one-way cascade hides: after AI Tools goes off, AI search is already off,
+    // so nothing ever sends a disable through the dependency check. If that
+    // check ran on every write instead of on activation, a portal could end up
+    // unable to switch a service off.
+    expect(
+      (await disableWalletService(ownerApi.payment, "aiTools")).status,
+    ).toBe(200);
+    const offWithoutPrerequisite = await disableWalletService(
+      ownerApi.payment,
+      "aiSearch",
+    );
+    expect(
+      offWithoutPrerequisite.status,
+      "switching Web Search off is not gated by AI Features",
+    ).toBe(200);
+    expect(
+      walletServiceErrorMessage(offWithoutPrerequisite.data),
+      "the activation-only dependency does not answer on the way down",
+    ).not.toBe(AI_SEARCH_DEPENDENCY_MESSAGE);
+    expect(await isWalletServiceEnabled(ownerApi.payment, "aiSearch")).toBe(
+      false,
+    );
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - re-enabling AI Features leaves Web Search off", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+    await setAiSearchAddon(ownerApi.payment, true);
+
+    // The cascade takes Web Search down with its prerequisite.
+    expect(
+      (await disableWalletService(ownerApi.payment, "aiTools")).status,
+    ).toBe(200);
+    expect(await isWalletServiceEnabled(ownerApi.payment, "aiSearch")).toBe(
+      false,
+    );
+
+    // Coming back must not restore it. Enabling AI Features is consent to AI
+    // Features; searches are billed per result to a different meter, so a
+    // Web Search that switches itself back on charges for something nobody
+    // confirmed — and skips the dependency dialog that exists to ask.
+    expect(
+      (await enableWalletService(ownerApi.payment, "aiTools")).status,
+    ).toBe(200);
+    const after = await getEnabledWalletServices(ownerApi.payment);
+    expect(after, "AI Features is back on").toContain(walletServices.aiTools);
+    expect(
+      after,
+      "Web Search stays off until it is bought again",
+    ).not.toContain(walletServices.aiSearch);
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+
+    // Positive control for the `not.toContain` above: the add-on is still
+    // buyable on this portal, so its absence was a decision and not a portal
+    // that had quietly stopped selling it.
+    await setAiSearchAddon(ownerApi.payment, true);
+    expect((await webSearch.isConfigured("owner")).data).toBe(true);
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - a DocSpaceAdmin meets the dependency, a RoomAdmin meets the access check", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await paymentsApi.setupPayment();
+    await paymentsApi.makeWalletTopUp(1000);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+    expect(
+      await isWalletServiceEnabled(ownerApi.payment, "aiTools"),
+      "AI Features is off, so every role below hits the dependency",
+    ).toBe(false);
+
+    // Plain members first, then one authentication at a time.
+    const members = [];
+    for (const { label, type, role } of ADDON_ROLES.filter((candidate) =>
+      ["DocSpaceAdmin", "RoomAdmin"].includes(candidate.label),
+    )) {
+      const { data, userData } = await apiSdk.addMember("owner", type);
+      expect(data.response?.id, `${label} was created`).toBeTruthy();
+      members.push({ label, type, role, userData, id: data.response!.id! });
+    }
+
+    const messages: Record<string, string | undefined> = {};
+    for (const { label, type, role, userData, id } of members) {
+      await apiSdk.authenticateMember(userData, type);
+      await webSearch.expectActingAs(role, id, label);
+
+      const { status, data } = await apiSdk
+        .forRole(role)
+        .payment.changeTenantWalletServiceState({
+          changeWalletServiceStateRequestDto: {
+            service: TenantWalletService.AISearch,
+            enabled: true,
+          },
+        });
+      expect(status, `${label} buys Web Search without AI Features`).toBe(403);
+      messages[label] = walletServiceErrorMessage(data);
+
+      await apiSdk.authenticateOwner();
+      expect(
+        await isWalletServiceEnabled(ownerApi.payment, "aiSearch"),
+        `Web Search after ${label} tried to buy it`,
+      ).toBe(false);
+    }
+
+    // Both are 403, and a status-only test would call that a pass either way.
+    // But only one of them means "enable both?": offering that dialog to a
+    // RoomAdmin, who may not enable anything, is a dead end, and hiding it from
+    // a DocSpaceAdmin, who may enable both, is the requirement not working.
+    expect(
+      messages.DocSpaceAdmin,
+      "a DocSpaceAdmin is refused for the missing prerequisite",
+    ).toBe(AI_SEARCH_DEPENDENCY_MESSAGE);
+    expect(
+      messages.RoomAdmin,
+      "a RoomAdmin is refused for lacking rights, not for the dependency",
+    ).not.toBe(AI_SEARCH_DEPENDENCY_MESSAGE);
+    expect(
+      messages.RoomAdmin,
+      "and the refusal is the plain access failure",
+    ).toBe("Access denied");
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+  });
+
+  test("GET /api/2.0/portal/payment/walletservice - the add-ons page sees both switches, and the dependency between them is not in the payload", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await paymentsApi.setupPayment();
+    await paymentsApi.makeWalletTopUp(1000);
+
+    /**
+     * What the add-on's own management page reads. `features[0].value` is the
+     * live on/off state of that one service — the second, independent view of
+     * everything `walletservices/settings` says, and the one the dialog is drawn
+     * from, so both branches are checked here too.
+     */
+    const readAddon = async (service: TenantWalletService) => {
+      const { data, status } = await ownerApi.payment.getWalletService({
+        service,
+      });
+      expect(status, `GET /portal/payment/walletservice ${service}`).toBe(200);
+      const feature = data.response?.features?.[0];
+      return {
+        serviceName: data.response?.serviceName,
+        title: feature?.title,
+        enabled: feature?.value,
+        innerServices: data.response?.innerServices,
+      };
+    };
+
+    // The requirement calls the prerequisite "AI Features" — this is where that
+    // name lives, so the two services the dependency is between are identified
+    // by the titles the user reads, not only by ids.
+    const toolsOff = await readAddon(TenantWalletService.AITools);
+    const searchOff = await readAddon(TenantWalletService.AISearch);
+    expect(toolsOff.serviceName).toBe("ai-tools");
+    expect(toolsOff.title, "the prerequisite is the AI features add-on").toBe(
+      "AI features",
+    );
+    expect(searchOff.serviceName).toBe("ai-search");
+    expect(searchOff.title).toBe("AI search");
+    expect(toolsOff.enabled, "AI features starts off").toBe(false);
+    expect(searchOff.enabled, "Web Search starts off").toBe(false);
+
+    // Declining, seen from the page the user is looking at.
+    const refused = await enableWalletService(ownerApi.payment, "aiSearch");
+    expect(refused.status).toBe(403);
+    expect(walletServiceErrorMessage(refused.data)).toBe(
+      AI_SEARCH_DEPENDENCY_MESSAGE,
+    );
+    expect(
+      (await readAddon(TenantWalletService.AISearch)).enabled,
+      "the Web Search switch does not move on a refusal",
+    ).toBe(false);
+    expect(
+      (await readAddon(TenantWalletService.AITools)).enabled,
+      "and neither does the AI features switch",
+    ).toBe(false);
+
+    // Confirming, same view. This is the positive control for the `false`s
+    // above: the field does move, so those were a state and not a constant.
+    expect(
+      (await enableWalletService(ownerApi.payment, "aiTools")).status,
+    ).toBe(200);
+    await setAiSearchAddon(ownerApi.payment, true);
+    expect((await readAddon(TenantWalletService.AITools)).enabled).toBe(true);
+    expect((await readAddon(TenantWalletService.AISearch)).enabled).toBe(true);
+
+    // The dependency itself is nowhere in the contract: `innerServices` is null
+    // on both, and no feature on ai-search points at ai-tools. So the condition
+    // for showing the dependency dialog is knowledge the client hardcodes, and
+    // the 403 message above is the only server-side signal of it. If this
+    // assertion ever fails because the payload grew a link, that is the point at
+    // which the client should stop hardcoding it — which is what this pins.
+    expect(
+      (await readAddon(TenantWalletService.AISearch)).innerServices ?? null,
+      "the AI search add-on does not declare its prerequisite",
+    ).toBeNull();
+  });
+
+  test("POST /api/2.0/portal/payment/servicestate - the portal AI switch does not own the Web Search purchase", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+
+    // "AI Features" reads two ways in the UI — the paid add-on and the portal
+    // AI switch. The dependency is on the add-on; this pins that the other one
+    // is a separate axis, so a test that flips the wrong switch cannot pass by
+    // accident.
+    const off = await setPortalAiAccess(ownerApi, false);
+    expect(off.writeStatus, "PUT /settings/ai-access {enabled:false}").toBe(
+      200,
+    );
+    expect(off.enabled, "the switch is really off").toBe(false);
+
+    await setAiSearchAddon(ownerApi.payment, true);
+
+    // Billing went through; the feature is still hidden while AI is off.
+    expect(
+      (await webSearch.isConfigured("owner")).status,
+      "the read side is refused while the portal AI switch is off",
+    ).toBe(403);
+
+    const on = await setPortalAiAccess(ownerApi, true);
+    expect(on.enabled, "the switch is back on").toBe(true);
+    expect(await isWalletServiceEnabled(ownerApi.payment, "aiSearch")).toBe(
+      true,
+    );
+    expect(
+      (await webSearch.isConfigured("owner")).data,
+      "the purchase made while AI was off is what the portal comes back to",
+    ).toBe(true);
   });
 });
 

@@ -674,8 +674,8 @@ test.describe("AI Profiles - the built-in provider types", () => {
     // The seventeenth built-in type crashes the route instead of answering it.
     // Nothing distinguishes it from a typo for the caller: there is no
     // `success:false`, no message, and no way to tell whether the name was even
-    // recognised. Either the read-only 403 of every other resolved type, or a
-    // soft validation error naming the missing `basedOn`, would be an answer.
+    // recognised. A 400 naming what the body is missing is the answer the route
+    // owes the caller instead of a crash.
     const bare = await profiles.createProfile(
       "owner",
       probedProfile(EXTERNAL_PROVIDER_TYPE),
@@ -693,7 +693,7 @@ test.describe("AI Profiles - the built-in provider types", () => {
     );
 
     test.fail();
-    expect(bare.status, "a built-in provider type must not crash").toBe(403);
+    expect(bare.status, "a built-in provider type must not crash").toBe(400);
   });
 });
 
