@@ -234,6 +234,26 @@ test.describe("PUT /api/2.0/files/share", () => {
       });
 
       expect(status).toBe(403);
+
+      const { data: securityData } = await ownerApi.sharing.getFileSecurityInfo(
+        { id: fileId },
+      );
+      const guestEntry = securityData.response!.find((entry) => {
+        const sharedToUser = entry.sharedToUser as
+          | Record<string, unknown>
+          | undefined;
+        return sharedToUser?.["id"] === guestId;
+      });
+      expect(guestEntry).toBeDefined();
+      expect(guestEntry!.access).toBe(FileShare.Read);
+
+      const ownerShareEntry = securityData.response!.find((entry) => {
+        const sharedToUser = entry.sharedToUser as
+          | Record<string, unknown>
+          | undefined;
+        return sharedToUser?.["id"] === ownerId && !entry.isOwner;
+      });
+      expect(ownerShareEntry).toBeUndefined();
     },
   );
 });
@@ -576,6 +596,26 @@ test.describe("PUT /api/2.0/files/file/{fileId}/share", () => {
       });
 
       expect(status).toBe(403);
+
+      const { data: securityData } = await ownerApi.sharing.getFileSecurityInfo(
+        { id: fileId },
+      );
+      const guestEntry = securityData.response!.find((entry) => {
+        const sharedToUser = entry.sharedToUser as
+          | Record<string, unknown>
+          | undefined;
+        return sharedToUser?.["id"] === guestId;
+      });
+      expect(guestEntry).toBeDefined();
+      expect(guestEntry!.access).toBe(FileShare.Read);
+
+      const ownerShareEntry = securityData.response!.find((entry) => {
+        const sharedToUser = entry.sharedToUser as
+          | Record<string, unknown>
+          | undefined;
+        return sharedToUser?.["id"] === ownerId && !entry.isOwner;
+      });
+      expect(ownerShareEntry).toBeUndefined();
     },
   );
 });
