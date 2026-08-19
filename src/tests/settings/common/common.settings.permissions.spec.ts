@@ -7,6 +7,9 @@ import { test } from "@/src/fixtures/index";
 // completeWizard PUT /api/2.0/settings/wizard/complete — not available in cloud,
 // on-premise only. Access control cannot be verified.
 
+// The write side of this switch — who may actually turn the portal's AI on and
+// off — lives with the rest of the AI-management surface, in
+// src/tests/ai/settings/ai-services-management.spec.ts.
 test.describe("GET /api/2.0/settings/ai-access - access control", () => {
   test("GET /api/2.0/settings/ai-access - Anonymous cannot get AI access settings", async ({
     apiSdk,

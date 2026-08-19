@@ -2295,3 +2295,104 @@ test.describe("GET /api/2.0/portal/payment/ai-prices - permissions", () => {
     expect((data as any)?.error?.message).toBe("Access denied");
   });
 });
+
+// The unused subscription balance is money, and the route that reads it had no
+// permission coverage. It is also one of the two ways out of the low-balance
+// banner (see lowBalance.spec.ts), so who may look at it is part of that contract.
+//
+// This one is stricter than the rest of the payment surface: the controller calls
+// `DemandCustomerPayerAsync`, so being an administrator is not enough — only the
+// payer is let in, and a DocSpaceAdmin who can read `customerinfo` and
+// `customer/balance` is refused here. That distinction is the API side of "the
+// Payer sees a different low-balance banner than the other admins", so it is
+// asserted rather than left implied.
+//
+// Every test registers the billing customer first. Without it the portal has no
+// customer at all and the route answers 404 "Customer could not be found" for
+// anybody, owner included — which would make these look like role checks while
+// proving nothing about roles.
+test.describe("GET /api/2.0/portal/payment/subscription/balance - permissions", () => {
+  test("GET /api/2.0/portal/payment/subscription/balance - Anonymous cannot get the subscription balance", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getSubscriptionBalanceInfo();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/subscription/balance - DocSpaceAdmin cannot get the subscription balance", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getSubscriptionBalanceInfo();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/subscription/balance - RoomAdmin cannot get the subscription balance", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getSubscriptionBalanceInfo();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/subscription/balance - User cannot get the subscription balance", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getSubscriptionBalanceInfo();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/subscription/balance - Guest cannot get the subscription balance", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getSubscriptionBalanceInfo();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/subscription/balance - a portal with no billing customer is answered 404", async ({
+    apiSdk,
+  }) => {
+    // The state the tests above have to be set up out of, kept as a test of its
+    // own so the difference between "not the payer" (403) and "this portal has no
+    // customer yet" (404) stays visible.
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getSubscriptionBalanceInfo();
+
+    expect(status).toBe(404);
+    expect((data as any)?.error?.message).toBe("Customer could not be found");
+  });
+});

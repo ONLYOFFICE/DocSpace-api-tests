@@ -60,7 +60,11 @@ test.describe("PUT /api/2.0/portal/payment/url", () => {
   });
 });
 
-// Skipped due to OO AI service being hidden
+// The AI balance is a wallet sub-account these portals do not have: measured
+// 2026-08-19, both crediting it and reading it back answer 404 (it used to be
+// 403 "Accounting client does not support sub-accounts"). Nothing in test code
+// provisions it, and AI spend does not need it — chat charges are debited from
+// the ordinary wallet balance, which ai/billing/billing.spec.ts asserts.
 test.describe("POST /api/2.0/portal/payment/creditaibalance", () => {
   test.skip("POST /api/2.0/portal/payment/creditaibalance - Owner credits AI balance", async ({
     apiSdk,
@@ -443,9 +447,12 @@ test.describe("PUT /api/2.0/portal/payment/calculatewallet", () => {
   });
 });
 
-// Skipped due to OO AI service being hidden
+// The wallet's spend export. The `ai-tools` cases were skipped as "OO AI service
+// being hidden"; measured 2026-08-19 the add-on is live and its report builds
+// like any other service's, so they run. The charges the report is built from
+// are covered in ai/billing/billing.spec.ts.
 test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
-  test.skip("POST /api/2.0/portal/payment/customer/operationsreport - Owner creates report for ai-tools", async ({
+  test("POST /api/2.0/portal/payment/customer/operationsreport - Owner creates report for ai-tools", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -524,8 +531,7 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
     expect((data as any).response?.error).toBe("");
   });
 
-  // Skipped due to OO AI service being hidden
-  test.skip("POST /api/2.0/portal/payment/customer/operationsreport - DocSpaceAdmin creates report for ai-tools", async ({
+  test("POST /api/2.0/portal/payment/customer/operationsreport - DocSpaceAdmin creates report for ai-tools", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -611,9 +617,12 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
   });
 });
 
-// Skipped due to OO AI service being hidden
+// The wallet's spend export. The `ai-tools` cases were skipped as "OO AI service
+// being hidden"; measured 2026-08-19 the add-on is live and its report builds
+// like any other service's, so they run. The charges the report is built from
+// are covered in ai/billing/billing.spec.ts.
 test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
-  test.skip("GET /api/2.0/portal/payment/customer/operationsreport - Owner gets report generation status", async ({
+  test("GET /api/2.0/portal/payment/customer/operationsreport - Owner gets report generation status", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -645,8 +654,7 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
     expect(taskData.resultFileUrl).toBeDefined();
   });
 
-  // Skipped due to OO AI service being hidden
-  test.skip("GET /api/2.0/portal/payment/customer/operationsreport - DocSpaceAdmin gets report generation status", async ({
+  test("GET /api/2.0/portal/payment/customer/operationsreport - DocSpaceAdmin gets report generation status", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -824,7 +832,11 @@ test.describe("GET /api/2.0/portal/payment/account", () => {
   });
 });
 
-// Skipped due to OO AI service being hidden
+// The AI balance is a wallet sub-account these portals do not have: measured
+// 2026-08-19, both crediting it and reading it back answer 404 (it used to be
+// 403 "Accounting client does not support sub-accounts"). Nothing in test code
+// provisions it, and AI spend does not need it — chat charges are debited from
+// the ordinary wallet balance, which ai/billing/billing.spec.ts asserts.
 test.describe("GET /api/2.0/portal/payment/customer/aibalance", () => {
   test.skip("GET /api/2.0/portal/payment/customer/aibalance - Owner gets AI balance", async ({
     apiSdk,

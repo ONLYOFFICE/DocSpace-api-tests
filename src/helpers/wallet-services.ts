@@ -5,6 +5,7 @@ import {
   PaymentApiChangeTenantWalletServiceStateRequest,
   CustomerServiceUsageDto,
   OperationDto,
+  TenantWalletSettings,
 } from "@onlyoffice/docspace-api-sdk";
 import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
 import { AiAccessClient, setPortalAiAccess } from "./ai-access";
@@ -163,11 +164,141 @@ export async function setAiSearchAddon(
 }
 
 /**
+ * The balance at which the client starts showing its low-balance banners, in the
+ * wallet currency.
+ *
+ * This number lives in the client, not in the API: nothing on
+ * `/portal/payment/*` returns a threshold, a "low balance" flag or an audit
+ * event for the banner (the wallet actions are only `CustomerWalletToppedUp`,
+ * `CustomerOperationPerformed` and the two settings ones). So the banner itself
+ * is not API-testable — what is testable is the number it reads, who it can be
+ * read by, and whether paid services actually keep working below it. That is
+ * what the tests using this constant cover.
+ */
+export const LOW_BALANCE_THRESHOLD = 1;
+
+/**
+ * The portal's wallet balance in its own account currency.
+ *
+ * `subAccounts` is a per-currency list, so the account currency's row is the one
+ * to read — taking `[0]` would silently report another currency's amount if the
+ * order ever changes.
+ */
+export async function getWalletBalance(
+  paymentApi: Pick<PaymentApi, "getCustomerBalance">,
+): Promise<number> {
+  const { data, status } = await paymentApi.getCustomerBalance();
+  expect(status, "GET /portal/payment/customer/balance").toBe(200);
+
+  const currency = data.response?.accountCurrency;
+  const subAccounts = data.response?.subAccounts ?? [];
+  const account =
+    subAccounts.find((sub) => sub.currency === currency) ?? subAccounts[0];
+
+  expect(
+    account?.amount,
+    `GET /portal/payment/customer/balance returned no ${currency} sub-account`,
+  ).toBeDefined();
+  return account!.amount!;
+}
+
+/**
+ * Puts the portal into the low-balance state: paid, with a wallet holding less
+ * than `LOW_BALANCE_THRESHOLD` but more than nothing.
+ *
+ * The only lever for this is the same `setwallettopup` hook every other payment
+ * test uses — `topUpDeposit` goes through Stripe and is inert on test portals,
+ * and spending a balance down is not an option because the per-operation charges
+ * are fractions of a cent. A fresh portal starts with an empty wallet, so a
+ * sub-$1 top-up lands the portal under the threshold whether the hook sets the
+ * balance or adds to it.
+ *
+ * The resulting balance is asserted rather than assumed: if a portal ever starts
+ * out with a bonus, or the hook stops honouring fractional sums, every test
+ * built on this would otherwise quietly start proving something about a
+ * perfectly funded portal instead.
+ */
+export async function fundWalletBelowThreshold(
+  paymentsApi: Pick<PortalPaymentApi, "setupPayment" | "makeWalletTopUp">,
+  paymentApi: Pick<PaymentApi, "getCustomerBalance">,
+  amount = 0.5,
+): Promise<number> {
+  expect(
+    amount,
+    "the funded amount has to be under the low-balance threshold",
+  ).toBeLessThan(LOW_BALANCE_THRESHOLD);
+
+  await paymentsApi.setupPayment();
+  await paymentsApi.makeWalletTopUp(amount);
+
+  const balance = await getWalletBalance(paymentApi);
+  expect(
+    balance,
+    "wallet balance after a sub-threshold top-up",
+  ).toBeGreaterThan(0);
+  expect(balance, "wallet balance after a sub-threshold top-up").toBeLessThan(
+    LOW_BALANCE_THRESHOLD,
+  );
+
+  return balance;
+}
+
+/**
+ * The portal's wallet auto top-up settings.
+ *
+ * The SDK types this read as `{ settings }`, but the portal answers the usual
+ * `{ response }` envelope — hence the cast, which is why every caller would
+ * otherwise repeat an `as any`.
+ */
+export async function getWalletTopUpSettings(
+  paymentApi: Pick<PaymentApi, "getTenantWalletSettings">,
+): Promise<TenantWalletSettings | undefined> {
+  const { data, status } = await paymentApi.getTenantWalletSettings();
+  expect(status, "GET /portal/payment/topupsettings").toBe(200);
+  return (data as unknown as { response?: TenantWalletSettings }).response;
+}
+
+/**
+ * The low-balance state with AI Tools paid for on top of it — the state a portal
+ * is in when the banner is up and the user keeps using AI. Deliberately does not
+ * credit the AI balance: this has to stay distinguishable from the funded portal
+ * `enableAiGateway` builds, and from the unpaid one `configureAiToolsAsUnpaid`
+ * builds.
+ */
+export async function enableAiToolsWithLowBalance(
+  paymentsApi: Pick<PortalPaymentApi, "setupPayment" | "makeWalletTopUp">,
+  paymentApi: Pick<
+    PaymentApi,
+    | "changeTenantWalletServiceState"
+    | "getTenantWalletServiceSettings"
+    | "getCustomerBalance"
+  >,
+  amount = 0.5,
+): Promise<number> {
+  await fundWalletBelowThreshold(paymentsApi, paymentApi, amount);
+
+  await enableWalletService(paymentApi, "aiTools");
+  expect(
+    await isWalletServiceEnabled(paymentApi, "aiTools"),
+    "AI Tools in the portal's enabled wallet services",
+  ).toBe(true);
+
+  // Re-read: enabling a wallet service is itself a billable change, and the
+  // point of this state is that the balance is still under the threshold.
+  const afterEnabling = await getWalletBalance(paymentApi);
+  expect(afterEnabling, "wallet balance after enabling AI Tools").toBeLessThan(
+    LOW_BALANCE_THRESHOLD,
+  );
+
+  return afterEnabling;
+}
+
+/**
  * The period both accounting routes want. They are period queries, and a call
  * without one is a different question from "what has this portal been charged
  * for today", so every helper here asks the same explicit window.
  */
-function accountingPeriod(days = 30) {
+export function accountingPeriod(days = 30) {
   const now = new Date();
   const startDate = new Date(now);
   startDate.setDate(startDate.getDate() - days);
@@ -225,6 +356,19 @@ export async function getServiceOperations(
 }
 
 /**
+ * When an operation was booked.
+ *
+ * The SDK types `date` as `ApiDateTime`, but the accounting service sends a bare
+ * ISO string (`"2026-08-19T10:02:26.5444310+01:00"`), so `date.utcTime` is
+ * always undefined — which quietly dropped the timestamp out of `operationKey`
+ * and let two charges of the same size collide.
+ */
+export function operationDate(operation: OperationDto): string | undefined {
+  const date = operation.date as unknown;
+  return typeof date === "string" ? date : operation.date?.utcTime;
+}
+
+/**
  * Identity of one billed operation. `OperationDto` carries no id, so the
  * baseline for "a new charge appeared" is this tuple — the fields the
  * accounting service varies per operation. Comparing counts instead would pass
@@ -232,7 +376,7 @@ export async function getServiceOperations(
  */
 export function operationKey(operation: OperationDto): string {
   return [
-    operation.date?.utcTime,
+    operationDate(operation),
     operation.service,
     operation.description,
     operation.details,
@@ -241,6 +385,34 @@ export function operationKey(operation: OperationDto): string {
     operation.credit,
     operation.agentId,
   ].join("|");
+}
+
+/**
+ * Waits for a charge to land on one wallet service that was not in `seen` *and*
+ * that `matches`.
+ *
+ * The predicate is not a convenience: one AI action can produce several charges
+ * (a chat inside an agent with a filled Knowledge folder bills the answer and the
+ * embedding of the question), so "the first row I have not seen" is not
+ * necessarily the row the test is about. Match on `description` when it matters
+ * which feature was billed.
+ */
+export async function waitForMatchingServiceOperation(
+  paymentApi: Pick<PaymentApi, "getCustomerOperations">,
+  service: WalletServiceName,
+  seen: Set<string>,
+  matches: (operation: OperationDto) => boolean,
+  timeoutMs = 120000,
+): Promise<OperationDto | undefined> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const operations = await getServiceOperations(paymentApi, service);
+    const fresh = operations.find(
+      (operation) => !seen.has(operationKey(operation)) && matches(operation),
+    );
+    if (fresh || Date.now() > deadline) return fresh;
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
 }
 
 /**
@@ -267,16 +439,42 @@ export async function waitForServiceOperation(
   }
 }
 
+/**
+ * Everything the portal currently pays for, read in one call. Use this instead
+ * of two `isWalletServiceEnabled` calls whenever a test is about *which*
+ * services a single write touched: two reads can straddle a change, and an
+ * assertion on one service alone passes on a portal that also flipped another.
+ */
+export async function getEnabledWalletServices(
+  paymentApi: Pick<PaymentApi, "getTenantWalletServiceSettings">,
+): Promise<TenantWalletService[]> {
+  const { data, status } = await paymentApi.getTenantWalletServiceSettings();
+  expect(status, "GET /portal/payment/walletservices/settings").toBe(200);
+  return data.response?.enabledServices ?? [];
+}
+
 /** Whether the portal currently has this wallet service in its enabled list. */
 export async function isWalletServiceEnabled(
   paymentApi: Pick<PaymentApi, "getTenantWalletServiceSettings">,
   service: WalletServiceName,
 ): Promise<boolean> {
-  const { data, status } = await paymentApi.getTenantWalletServiceSettings();
-  expect(status, "GET /portal/payment/walletservices/settings").toBe(200);
-  return (data.response?.enabledServices ?? []).includes(
+  return (await getEnabledWalletServices(paymentApi)).includes(
     walletServices[service],
   );
+}
+
+/**
+ * The 403 the accounting service answers when the AI search add-on is bought
+ * while AI Tools is off. This exact text is the API side of the dependency
+ * dialog: it is what tells a client to offer "enable both" rather than report a
+ * plain access failure, so it is pinned as a string, not as a status code.
+ */
+export const AI_SEARCH_DEPENDENCY_MESSAGE =
+  "AI Tools service must be enabled before Search";
+
+/** The message body `servicestate` returns on a refusal. */
+export function walletServiceErrorMessage(data: unknown): string | undefined {
+  return (data as { error?: { message?: string } } | undefined)?.error?.message;
 }
 
 /**
