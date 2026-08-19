@@ -21233,7 +21233,7 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
     );
 
     test.fail(
-      "BUG 81809: GET /files/rooms - count + startIndex + sortBy returns stable paginated sorted slice",
+      "BUG 81809: GET /files/rooms - sortBy + startIndex + count returns stable result across repeated calls",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const titles = [
@@ -21249,18 +21249,26 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
           });
         }
 
-        const { data, status } = await ownerApi.rooms.getRoomsFolder({
-          sortBy: "title",
-          sortOrder: SortOrder.Ascending,
-          startIndex: 1,
-          count: 2,
-        });
+        const getSlice = async () => {
+          const { data, status } = await ownerApi.rooms.getRoomsFolder({
+            sortBy: "title",
+            sortOrder: SortOrder.Ascending,
+            startIndex: 1,
+            count: 2,
+          });
+          expect(status).toBe(200);
+          return (data.response!.folders as any[]).map(
+            (f) => f.title as string,
+          );
+        };
 
-        expect(status).toBe(200);
-        const returnedTitles = (data.response!.folders as any[]).map(
-          (f) => f.title as string,
+        const results = await Promise.all(
+          Array.from({ length: 5 }, () => getSlice()),
         );
-        expect(returnedTitles).toEqual(["Autotest B", "Autotest C"]);
+
+        for (const titles of results) {
+          expect(titles).toEqual(["Autotest B", "Autotest C"]);
+        }
       },
     );
   });

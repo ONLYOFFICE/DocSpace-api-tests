@@ -165,7 +165,7 @@ export class PaymentApi {
 
     const tariffResponse = await this.apiContext.get(
       `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/tariff`,
-      { headers, params: { refresh: true } },
+      { headers, params: { refresh: true }, timeout: 120_000 },
     );
     if (!tariffResponse.ok()) {
       const error = await tariffResponse.json();
@@ -176,7 +176,7 @@ export class PaymentApi {
 
     const quotaResponse = await this.apiContext.get(
       `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/payment/quota`,
-      { headers, params: { refresh: true } },
+      { headers, params: { refresh: true }, timeout: 120_000 },
     );
     if (!quotaResponse.ok()) {
       const error = await quotaResponse.json();
