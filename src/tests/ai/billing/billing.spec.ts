@@ -47,6 +47,10 @@ import { ApiSDK } from "@/src/services/api-sdk";
 //   * the spend is debited from the ordinary wallet balance. The AI sub-account
 //     (`customer/aibalance`, `creditaibalance`) answers 404 on these portals, so
 //     `customer/balance` is where the money visibly moves.
+//   * `agentId`/`agentTitle` are the report's Source column, and an empty Source
+//     is not automatically a defect: a chat sent with no `entityId` belongs to no
+//     agent. Which chat produced the row is what decides — the two tests around
+//     the middle of this file are that pair.
 //
 // Every test here has to spend real money on a real model before it can read the
 // billing side back, so all of them share two rules:
@@ -326,13 +330,28 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
     );
   });
 
-  // Measured 2026-08-19: a chat sent with `entityId` set to the agent is billed
-  // with `agentId` and `agentTitle` both absent from the row, so chat spend
-  // cannot be broken down per agent. This is not "the fields are not implemented
-  // yet" — the vectorization charge in the very same agent, asserted below as the
-  // control, arrives with both of them filled. Only the chat charge drops them.
+  // `agentId`/`agentTitle` are the wallet report's Source column, and an empty
+  // Source is legitimate for *some* chat spend: the AI Chat opened from the
+  // portal header is not in any agent, so its charge has nothing to name — that
+  // is the test below this one. What this test is about is the other kind of
+  // chat, the one sent with `entityId` set to an agent, which has to be
+  // attributable to it the way vectorization already is.
+  //
+  // Measured live 2026-08-19 on one portal, all four rows of one run:
+  //
+  //   Vectorization, Knowledge file       agentId "5584130", agentTitle set
+  //   Vectorization, the chat's question  agentId "5584130", agentTitle set
+  //   Chat, entityId = the agent          both fields absent
+  //   Chat, no entityId (header chat)     both fields absent
+  //
+  // So the two chats are indistinguishable in Billing, and the agent's spend
+  // cannot be broken down. Two controls below keep this a bug rather than an
+  // unimplemented field: vectorization in the same agent carries both fields,
+  // and — the stronger one — the embedding of the very question this chat asked
+  // carries them too. The agent scope reaches the engine on the chat request; it
+  // is the Chat billing row that drops it.
   test.fail(
-    "BUG XXXXX: GET /api/2.0/portal/payment/customer/operations - a chat charge names the agent the tokens were spent in",
+    "BUG 83257: GET /api/2.0/portal/payment/customer/operations - a chat inside an agent names the agent the tokens were spent in",
     async ({ apiSdk, paymentsApi }) => {
       test.setTimeout(600000);
       const ownerApi = apiSdk.forRole("owner");
@@ -385,12 +404,112 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
       expect(charged, "the chat must be billed at all").toBeDefined();
       expect(charged?.description).toBe("Chat");
 
+      // The second control, and the one that settles *why* this is a defect:
+      // answering against a filled Knowledge folder also embeds the question, and
+      // that charge — produced by this very send — does name the agent. So the
+      // request knew its scope; only the Chat row lost it.
+      //
+      // Guarded rather than asserted outright: embedding the question is the
+      // engine's own retrieval step, not something the test asks for, so its
+      // absence must not decide the outcome of a test that is about the chat row.
+      const questionEmbedding = await waitForMatchingServiceOperation(
+        ownerApi.payment,
+        "aiTools",
+        beforeChat,
+        isVectorizationCharge,
+        30000,
+      );
+      if (questionEmbedding) {
+        expect(
+          questionEmbedding.agentId,
+          "the embedding of the question this chat asked names the agent",
+        ).toBe(String(agentId));
+      }
+
       // The failing half: the same two fields, the same agent, a different
       // feature.
       expect(charged?.agentId).toBe(String(agentId));
       expect(charged?.agentTitle).toBe(agentTitle);
     },
   );
+
+  test("GET /api/2.0/portal/payment/customer/operations - a chat outside any agent is billed with no Source", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const agentTitle = "Autotest Unsourced Agent";
+    const { agentId, knowledgeFolderId } = await createAgentWithKnowledgeFolder(
+      apiSdk,
+      "owner",
+      agentTitle,
+    );
+
+    // The positive control the absence check needs. "No agent on the row" is also
+    // what a report that never fills these fields looks like, so the same portal
+    // has to produce a row that does name an agent first — otherwise this test
+    // would pass on a Billing page whose Source column is always blank.
+    const beforeIndexing = new Set(
+      (await getServiceOperations(ownerApi.payment, "aiTools")).map(
+        operationKey,
+      ),
+    );
+    await uploadKnowledgeText(apiSdk, knowledgeFolderId, "unsourced.txt");
+    const indexing = await waitForMatchingServiceOperation(
+      ownerApi.payment,
+      "aiTools",
+      beforeIndexing,
+      isVectorizationCharge,
+    );
+    expect(indexing?.agentId, "the control charge must name its agent").toBe(
+      String(agentId),
+    );
+    expect(indexing?.agentTitle).toBe(agentTitle);
+
+    const beforeChat = new Set(
+      (await getServiceOperations(ownerApi.payment, "aiTools")).map(
+        operationKey,
+      ),
+    );
+
+    // The AI Chat opened from the portal's own header: no `entityId` on either
+    // call, so the tokens are spent in no agent at all. `spendOnAiTools` is not
+    // used here on purpose — it always scopes to an agent, which is the whole
+    // difference under test.
+    const profileId = await aiChat.defaultProfileId("owner");
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Chat with no agent",
+      profileId,
+    });
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      message: BILLED_QUESTION,
+      timeoutMs: 240000,
+    });
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    const charged = await waitForMatchingServiceOperation(
+      ownerApi.payment,
+      "aiTools",
+      beforeChat,
+      isChatCharge,
+    );
+    expect(charged, "the header chat must be billed too").toBeDefined();
+    expect(charged?.debit).toBeGreaterThan(0);
+
+    // Billed to whoever chatted, attributed to nothing else: this is the "—" the
+    // wallet report shows in Source, and for this chat it is the right answer, not
+    // the missing attribution the test above it is about.
+    expect(charged?.agentId).toBeUndefined();
+    expect(charged?.agentTitle).toBeUndefined();
+  });
 
   test("GET /api/2.0/portal/payment/customer/operations - AI spend is filtered by service, participant and period", async ({
     apiSdk,

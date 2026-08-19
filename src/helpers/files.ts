@@ -15,7 +15,44 @@
  * limitations under the License.
  *
  */
+import { FormFillingManageAction } from "@onlyoffice/docspace-api-sdk";
+import { readFileSync } from "fs";
+import path from "path";
 import { ApiSDK } from "../services/api-sdk";
+import { Role } from "../services/token-store";
+
+/**
+ * Uploads the shared oo-form-empty.pdf asset into a room and starts form
+ * filling on it.
+ *
+ * @returns File ID of the uploaded form
+ */
+export async function startFormFilling(
+  apiSdk: ApiSDK,
+  role: Role,
+  roomId: number,
+): Promise<number> {
+  const buffer = readFileSync(
+    path.join(__dirname, "../assets/oo-form-empty.pdf"),
+  );
+  const { data: insertData } = await apiSdk.insertBinaryFile(
+    role,
+    roomId,
+    buffer,
+    "oo-form-empty.pdf",
+  );
+  const formId = insertData.response.id as number;
+
+  await apiSdk.forRole(role).files.manageFormFilling({
+    fileId: String(formId),
+    manageFormFillingDtoInteger: {
+      formId,
+      action: FormFillingManageAction.Start,
+    },
+  });
+
+  return formId;
+}
 
 /**
  * Creates an ONLYOFFICE PDF form in the specified folder.
