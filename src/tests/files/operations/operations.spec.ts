@@ -4121,6 +4121,65 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       ).toBe(true);
     },
   );
+
+  test(
+    "PUT /api/2.0/files/fileops/copy - Copy folder from Collaboration room to" +
+      " Third-party room (Nextcloud) completes without error",
+    async ({ apiSdk }) => {
+      // Catches: "Object reference not set to an instance of an object" on copy to third-party room
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: srcRoomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest CopyBatch TP Src Room",
+          roomType: RoomType.EditingRoom,
+        },
+      });
+      const srcRoomId = srcRoomData.response!.id!;
+
+      const folderTitle = "Autotest CopyBatch ThirdParty Folder";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: srcRoomId,
+        createFolder: { title: folderTitle },
+      });
+
+      const { data: tpData } =
+        await ownerApi.thirdPartyIntegration.saveThirdParty({
+          thirdPartyRequestDto: {
+            url: config.NEXTCLOUD_URL,
+            login: config.NEXTCLOUD_LOGIN,
+            password: config.NEXTCLOUD_PASSWORD,
+            customerTitle: "Autotest CopyBatch TP Folder",
+            providerKey: "Nextcloud",
+          },
+        });
+
+      const { data: destRoomData } = await ownerApi.rooms.createRoomThirdParty({
+        id: tpData.response!.id!,
+        createThirdPartyRoom: {
+          title: "Autotest CopyBatch ThirdParty Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = destRoomData.response!.id! as unknown as number;
+
+      const { data, status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          folderIds: [folderData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Copy);
+
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+      expect(operation.error).toBeFalsy();
+    },
+  );
 });
 
 test.describe("POST /api/2.0/files/{folderId}/session - createUploadSessionInFolder", () => {
@@ -8714,6 +8773,66 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       });
 
       expect(status).toBe(404);
+    },
+  );
+
+  // BUG 83271: PUT /api/2.0/files/fileops/move - Moving folder from room to Third-party room returns "Object reference not set to an instance of an object" in operation error
+  test.fail(
+    "BUG 83271: PUT /api/2.0/files/fileops/move - Move folder from Collaboration room to" +
+      " Third-party room (Nextcloud) completes without error",
+    async ({ apiSdk }) => {
+      // Catches: "Object reference not set to an instance of an object" on move to third-party room
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: srcRoomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch TP Src Room",
+          roomType: RoomType.EditingRoom,
+        },
+      });
+      const srcRoomId = srcRoomData.response!.id!;
+
+      const folderTitle = "Autotest MoveBatch ThirdParty Collab Folder";
+      const { data: folderData } = await ownerApi.folders.createFolder({
+        folderId: srcRoomId,
+        createFolder: { title: folderTitle },
+      });
+
+      const { data: tpData } =
+        await ownerApi.thirdPartyIntegration.saveThirdParty({
+          thirdPartyRequestDto: {
+            url: config.NEXTCLOUD_URL,
+            login: config.NEXTCLOUD_LOGIN,
+            password: config.NEXTCLOUD_PASSWORD,
+            customerTitle: "Autotest MoveBatch TP Collab Folder",
+            providerKey: "Nextcloud",
+          },
+        });
+
+      const { data: destRoomData } = await ownerApi.rooms.createRoomThirdParty({
+        id: tpData.response!.id!,
+        createThirdPartyRoom: {
+          title: "Autotest MoveBatch ThirdParty Collab Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const destFolderId = destRoomData.response!.id! as unknown as number;
+
+      const { data, status } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          folderIds: [folderData.response!.id!],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response![0].Operation).toBe(FileOperationType.Move);
+
+      const operation = await waitForOperation(ownerApi.operations);
+      expect(operation.finished).toBe(true);
+      expect(operation.error).toBeNull();
     },
   );
 });
