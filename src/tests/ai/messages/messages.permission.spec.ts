@@ -253,7 +253,7 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
     });
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/text-to-docx - a Guest with Content Creator access exports a document", async ({
+  test("BUG 83256: POST /api/2.0/ai/text-to-docx - a Guest with Content Creator access exports a document", async ({
     apiSdk,
   }) => {
     // The one AI feature a Guest can actually use. The endpoint checks "may the

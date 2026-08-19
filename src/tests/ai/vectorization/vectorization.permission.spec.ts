@@ -81,7 +81,7 @@ test.describe("Vectorization - startTask permissions", () => {
     );
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/vectorization/tasks - a Guest who may edit the file still starts a vectorization task", async ({
+  test("BUG 83255: POST /api/2.0/ai/vectorization/tasks - a Guest who may edit the file still starts a vectorization task", async ({
     apiSdk,
     paymentsApi,
   }) => {

@@ -32,12 +32,16 @@ import { UserType } from "@/src/services/api-sdk";
 // Quota is scoped to the agent's author, not to the portal owner: an admin who
 // created an agent may set quota on it. That is covered in agents.spec.ts.
 //
-// The three 200s in the Guest column are defects, not the contract: a Guest has no
-// access to the AI stack (how BUG 83237 was resolved), and every write here already
-// refuses them. They are the last block of this file, and the sharpest of the three
-// is `GET /agents/{id}` — a Guest invited to an agent room reads the agent's AI
-// Instructions out of `chatSettings.prompt`, which is the same payload the "a plain
-// room member can read the agent's AI Instructions" test measures for a User.
+// The three 200s in the Guest column are the contract, not defects. Correction from
+// the developers, 2026-08-19: a Guest can be invited to a room only as a Viewer, and
+// what a Viewer may see is what they get. `Read` really is the only level an agent
+// room grants a Guest, so those reads are Viewer reads and the last block of this
+// file asserts them as by-design — each one pinned against a User invited at the same
+// Read level, because the defect this surface can carry is a Guest being shown MORE
+// than the Viewer beside them.
+//
+// None of it opens the agent: a Read-level member of either user type is 403 on every
+// `/ai/threads/*` route, so there is no positive Guest chat case.
 
 const QUOTA_MINIMAL_BYTES = 104857600; // 100 MB
 const DEFAULT_QUOTA_AGENT_BYTES = 524288000; // 500 MB
@@ -52,15 +56,6 @@ const NON_OWNER_ROLES: Array<{
   { label: "User", type: "User", role: "user" },
   { label: "Guest", type: "Guest", role: "guest" },
 ];
-
-/**
- * The reads a Guest still gets a 200 from are measured in the Guest block at the
- * end of this file, as the defects they are, so the matrices above must not carry
- * a Guest row asserting that 200 as the contract.
- */
-const NON_GUEST_ROLES = NON_OWNER_ROLES.filter(
-  (entry) => entry.role !== "guest",
-);
 
 test.describe("POST /ai/agents - Create AI agent access control", () => {
   for (const { label, type, role } of [
@@ -116,7 +111,7 @@ test.describe("POST /ai/agents - Create AI agent access control", () => {
 });
 
 test.describe("GET /ai/agents - Get AI agents access control", () => {
-  for (const { label, type, role } of NON_GUEST_ROLES) {
+  for (const { label, type, role } of NON_OWNER_ROLES) {
     test(`GET /ai/agents - ${label} does not see an agent created by Owner they were not invited to`, async ({
       apiSdk,
       paymentsApi,
@@ -827,23 +822,33 @@ test.describe("AI Instructions - stored HTML injection", () => {
   });
 });
 
-// A Guest has no access to the AI stack — that is how BUG 83237 was resolved, and
-// the writes on this surface honour it. Three reads do not. Measured 2026-08-19
-// against a Guest invited into the agent room at Read, the highest level an agent
-// room grants a Guest:
+// A Guest can be invited to a room only as a Viewer, and a Viewer's reads are what
+// they are entitled to — correction from the developers, 2026-08-19. `Read` really is
+// the only level an agent room grants a Guest (`Editing`, `ContentCreator` and
+// `RoomManager` are all refused with "The role is not available for this user type"),
+// so these three routes answering a Guest is the contract:
 //
 //   GET /ai/agents        200, and the agent they were invited to is in the list
 //   GET /ai/agents/{id}   200, chatSettings.prompt (the AI Instructions) included
 //   GET /ai/agents/news   200
 //
-// Every test below asserts the contract a fix has to produce, so a fix reports an
-// unexpected pass rather than a regression. Each one also carries a refusal the
-// same Guest gets in the same session, because a 403 that arrived because the
-// invite never landed would prove nothing about user types.
-test.describe("AI Agents - a Guest reaches the agent surface", () => {
+// What is worth measuring is therefore not the 200 but the scope: every test below
+// invites a User at the same Read level into the same agent and asserts the Guest is
+// shown exactly what that Viewer is shown. A Guest handed more than the Viewer beside
+// them is the defect this surface can actually have, and it is the only thing here a
+// role check could get wrong.
+//
+// Each test also carries a write the same Guest is refused in the same session. That
+// is not decoration: it proves the invite did not quietly make them something more
+// than a Viewer, which would make every comparison below trivially true.
+//
+// None of these reads opens the agent. A Read-level member of either user type is 403
+// on every `/ai/threads/*` route (chat.permission.spec.ts), so a Guest still cannot
+// chat with an agent they can see.
+test.describe("AI Agents - a Guest invited as a Viewer gets the Viewer's reads", () => {
   const GUEST_INSTRUCTIONS = "Autotest guest-visible instructions";
 
-  test("BUG XXXXX: GET /ai/agents - a Guest sees the agent they were invited to", async ({
+  test("GET /ai/agents - a Guest invited as a Viewer sees that agent and no other", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -856,45 +861,85 @@ test.describe("AI Agents - a Guest reaches the agent surface", () => {
       title: "Autotest Guest Visible Agent",
       profileId,
     });
+    // The scoping discriminator. Without a second agent, "the Guest sees the agent
+    // they were invited to" would pass just as well on a list that hands back every
+    // agent in the portal, which is what this test is really here to rule out.
+    const hiddenId = await aiChat.createAgentId("owner", {
+      title: "Autotest Guest Hidden Agent",
+      profileId,
+    });
 
-    const { data: guestData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-    const guestId = guestData.response!.id!;
-    // Asserted inside the helper. Read is the ceiling for a Guest in an agent
-    // room, so this is as much access as a Guest can be given here.
+    // Both members are created before either is authenticated: authenticating one
+    // puts their session cookie on the shared request context, and an `addMember`
+    // after that is refused with a 403.
+    const guest = await apiSdk.addMember("owner", "Guest");
+    const viewer = await apiSdk.addMember("owner", "User");
+    const guestId = guest.data.response!.id!;
+    const viewerId = viewer.data.response!.id!;
+
+    // The status is asserted inside the helper. Read is the ceiling for a Guest, and
+    // the User is invited at the same level so that the two lists are comparable.
     await inviteToAgent(ownerApi.rooms, agentId, guestId, FileShare.Read);
+    await inviteToAgent(ownerApi.rooms, agentId, viewerId, FileShare.Read);
+
+    // `AiAgentChat` runs on the shared request context, whose session cookie beats
+    // the bearer token, so each actor is authenticated immediately before it reads
+    // and pinned with expectActingAs.
+    await apiSdk.authenticateMember(viewer.userData, "User");
+    await aiChat.expectActingAs("user", viewerId, "the Viewer");
+    const seenByViewer = await aiChat.getAgents("user");
+    const viewerIds = (seenByViewer.data?.response?.folders ?? []).map(
+      (folder) => folder.id!,
+    );
+    expect(seenByViewer.status).toBe(200);
+    expect(
+      viewerIds,
+      "the Viewer sees the agent they were invited to",
+    ).toContain(agentId);
+
+    await apiSdk.authenticateMember(guest.userData, "Guest");
     await aiChat.expectActingAs("guest", guestId, "the Guest");
 
-    // The control: the same Guest, in the same session, is refused on the write
+    // The control: the same Guest, in the same session, is still refused on the write
     // side of this very controller.
     const refused = await aiChat.createAgent("guest", {
       title: "Autotest Guest Agent",
       profileId,
       prompt: "You are a test assistant",
     });
-    expect(refused.status, "the Guest really is refused elsewhere").toBe(403);
+    expect(refused.status, "the Guest is still refused every write").toBe(403);
 
     const { status, data } = await aiChat.getAgents("guest");
-    const visibleIds = data?.response?.folders?.map((folder) => folder.id);
+    const guestIds = (data?.response?.folders ?? []).map(
+      (folder) => folder.id!,
+    );
 
-    test.fail();
+    expect(status).toBe(200);
+    expect(guestIds, "the agent the Guest was invited to").toContain(agentId);
     expect(
-      visibleIds ?? [],
-      "a Guest must not be shown an agent they are a member of",
-    ).not.toContain(agentId);
-    expect(status).toBe(403);
+      guestIds,
+      "an agent the Guest is not a member of must stay hidden",
+    ).not.toContain(hiddenId);
+    expect(
+      [...guestIds].sort((a, b) => a - b),
+      "a Guest must see no more than the Viewer invited beside them",
+    ).toEqual([...viewerIds].sort((a, b) => a - b));
   });
 
-  test("BUG XXXXX: GET /ai/agents/:id - a Guest reads the agent's AI Instructions", async ({
+  test("GET /ai/agents/:id - a Guest invited as a Viewer reads the same agent a Viewer reads", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The sharpest of the three: the payload is the agent's own configuration,
-    // `chatSettings.prompt` included. A Guest cannot chat with the agent at all
-    // (`/ai/threads/*` is 403 for them in every scope, chat.permission.spec.ts),
-    // so there is no feature this read serves.
+    // `chatSettings.prompt` is the agent's AI Instructions, and it reaches every
+    // member of the room — the "a plain room member can read the agent's AI
+    // Instructions" test above measures the same field for a ContentCreator. So the
+    // question is not whether the Guest gets it but whether they get anything the
+    // Viewer does not, and the three fields compared below are the whole payload that
+    // carries configuration.
+    //
+    // Byte-identity of the two responses is deliberately not asserted: per-user
+    // fields and logo URL hashes differ between two callers by design, and a test
+    // that broke on those would say nothing about access.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -906,38 +951,52 @@ test.describe("AI Agents - a Guest reaches the agent surface", () => {
       prompt: GUEST_INSTRUCTIONS,
     });
 
-    const { data: guestData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-    const guestId = guestData.response!.id!;
+    const guest = await apiSdk.addMember("owner", "Guest");
+    const viewer = await apiSdk.addMember("owner", "User");
+    const guestId = guest.data.response!.id!;
+    const viewerId = viewer.data.response!.id!;
+
     await inviteToAgent(ownerApi.rooms, agentId, guestId, FileShare.Read);
+    await inviteToAgent(ownerApi.rooms, agentId, viewerId, FileShare.Read);
+
+    await apiSdk.authenticateMember(viewer.userData, "User");
+    await aiChat.expectActingAs("user", viewerId, "the Viewer");
+    const seenByViewer = await aiChat.getAgentInfo("user", agentId);
+    expect(seenByViewer.status).toBe(200);
+    expect(
+      seenByViewer.data?.response?.chatSettings?.prompt,
+      "the premise: a Read-level Viewer is handed the AI Instructions",
+    ).toBe(GUEST_INSTRUCTIONS);
+
+    await apiSdk.authenticateMember(guest.userData, "Guest");
     await aiChat.expectActingAs("guest", guestId, "the Guest");
 
-    // The control, and the reason the read below is about the user type: the same
-    // Guest is refused when they try to change the same agent.
+    // The control: the same Guest cannot change the agent they are allowed to read.
     const refused = await aiChat.updateAgent("guest", agentId, {
       title: "Autotest hijacked",
     });
-    expect(refused.status, "the Guest really is refused elsewhere").toBe(403);
+    expect(refused.status, "the Guest is still refused every write").toBe(403);
 
     const { status, data } = await aiChat.getAgentInfo("guest", agentId);
 
-    test.fail();
+    expect(status).toBe(200);
+    expect(data?.response?.id).toBe(agentId);
+    expect(data?.response?.title).toBe(seenByViewer.data?.response?.title);
     expect(
       data?.response?.chatSettings?.prompt,
-      "a Guest must not be handed the agent's AI Instructions",
-    ).toBeUndefined();
-    expect(status).toBe(403);
+      "a Guest must be handed the same AI Instructions as the Viewer, not more",
+    ).toBe(seenByViewer.data?.response?.chatSettings?.prompt);
   });
 
-  test("BUG XXXXX: GET /ai/agents/news - a Guest reads the agent news feed", async ({
+  test("GET /ai/agents/news - a Guest invited as a Viewer gets the same feed as a Viewer", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Status-only on purpose: the feed is empty for everyone on a fresh portal, so
-    // there is nothing to leak here yet — what is wrong is that the route answers
-    // a user type that may not open an agent at all.
+    // The weakest of the three on purpose, and said plainly: the feed is empty for
+    // every role on a fresh portal, so all this can establish is that the route
+    // answers a Guest the way it answers the Viewer beside them. There is no way to
+    // put an item into it from the API — a Read-level member cannot create anything
+    // in an agent room, so nothing this Guest could do would ever show up here.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -948,22 +1007,33 @@ test.describe("AI Agents - a Guest reaches the agent surface", () => {
       profileId,
     });
 
-    const { data: guestData } = await apiSdk.addAuthenticatedMember(
-      "owner",
-      "Guest",
-    );
-    const guestId = guestData.response!.id!;
+    const guest = await apiSdk.addMember("owner", "Guest");
+    const viewer = await apiSdk.addMember("owner", "User");
+    const guestId = guest.data.response!.id!;
+    const viewerId = viewer.data.response!.id!;
+
     await inviteToAgent(ownerApi.rooms, agentId, guestId, FileShare.Read);
+    await inviteToAgent(ownerApi.rooms, agentId, viewerId, FileShare.Read);
+
+    await apiSdk.authenticateMember(viewer.userData, "User");
+    await aiChat.expectActingAs("user", viewerId, "the Viewer");
+    const seenByViewer = await aiChat.getAgentsNewItems("user");
+    expect(seenByViewer.status).toBe(200);
+
+    await apiSdk.authenticateMember(guest.userData, "Guest");
     await aiChat.expectActingAs("guest", guestId, "the Guest");
 
     const refused = await aiChat.resetAgentsQuota("guest", {
       roomIds: [agentId],
     });
-    expect(refused.status, "the Guest really is refused elsewhere").toBe(403);
+    expect(refused.status, "the Guest is still refused every write").toBe(403);
 
-    const { status } = await aiChat.getAgentsNewItems("guest");
+    const { status, data } = await aiChat.getAgentsNewItems("guest");
 
-    test.fail();
-    expect(status).toBe(403);
+    expect(status).toBe(200);
+    expect(
+      data?.response ?? [],
+      "a Guest's news feed must hold no more than the Viewer's",
+    ).toEqual(seenByViewer.data?.response ?? []);
   });
 });
