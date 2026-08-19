@@ -185,6 +185,26 @@ test.describe("POST /portal/backup/start - access control", () => {
     expect((data as any).error).toBeDefined();
   });
 
+  // BUG 79523: POST /portal/backup/start returns 500 instead of 400 for invalid folderId format
+  test("BUG 79523: POST /portal/backup/start - Start backup with invalid folderId format returns 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.backup.startBackup({
+      backupDto: {
+        storageType: BackupStorageType.Documents,
+        storageParams: [{ key: "folderId", value: "invalid_value" }],
+      },
+    });
+
+    expect(status).toBe(400);
+    expect(data.statusCode).toBe(400);
+    expect((data as any).error).toBeDefined();
+  });
+
   test("POST /portal/backup/start - Start backup with wrong folder type", async ({
     apiSdk,
     paymentsApi,
