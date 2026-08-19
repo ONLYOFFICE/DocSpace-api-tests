@@ -986,3 +986,265 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     expect(entryIds).toContain(userId2);
   });
 });
+
+test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
+  test("DELETE /api/2.0/files/share - Owner removes sharing from a single file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Remove Security File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.removeSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/share - Owner removes sharing from a folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Remove Security Room",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.removeSecurityInfo({
+      baseBatchRequestDto: { folderIds: [roomId as unknown as object] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/share - Owner removes sharing from multiple files in one request", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData1 } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Remove Security File 1" },
+    });
+    const fileId1 = fileData1.response!.id!;
+
+    const { data: fileData2 } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Remove Security File 2" },
+    });
+    const fileId2 = fileData2.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId: fileId1,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId: fileId2,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.removeSecurityInfo({
+      baseBatchRequestDto: {
+        fileIds: [fileId1 as unknown as object, fileId2 as unknown as object],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/share - Owner removes sharing from files and folders in one request", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Remove Security File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Remove Security Room",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.sharing.removeSecurityInfo({
+      baseBatchRequestDto: {
+        fileIds: [fileId as unknown as object],
+        folderIds: [roomId as unknown as object],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/share - Removing sharing from an unshared file returns true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Remove Security Unshared File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.sharing.removeSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  // BUG XXXXX: DELETE /api/2.0/files/share - removeSecurityInfo returns 200 but does not remove the sharing entry
+  test.fail(
+    "BUG XXXXX: DELETE /api/2.0/files/share - Shared user entry is removed from security info after sharing removal",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Remove Security File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: userData } = await apiSdk.addMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.sharing.setFileSecurityInfo({
+        fileId,
+        securityInfoSimpleRequestDto: {
+          share: [{ shareTo: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      await ownerApi.sharing.removeSecurityInfo({
+        baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+      });
+
+      const { data, status } = await ownerApi.sharing.getSecurityInfo({
+        baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+      });
+
+      expect(status).toBe(200);
+      const userEntry = data.response!.find((entry) => {
+        const sharedToUser = entry.sharedToUser as
+          | Record<string, unknown>
+          | undefined;
+        return sharedToUser?.["id"] === userId;
+      });
+      expect(userEntry).toBeUndefined();
+    },
+  );
+
+  // BUG XXXXX: DELETE /api/2.0/files/share - removeSecurityInfo returns 200 but user retains access
+  test.fail(
+    "BUG XXXXX: DELETE /api/2.0/files/share - Formerly shared user loses access to file after sharing removal",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Remove Security File" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data: userData, api: userApi } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      await ownerApi.sharing.setFileSecurityInfo({
+        fileId,
+        securityInfoSimpleRequestDto: {
+          share: [{ shareTo: userId, access: FileShare.Read }],
+          notify: false,
+        },
+      });
+
+      await ownerApi.sharing.removeSecurityInfo({
+        baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+      });
+
+      const { status } = await userApi.sharing.getSharedUsers({ fileId });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test("DELETE /api/2.0/files/share - Empty request body returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.sharing.removeSecurityInfo({});
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/share - Non-existent fileId returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.sharing.removeSecurityInfo({
+      baseBatchRequestDto: {
+        fileIds: [999999999 as unknown as object],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toBe(true);
+  });
+});

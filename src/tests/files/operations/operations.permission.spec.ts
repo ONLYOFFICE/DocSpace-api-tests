@@ -2270,7 +2270,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems - Permissions", 
     },
   );
 
-  test.fail(
+  test(
     "BUG 81906: PUT /api/2.0/files/fileops/copy - User (ContentCreator) copies" +
       " a folder from room to My Documents returns 403",
     async ({ apiSdk }) => {
