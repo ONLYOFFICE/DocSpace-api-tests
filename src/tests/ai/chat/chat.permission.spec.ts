@@ -6,6 +6,7 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import {
   AiAgentChat,
   AgentRole,
+  AiProfile,
   expectHealthyAssistantReply,
   inviteToAgent,
 } from "@/src/helpers/ai-agent-chat";
@@ -376,12 +377,32 @@ test.describe("Threads - isolation between members of the same agent", () => {
 
 test.describe("Threads - anonymous access", () => {
   // Each of these endpoints sits behind its own middleware, so a 401 on create
-  // says nothing about append or clear — every one of them is checked.
+  // says nothing about append or clear — every one of them is checked. That is
+  // also why the list covers the whole chat surface and not just the thread CRUD:
+  // the per-message routes, the four inference routes beside `send-with-stream`
+  // and the two tool-call decisions are separate controllers, and for
+  // approve/deny-tool-call anonymous is the *only* refusal there is — they answer
+  // 200 with an empty body to any authenticated caller for any body, valid or not
+  // (see the tool-call block in messages.spec.ts).
+  type AnonymousContext = {
+    agentId: number;
+    threadId: string;
+    profileId: string;
+    /**
+     * The whole catalogue entry, not just its id: `open-or-create` answers 404
+     * "an AI profile is required to open or create a thread" when it is given a
+     * bare `profileId`, and a 404 would hide whatever the auth layer does.
+     */
+    profile: AiProfile;
+    /** Of the seeded user message — the per-message routes take a message id. */
+    messageId: string;
+  };
+
   type AnonymousOperation = {
     route: string;
     act: (
       aiChat: AiAgentChat,
-      context: { agentId: number; threadId: string; profileId: string },
+      context: AnonymousContext,
     ) => Promise<{ status: number; error?: string }>;
   };
 
@@ -445,6 +466,121 @@ test.describe("Threads - anonymous access", () => {
         }),
     },
     {
+      route: "POST /api/2.0/ai/threads/open-or-create",
+      act: (aiChat, { agentId, threadId, profile }) =>
+        aiChat.openOrCreateThread("anonymous", {
+          threadId,
+          profile,
+          entityId: String(agentId),
+          firstMessage: {
+            role: "user",
+            content: [{ type: "text", text: "anonymous" }],
+          },
+        }),
+    },
+    {
+      route: "POST /api/2.0/ai/threads/regenerate-title",
+      act: (aiChat, { agentId, threadId, profileId }) =>
+        aiChat.regenerateThreadTitle("anonymous", {
+          threadId,
+          profileId,
+          entityId: String(agentId),
+        }),
+    },
+    {
+      route: "GET /api/2.0/ai/threads/get-message-by-id",
+      act: (aiChat, { messageId }) =>
+        aiChat.getMessageById("anonymous", messageId),
+    },
+    {
+      route: "PUT /api/2.0/ai/threads/update-message",
+      act: (aiChat, { messageId }) =>
+        aiChat.updateMessage("anonymous", {
+          messageId,
+          message: {
+            role: "user",
+            content: [{ type: "text", text: "Hijacked by anonymous" }],
+          },
+        }),
+    },
+    {
+      route: "DELETE /api/2.0/ai/threads/delete-message",
+      act: (aiChat, { messageId }) =>
+        aiChat.deleteMessage("anonymous", messageId),
+    },
+    {
+      route: "POST /api/2.0/ai/ai/regenerate-stream",
+      act: (aiChat, { agentId, threadId, profileId }) =>
+        aiChat.regenerateStream("anonymous", {
+          threadId,
+          entityId: String(agentId),
+          profileId,
+        }),
+    },
+    {
+      route: "POST /api/2.0/ai/ai/send",
+      act: (aiChat, { agentId }) =>
+        aiChat.send("anonymous", {
+          actionType: "Chat",
+          entityId: String(agentId),
+          userMessage: {
+            role: "user",
+            content: [{ type: "text", text: "Hello" }],
+          },
+        }),
+    },
+    {
+      // The one route on the surface that needs neither a thread nor an entity —
+      // a caller-supplied system prompt and a message. Nothing about it is the
+      // portal's data, so the auth check is all that stands in front of the model.
+      route: "POST /api/2.0/ai/ai/send-custom",
+      act: (aiChat) =>
+        aiChat.sendCustom("anonymous", {
+          isStream: false,
+          systemPrompt: "Answer with a single word.",
+          userMessage: {
+            role: "user",
+            content: [{ type: "text", text: "Hello" }],
+          },
+        }),
+    },
+    {
+      route: "POST /api/2.0/ai/ai/send-with-stream-openai",
+      act: (aiChat, { agentId, threadId, profileId }) =>
+        aiChat.sendWithStreamOpenAi("anonymous", {
+          threadId,
+          entityId: String(agentId),
+          profileId,
+          userMessage: {
+            role: "user",
+            content: [{ type: "text", text: "Hello" }],
+          },
+        }),
+    },
+    {
+      route: "POST /api/2.0/ai/ai/approve-tool-call",
+      act: (aiChat, { agentId, threadId, profileId, messageId }) =>
+        aiChat.approveToolCall("anonymous", {
+          threadId,
+          messageId,
+          idx: 0,
+          entityId: String(agentId),
+          profileId,
+          result: "done",
+        }),
+    },
+    {
+      route: "POST /api/2.0/ai/ai/deny-tool-call",
+      act: (aiChat, { agentId, threadId, profileId, messageId }) =>
+        aiChat.denyToolCall("anonymous", {
+          threadId,
+          messageId,
+          idx: 0,
+          entityId: String(agentId),
+          profileId,
+        }),
+    },
+    {
       // Replaces the removed GET /ai/chats/models.
       route: "GET /api/2.0/ai/profiles/list",
       act: (aiChat) => aiChat.getProfiles("anonymous"),
@@ -457,7 +593,10 @@ test.describe("Threads - anonymous access", () => {
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
       const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profileId = await aiChat.defaultProfileId("owner");
+      const profile = AiAgentChat.pickTextProfile(
+        await aiChat.listProfiles("owner"),
+      );
+      const profileId = profile.id;
       const agentId = await aiChat.createAgentId("owner", {
         title: "Autotest Chat Agent",
         profileId,
@@ -473,6 +612,8 @@ test.describe("Threads - anonymous access", () => {
         text: OWNER_MESSAGE,
       });
       expect(appended.status).toBe(200);
+      const messageId = (appended.data?.messageId as { id: string }).id;
+      expect(messageId, "the seeded message id").toBeTruthy();
       const before = await aiChat.getThread("owner", threadId);
       expect(before.status).toBe(200);
 
@@ -480,6 +621,8 @@ test.describe("Threads - anonymous access", () => {
         agentId,
         threadId,
         profileId,
+        profile,
+        messageId,
       });
 
       await expectOwnerThreadIntact(apiSdk, {
@@ -733,6 +876,362 @@ test.describe("Threads - access control on a room or folder entity", () => {
     // Refusing a folder the caller cannot open is a 403, not a crash.
     test.fail();
     expect(status).toBe(403);
+  });
+});
+
+// "Chat is available in the files / rooms / documents sections, and it is off for
+// guests and anonymous users" — the guest half of that requirement, for every
+// scope that is NOT an agent.
+//
+// The agent half is already closed by construction and pinned elsewhere: an
+// agent room grants a Guest nothing above Read ("Agent room membership") and Read
+// is refused on the thread surface outright ("members without content access").
+// Nothing in either block says anything about an ordinary room, and that is where
+// the two contracts pull apart:
+//
+//   * Read does NOT close an ordinary room — a Read-level member starts a thread
+//     there and gets a real answer ("a member invited at Read can start a thread
+//     in the room" above), so the agent's Read refusal cannot be borrowed as the
+//     guest gate;
+//   * a Guest CAN hold ContentCreator in an ordinary room — messages.permission
+//     .spec.ts exports a document into a room as exactly such a Guest.
+//
+// So the requirement needs the Guest to be refused by *user type*, on a room they
+// legitimately hold content access in, and outside any room at all. The premise —
+// the Guest really is a Guest and really can open the room — is asserted in both
+// tests, otherwise a 403 that is only a lost invitation would read as the gate.
+//
+// The "only in those sections" half of the same requirement is not API-shaped and
+// deliberately has no test: `entityId` is one opaque string, no route takes an
+// entity *type*, and the thread record carries no scope field, so which screen the
+// user had open is never sent. Its closest observable consequences are pinned as
+// defects instead — a file id / the Trash root / `0` / `-1` are all accepted as an
+// entity ("Threads - validation", BUG 82719) and every non-agent scope shares one
+// per-user bucket (BUG 82855, chat.spec.ts).
+test.describe("Threads - a Guest outside an agent", () => {
+  test("POST /api/2.0/ai/threads/create, POST /api/2.0/ai/ai/send-with-stream - a Guest with content access in a room cannot chat there", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+    // ContentCreator, not Read: the refusal has to be about the user type. A
+    // Read-level refusal would be indistinguishable from the access-level one the
+    // agent tests already cover.
+    await inviteToAgent(
+      ownerApi.rooms,
+      roomId,
+      guestId,
+      FileShare.ContentCreator,
+    );
+    await aiChat.expectActingAs("guest", guestId, "the Guest");
+
+    // Premise: the invitation landed and the room is open to this Guest, so a
+    // refusal below is the chat gate and not a missing room.
+    expect(
+      (await apiSdk.forRole("guest").rooms.getRoomInfo({ id: roomId })).status,
+      "the Guest can open the room they were invited into",
+    ).toBe(200);
+
+    // The chat is refused three ways over: the sidebar cannot be read, no thread
+    // can be started, and — should a thread ever come back — nothing may be sent
+    // into it. All three are collected before anything is asserted so one run
+    // reports the whole surface instead of stopping at the first refusal.
+    const created = await aiChat.createThread("guest", {
+      title: "Guest room thread",
+      profileId,
+      agentId: roomId,
+    });
+    const listed = await aiChat.listThreads("guest", roomId);
+
+    const sent = created.threadId
+      ? await aiChat.sendMessage("guest", {
+          threadId: created.threadId,
+          profileId,
+          agentId: roomId,
+          message: "Reply with the single word OK.",
+        })
+      : undefined;
+    const replies = created.threadId
+      ? await aiChat.waitForAssistantReply("guest", created.threadId, 30000)
+      : [];
+
+    expect({
+      create: created.status,
+      threadId: created.threadId,
+      list: listed.status,
+      threads: listed.data.length,
+      send: sent?.status,
+      assistantReplies: AiAgentChat.assistantMessages(replies).length,
+    }).toEqual({
+      create: 403,
+      threadId: "",
+      list: 403,
+      threads: 0,
+      // No thread was created, so there was nothing to send into: `undefined` is
+      // "the send never happened", which is what a closed chat looks like from
+      // here. A Guest reaching another user's thread is a separate contract and
+      // is covered by the isolation matrix above.
+      send: undefined,
+      assistantReplies: 0,
+    });
+  });
+
+  test("POST /api/2.0/ai/threads/create - a Guest cannot start a thread with no room in scope", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The other way into the chat: not a room, but the portal-wide bucket every
+    // non-agent scope collapses into (BUG 82855). A Guest has no Documents of
+    // their own to name — GET /files/@my is a 404 for them
+    // (messages.permission.spec.ts) — so an empty `entityId` is the whole of that
+    // surface for them.
+    //
+    // A garbage entityId is deliberately not probed: since the BUG 82719 fix it
+    // answers `404 Entity "..." not found` for everyone, so a Guest's 404 would say
+    // nothing about the user type. The empty scope, by contrast, resolves for a
+    // non-Guest — which is what makes it a usable probe, and why the Owner runs it
+    // afterwards as the positive control.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+    await aiChat.expectActingAs("guest", guestId, "the Guest");
+
+    const guestThread = await aiChat.createThread("guest", {
+      title: "Guest thread, no entity",
+      profileId,
+      agentId: "",
+    });
+
+    // Positive control: the same call from the Owner. Without it a refusal here
+    // could just as well be "an empty entityId is not a scope at all".
+    await apiSdk.authenticateOwner();
+    await aiChat.expectNotActingAs("owner", guestId, "the Guest");
+    const ownerThread = await aiChat.createThread("owner", {
+      title: "Owner thread, no entity",
+      profileId,
+      agentId: "",
+    });
+
+    expect(
+      { status: ownerThread.status, hasThread: !!ownerThread.threadId },
+      "the empty scope is a real chat for a non-Guest",
+    ).toEqual({ status: 200, hasThread: true });
+
+    expect(guestThread.status, "POST threads/create as a Guest").toBe(403);
+    expect(guestThread.threadId, "a Guest must not own a thread").toBe("");
+  });
+
+  test("POST /api/2.0/ai/ai/send, send-custom - a Guest cannot reach the model without a thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // `threads/create` being closed to a Guest only closes the threaded path.
+    // These two do not need a thread at all — `send` resolves the model from the
+    // assignments and `send-custom` carries its own system prompt — so if the gate
+    // lived on the thread routes alone, the model would still be one request away
+    // for a Guest.
+    //
+    // Both are broken for every role (a gateway `auth` error inside a 200, and a
+    // 500 for the unstreamed `send-custom` — see the inference block in
+    // messages.spec.ts), which is exactly why the status is what is asserted here:
+    // a 200 would mean the request reached the engine, whatever the engine then
+    // made of it.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+    await inviteToAgent(
+      ownerApi.rooms,
+      roomId,
+      guestId,
+      FileShare.ContentCreator,
+    );
+    await aiChat.expectActingAs("guest", guestId, "the Guest");
+
+    const userMessage = {
+      role: "user",
+      content: [{ type: "text", text: "Reply with the single word OK." }],
+    };
+
+    const send = await aiChat.send("guest", {
+      actionType: "Chat",
+      entityId: String(roomId),
+      userMessage,
+    });
+    const sendCustom = await aiChat.sendCustom("guest", {
+      isStream: false,
+      systemPrompt: "Answer with a single word.",
+      userMessage,
+    });
+    const sendCustomStreamed = await aiChat.sendCustom("guest", {
+      isStream: true,
+      systemPrompt: "Answer with a single word.",
+      profileId,
+      userMessage,
+    });
+
+    expect({
+      send: send.status,
+      sendCustom: sendCustom.status,
+      sendCustomStreamed: sendCustomStreamed.status,
+    }).toEqual({ send: 403, sendCustom: 403, sendCustomStreamed: 403 });
+  });
+
+  test("GET|PUT|DELETE /api/2.0/ai/threads/*-message, POST open-or-create - a Guest cannot touch the Owner's chat", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The per-message routes take a message id and no entity, and `open-or-create`
+    // takes a thread id — so neither of them passes through `threads/create`,
+    // where the guest gate was measured. A message id is not a bearer token here
+    // (messages.spec.ts pins that for a User and a RoomAdmin); this is the same
+    // question for the user type the requirement singles out.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profile = AiAgentChat.pickTextProfile(
+      await aiChat.listProfiles("owner"),
+    );
+    const profileId = profile.id;
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Chat Agent",
+      profileId,
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: OWNER_THREAD_TITLE,
+      profileId,
+      agentId,
+    });
+    const appended = await aiChat.appendUserMessage("owner", {
+      threadId,
+      profileId,
+      text: OWNER_MESSAGE,
+    });
+    expect(appended.status, "seeding the owner's thread").toBe(200);
+    const messageId = (appended.data?.messageId as { id: string }).id;
+    const before = await aiChat.getThread("owner", threadId);
+    expect(before.status).toBe(200);
+
+    // Both members are created while the context is still the owner's, and only
+    // then authenticated one after the other: a plain `addMember` after someone
+    // else has authenticated is refused, and two `addAuthenticatedMember` calls in
+    // one test lose the first token.
+    const { data: guestData, userData: guestUser } = await apiSdk.addMember(
+      "owner",
+      "Guest",
+    );
+    const { userData: outsiderUser } = await apiSdk.addMember("owner", "User");
+
+    await apiSdk.authenticateMember(guestUser, "Guest");
+    await aiChat.expectActingAs("guest", guestData.response!.id!, "the Guest");
+
+    const read = await aiChat.getMessageById("guest", messageId);
+    const rewritten = await aiChat.updateMessage("guest", {
+      messageId,
+      message: {
+        role: "user",
+        content: [{ type: "text", text: "Hijacked by a Guest" }],
+      },
+    });
+    const deleted = await aiChat.deleteMessage("guest", messageId);
+    const opened = await aiChat.openOrCreateThread("guest", {
+      threadId,
+      profile,
+      entityId: String(agentId),
+      firstMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Hijacked by a Guest" }],
+      },
+    });
+
+    // Control for `open-or-create` alone: the same call from an ordinary
+    // non-member. It answers 404 rather than the 403 of its neighbours, so without
+    // this the Guest's 404 could be read as a guest-specific gate — it is not, it
+    // is how the route refuses anyone who does not own the thread.
+    await apiSdk.authenticateMember(outsiderUser, "User");
+    const openedByOutsider = await aiChat.openOrCreateThread("user", {
+      threadId,
+      profile,
+      entityId: String(agentId),
+      firstMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Hijacked by an outsider" }],
+      },
+    });
+
+    // The owner's chat first: the refusals above must not have cost the message,
+    // its text or the thread's timestamp.
+    await expectOwnerThreadIntact(apiSdk, {
+      aiChat,
+      profileId,
+      agentId,
+      threadId,
+      lastEditDate: before.data!.lastEditDate!,
+    });
+    const after = await aiChat.getMessageById("owner", messageId);
+    expect(after.status).toBe(200);
+    expect(AiAgentChat.messageText(after.data!)).toBe(OWNER_MESSAGE);
+
+    expect({
+      getMessageById: read.status,
+      updateMessage: rewritten.status,
+      deleteMessage: deleted.status,
+    }).toEqual({
+      getMessageById: 403,
+      updateMessage: 403,
+      deleteMessage: 403,
+    });
+
+    // `open-or-create` refuses the Guest, but with the status it gives any
+    // outsider — the thread is reported as not existing rather than as forbidden.
+    // Asserted as the pair so a future fix that turns one of them into a 403
+    // shows up here instead of quietly diverging.
+    expect({
+      guest: opened.status,
+      outsider: openedByOutsider.status,
+    }).toEqual({ guest: 404, outsider: 404 });
   });
 });
 

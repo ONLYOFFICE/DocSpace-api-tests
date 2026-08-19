@@ -2191,6 +2191,287 @@ test.describe("AI Threads - started by the first message", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The global entry point: AI Chat opened from the portal's own interface.
+//
+// Requirement ("Common for portal"): after the Article/Section rework the main
+// section carries a button that opens AI Chat. The button itself is not an API
+// object, but the composer behind it is a measurable state — it is not looking at
+// an agent, a room or a folder, so its calls carry no `entityId` at all:
+//
+//   POST /ai/threads/create        { title, profileId }                 (no entityId)
+//   POST /ai/ai/send-with-stream   { threadId, profileId, userMessage }  (no entityId)
+//   GET  /ai/threads/list                                               (no entityId)
+//
+// Whether the button is drawn is decided by three switches, each covered in its
+// own suite: the portal one (GET|PUT /settings/ai-access, settings/common), the
+// portal readiness in GET /ai/config -> aiReady and the per-user tumbler
+// GET|PUT /ai/config/user (ai/settings), plus the whole AI-off route matrix in
+// chat.ai-disabled.spec.ts. What is left for here is the chat behind the button:
+// that an entity-less thread can be started and answered, that every user type
+// which sees the main section can do it, and that the history stays with whoever
+// wrote it.
+//
+// The scoping half of it is broken in the way the BUG 82855 tests below pin: no
+// entity resolves to the same shared bucket as every room and folder, so the
+// global chat's history is also what a room's chat panel shows. That direction is
+// asserted at the end of this block.
+
+const GLOBAL_CHAT_TITLE = "Autotest global chat";
+
+// A Guest is deliberately not in this matrix, and for a different reason than in
+// the agent tests above: there it is room membership that stops them, here the
+// route itself refuses — measured 403 on 2026-08-19, in line with the rest of the
+// AI surface (deep mode is 403 for a Guest across the board, and so is saving a
+// chat attachment). That refusal has its own test at the end of the block.
+const GLOBAL_CHAT_ROLES = MEMBER_ROLES;
+
+test.describe("AI Chat - the global entry point", () => {
+  test("POST /api/2.0/ai/threads/create, POST /api/2.0/ai/ai/send-with-stream - Owner chats with no entity at all", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    // No agent, no room, no folder — the body the header button sends.
+    const { status, threadId } = await aiChat.createThread("owner", {
+      title: GLOBAL_CHAT_TITLE,
+      profileId,
+    });
+    expect(status).toBe(200);
+    expect(threadId).toBeTruthy();
+
+    const read = await aiChat.getThread("owner", threadId);
+    expect(read.status).toBe(200);
+    expect(read.data?.threadId).toBe(threadId);
+    expect(read.data?.title).toBe(GLOBAL_CHAT_TITLE);
+    // The model the composer picked is stored on the thread without a scope too.
+    expect(read.data?.profileId).toBe(profileId);
+
+    // A record is not a chat: the thread has to answer.
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      message: "Reply with the single word OK.",
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+    expectHealthyAssistantReply(
+      await aiChat.waitForAssistantReply("owner", threadId),
+    );
+
+    // And the panel the button opens lists what it just wrote.
+    const listed = await aiChat.listThreads("owner");
+    expect(listed.status).toBe(200);
+    expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
+  });
+
+  for (const { label, type, role } of GLOBAL_CHAT_ROLES) {
+    test(`POST /api/2.0/ai/threads/create, POST /api/2.0/ai/ai/send-with-stream - ${label} chats from the global entry point`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      // Read as the Owner while the shared context still is the Owner.
+      const profileId = await aiChat.defaultProfileId("owner");
+
+      const { data: memberData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        type,
+      );
+      await aiChat.expectActingAs(role, memberData.response!.id!, label);
+
+      const { status, threadId } = await aiChat.createThread(role, {
+        title: GLOBAL_CHAT_TITLE,
+        profileId,
+      });
+      expect(status, `${label} starts a thread with no entity`).toBe(200);
+      expect(threadId).toBeTruthy();
+
+      const sent = await aiChat.sendMessage(role, {
+        threadId,
+        profileId,
+        message: "Reply with the single word OK.",
+      });
+      expect(sent.status).toBe(200);
+      expect(sent.streamError).toBeUndefined();
+      expectHealthyAssistantReply(
+        await aiChat.waitForAssistantReply(role, threadId),
+      );
+
+      const listed = await aiChat.listThreads(role);
+      expect(listed.status).toBe(200);
+      expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
+    });
+  }
+
+  test("GET /api/2.0/ai/threads/list, get-by-id - one user's global chat is invisible to another", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The entity-less list is one shared bucket across locations; this pins that
+    // the sharing stops at the user boundary, which is what makes the global panel
+    // usable at all.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const member = await apiSdk.addMember("owner", "RoomAdmin");
+    const memberId = member.data.response!.id!;
+
+    const ownerThread = await aiChat.createThreadId("owner", {
+      title: "Autotest owner global chat",
+      profileId,
+    });
+
+    // Everything owner-side is done; from here the shared request context acts as
+    // the member.
+    await apiSdk.authenticateMember(member.userData, "RoomAdmin");
+    await aiChat.expectActingAs("roomAdmin", memberId, "the member");
+
+    const listed = await aiChat.listThreads("roomAdmin");
+    expect(listed.status).toBe(200);
+    expect(listed.data.map((thread) => thread.threadId)).not.toContain(
+      ownerThread,
+    );
+
+    expect((await aiChat.getThread("roomAdmin", ownerThread)).status).toBe(403);
+    expect((await aiChat.readMessages("roomAdmin", ownerThread)).status).toBe(
+      403,
+    );
+
+    // Positive control: the member's own global chat does land in that same list,
+    // so the absence above is isolation and not a read that returns nothing.
+    const memberThread = await aiChat.createThreadId("roomAdmin", {
+      title: "Autotest member global chat",
+      profileId,
+    });
+    const memberList = await aiChat.listThreads("roomAdmin");
+    expect(memberList.status).toBe(200);
+    expect(memberList.data.map((thread) => thread.threadId)).toEqual([
+      memberThread,
+    ]);
+  });
+
+  test("POST /api/2.0/ai/threads/create, send-with-stream, GET list - a Guest has no global chat", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The one user type the global entry point is closed to. Nothing about a room
+    // is involved here — the chat is scoped to nothing — so this is the AI surface
+    // refusing a Guest outright, the same way /ai/preferences and saving a chat
+    // attachment do.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    // A working global chat of the Owner's to aim the Guest's calls at.
+    const ownerThread = await aiChat.createThreadId("owner", {
+      title: "Autotest owner global chat",
+      profileId,
+    });
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    // The session is the Guest's, so the refusals below are the user type and not
+    // a request that never authenticated.
+    await aiChat.expectActingAs("guest", guestData.response!.id!, "Guest");
+
+    const created = await aiChat.createThread("guest", {
+      title: GLOBAL_CHAT_TITLE,
+      profileId,
+    });
+    expect(created.status, "a Guest starting a global chat").toBe(403);
+    expect(created.threadId).toBe("");
+
+    const sent = await aiChat.sendMessage("guest", {
+      threadId: ownerThread,
+      profileId,
+      message: "Reply with the single word OK.",
+    });
+    expect(sent.status, "a Guest sending into a global chat").toBe(403);
+
+    const listed = await aiChat.listThreads("guest");
+    expect(listed.status, "a Guest listing global chats").toBe(403);
+  });
+
+  test("BUG 82855: GET /api/2.0/ai/threads/list - the global chat's history is listed inside rooms and folders", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The other direction of the shared bucket: a chat started from the portal
+    // interface, with no entity at all, is listed when the same user opens the
+    // chat panel in an unrelated room and in a folder. An agent is made alongside
+    // as the control — its scope stays clean, so this is the room/folder scope
+    // specifically and not "entityId does nothing".
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Global Control Agent",
+      profileId,
+    });
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Global Chat Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const { data: myFolder } = await ownerApi.folders.getMyFolder();
+    const folderId = myFolder.response!.current!.id!;
+
+    const globalThread = await aiChat.createThreadId("owner", {
+      title: GLOBAL_CHAT_TITLE,
+      profileId,
+    });
+
+    // Control: an agent's scope does not pick the global chat up.
+    const agentThreads = await aiChat.listThreads("owner", agentId);
+    expect(agentThreads.status).toBe(200);
+    expect(
+      agentThreads.data.map((thread) => thread.threadId),
+      "the global chat must not be listed for an agent",
+    ).not.toContain(globalThread);
+
+    const scopes: Array<[string, number | string]> = [
+      ["a room", roomId],
+      ["My Documents", folderId],
+    ];
+
+    const leaked: string[] = [];
+    for (const [label, entityId] of scopes) {
+      const listed = await aiChat.listThreads("owner", entityId);
+      expect(listed.status, `listing threads for ${label}`).toBe(200);
+      if (listed.data.some((thread) => thread.threadId === globalThread)) {
+        leaked.push(label);
+      }
+    }
+
+    test.fail();
+    expect(
+      leaked,
+      "the global chat's thread is listed for these locations",
+    ).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Chatting from somewhere that is not an agent room.
 //
 // `entityId` on the thread and inference routes is a scope token, not an agent
@@ -5138,7 +5419,7 @@ test.describe("AI Chat - an agent picked in the composer from another location",
     ).toMatch(markerProbe(REQUEST_MARKER));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - a per-request prompt replaces the picked agent's own AI Instructions", async ({
+  test("BUG 83236: POST /api/2.0/ai/ai/send-with-stream - a per-request prompt replaces the picked agent's own AI Instructions", async ({
     apiSdk,
     paymentsApi,
   }) => {

@@ -4,9 +4,12 @@ import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 import { AiTools } from "@/src/helpers/ai-tools";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
+  LOW_BALANCE_THRESHOLD,
   configureAiToolsAsUnpaid,
   enableAiGateway,
+  enableAiToolsWithLowBalance,
   enableAiToolsWithoutAiCredit,
+  getWalletBalance,
 } from "@/src/helpers/wallet-services";
 import { expectHealthyAssistantReply } from "@/src/helpers/ai-agent-chat";
 import { ApiSDK } from "@/src/services/api-sdk";
@@ -485,5 +488,80 @@ test.describe("AI Chat - AI Tools paid for with no AI credit", () => {
     // the unpaid state produces — this test is what keeps the two apart.
     expect(AiAgentChat.assistantStatus(messages)?.error?.code).not.toBe("auth");
     expectHealthyAssistantReply(messages);
+  });
+});
+
+// The fourth money state, and the one the low-balance banners are about: AI Tools
+// is paid for, the portal works, and the wallet holds less than the $1 the client
+// warns at. The banner talks about preventing an interruption of paid services —
+// so what has to be pinned here is that the warning is a warning: at this balance
+// AI is still fully available. Kept next to the unpaid and zero-credit states
+// above so that "warned" and "cut off" cannot quietly become the same expectation.
+//
+// Nothing about the banner itself is visible from here; the API side of the
+// requirement (the balance, the payer, auto top-up) is in
+// src/tests/portal/payments/lowBalance.spec.ts.
+test.describe("AI Chat - wallet balance below the low-balance threshold", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream - a wallet balance under the low-balance threshold does not stop inference", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const on = await setPortalAiAccess(ownerApi, true);
+    expect(on.enabled, "portal AI switch before the wallet setup").toBe(true);
+
+    const balance = await enableAiToolsWithLowBalance(
+      paymentsApi,
+      ownerApi.payment,
+    );
+    expect(balance, "the portal must be in the low-balance state").toBeLessThan(
+      LOW_BALANCE_THRESHOLD,
+    );
+
+    const { data: config, status: configStatus } =
+      await ownerApi.aiSettings.aiSettingsGet();
+    expect(configStatus).toBe(200);
+    // A low balance is not a configuration problem: the AI subsystem still
+    // reports itself operational, which is what the client keys its AI UI off.
+    expect(config.response?.aiReady, "aiReady with a low balance").toBe(true);
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Low Balance Agent",
+      profileId,
+      prompt: "You are a test assistant",
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest low balance thread",
+      profileId,
+      agentId,
+    });
+
+    const { status } = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Say hi",
+      timeoutMs: 240000,
+    });
+    expect(status).toBe(200);
+
+    const messages = await aiChat.waitForAssistantReply("owner", threadId);
+
+    // `auth` is the exact failure an unpaid portal produces, and it is called out
+    // separately because that is the state this one must not be confused with. The
+    // health check is what rules out a refusal stored as an assistant message.
+    expect(AiAgentChat.assistantStatus(messages)?.error?.code).not.toBe("auth");
+    expectHealthyAssistantReply(messages);
+
+    // Still under the threshold afterwards: the reply cost a fraction of a cent,
+    // so the portal is exactly where the banner says it is — warned, not cut off.
+    expect(
+      await getWalletBalance(ownerApi.payment),
+      "wallet balance after a billed reply",
+    ).toBeLessThan(LOW_BALANCE_THRESHOLD);
   });
 });

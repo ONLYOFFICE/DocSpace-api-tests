@@ -4087,13 +4087,22 @@ const ASK_FOR_DOCX =
   `If you have no tool for that, reply with exactly: ${NO_TOOL_SENTINEL}`;
 
 /**
- * Asks for a document in a thread of its own and reports which tools the model
+ * Asks one question in a thread of its own and reports which tools the model
  * reached for. A fresh thread per turn keeps each answer independent of the
  * refusal or the tool call in the one before it.
+ *
+ * `tools` are the client-supplied ones of that single request — the editor block
+ * further down is what needs them; a chat with nothing open sends none.
  */
-async function askForDocument(
+async function askInNewThread(
   aiChat: AiAgentChat,
-  chat: { profileId: string; agentId: number; title: string },
+  chat: {
+    profileId: string;
+    agentId: number;
+    title: string;
+    message: string;
+    tools?: HostTool[];
+  },
 ) {
   const threadId = await aiChat.createThreadId("owner", {
     title: chat.title,
@@ -4105,7 +4114,8 @@ async function askForDocument(
     threadId,
     profileId: chat.profileId,
     agentId: chat.agentId,
-    message: ASK_FOR_DOCX,
+    message: chat.message,
+    ...(chat.tools ? { tools: chat.tools } : {}),
   });
   expect(sent.status).toBe(200);
   expect(sent.streamError).toBeUndefined();
@@ -4140,10 +4150,11 @@ test.describe("MCP - disabling a tool the model really has", () => {
       "Autotest Built-in Tool Agent",
     );
 
-    const asked = await askForDocument(aiChat, {
+    const asked = await askInNewThread(aiChat, {
       profileId,
       agentId,
       title: "Built-in tool enabled",
+      message: ASK_FOR_DOCX,
     });
 
     expect(
@@ -4200,10 +4211,11 @@ test.describe("MCP - disabling a tool the model really has", () => {
       expect(isDisabled, `${toolName} is not disabled`).toBe(false);
     }
 
-    const asked = await askForDocument(aiChat, {
+    const asked = await askInNewThread(aiChat, {
       profileId,
       agentId,
       title: "Built-in tool disabled",
+      message: ASK_FOR_DOCX,
     });
 
     expect(
@@ -4529,6 +4541,223 @@ test.describe("MCP - the per-request tool switch", () => {
     expect(frames, "the reply runs to completion instead").toContain(
       "message-end",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "If a document is open in the editor while the chat is active, the chat's
+// toolset is replaced by the editor's tools."
+//
+// Most of that requirement cannot be tested here, and the reason is worth stating
+// once: the API has no notion of "a document is open". Nothing on
+// send-with-stream describes the surface the chat is being shown on — the toolset
+// of one request is `actionArgs.tools` (whatever the CLIENT chose to send, which
+// is how the editor hands over insert_text/replace_selection) plus the built-in
+// `docspace_*` generators the engine adds from `entityId`. So the decision to
+// swap is the client's alone, and no request can confirm it was made.
+//
+// What IS testable is the one thing the word "replaced" claims about the engine:
+// whether a request that carries the editor's tools still carries the chat's. It
+// does — the two families are merged, not substituted — which is what the first
+// test pins, and it is the fact a client has to implement the swap around.
+//
+// The second test is the one way a client can still take a chat tool away, found
+// while probing for the opposite: `actionArgs.tools` has no field for switching a
+// built-in off — `set-disabled` under `serverType: "docspace"` is dropped rather
+// than stored ("MCP - disabling a tool the model really has") — but an entry that
+// REUSES the built-in's name displaces it. The engine's `docspace_generate_docx`
+// then never runs, so a swap is implementable; what the model does instead is not
+// deterministic, and the test states both shapes rather than one run's.
+//
+// Both tests use the agent scope, where the toolset is the generators only — a
+// folder or room `entityId` adds the REST family and those tools execute against
+// a foreign portal (BUG 83172), which would put a stranger's data in the way of a
+// question about tool visibility.
+
+/**
+ * What an editor offers while a document is open, in the shape
+ * `actionArgs.tools` takes. Names are unprefixed on purpose: a host tool is
+ * stored in the transcript under exactly the name the client sent, unlike the
+ * `docspace_`-prefixed built-ins, so the two families are told apart by name
+ * alone in the assertions below.
+ */
+const EDITOR_TOOLS: HostTool[] = [
+  {
+    name: "insert_text",
+    description:
+      "Insert text at the cursor position of the document currently open in the editor.",
+    inputSchema: {
+      type: "object",
+      properties: { text: { type: "string", description: "Text to insert" } },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    enabled: true,
+    requireApproval: true,
+  },
+  {
+    name: "replace_selection",
+    description:
+      "Replace the current selection in the document currently open in the editor.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Replacement text" },
+      },
+      required: ["text"],
+      additionalProperties: false,
+    },
+    enabled: true,
+    requireApproval: true,
+  },
+];
+
+const ASK_FOR_EDITOR_EDIT =
+  "Insert the sentence 'hello editor' into the document I have open. Call the insert_text tool. " +
+  `If you truly have no such tool, reply with exactly: ${NO_TOOL_SENTINEL}`;
+
+/**
+ * The built-in document generator's own name, sent as a client tool — both
+ * spellings, because `actionArgs.tools` is keyed by a bare name while the model
+ * sees the prefixed token, and a client has no documentation saying which one
+ * would be matched.
+ *
+ * `enabled: false` is what a client would set to mean "off for this turn". It is
+ * not what makes the built-in go away: the name is. The flag's own defect is BUG
+ * 83162 in the block above, measured on a tool of the client's own.
+ */
+const SHADOWED_BUILT_IN_TOOLS: HostTool[] = [
+  BUILT_IN_DOC_TOOL,
+  BUILT_IN_DOC_TOOL_TOKEN,
+].map((name) => ({
+  name,
+  description: "Generate a .docx document. Disabled while the editor is open.",
+  inputSchema: {
+    type: "object",
+    properties: { title: { type: "string", description: "Document title" } },
+    required: ["title"],
+    additionalProperties: false,
+  },
+  enabled: false,
+  requireApproval: true,
+}));
+
+test.describe("MCP - the editor's toolset and the chat's", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream - the editor's tools are added to the chat's, not substituted for them", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Two turns of the same configuration — the editor's tools attached to both —
+    // asked for the two things only one family can do. Both are served, so a
+    // request that carries the editor's toolset still carries the chat's.
+    //
+    // Separate threads rather than two turns of one, so the second answer cannot
+    // be shaped by the tool call in the first. The control for the document half
+    // is the first test of "MCP - disabling a tool the model really has": the same
+    // prompt, the same agent, no client tools attached.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId } = await setupChat(
+      aiChat,
+      "Autotest Editor Toolset Agent",
+    );
+
+    // The editor's own tool: proves the set really reached the model in this
+    // configuration, which is what makes the second half meaningful.
+    const editorTurn = await askInNewThread(aiChat, {
+      profileId,
+      agentId,
+      title: "Editor tools attached - an editor edit",
+      message: ASK_FOR_EDITOR_EDIT,
+      tools: EDITOR_TOOLS,
+    });
+
+    expect(
+      editorTurn.calledTools,
+      `the model answered "${editorTurn.reply.slice(0, 120)}"; frames were ${editorTurn.frames.join(", ")}`,
+    ).toContain("insert_text");
+    expect(
+      editorTurn.frames,
+      "a client tool pauses for the approval",
+    ).toContain("tool-call-pending");
+
+    // The chat's own tool, with the editor's set attached to the very same
+    // request: if the toolset had been replaced, this could only be answered with
+    // the sentinel.
+    const chatTurn = await askInNewThread(aiChat, {
+      profileId,
+      agentId,
+      title: "Editor tools attached - a document",
+      message: ASK_FOR_DOCX,
+      tools: EDITOR_TOOLS,
+    });
+
+    expect(
+      chatTurn.calledTools,
+      `the model answered "${chatTurn.reply.slice(0, 120)}"; frames were ${chatTurn.frames.join(", ")}`,
+    ).toContain(BUILT_IN_DOC_TOOL_TOKEN);
+    expect(
+      chatTurn.reply,
+      "the built-in tool was not reported as missing",
+    ).not.toContain(NO_TOOL_SENTINEL);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream - a client tool that reuses a built-in tool's name displaces it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The same request as the second half of the test above — the editor's tools
+    // and a request for a document — with two entries added that carry the
+    // built-in generator's own name under both spellings. That is the whole
+    // difference between the two tests, and it is enough: the engine's
+    // `docspace_generate_docx` is never the tool that answers.
+    //
+    // The positive control is therefore the test above rather than a turn of its
+    // own, and it is kept separate deliberately: a day when the built-in stops
+    // being offered at all has to show up as that test going red, not as this one
+    // passing for a reason it cannot see.
+    //
+    // What answers instead is not deterministic. Measured 2026-08-19, two runs,
+    // two shapes: the client's own `generate_docx` was called — despite
+    // `enabled: false`, which is BUG 83162 — and, on the repeat, no tool at all
+    // with the model reporting it has none. Both are the displacement; a test
+    // written around either one alone would flake, so both are accepted and
+    // anything else fails.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId } = await setupChat(
+      aiChat,
+      "Autotest Shadowed Built-in Tool Agent",
+    );
+
+    const asked = await askInNewThread(aiChat, {
+      profileId,
+      agentId,
+      title: "A client tool named after the built-in one",
+      message: ASK_FOR_DOCX,
+      tools: [...EDITOR_TOOLS, ...SHADOWED_BUILT_IN_TOOLS],
+    });
+
+    const diagnostics = `called [${asked.calledTools.join(", ")}]; the model answered "${asked.reply.slice(0, 200)}"; frames were ${asked.frames.join(", ")}`;
+
+    expect(
+      asked.calledTools,
+      `the engine's own generator answered anyway: ${diagnostics}`,
+    ).not.toContain(BUILT_IN_DOC_TOOL_TOKEN);
+
+    // Named rather than left implicit, so that "no built-in call" cannot be
+    // satisfied by the model wandering off into an editor tool or into prose of
+    // its own: the turn has to end in one of the two measured shapes.
+    const shadowCalled = asked.calledTools.includes(BUILT_IN_DOC_TOOL);
+    const reportedMissing = asked.reply.includes(NO_TOOL_SENTINEL);
+    expect(
+      shadowCalled || reportedMissing,
+      `neither the client's same-named tool nor a "no such tool" answer: ${diagnostics}`,
+    ).toBe(true);
   });
 });
 
@@ -5125,7 +5354,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   // Three tests rather than one so a partial fix reads correctly, and each one
   // `test.fail` on the CORRECT expectation rather than green on today's answer.
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
+  test("BUG 83231: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5164,7 +5393,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     ).not.toEqual({ text: "", generationToolCallState: undefined });
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a text document", async ({
+  test("BUG 83232: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a text document", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5200,7 +5429,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     });
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - the form generator writes an ordinary document, not a form", async ({
+  test("BUG 83233: POST /api/2.0/ai/ai/approve-tool-call - the form generator writes an ordinary document, not a form", async ({
     apiSdk,
     paymentsApi,
   }) => {

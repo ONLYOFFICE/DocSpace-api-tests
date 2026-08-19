@@ -3,16 +3,18 @@ import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
-// SKIPPED (2026-08-14): the Private Rooms feature is postponed to the next
-// release and is being temporarily removed from the current one, so the whole
-// PrivacyroomApi surface is unavailable here. The tests are parked rather than
-// deleted because the feature is coming back.
+// SKIPPED (2026-08-14, re-verified 2026-08-19): the Private Rooms feature is
+// postponed to the next release and is being temporarily removed from the
+// current one, so the whole PrivacyroomApi surface is unavailable on a release
+// portal. The tests are parked rather than deleted because the feature is
+// coming back.
 //
 // When it returns: drop the .skip on the describe below and re-verify the
 // contract documented here against the live portal — the endpoints may come
 // back changed, and the open bugs referenced in the test.fail annotations
-// (82524 / 82544 / 82545 / 82546 / 82551 / 82552 / 82553 / 82554 / 82800 /
-// 82802 / 82804) may or may not still reproduce.
+// (82544 / 82545 / 82546 / 82551 / 82552 / 82553 / 82554 / 82800 / 82802 /
+// 82804) may or may not still reproduce. BUG 82524 (a Guest cannot create
+// encryption keys) is closed as by-design and is no longer treated as a bug.
 
 /**
  * Functional tests for the PrivacyroomApi — per-user encryption key management
@@ -66,9 +68,12 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
  *    403 — including for the room creator after deleting their own keys.
  *  - Membership in a private room requires the invitee to already hold a key:
  *    setRoomSecurity answers 403 "The user does not have an encryption key"
- *    otherwise. Guests can never join, since setKeys is denied for them
- *    (BUG 82524). Room-type coverage for createRoom({ private: true }) lives in
- *    rooms.spec.ts; this file always uses CustomRoom.
+ *    otherwise. Guests can never join, since setKeys is denied for them by
+ *    design — a Guest may read the key surface but never own key material (this
+ *    was reported as BUG 82524 and is not a bug; see the role matrix in
+ *    privacyroom.permissions.spec.ts). Room-type coverage for
+ *    createRoom({ private: true }) lives in rooms.spec.ts; this file always uses
+ *    CustomRoom.
  */
 const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
 
