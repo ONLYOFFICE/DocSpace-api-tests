@@ -845,7 +845,7 @@ test.describe("AI Attachments - save-image", () => {
   // setup instead of reporting on their own defect. Those are deliberately left
   // red: an image half of BUG 82773 that cannot run must not be reported as an
   // expected failure of BUG 82773.
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-image - a valid image draft is stored, not answered with 500", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - a valid image draft is stored, not answered with 500", async ({
     apiSdk,
   }) => {
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2232,7 +2232,7 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // Fixed on 2026-08-20 — it used to answer as if no attachment had been
     // provided. The marker is random, so the reply cannot be a lucky guess.
     // Text only: the image half of BUG 82773 is still unmeasurable while
-    // save-image answers 500, so the tests below stay as they are.
+    // save-image answers 500 (BUG 83289), so the tests below stay as they are.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
