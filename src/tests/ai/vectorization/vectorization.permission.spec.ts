@@ -89,8 +89,15 @@ test.describe("Vectorization - startTask permissions", () => {
     // two measure a caller with no rights over the file; this Guest holds Content
     // Creator in the room the file lives in, so an access check cannot refuse them.
     // The rule being asked for here is the user type: a Guest has no access to the
-    // AI stack — how BUG 83237 was resolved — and vectorization is AI work billed
-    // to the portal's wallet.
+    // AI stack — how BUG 83237 was resolved — and vectorization is AI work.
+    //
+    // It is a missing gate, NOT a spend: measured 2026-08-19 against
+    // `customer/operations?serviceName=ai-tools`, this Guest's 200 produces no
+    // charge at all, and neither does the owner's identical call on a room file.
+    // Indexing is only ever billed when a file *arrives* in an agent's Knowledge
+    // folder (upload or move — both auto-index, and the row names whoever put it
+    // there); an explicit startTask on an already-indexed file bills nothing for
+    // anyone. So no wallet row ever says "a Guest spent this".
     //
     // Status-only, unavoidably: `vectorizationStatus` exists only on files in an
     // agent's Knowledge folder (see ai-vectorization.ts) and there is no read route

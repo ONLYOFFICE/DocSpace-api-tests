@@ -828,6 +828,47 @@ test.describe("AI Attachments - save-file", () => {
 });
 
 test.describe("AI Attachments - save-image", () => {
+  // The narrowest possible reproduction of the outage that currently takes down
+  // every other image test in this suite, so the cause is stated once instead of
+  // being re-diagnosed from twelve unrelated red assertions.
+  //
+  // Started 2026-08-17 around 15:00 — an owner image draft was still created
+  // successfully at ~14:37 — and still reproducing on 2026-08-20, so it is a
+  // regression rather than a blip. `save-file` in the same controller answers
+  // 200 in the same portal, which is the control below: the request pipeline,
+  // the auth and the draft store all work, and only the image route is down.
+  //
+  // Blast radius, all failing on this and nothing else: the whole "save-image"
+  // and "save-images-many" contract (12 tests across attachments.spec.ts,
+  // attachments.permission.spec.ts and attachments.ai-disabled.spec.ts) plus
+  // every picture case of BUG 82758, BUG 82773 and BUG 82894, which now die in
+  // setup instead of reporting on their own defect. Those are deliberately left
+  // red: an image half of BUG 82773 that cannot run must not be reported as an
+  // expected failure of BUG 82773.
+  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-image - a valid image draft is stored, not answered with 500", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    // The control: the sibling route in the same controller, on the same portal,
+    // with the same auth. If this one ever breaks too the failure below stops
+    // being about images and the test has to be re-read.
+    const path = String(
+      await attachments.backingFileId("owner", "Autotest control.docx", "x"),
+    );
+    const file = await attachments.saveFile("owner", {
+      input: { path, content: "", type: FileType.Document },
+    });
+    expect(file.status, "save-file, the control, still answers").toBe(200);
+
+    const { status } = await attachments.saveImage("owner", {
+      input: { name: "autotest.png", base64: PNG_1X1, title: "Autotest PNG" },
+    });
+
+    test.fail();
+    expect(status).toBe(200);
+  });
+
   test("POST /api/2.0/ai/attachments/save-image - Owner saves an image draft and reads it back", async ({
     apiSdk,
   }) => {
@@ -2181,18 +2222,17 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     expect(userMessage?.attachments).toEqual([{ id }]);
   });
 
-  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a draft passed as attachments:[{id}] does not reach the model", async ({
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a draft passed as attachments:[{id}] reaches the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The draft holds a code word, the model is asked for it, and the reply says
-    // no attachment was provided.
+    // The draft holds a code word and the model is asked for it. A bare id is
+    // enough: the backend resolves it and gives the model the content.
     //
-    // Scope of the claim, deliberately narrow: this shows that passing an
-    // attachment by id alone does not give the model its content. The obvious
-    // escape — that the real client inlines the whole record instead of sending
-    // a bare id — is ruled out by the test right below, which sends the full
-    // record, content included, and is answered just as blindly.
+    // Fixed on 2026-08-20 — it used to answer as if no attachment had been
+    // provided. The marker is random, so the reply cannot be a lucky guess.
+    // Text only: the image half of BUG 82773 is still unmeasurable while
+    // save-image answers 500, so the tests below stay as they are.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2253,19 +2293,18 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
       .join("\n");
     expect(reply.length, "the assistant answered at all").toBeGreaterThan(0);
 
-    test.fail();
     expect(reply, `assistant reply: ${reply}`).toContain(marker);
   });
 
-  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a fully inlined attachment record does not reach the model either", async ({
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a fully inlined attachment record reaches the model too", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Same defect from the other side. Here nothing has to be looked up: the
-    // message carries the whole record — kind, title and the text itself — so
-    // even a backend that never resolves attachment ids has the content in its
-    // hands. The model still answers as if no file had been sent, which is what
-    // closes the "maybe the client inlines it" escape on the test above.
+    // The same contract from the other side, and the one the real client sends:
+    // the message carries the whole record — kind, title and the text itself —
+    // so nothing has to be looked up. Kept alongside the by-id test above
+    // because the two used to fail together and a fix could reach only one of
+    // the two shapes.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2319,7 +2358,6 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
 
     const reply = AiAgentChat.assistantText(messages);
 
-    test.fail();
     expect(reply, `assistant reply: ${reply}`).toContain(marker);
   });
 
@@ -4496,17 +4534,19 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
 });
 
 test.describe("AI Attachments - the whole path, end to end", () => {
-  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a device file uploaded, attached by id and carried on the message still never reaches the model", async ({
+  test("BUG 82773: POST /api/2.0/ai/ai/send-with-stream - a device file uploaded, attached by id and carried on the message reaches the model", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The strongest form of the bug, and the reason this file exists. Every
-    // earlier version of it could be dismissed as the wrong request shape: the
-    // draft was built from text the test invented, and passed by bare id. Here
-    // the file is a real DocSpace file, the attachment is created the way the
-    // product creates it — by reference, with the server doing the extraction —
-    // and the draft demonstrably holds the file's text. The model is still told
-    // there is no attachment.
+    // The whole path in one test, and the reason this file exists: the file is a
+    // real DocSpace file, the attachment is created the way the product creates
+    // it — by reference, with the server doing the extraction — and the code
+    // word comes back out of the model.
+    //
+    // Fixed on 2026-08-20. Kept as the end-to-end regression guard: the two
+    // tests in the "sending a message with an attachment" describe build their
+    // draft from text the test invented, so only this one covers the real
+    // upload → attach-by-reference → send chain.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -4564,8 +4604,6 @@ test.describe("AI Attachments - the whole path, end to end", () => {
         },
       },
     );
-    // Asserted before test.fail(), so a dead gateway or a broken send is a real
-    // red failure rather than this test's expected one.
     expect(sent.status).toBe(200);
     expect(sent.text, "the stream did not carry an error").not.toContain(
       "stream error",
@@ -4585,7 +4623,6 @@ test.describe("AI Attachments - the whole path, end to end", () => {
       .join("\n");
     expect(reply.length, "the assistant answered at all").toBeGreaterThan(0);
 
-    test.fail();
     expect(reply, `assistant reply: ${reply}`).toContain(marker);
   });
 
