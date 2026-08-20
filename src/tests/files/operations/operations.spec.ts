@@ -8832,7 +8832,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const operation = await waitForOperation(ownerApi.operations);
       expect(operation.finished).toBe(true);
-      expect(operation.error).toBeNull();
+      expect(operation.error).toBe("");
     },
   );
 });
