@@ -5393,13 +5393,13 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     ).not.toEqual({ text: "", generationToolCallState: undefined });
   });
 
-  test("BUG 83232: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a text document", async ({
+  test("BUG 83232: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a presentation", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // `docspace_generate_presentation` produces `ProbeDeck.docx`, which the Word
-    // editor opens. There is no way for the user to get a deck out of this: the
-    // container has no slides to hold and a `.docx` cannot be edited into one.
+    // Fixed on 2026-08-20. `docspace_generate_presentation` used to produce
+    // `ProbeDeck.docx`, which the Word editor opens — a container with no slides
+    // to hold, and no way for the user to get a deck out of it.
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -5421,7 +5421,6 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       ),
     };
 
-    test.fail();
     expect(measured, `the tool created "${created.title}"`).toEqual({
       fileExst: generator.promised.extension,
       documentType: generator.promised.documentType,
