@@ -218,19 +218,21 @@ test.describe("Third-party rooms — MCP tool scoping", () => {
     expect(single).toEqual(SERVER_CONFIG);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/tools/list-custom-servers - a server scoped to a third-party room is also visible on the portal-wide, unscoped read", async ({
+  test("BUG 82975: GET /api/2.0/ai/tools/list-custom-servers - a server scoped to a third-party room is also visible on the portal-wide, unscoped read", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // This is the third-party-specific half of the leak: the existing plain-room
-    // case in mcp.spec.ts ("a portal-level server is not listed for an agent" /
-    // the room-scope block) shows a numeric internal room's scope IS kept apart
-    // from the portal-wide bucket. A third-party room's own id is not numeric
-    // ("sbox-<n>"), and scoping it does not hold the same line — confirmed live
-    // 2026-08-20 that `entityId: "sbox-<n>"` on add-custom-server ends up
-    // readable from a bare `listCustomServers("owner")` call with no entityId at
-    // all, i.e. from every agent and every other room on the portal, not just
-    // from a sibling room (see the next test for that narrower leak).
+    // Same defect as the plain-internal-room case already filed as BUG 82975
+    // (mcp.spec.ts, "a server registered for a room is also served portal-wide"),
+    // confirmed live 2026-08-20 to reproduce on a third-party room too: a
+    // third-party room's own id is not numeric ("sbox-<n>"), but that doesn't
+    // matter — any non-agent entityId (numeric room id or "sbox-<n>" alike) ends
+    // up readable from a bare `listCustomServers("owner")` call with no entityId
+    // at all, i.e. from every agent and every other room on the portal, not just
+    // from a sibling room (see the next test for that narrower leak). Not a new,
+    // third-party-specific bug — kept here as an additional repro for 82975
+    // against a third-party-backed room, since that combination wasn't covered
+    // before.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const { roomId } = await setupThirdPartyRoom(
@@ -254,20 +256,23 @@ test.describe("Third-party rooms — MCP tool scoping", () => {
     ).not.toContain("tp-room-portal-leak-server");
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/tools/list-custom-servers - a server scoped to a third-party room leaks into an unrelated internal room's scope", async ({
+  test("BUG 82975: GET /api/2.0/ai/tools/list-custom-servers - a server scoped to a third-party room leaks into an unrelated internal room's scope", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Confirmed live 2026-08-20 that this is not third-party-specific: the same
-    // probe against two plain internal CustomRooms (no third-party storage
-    // involved at all) leaks the exact same way, so the underlying defect is
-    // that a non-agent entityId is not really used as a distinct key — only
-    // "is it an agent" and "is entityId present at all" seem to be checked.
-    // Kept here rather than only as a general mcp.spec.ts case because it is
-    // exactly the case this file's coverage was asked for: whether a
-    // third-party room's own scope is safe from a sibling room reading its MCP
-    // server config. It is not — a server meant for one connected storage's
-    // room is visible from a room that has nothing to do with it.
+    // Filed under the same BUG 82975 as the portal-wide leak above, on the bet
+    // that one fix resolves both: confirmed live 2026-08-20 that this is not
+    // third-party-specific — the same probe against two plain internal
+    // CustomRooms (no third-party storage involved at all) leaks the exact same
+    // way, so the underlying defect looks like the same one — a non-agent
+    // entityId is not really used as a distinct key, only "is it an agent" and
+    // "is entityId present at all" seem to be checked. Kept here rather than
+    // only as a general mcp.spec.ts case because it is exactly the case this
+    // file's coverage was asked for: whether a third-party room's own scope is
+    // safe from a sibling room reading its MCP server config. It is not — a
+    // server meant for one connected storage's room is visible from a room
+    // that has nothing to do with it. If 82975's fix does NOT clear this test
+    // too, split it back out under its own bug number.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const { roomId } = await setupThirdPartyRoom(

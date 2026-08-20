@@ -6,6 +6,7 @@ import {
   connectNextcloud,
   createNextcloudRoom,
 } from "@/src/helpers/third-party";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 // Third-party storage support in DocSpace: a "provider" is connected via
 // POST /files/thirdparty (WebDav-family providers authenticate with
@@ -587,6 +588,193 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
   });
 });
 
+test.describe("Third-party rooms support the same room actions as internal Custom rooms", () => {
+  test("PUT /files/rooms/:id - Owner updates the title of a third-party room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { roomId } = await createNextcloudRoom(
+      apiSdk,
+      "owner",
+      "Autotest TP Title Before",
+    );
+
+    await test.step("update title", async () => {
+      const { data, status } = await ownerApi.rooms.updateRoom({
+        id: roomId as any,
+        updateRoomRequest: { title: "Autotest TP Title After" },
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe("Autotest TP Title After");
+      expect(data.response!.id).toBe(roomId);
+    });
+
+    await test.step("GET /files/rooms/:id - confirms title changed", async () => {
+      const { data, status } = await ownerApi.rooms.getRoomInfo({
+        id: roomId as any,
+      });
+
+      expect(status).toBe(200);
+      expect(data.response!.title).toBe("Autotest TP Title After");
+    });
+  });
+
+  test("PUT /files/rooms/:id/cover - Owner changes cover and color of a third-party room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { roomId } = await createNextcloudRoom(
+      apiSdk,
+      "owner",
+      "Autotest TP Cover Room",
+    );
+
+    const { data, status } = await ownerApi.rooms.changeRoomCover({
+      id: roomId as any,
+      coverRequestDto: { color: "FF5733", cover: coverId },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.id).toBe(roomId);
+    expect(data.response!.logo?.cover?.id).toBe(coverId);
+    expect(data.response!.logo?.color).toBe("FF5733");
+
+    const { data: infoData, status: infoStatus } =
+      await ownerApi.rooms.getRoomInfo({ id: roomId as any });
+    expect(infoStatus).toBe(200);
+    expect(infoData.response!.logo?.cover?.id).toBe(coverId);
+    expect(infoData.response!.logo?.color).toBe("FF5733");
+  });
+
+  test("PUT /files/rooms/:id/cover - Cover on a third-party room survives archive/unarchive", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: coversData } = await ownerApi.rooms.getRoomCovers();
+    const coverId = coversData.response![0].id!;
+
+    const { roomId } = await createNextcloudRoom(
+      apiSdk,
+      "owner",
+      "Autotest TP Cover Archive Cycle Room",
+    );
+
+    await ownerApi.rooms.changeRoomCover({
+      id: roomId as any,
+      coverRequestDto: { color: "1A2B3C", cover: coverId },
+    });
+
+    await ownerApi.rooms.archiveRoom({
+      id: roomId as any,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    await ownerApi.rooms.unarchiveRoom({
+      id: roomId as any,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId as any });
+    expect(data.response!.logo?.cover?.id).toBe(coverId);
+    expect(data.response!.logo?.color).toBe("1A2B3C");
+  });
+
+  test("PUT /files/rooms/:id/tags - Owner adds tags to a third-party room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { roomId } = await createNextcloudRoom(
+      apiSdk,
+      "owner",
+      "Autotest TP Tags Room",
+    );
+
+    const { data, status } = await ownerApi.rooms.addRoomTags({
+      id: roomId as any,
+      batchTagsRequestDto: { names: ["AutotestTPTag"] },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.tags).toContain("AutotestTPTag");
+
+    const { data: infoData } = await ownerApi.rooms.getRoomInfo({
+      id: roomId as any,
+    });
+    expect(infoData.response!.tags).toContain("AutotestTPTag");
+  });
+
+  test("PUT /files/rooms/:id/pin - Owner pins and unpins a third-party room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { roomId } = await createNextcloudRoom(
+      apiSdk,
+      "owner",
+      "Autotest TP Pin Room",
+    );
+
+    await test.step("pin room", async () => {
+      const { status } = await ownerApi.rooms.pinRoom({ id: roomId as any });
+      expect(status).toBe(200);
+
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId as any });
+      expect(data.response!.pinned).toBe(true);
+    });
+
+    await test.step("unpin room", async () => {
+      const { status } = await ownerApi.rooms.unpinRoom({ id: roomId as any });
+      expect(status).toBe(200);
+
+      const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId as any });
+      expect(data.response!.pinned).toBe(false);
+    });
+  });
+
+  test("POST /files/group - Owner creates a room group containing both a third-party room and an internal room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: internalRoom } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest TP Group Internal Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const internalRoomId = internalRoom.response!.id!;
+
+    const { roomId: tpRoomId } = await createNextcloudRoom(
+      apiSdk,
+      "owner",
+      "Autotest TP Group ThirdParty Room",
+    );
+
+    const { data, status } = await ownerApi.groups.addRoomGroup({
+      roomGroupRequestDto: {
+        name: "Autotest TP Mixed Group",
+        icon: "star",
+        rooms: [internalRoomId, tpRoomId],
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.totalRooms).toBe(2);
+    const titles = data.response!.rooms!.map((r) => r.title);
+    expect(titles).toContain("Autotest TP Group Internal Room");
+    expect(titles).toContain("Autotest TP Group ThirdParty Room");
+
+    const { data: verify, status: getStatus } =
+      await ownerApi.groups.getRoomGroupInfo({ id: data.response!.id! });
+    expect(getStatus).toBe(200);
+    expect(verify.response!.totalRooms).toBe(2);
+  });
+});
+
 test.describe("saveThirdParty with providerId - updating an existing connection", () => {
   test("BUG 83303: POST /files/thirdparty - Re-saving with an existing providerId returns 200 but does not rename the account", async ({
     apiSdk,
@@ -722,12 +910,12 @@ test.describe("DELETE /files/thirdparty/{providerId} - Disconnect a third-party 
 });
 
 test.describe("GET /files/group - Dangling third-party room reference", () => {
-  test("BUG XXXXX: GET /files/group?includeMembers=false - 500s when a room group holds a room whose provider was disconnected", async ({
+  test("BUG 83264: GET /files/group?includeMembers=false - 500s when a room group holds a room whose provider was disconnected", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: connect Nextcloud, create a room on it, add that room to a " +
+      "BUG 83264: connect Nextcloud, create a room on it, add that room to a " +
         "room group, then DELETE the provider account (DELETE " +
         "/files/thirdparty/{providerId}) - the group keeps a dangling reference " +
         "to the room and GET /files/group throws " +
