@@ -721,6 +721,54 @@ test.describe("DELETE /files/thirdparty/{providerId} - Disconnect a third-party 
   });
 });
 
+test.describe("GET /files/group - Dangling third-party room reference", () => {
+  test("BUG XXXXX: GET /files/group?includeMembers=false - 500s when a room group holds a room whose provider was disconnected", async ({
+    apiSdk,
+  }) => {
+    test.fail(
+      true,
+      "BUG XXXXX: connect Nextcloud, create a room on it, add that room to a " +
+        "room group, then DELETE the provider account (DELETE " +
+        "/files/thirdparty/{providerId}) - the group keeps a dangling reference " +
+        "to the room and GET /files/group throws " +
+        "System.InvalidOperationException ('Sequence contains no elements') in " +
+        "ProviderAccountDao.GetProviderInfoAsync, taking down the entire group " +
+        "list instead of just the affected group/room",
+    );
+
+    const ownerApi = apiSdk.forRole("owner");
+    const { providerId, roomId } = await createNextcloudRoom(
+      apiSdk,
+      "owner",
+      "Autotest Dangling TP Group Room",
+    );
+
+    const { data: group, status: createStatus } =
+      await ownerApi.groups.addRoomGroup({
+        roomGroupRequestDto: {
+          name: "Autotest Dangling TP Group",
+          icon: "star",
+          rooms: [roomId],
+        },
+      });
+    expect(createStatus, "group setup should succeed").toBe(200);
+    expect(group.response!.rooms!.map((r) => r.title)).toContain(
+      "Autotest Dangling TP Group Room",
+    );
+
+    const { status: deleteStatus } =
+      await ownerApi.thirdPartyIntegration.deleteThirdParty({ providerId });
+    expect(deleteStatus).toBe(200);
+
+    const { status } = await ownerApi.groups.getRoomGroups({
+      id: 0,
+      includeMembers: false,
+    });
+
+    expect(status).toBe(200);
+  });
+});
+
 test.describe("GET /files/rooms - storageFilter distinguishes internal from third-party rooms", () => {
   test("storageFilter separates an internal room from a third-party room", async ({
     apiSdk,

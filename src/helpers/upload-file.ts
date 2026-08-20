@@ -7,7 +7,7 @@ import { Role } from "../services/token-store";
 export async function uploadFileToFolder(
   apiSdk: ApiSDK,
   role: Role | null,
-  folderId: number | "@my",
+  folderId: number | string | "@my",
   fileBuffer: Buffer | null,
   fileName: string,
   options?: {
