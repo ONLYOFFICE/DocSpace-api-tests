@@ -240,12 +240,12 @@ test.describe("PUT /files/rooms/thirdparty/{id} - access control", () => {
     expect(status).toBe(200);
   });
 
-  test("BUG XXXXX: a plain User can create a room from ANOTHER user's still-unused connection", async ({
+  test("BUG 83306: a plain User can create a room from ANOTHER user's still-unused connection", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: createRoomThirdParty has no ownership/role check - a plain User " +
+      "BUG 83306: createRoomThirdParty has no ownership/role check - a plain User " +
         "(who gets 403 from both saveThirdParty and the regular POST /files/rooms) " +
         "can successfully (200) convert an Owner's still-unused third-party " +
         "connection into a room they don't even have access to afterwards " +
@@ -273,12 +273,12 @@ test.describe("PUT /files/rooms/thirdparty/{id} - access control", () => {
     expect(status).toBe(403);
   });
 
-  test("BUG XXXXX: a Guest can also create a room from someone else's still-unused connection", async ({
+  test("BUG 83306: a Guest can also create a room from someone else's still-unused connection", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: same missing ownership/role check as createRoomThirdParty's " +
+      "BUG 83306: same missing ownership/role check as createRoomThirdParty's " +
         "User case above - a Guest (who gets 403 from saveThirdParty and from " +
         "the regular POST /files/rooms) can still successfully (200) turn " +
         "someone else's unused third-party connection into a room.",

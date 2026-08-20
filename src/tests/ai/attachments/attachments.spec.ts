@@ -200,18 +200,22 @@ test.describe("AI Attachments - save-file", () => {
     // milliseconds and the read does not, so the two are not `toBe`-equal and a
     // client must not compare them directly.
     expect(stored.createdAt).toBe(Math.round(data!.createdAt! / 1000) * 1000);
-    // `type` is the one field the read does not carry back at all — see the test
-    // below.
-    expect(stored.type).toBeUndefined();
+    // `type` used to be the one field the read did not carry back at all — see
+    // the test below. Measured 2026-08-20: the read now answers a type too,
+    // but it is the one derived from the backing file's own extension (`.docx`
+    // here), not the `FileType.Document` this save happened to send — the two
+    // just coincide in this fixture.
+    expect(stored.type).toBe(FileType.Document);
   });
 
-  test("BUG 83003: POST /api/2.0/ai/attachments/save-file - the type a draft was saved with is not readable afterwards", async ({
+  test("POST /api/2.0/ai/attachments/save-file - a requested type is ignored; the server derives its own from the file", async ({
     apiSdk,
   }) => {
-    // `type` is echoed by the save and then absent from every read of the same
-    // draft, so a client that stored one and reads it back cannot tell what kind
-    // of file it holds — it has to remember. Every other field survives the round
-    // trip, which is what makes this a gap rather than a design.
+    // By design (confirmed by the dev, 2026-08-20): the server does not accept
+    // or store the `type` a client sends at all — it is always computed from
+    // the backing file itself. Sending `FileType.Spreadsheet` against a
+    // `.docx` file answers `FileType.Document` both on the save and on every
+    // later read, because Document is what a `.docx` really is.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const path = String(
       await attachments.backingFileId("owner", "Autotest typed.docx", "x"),
@@ -221,16 +225,16 @@ test.describe("AI Attachments - save-file", () => {
       input: { path, content: "", type: FileType.Spreadsheet },
     });
     expect(status).toBe(200);
-    expect(data?.type, "the save echoes it").toBe(FileType.Spreadsheet);
+    expect(data?.type, "the save derives it from the file instead").toBe(
+      FileType.Document,
+    );
 
     const stored = await attachments.expectStored("owner", data!.id!);
     expect(stored.title, "the rest of the record survives the read").toBe(
       "Autotest typed.docx",
     );
-
-    test.fail();
-    expect(stored.type, "and the read must carry it too").toBe(
-      FileType.Spreadsheet,
+    expect(stored.type, "the read carries the same derived type").toBe(
+      FileType.Document,
     );
   });
 
@@ -437,13 +441,14 @@ test.describe("AI Attachments - save-file", () => {
     expect(error).toBe("Bad Request");
   });
 
-  test("POST /api/2.0/ai/attachments/save-file - every FileType is stored as sent", async ({
+  test("POST /api/2.0/ai/attachments/save-file - the requested type is ignored for every FileType value", async ({
     apiSdk,
   }) => {
+    // By design (confirmed by the dev, 2026-08-20): `type` is never accepted
+    // from the client — one backing `.docx` file is swept through every
+    // FileType value, and every save answers Document (7) regardless, because
+    // that is what the file actually is.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    // One backing file for the whole sweep: `type` is what varies, and it is not
-    // derived from the file — a .docx attached as FileType.Video is stored as
-    // FileType.Video.
     const path = String(
       await attachments.backingFileId("owner", "Autotest type.docx", "x"),
     );
@@ -469,7 +474,7 @@ test.describe("AI Attachments - save-file", () => {
       // `kind` is decided by the endpoint, not by `type` — even FileType.Image
       // saved through save-file stays a file.
       expect(data?.kind, `FileType ${type}`).toBe("file");
-      expect(data?.type, `FileType ${type}`).toBe(type);
+      expect(data?.type, `FileType ${type}`).toBe(FileType.Document);
     }
   });
 
@@ -644,24 +649,23 @@ test.describe("AI Attachments - save-file", () => {
     ).toEqual([404, 404]);
   });
 
-  test("BUG 82743: POST /api/2.0/ai/attachments/save-file - a type outside the FileType enum is accepted", async ({
+  test("POST /api/2.0/ai/attachments/save-file - a type outside the FileType enum is accepted, same as any other", async ({
     apiSdk,
   }) => {
-    // FileType defines 0-7, 10 and 11. `FileType.Unknown` (0) is a member and is
-    // accepted legitimately — see "every FileType is stored as sent" — so there
-    // is no contradiction in requiring these to be refused: they are values the
-    // enum does not define at all.
-    //
-    // Every body here carries a resolvable `path`, so a 400 could only be about
-    // `type`. Without one the request is refused for the missing path and the
-    // test would pass without measuring anything.
+    // FileType defines 0-7, 10 and 11, and an out-of-range int (999, -1, 8) used
+    // to be echoed back unchanged, so the stored record carried a value no
+    // FileType consumer could interpret. By design (confirmed by the dev,
+    // 2026-08-20), `type` is never accepted from the client at all — every
+    // value, in-enum or not, is discarded the same way, and the response comes
+    // back with the type derived from the extension (`.docx` is Document). A
+    // range check on a field the server never reads would only reject input it
+    // does not otherwise care about, so there is nothing to validate here.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const path = String(
       await attachments.backingFileId("owner", "Autotest type.docx", "x"),
     );
     const types = [999, -1, 8];
 
-    const statuses: number[] = [];
     for (const type of types) {
       const { status, data } = await attachments.saveFile("owner", {
         input: {
@@ -671,16 +675,9 @@ test.describe("AI Attachments - save-file", () => {
           type,
         },
       });
-      statuses.push(status);
-      // Not merely accepted — echoed back unchanged, so the stored record
-      // carries a value no FileType consumer can interpret.
-      if (status === 200) {
-        expect(data?.type, `type ${type}`).toEqual(type);
-      }
+      expect(status, `type ${type}`).toBe(200);
+      expect(data?.type, `type ${type}`).toEqual(FileType.Document);
     }
-
-    test.fail();
-    expect(statuses).toEqual(types.map(() => 400));
   });
 
   test("BUG 82745: POST /api/2.0/ai/attachments/save-file - a fractional type is accepted", async ({
@@ -872,6 +869,9 @@ test.describe("AI Attachments - save-image", () => {
   test("POST /api/2.0/ai/attachments/save-image - Owner saves an image draft and reads it back", async ({
     apiSdk,
   }) => {
+    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
     const { status, data } = await attachments.saveImage("owner", {
@@ -896,6 +896,9 @@ test.describe("AI Attachments - save-image", () => {
   test("POST /api/2.0/ai/attachments/save-image - title falls back to name, and name is required", async ({
     apiSdk,
   }) => {
+    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
     const named = await attachments.saveImage("owner", {
@@ -921,6 +924,9 @@ test.describe("AI Attachments - save-image", () => {
     // test because a real screenshot pasted into the composer is base64, and base64
     // is a third larger than the bytes it encodes — so this ceiling is reached at
     // roughly a 90 KB image.
+    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const large = `data:image/png;base64,${"A".repeat(LARGE_CONTENT_BYTES)}`;
 
@@ -1008,6 +1014,10 @@ test.describe("AI Attachments - save-image", () => {
   }) => {
     // `source` matters most on images, since a generated one is exactly what the
     // "tool" provenance is for — and it is dropped here too.
+    //
+    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
     const { status, data } = await attachments.saveImage("owner", {
@@ -1035,6 +1045,10 @@ test.describe("AI Attachments - save-image", () => {
     // none: save-image stores whatever base64 it is handed (BUG 82752 above), so
     // "only images can be dropped" lives in the composer. The value here is the
     // positive half — a picture a user really can attach comes back intact.
+    //
+    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const images: Array<[string, string, Buffer]> = [
       // Multi-pixel, not the 1x1 the rest of the suite uses: a payload with real
@@ -1069,6 +1083,11 @@ test.describe("AI Attachments - batch saves", () => {
   test("POST /api/2.0/ai/attachments/save-files-many - saves a batch in order with unique ids", async ({
     apiSdk,
   }) => {
+    // Same by-design ignore as the single-file sweep above: `type` sent per
+    // element is disregarded, and every element comes back with the type
+    // derived from its own backing file's extension — all three are `.docx`
+    // here, so all three answer Document (7), regardless of the
+    // Spreadsheet/Pdf two of them requested.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     // A backing file per element, so the titles the response is checked against
     // are the files' own names.
@@ -1101,7 +1120,7 @@ test.describe("AI Attachments - batch saves", () => {
       files.map((file) => file.body),
     );
     expect(data!.map((item) => item?.type)).toEqual(
-      files.map((file) => file.type),
+      files.map(() => FileType.Document),
     );
     expect(new Set(data!.map((item) => item?.id)).size).toBe(inputs.length);
     for (const item of data!) {
@@ -1112,6 +1131,9 @@ test.describe("AI Attachments - batch saves", () => {
   test("POST /api/2.0/ai/attachments/save-images-many - saves a batch in order with unique ids", async ({
     apiSdk,
   }) => {
+    // BUG 83289 (open 2026-08-20): save-images-many answers 500 for everyone.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const inputs = [
       { name: "one.png", base64: PNG_1X1 },
@@ -1777,6 +1799,11 @@ test.describe("AI Attachments - link-to-message", () => {
     //
     // When linking starts working this will report an unexpected pass, which is
     // the signal to split it into the individual cases.
+    //
+    // Also blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone, and this test's setup makes several image drafts.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -1960,6 +1987,9 @@ test.describe("AI Attachments - delete", () => {
   test("DELETE /api/2.0/ai/attachments/delete - Owner deletes an image draft with a bare JSON string literal body", async ({
     apiSdk,
   }) => {
+    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const id = await attachments.saveImageId("owner", {
       name: "delete.png",
@@ -2040,6 +2070,10 @@ test.describe("AI Attachments - delete", () => {
     // The repeated call is what makes the *absence* observable at all (a single
     // delete is intermittent, see "intermittent reads and deletes"); it is not
     // standing in for the contract of one call, which the test above covers.
+    //
+    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const fileId = await attachments.saveFileId("owner", {
       title: "Autotest batch-delete.docx",
@@ -2078,6 +2112,11 @@ test.describe("AI Attachments - delete", () => {
     // a different question, and a failing one, pinned in "reads and deletes take
     // effect at once" — repeating it here is what keeps that known flake out of
     // this test's subject, which is the four survivors.
+    //
+    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone, and
+    // stageComposerDrafts below makes image drafts.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const drafts = await stageComposerDrafts(attachments, {
       files: 3,
@@ -2385,6 +2424,11 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // all fails this the same way — and that is not a hole in the test, because
     // the feature's promise is that an attached picture is usable, whichever half
     // of the stack breaks it.
+    //
+    // Also blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2478,6 +2522,11 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // colour that a user has no way to tell from a real one. It is also why the
     // square is teal in both tests and no longer red: a guess of "red" was
     // frequent enough to flip the test above green (see the note there).
+    //
+    // Also blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2553,6 +2602,11 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // at it.
     //
     // Measured 2026-08-12 on gpt-5.6-sol: "Please attach the image."
+    //
+    // Also blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2630,6 +2684,11 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // Requiring both in one reply makes that unlikely, not impossible, which is
     // exactly why the generated-marker test above stays: six random letters
     // cannot be guessed at all. Realism here, proof there.
+    //
+    // Also blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2720,6 +2779,11 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // every model is blind (BUG 82773) and writing that in would freeze the bug
     // into the contract; once the bug is fixed, this test's subject — that
     // nothing refuses or warns — is unchanged and still measured.
+    //
+    // Blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone, so the picture below cannot be staged at all.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -2985,6 +3049,11 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     // "this route accepts any attachments list, a legal one included". Ten is
     // stored verbatim and in order, so the list is not truncated, reordered or
     // split by kind on the way in.
+    //
+    // Blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone, and the five images below cannot be staged.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -3037,6 +3106,11 @@ test.describe("AI Attachments - client-side rules on the server", () => {
   }) => {
     // The 5-files-and-5-images cap is a property of the composer. One request
     // puts eleven real drafts on a single message and nothing objects.
+    //
+    // Also blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone, and stageComposerDrafts below makes image drafts.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -3100,6 +3174,11 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     // does not enforce it" can be said about the product: a limit rejected on
     // the real path and missing on the storage-only one would be a different
     // finding altogether. It is missing on both.
+    //
+    // Also blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone, and stageComposerDrafts below makes image drafts.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -3210,6 +3289,11 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     //
     // Not a TTL claim: this says nothing about whether a sweeper eventually
     // collects an abandoned draft, only that the switch does not.
+    //
+    // Blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
+    // everyone, and stageComposerDrafts below makes an image draft.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);

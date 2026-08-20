@@ -375,12 +375,12 @@ test.describe("POST /files/thirdparty - OAuth provider contract (no real OAuth t
     expect(status).toBe(403);
   });
 
-  test("BUG XXXXX: POST /files/thirdparty - Box with a fake token 500s instead of returning a controlled error", async ({
+  test("BUG 83265: POST /files/thirdparty - Box with a fake token 500s instead of returning a controlled error", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: saveThirdParty with providerKey=Box and an invalid token throws " +
+      "BUG 83265: saveThirdParty with providerKey=Box and an invalid token throws " +
         "System.NullReferenceException in FileStorageService.SaveThirdPartyAsync (500) " +
         "instead of a 400/401/403",
     );
@@ -535,12 +535,12 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
     expect(status).toBe(404);
   });
 
-  test("BUG XXXXX: PUT /files/rooms/thirdparty/{id} - An internal folder id 500s instead of returning 400/404", async ({
+  test("BUG 83301: PUT /files/rooms/thirdparty/{id} - An internal folder id 500s instead of returning 400/404", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: createRoomThirdParty throws System.NullReferenceException (500) " +
+      "BUG 83301: createRoomThirdParty throws System.NullReferenceException (500) " +
         "when given a plain internal folder id instead of a 'sbox-*' third-party selector",
     );
 
@@ -562,12 +562,12 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
     expect(status).toBeLessThan(500);
   });
 
-  test("BUG XXXXX: PUT /files/rooms/thirdparty/{id} - A well-formed but non-existent sbox-* id 500s instead of returning 404", async ({
+  test("BUG 83301: PUT /files/rooms/thirdparty/{id} - A well-formed but non-existent sbox-* id 500s instead of returning 404", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: createRoomThirdParty 500s (System.InvalidOperationException: " +
+      "BUG 83301: createRoomThirdParty 500s (System.InvalidOperationException: " +
         "'Sequence contains no elements') for an id that matches the 'sbox-<n>' " +
         "selector pattern but doesn't correspond to any connected provider, " +
         "instead of the clean 404 a completely unrecognized id gets",
@@ -588,12 +588,12 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
 });
 
 test.describe("saveThirdParty with providerId - updating an existing connection", () => {
-  test("BUG XXXXX: POST /files/thirdparty - Re-saving with an existing providerId returns 200 but does not rename the account", async ({
+  test("BUG 83303: POST /files/thirdparty - Re-saving with an existing providerId returns 200 but does not rename the account", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: saveThirdParty called again with providerId set and a new " +
+      "BUG 83303: saveThirdParty called again with providerId set and a new " +
         "customerTitle returns 200 (implying success) but getThirdPartyAccounts " +
         "still shows the original title - the update is silently a no-op",
     );
@@ -693,12 +693,12 @@ test.describe("DELETE /files/thirdparty/{providerId} - Disconnect a third-party 
     expect(status).toBeLessThan(500);
   });
 
-  test("BUG XXXXX: DELETE /files/thirdparty/{providerId} - Deleting the provider behind an active room breaks the room instead of being blocked", async ({
+  test("BUG 83305: DELETE /files/thirdparty/{providerId} - Deleting the provider behind an active room breaks the room instead of being blocked", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: deleteThirdParty succeeds (200) even though a room still uses the " +
+      "BUG 83305: deleteThirdParty succeeds (200) even though a room still uses the " +
         "connection. The room then silently disappears from getRoomsFolder and " +
         "getRoomInfo on it throws System.InvalidOperationException (500) instead of " +
         "either blocking the delete or returning a clean 404 for the orphaned room.",

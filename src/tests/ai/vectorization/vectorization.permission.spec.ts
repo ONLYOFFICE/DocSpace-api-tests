@@ -81,29 +81,22 @@ test.describe("Vectorization - startTask permissions", () => {
     );
   }
 
-  test("BUG 83255: POST /api/2.0/ai/vectorization/tasks - a Guest who may edit the file still starts a vectorization task", async ({
+  test("POST /api/2.0/ai/vectorization/tasks - a Guest who may edit the file cannot start a vectorization task", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Distinct from the BUG 80736 pair around it, and it survives their fix. Those
-    // two measure a caller with no rights over the file; this Guest holds Content
-    // Creator in the room the file lives in, so an access check cannot refuse them.
-    // The rule being asked for here is the user type: a Guest has no access to the
-    // AI stack — how BUG 83237 was resolved — and vectorization is AI work.
-    //
-    // It is a missing gate, NOT a spend: measured 2026-08-19 against
-    // `customer/operations?serviceName=ai-tools`, this Guest's 200 produces no
-    // charge at all, and neither does the owner's identical call on a room file.
-    // Indexing is only ever billed when a file *arrives* in an agent's Knowledge
-    // folder (upload or move — both auto-index, and the row names whoever put it
-    // there); an explicit startTask on an already-indexed file bills nothing for
-    // anyone. So no wallet row ever says "a Guest spent this".
+    // Fixed on 2026-08-20 (was BUG 83255, confirmed across 3 repeat runs).
+    // Distinct from the BUG 80736 pair around it. Those two measure a caller
+    // with no rights over the file; this Guest holds Content Creator in the
+    // room the file lives in, so an access check alone could not refuse them.
+    // The rule this asks for is the user type: a Guest has no access to the AI
+    // stack — how BUG 83237 was resolved — and vectorization is AI work.
     //
     // Status-only, unavoidably: `vectorizationStatus` exists only on files in an
     // agent's Knowledge folder (see ai-vectorization.ts) and there is no read route
-    // for tasks, so whether the submitted task ran is not observable for a room
-    // file. What the premise below does establish is that the 403 a fix produces
-    // will not be about the file.
+    // for tasks, so whether a submitted task ran is not observable for a room
+    // file. What the premise below establishes is that the 403 measured here
+    // is not about the file.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -155,7 +148,6 @@ test.describe("Vectorization - startTask permissions", () => {
       },
     });
 
-    test.fail();
     expect(status).toBe(403);
   });
 
