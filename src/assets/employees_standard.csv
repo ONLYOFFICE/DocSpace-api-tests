@@ -1,0 +1,13 @@
+﻿Employee_ID,First_Name,Last_Name,Department,Job_Title,Employment_Type,Pay_Period,Base_Pay,Overtime_Pay,Bonus,Other_Adjustments,Gross_Pay,Federal_Tax,State_Tax,Social_Security,Medicare,Other_Deductions,Total_Deductions,Net_Pay,Currency
+E001,Olivia,Carter,Finance,Financial Analyst,Full-time,2026-07,5200.00,180.00,450.00,0.00,5830.00,780.00,260.00,322.40,75.40,120.00,1557.80,4272.20,USD
+E002,Liam,Brooks,Engineering,Backend Engineer,Full-time,2026-07,6800.00,420.00,700.00,0.00,7920.00,1188.00,396.00,421.60,98.60,150.00,2254.20,5665.80,USD
+E003,Emma,Reed,Human Resources,HR Specialist,Full-time,2026-07,4600.00,0.00,250.00,0.00,4850.00,620.00,205.00,285.20,66.70,95.00,1271.90,3578.10,USD
+E004,Noah,Bennett,Sales,Account Executive,Full-time,2026-07,4100.00,150.00,1250.00,0.00,5500.00,760.00,250.00,254.20,59.45,80.00,1403.65,4096.35,USD
+E005,Ava,Mitchell,Marketing,Content Strategist,Full-time,2026-07,4800.00,0.00,300.00,75.00,5175.00,665.00,220.00,297.60,69.60,110.00,1362.20,3812.80,USD
+E006,Ethan,Parker,Support,Customer Support Lead,Full-time,2026-07,4450.00,235.00,200.00,0.00,4885.00,640.00,210.00,275.90,64.53,90.00,1280.43,3604.57,USD
+E007,Mia,Collins,Engineering,QA Engineer,Full-time,2026-07,5900.00,310.00,500.00,0.00,6710.00,920.00,305.00,365.80,85.55,130.00,1806.35,4903.65,USD
+E008,Lucas,Morgan,Operations,Operations Coordinator,Full-time,2026-07,4300.00,125.00,180.00,-50.00,4555.00,575.00,190.00,266.60,62.35,85.00,1178.95,3376.05,USD
+E009,Sophia,Turner,Design,Product Designer,Full-time,2026-07,5600.00,0.00,350.00,0.00,5950.00,810.00,270.00,347.20,81.20,115.00,1623.40,4326.60,USD
+E010,James,Foster,Legal,Compliance Specialist,Full-time,2026-07,6100.00,90.00,400.00,0.00,6590.00,930.00,310.00,378.20,88.45,140.00,1846.65,4743.35,USD
+E011,Isabella,Hayes,Sales,Sales Operations Analyst,Full-time,2026-07,5000.00,160.00,600.00,0.00,5760.00,770.00,255.00,310.00,72.50,100.00,1507.50,4252.50,USD
+E012,Henry,Ward,IT,Systems Administrator,Full-time,2026-07,5750.00,275.00,250.00,0.00,6275.00,865.00,288.00,356.50,83.38,125.00,1717.88,4557.12,USD
