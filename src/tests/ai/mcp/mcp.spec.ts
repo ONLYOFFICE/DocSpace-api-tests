@@ -5169,10 +5169,13 @@ async function expectGeneratedFileOpens(
 
   const bytes = await downloadFile(apiSdk, role, fileId);
   expect(bytes.length, "the stored file has bytes").toBeGreaterThan(0);
+  // A zip container (docx/pptx) or a PDF — the form generator switched to PDF
+  // on 2026-08-20, which is what a DocSpace form really is. Shared by all
+  // three generators, so this only tells "a real file", not which one.
   expect(
-    bytes.subarray(0, 2).toString("latin1"),
-    "the generated file is a zip package",
-  ).toBe("PK");
+    ["PK", "%P"],
+    "the generated file is a zip package or a PDF",
+  ).toContain(bytes.subarray(0, 2).toString("latin1"));
 
   return { info: info.data.response, config, bytes };
 }
@@ -5344,15 +5347,20 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   // tool is named after, which is the whole of "tools for creating docx, forms
   // and presentations".
   //
-  // Measured on 2026-08-18: all three tools answer identically — one blank
+  // Measured on 2026-08-18: all three tools answered identically — one blank
   // `.docx` of 6942 bytes, byte-for-byte the same length whichever tool ran,
   // `documentType: "word"`, `isForm: false`, `word/document.xml` present and
-  // empty. The arguments the model sends are not the problem: the presentation
+  // empty. The arguments the model sends were not the problem: the presentation
   // call carried `{topic: "water cycle", slideCount: "3", style: "modern"}` and
-  // the form call a description of both fields, and none of it reaches the file.
+  // the form call a description of both fields, and none of it reached the file.
   //
-  // Three tests rather than one so a partial fix reads correctly, and each one
-  // `test.fail` on the CORRECT expectation rather than green on today's answer.
+  // Two of the three are fixed as of 2026-08-20: the presentation generator
+  // writes a real `.pptx` (BUG 83232) and the form generator a real PDF with
+  // `isForm: true` (BUG 83233, confirmed across 2 of 3 measured runs — the
+  // third run failed earlier because the model did not call the tool at all,
+  // an unrelated flakiness). Only the plain-docx-is-blank claim (BUG 83231)
+  // still holds, so it is the only one still `test.fail` on the CORRECT
+  // expectation rather than green on today's answer.
 
   test("BUG 83231: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
     apiSdk,
@@ -5393,13 +5401,13 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     ).not.toEqual({ text: "", generationToolCallState: undefined });
   });
 
-  test("BUG 83232: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a text document", async ({
+  test("BUG 83232: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes a presentation", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // `docspace_generate_presentation` produces `ProbeDeck.docx`, which the Word
-    // editor opens. There is no way for the user to get a deck out of this: the
-    // container has no slides to hold and a `.docx` cannot be edited into one.
+    // Fixed on 2026-08-20. `docspace_generate_presentation` used to produce
+    // `ProbeDeck.docx`, which the Word editor opens — a container with no slides
+    // to hold, and no way for the user to get a deck out of it.
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -5421,7 +5429,6 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       ),
     };
 
-    test.fail();
     expect(measured, `the tool created "${created.title}"`).toEqual({
       fileExst: generator.promised.extension,
       documentType: generator.promised.documentType,
@@ -5429,13 +5436,16 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     });
   });
 
-  test("BUG 83233: POST /api/2.0/ai/ai/approve-tool-call - the form generator writes an ordinary document, not a form", async ({
+  test("POST /api/2.0/ai/ai/approve-tool-call - the form generator writes a real form", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // `docspace_generate_form` produces `ProbeForm.docx` with `isForm: false`,
-    // so the editor opens it for editing and no one can fill it in — the fields
-    // the call described do not exist as fields.
+    // Fixed on 2026-08-20 (was BUG 83233, confirmed across 2 of 3 repeat
+    // runs — the third failed earlier on unrelated model flakiness, see the
+    // block comment above). `docspace_generate_form` used to produce
+    // `ProbeForm.docx` with `isForm: false`, so the editor opened it for
+    // editing and no one could fill it in. It now writes a PDF with
+    // `isForm: true`.
     //
     // `isForm` is the assertion rather than the extension: it is the flag the
     // editor decides form-filling mode on, so it stays correct whichever
@@ -5454,10 +5464,9 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     const opened = await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
     const isForm = opened.config?.document?.isForm ?? false;
 
-    test.fail();
     expect(
       isForm,
-      `the tool created "${created.title}", which the editor opens as an ordinary document`,
+      `the tool created "${created.title}", which the editor opens as a fillable form`,
     ).toBe(true);
   });
 

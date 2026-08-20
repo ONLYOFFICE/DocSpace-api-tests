@@ -75,12 +75,14 @@ test.describe("AI Settings - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
-    // A missing file id is accepted (see vectorization.spec.ts) — enough to show
-    // the route is reachable before the switch is flipped.
+    // A missing file id 404s (measured 2026-08-20 — it used to be accepted
+    // with 200, see vectorization.ai-disabled.spec.ts) — enough to show the
+    // route is reachable, and past the AI-access gate, before the switch is
+    // flipped.
     const before = await aiSettings.startVectorizationTask("owner", {
       files: [999999999],
     });
-    expect(before.status).toBe(200);
+    expect(before.status).toBe(404);
 
     const disabled = await setPortalAiAccess(ownerApi, false);
     expect(disabled.writeStatus).toBe(200);
@@ -289,15 +291,16 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
   test("POST /api/2.0/ai/vectorization/tasks - is accepted without a paid AI Tools service", async ({
     apiSdk,
   }) => {
-    // Pinned as NOT wallet-gated at the API level: the task is queued and the
-    // portal answers 200 even though nothing can embed. Whether the queued work
-    // ever runs is not observable through the API (see vectorization.spec.ts).
+    // Pinned as NOT wallet-gated at the API level: a missing file id now 404s
+    // in every wallet state (measured 2026-08-20 — it used to be a 200), so
+    // what proves the route is unpaid-reachable is that this is a plain 404,
+    // not a 402 or 403 naming the AI Tools service.
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
     const { status } = await aiSettings.startVectorizationTask("owner", {
       files: [999999999],
     });
 
-    expect(status).toBe(200);
+    expect(status).toBe(404);
   });
 });

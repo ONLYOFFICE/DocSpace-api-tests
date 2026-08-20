@@ -13,7 +13,12 @@ import {
 } from "@/src/helpers/ai-vectorization";
 import { ApiSDK } from "@/src/services/api-sdk";
 
-/** No file has this id, and startTask accepts it in every portal state. */
+/**
+ * No file has this id. Measured 2026-08-20: startTask now 404s on it in every
+ * portal state — it used to be accepted with 200 regardless of wallet state
+ * (BUG 80736's era). Still useful here: a plain 404 is what tells "not
+ * wallet-gated" apart from a 402/403 naming the AI Tools service.
+ */
 const MISSING_FILE_ID = 999999999;
 
 // `POST /api/2.0/ai/vectorization/tasks` in the two states that turn AI off.
@@ -66,12 +71,13 @@ test.describe("AI Vectorization - AI Tools wallet service not paid for", () => {
     );
 
     await test.step("the task route itself is not wallet-gated", async () => {
-      // A missing id is accepted in every portal state (see vectorization.spec.ts),
-      // which is all that is needed to show the route is reachable while unpaid.
+      // A missing id 404s in every portal state now, which is all that is
+      // needed to show the route is reachable while unpaid — a 402/403 naming
+      // the wallet service would be the gate this test is looking for.
       const { status } = await ownerApi.vectorization.aiVectorizationStartTask({
         requestBody: { files: new Set([MISSING_FILE_ID]) },
       });
-      expect(status).toBe(200);
+      expect(status).toBe(404);
     });
 
     await test.step("no Knowledge file can be created while AI Tools is unpaid", async () => {
