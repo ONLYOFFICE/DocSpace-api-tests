@@ -316,6 +316,11 @@ export class ApiSDK {
         undefined,
         axiosInstance,
       ),
+      thirdPartyIntegration: new ThirdPartyIntegrationApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
       userData: new UserDataApi(config, undefined, axiosInstance),
       userType: new UserTypeApi(config, undefined, axiosInstance),
       photos: new PhotosApi(config, undefined, axiosInstance),
