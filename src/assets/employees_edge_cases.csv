@@ -1,0 +1,15 @@
+﻿Scenario,Employee_ID,Base_Pay,Overtime_Pay,Bonus,Other_Adjustments,Expected_Gross_Pay,Federal_Tax,State_Tax,Social_Security,Medicare,Other_Deductions,Expected_Total_Deductions,Expected_Net_Pay,Currency,Notes
+Zero hours and zero pay,X001,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,USD,No earnings and no deductions
+Very large payroll amount,X002,9999999.99,250000.75,1000000.00,0.00,11250000.74,2200000.00,650000.00,619999.99,144999.99,50000.00,3664999.98,7585000.76,USD,Tests large numeric values
+Fractional hourly calculation,X003,1333.13,187.47,123.45,0.00,1644.05,201.17,66.39,82.65,19.33,25.55,395.09,1248.96,USD,Derived from fractional hours/rates
+Negative bonus adjustment,X004,4200.00,0.00,0.00,-375.55,3824.45,540.00,180.00,260.40,60.90,75.00,1116.30,2708.15,USD,Negative correction reduces gross pay
+Zero base salary with bonus only,X005,0.00,0.00,2500.00,0.00,2500.00,375.00,125.00,0.00,36.25,50.00,586.25,1913.75,USD,No base pay but positive bonus
+Zero base salary with overtime only,X006,0.00,845.75,0.00,0.00,845.75,110.00,35.00,52.44,12.26,15.00,224.70,621.05,USD,No base pay but overtime earnings
+Deductions equal gross pay,X007,3000.00,0.00,0.00,0.00,3000.00,1800.00,500.00,186.00,43.50,470.50,3000.00,0.00,USD,Expected net pay is exactly zero
+Negative net pay from deductions,X008,1500.00,0.00,0.00,0.00,1500.00,900.00,300.00,93.00,21.75,400.00,1714.75,-214.75,USD,Deductions exceed gross pay
+Tiny monetary values,X009,0.03,0.02,0.01,0.00,0.06,0.01,0.00,0.00,0.00,0.01,0.02,0.04,USD,Tests cent-level precision
+Fractional-cent source rounded to cents,X010,1234.57,88.89,12.35,0.00,1335.81,155.56,51.11,76.54,17.90,20.01,321.12,1014.69,USD,All monetary fields rounded to 2 decimals
+Negative other adjustment,X011,5100.00,150.00,250.00,-125.25,5374.75,755.00,250.00,316.20,73.95,95.00,1490.15,3884.60,USD,Correction applied outside bonus
+High bonus relative to base pay,X012,1000.00,0.00,9000.00,0.00,10000.00,2200.00,700.00,62.00,14.50,100.00,3076.50,6923.50,USD,Bonus is much larger than salary
+No deductions,X013,2800.00,125.00,350.00,0.00,3275.00,0.00,0.00,0.00,0.00,0.00,0.00,3275.00,USD,Net pay should equal gross pay
+"Only deductions, no earnings",X014,0.00,0.00,0.00,0.00,0.00,50.00,20.00,0.00,0.00,5.00,75.00,-75.00,USD,Tests negative net from deduction-only record
