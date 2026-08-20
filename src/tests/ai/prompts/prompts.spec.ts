@@ -1063,7 +1063,7 @@ test.describe("AI Prompt folders - validation", () => {
     );
   });
 
-  test("BUG 83123: PUT /api/2.0/ai/prompts/rename-folder - an over-long name is truncated instead of rejected", async ({
+  test("BUG 83123: PUT /api/2.0/ai/prompts/rename-folder - an over-long name is rejected, not truncated", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1087,11 +1087,11 @@ test.describe("AI Prompt folders - validation", () => {
       name: "N".repeat(5000),
     });
 
-    test.fail();
-    // What happens instead: `200 {success:true}` and the name is silently cut to
-    // 255 characters — 256, 257, 1000, 1024 and 1025 all behave the same way, so
-    // there is no length at which the route reports anything. The folder is left
-    // carrying a name the caller never asked for.
+    // Fixed on 2026-08-20. It used to answer `200 {success:true}` and silently
+    // cut the name to 255 characters — 256, 257, 1000, 1024 and 1025 all behaved
+    // the same way — leaving the folder carrying a name the caller never asked
+    // for. The stored-name assertion comes first so a route that starts
+    // rejecting the call while still writing the name would not read as green.
     expect((await prompts.getFolder("owner", folderId)).data?.name).toBe(
       "Autotest short",
     );

@@ -237,6 +237,10 @@ test.describe("AI Attachments - who may create a draft", () => {
     test(`POST /api/2.0/ai/attachments/save-image - ${role} saves an image draft`, async ({
       apiSdk,
     }) => {
+      // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone,
+      // which this test's premise depends on. Remove once fixed.
+      test.fail();
+
       const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
       await apiSdk.addAuthenticatedMember("owner", type);
 
@@ -607,9 +611,14 @@ test.describe("AI Attachments - cross-user access", () => {
     // read is intermittent: a single call comes back null often enough that
     // without `findAttachment*`'s polling this test would flap green.
     //
-    // Cannot run at all while `save-image` answers 500 (measured 2026-08-17,
-    // owner included, `save-file` unaffected): the setup below has no draft to
-    // make, so the failure is an error in setup rather than an expected failure.
+    // BUG 83289 (still open 2026-08-20, first measured 2026-08-17, owner
+    // included, `save-file` unaffected): `save-image` answers 500 for
+    // everyone, so the setup below has no draft to make. Marked failing here,
+    // before setup, so that outage is an expected failure rather than a bare
+    // setup error; the dynamic test.fail() further down stays for when
+    // save-image works again but the leak itself has not been fixed yet.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const ownerDraft = await attachments.saveImageId("owner", {
       name: "owner-private.png",

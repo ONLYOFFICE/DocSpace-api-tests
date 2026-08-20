@@ -53,7 +53,7 @@ export function uploadedEntry(data: unknown): UploadedFile | undefined {
 export async function uploadDeviceFile(
   apiSdk: ApiSDK,
   role: Role,
-  folderId: number | "@my",
+  folderId: number | string | "@my",
   fileName: string,
   content: Buffer,
   mimeType?: string,
@@ -76,7 +76,7 @@ export async function uploadDeviceFile(
 export async function expectDeviceFileStored(
   apiSdk: ApiSDK,
   role: Role,
-  folderId: number | "@my",
+  folderId: number | string | "@my",
   fileName: string,
   content: Buffer,
   mimeType?: string,

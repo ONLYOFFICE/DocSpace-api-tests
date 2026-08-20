@@ -268,6 +268,10 @@ test.describe("AI Attachments - AI access disabled", () => {
   test("POST /api/2.0/ai/attachments/save-image - an image draft can still be created when AI access is disabled", async ({
     apiSdk,
   }) => {
+    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone, which
+    // this test's premise depends on. Remove once fixed.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
@@ -290,6 +294,10 @@ test.describe("AI Attachments - AI access disabled", () => {
   test("POST /api/2.0/ai/attachments/save-files-many, save-images-many - only the file batch is gated when AI access is disabled", async ({
     apiSdk,
   }) => {
+    // BUG 83289 (open 2026-08-20): save-images-many answers 500 for everyone,
+    // which this test's premise depends on. Remove once fixed.
+    test.fail();
+
     const ownerApi = apiSdk.forRole("owner");
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
