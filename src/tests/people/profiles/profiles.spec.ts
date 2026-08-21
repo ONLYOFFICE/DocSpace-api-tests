@@ -5,6 +5,7 @@ import {
   EmployeeType,
   EmployeeStatus,
   EmployeeFullDto,
+  RoomType,
 } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
 
@@ -1437,6 +1438,91 @@ test.describe("API profile methods", () => {
     expect(data.response!.firstName).toBe(guestData.response!.firstName);
     expect(data.response!.lastName).toBe(guestData.response!.lastName);
     expect(data.response!.cultureName).toBe("es");
+  });
+
+  test("DELETE /people/:userIds - Deleted user does not appear in contacts list after deletion", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    await ownerApi.profiles.deleteMember({ userid: userId });
+
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: listData, status: listStatus } =
+      await ownerApi.profiles.getAllProfiles();
+    expect(listStatus).toBe(200);
+    const list = listData as { response: UsersListItem[] };
+    const ownerInList = list.response.find((u) => u.id === ownerId);
+    expect(ownerInList).toBeDefined();
+    const stillPresent = list.response.find((u) => u.id === userId);
+    expect(stillPresent).toBeUndefined();
+  });
+
+  test("DELETE /people/:userIds - Deleted user with content does not appear in contacts list after reassignment and deletion", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: userData, userData: memberCredentials } =
+      await apiSdk.addMember("owner", "RoomAdmin");
+    const userId = userData.response!.id!;
+
+    const memberApi = await apiSdk.authenticateMember(
+      memberCredentials,
+      "RoomAdmin",
+    );
+
+    const { data: roomData } = await memberApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Delete User Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    await memberApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Delete User File" },
+    });
+
+    await ownerApi.userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [userId], resendAll: false },
+    });
+
+    await ownerApi.userData.startReassign({
+      startReassignRequestDto: { fromUserId: userId, toUserId: ownerId },
+    });
+
+    await expect(async () => {
+      const { data: progressData } =
+        await ownerApi.userData.getReassignProgress({ userid: userId });
+      expect(progressData.response?.status).toBe(2);
+    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 60_000 });
+
+    await ownerApi.profiles.deleteMember({ userid: userId });
+
+    const { data: listData, status: listStatus } =
+      await ownerApi.profiles.getAllProfiles();
+    expect(listStatus).toBe(200);
+    const list = listData as { response: UsersListItem[] };
+    const ownerInList = list.response.find((u) => u.id === ownerId);
+    expect(ownerInList).toBeDefined();
+    const stillPresent = list.response.find((u) => u.id === userId);
+    expect(stillPresent).toBeUndefined();
   });
 });
 
