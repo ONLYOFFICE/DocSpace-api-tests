@@ -1440,7 +1440,8 @@ test.describe("API profile methods", () => {
     expect(data.response!.cultureName).toBe("es");
   });
 
-  test("DELETE /people/:userIds - Deleted user does not appear in contacts list after deletion", async ({
+  // BUG 83188: DELETE /people/:userIds - Deleted user continues to appear in contacts list after deletion on new portals
+  test("BUG 83188: DELETE /people/:userIds - Deleted user does not appear in contacts list after deletion", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1468,7 +1469,8 @@ test.describe("API profile methods", () => {
     expect(stillPresent).toBeUndefined();
   });
 
-  test("DELETE /people/:userIds - Deleted user with content does not appear in contacts list after reassignment and deletion", async ({
+  // BUG 83188: DELETE /people/:userIds - Deleted user continues to appear in contacts list after deletion on new portals
+  test("BUG 83188: DELETE /people/:userIds - Deleted user with content does not appear in contacts list after reassignment and deletion", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -1538,6 +1540,38 @@ test("POST /api/2.0/people - Owner creates user with avatar from external URL", 
   } as any);
 
   expect(status).toBe(200);
+});
+
+test.describe("POST /api/2.0/people/invite - Admin count limit", () => {
+  // BUG 83026: Contacts - non-informative error message when admin limit is reached
+  test(
+    "BUG 83026: POST /api/2.0/people/invite - Owner invites DocSpaceAdmin when admin limit is" +
+      " reached returns 402",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment(1);
+      const ownerApi = apiSdk.forRole("owner");
+      // With quantity=1 the plan allows owner + 1 DocSpaceAdmin (2 admins total).
+      // Invite the first DocSpaceAdmin to reach the limit.
+      await ownerApi.profiles.inviteUsers({
+        inviteUsersRequestDto: {
+          invitations: [
+            { type: EmployeeType.DocSpaceAdmin, email: faker.internet.email() },
+          ],
+        },
+      });
+      // Second DocSpaceAdmin invite exceeds the limit.
+      const { data, status } = await ownerApi.profiles.inviteUsers({
+        inviteUsersRequestDto: {
+          invitations: [
+            { type: EmployeeType.DocSpaceAdmin, email: faker.internet.email() },
+          ],
+        },
+      });
+      expect(status).toBe(402);
+      expect((data as any).statusCode).toBe(402);
+      expect((data as any).error?.message).toBeDefined();
+    },
+  );
 });
 
 /* TODO: - Need email integration to this methods to be able to test them properly
