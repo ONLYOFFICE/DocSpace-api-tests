@@ -8777,7 +8777,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
   );
 
   // BUG 83271: PUT /api/2.0/files/fileops/move - Moving folder from room to Third-party room returns "Object reference not set to an instance of an object" in operation error
-  test.fail(
+  test(
     "BUG 83271: PUT /api/2.0/files/fileops/move - Move folder from Collaboration room to" +
       " Third-party room (Nextcloud) completes without error",
     async ({ apiSdk }) => {
