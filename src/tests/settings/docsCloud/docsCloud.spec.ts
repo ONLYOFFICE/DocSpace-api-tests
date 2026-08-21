@@ -220,7 +220,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/quota", () => {
 
 test.describe("GET /api/2.0/settings/docscloud/tenant/info - negative", () => {
   test.fail(
-    "BUG XXXXX: GET /api/2.0/settings/docscloud/tenant/info - returns 500 instead of 400 when DocsCloud tenant is not activated",
+    "BUG 83321: GET /api/2.0/settings/docscloud/tenant/info - returns 500 instead of 400 when DocsCloud tenant is not activated",
     async ({ apiSdk }) => {
       const { data, status } = await apiSdk
         .forRole("owner")
@@ -442,7 +442,7 @@ test.describe("POST /api/2.0/settings/docscloud/switchtodevpack", () => {
 
 test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length validation", () => {
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/settings/docscloud/tenant/config - tenantName is not validated for length",
+    "BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - tenantName is not validated for length",
     async ({ apiSdk }) => {
       await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
 
@@ -459,7 +459,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
   );
 
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/settings/docscloud/tenant/config - security.secret is not validated for length",
+    "BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - security.secret is not validated for length",
     async ({ apiSdk }) => {
       await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
 
@@ -476,7 +476,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
   );
 
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/settings/docscloud/tenant/config - security.header is not validated for length",
+    "BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - security.header is not validated for length",
     async ({ apiSdk }) => {
       await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
 
@@ -493,7 +493,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
   );
 
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/settings/docscloud/tenant/config - ipFilter.rules[].address is not validated for length",
+    "BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - ipFilter.rules[].address is not validated for length",
     async ({ apiSdk }) => {
       await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
 
@@ -516,7 +516,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
 
 test.describe("PUT /api/2.0/settings/docscloud/tenant/config - server.fileSizeLimit validation", () => {
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when server.fileSizeLimit is too large",
+    "BUG 83326: PUT /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when server.fileSizeLimit is too large",
     async ({ apiSdk }) => {
       await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
 
@@ -564,7 +564,7 @@ test.describe("DELETE /api/2.0/settings/docscloud/tenant/quota/report", () => {
 
 test.describe("GET /api/2.0/settings/docscloud/tenant/usage - negative", () => {
   test.fail(
-    "BUG XXXXX: GET /api/2.0/settings/docscloud/tenant/usage - returns 500 instead of 400 when DocsCloud tenant is not activated",
+    "BUG 83322: GET /api/2.0/settings/docscloud/tenant/usage - returns 500 instead of 400 when DocsCloud tenant is not activated",
     async ({ apiSdk }) => {
       const { data, status } = await apiSdk
         .forRole("owner")
@@ -578,7 +578,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/usage - negative", () => {
 
 test.describe("GET /api/2.0/settings/docscloud/tenant/quota - negative", () => {
   test.fail(
-    "BUG XXXXX: GET /api/2.0/settings/docscloud/tenant/quota - returns 500 instead of 400 when DocsCloud tenant is not activated",
+    "BUG 83325: GET /api/2.0/settings/docscloud/tenant/quota - returns 500 instead of 400 when DocsCloud tenant is not activated",
     async ({ apiSdk }) => {
       const { data, status } = await apiSdk
         .forRole("owner")
@@ -592,7 +592,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/quota - negative", () => {
 
 test.describe("GET /api/2.0/settings/docscloud/tenant/config - negative", () => {
   test.fail(
-    "BUG XXXXX: GET /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when DocsCloud tenant is not activated",
+    "BUG 83320: GET /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when DocsCloud tenant is not activated",
     async ({ apiSdk }) => {
       const { data, status } = await apiSdk
         .forRole("owner")
@@ -700,7 +700,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant - when not activated", () 
 
 test.describe("PUT /api/2.0/settings/docscloud/tenant/config - negative", () => {
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when DocsCloud tenant is not activated",
+    "BUG 83323: PUT /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when DocsCloud tenant is not activated",
     async ({ apiSdk }) => {
       const { data, status } = await apiSdk
         .forRole("owner")
