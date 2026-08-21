@@ -9298,48 +9298,51 @@ test.describe("API rooms methods", () => {
       expect(data.response!.sharedLink?.linkType).toBe(LinkType.External);
     });
 
-    test("BUG 83166: GET /files/share - Anonymous visitor opens a PublicRoom via its external link", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Anonymous External Link",
-          roomType: RoomType.PublicRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-
-      const { data: linkData } =
-        await ownerApi.rooms.getRoomsPrimaryExternalLink({ id: roomId });
-      const requestToken = linkData.response!.sharedLink!.requestToken!;
-
-      // No Authorization header at all - this is what a visitor with no
-      // portal account gets when they follow the room's public share link.
-      const { data, status } = await apiSdk
-        .forAnonymous()
-        .sharing.getExternalShareData({
-          key: requestToken,
-          folderId: String(roomId),
+    for (const { label, roomType } of privateUnsupportedRoomTypes) {
+      test(`BUG 83319: GET /files/share - Anonymous visitor opens a ${label} room via its external link`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: `Autotest Anonymous External Link ${label}`,
+            roomType,
+          },
         });
+        const roomId = roomData.response!.id!;
 
-      // The link does resolve to the right room even for a fully anonymous
-      // caller - this half stays true regardless of the bug below.
-      expect(status).toBe(200);
-      expect(data.response?.isRoom).toBe(true);
-      expect(data.response?.entityId).toBe(String(roomId));
+        const { data: linkData } =
+          await ownerApi.rooms.getRoomsPrimaryExternalLink({ id: roomId });
+        const requestToken = linkData.response!.sharedLink!.requestToken!;
 
-      test.fail(
-        true,
-        "BUG 83166: getExternalShareData reports shared=false for an anonymous " +
-          "visitor resolving a PublicRoom's own primary external link, even " +
-          "though the link correctly resolves the room (status 200, " +
-          "isRoom=true) - an anonymous caller on a public room's own link " +
-          "should be reported as shared=true",
-      );
+        // No Authorization header at all - this is what a visitor with no
+        // portal account gets when they follow the room's public share link.
+        const { data, status } = await apiSdk
+          .forAnonymous()
+          .sharing.getExternalShareData({
+            key: requestToken,
+            folderId: String(roomId),
+          });
 
-      expect(data.response?.shared).toBe(true);
-    });
+        // The link does resolve to the right room even for a fully anonymous
+        // caller - this half stays true regardless of the bug below.
+        expect(status).toBe(200);
+        expect(data.response?.isRoom).toBe(true);
+        expect(data.response?.entityId).toBe(String(roomId));
+
+        test.fail(
+          true,
+          `BUG 83319 (BUG 83166 closed, refiled separately): getExternalShareData ` +
+            `reports shared=false for an anonymous visitor resolving a ${label} ` +
+            "room's own primary external link, even though the link correctly " +
+            "resolves the room (status 200, isRoom=true) and manual verification " +
+            "confirms the link itself opens fine for an anonymous visitor - " +
+            "shared should be true",
+        );
+
+        expect(data.response?.shared).toBe(true);
+      });
+    }
 
     test("PUT /files/rooms/:id/links - Owner creates an invitation link for a room", async ({
       apiSdk,

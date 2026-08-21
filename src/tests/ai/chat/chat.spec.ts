@@ -8472,30 +8472,7 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
     expect(knowledgeSearchResults(reply)).toEqual([]);
   });
 
-  // BUG 83165: "Show saved results" cannot reach Result Storage.
-  //
-  // The button is offered in every empty AI Chat, and there is no way for the
-  // model to answer it. `docspace_knowledge_search` is the only file tool it
-  // gets and its corpus is the Knowledge folder: a Result Storage file is
-  // never indexed (`vectorizationStatus` is absent on it, and an explicit
-  // POST /ai/vectorization/tasks on one answers 200 without ever giving it
-  // one), so the saved document is invisible.
-  //
-  // The failure is worse than an "I cannot do that": with anything in the
-  // Knowledge Base the model answers the question with whatever the search
-  // returned, presenting unrelated Knowledge Base documents as the user's
-  // saved results. Measured on 2026-08-14 — an agent whose Knowledge Base held
-  // only a note about watering office plants answered "Show saved results"
-  // with that note.
-  //
-  // Asserted as the intended contract, not as the defect: the answer must
-  // reach the file that actually is in Result Storage. `test.fail()` sits right
-  // above that one assertion rather than at the top of the test, so everything
-  // this case takes for granted — the file is stored, the request is accepted,
-  // the stream completes, the reply is healthy — still has to hold for real. An
-  // agent that stopped answering altogether would fail this test loudly
-  // instead of quietly satisfying an expected failure.
-  test('BUG 83165: POST /api/2.0/ai/ai/send-with-stream - suggested prompt "Show saved results" reads the Result Storage folder', async ({
+  test('POST /api/2.0/ai/ai/send-with-stream - suggested prompt "Show saved results" reads the Result Storage folder', async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -8556,7 +8533,6 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
       AiAgentChat.assistantMessages(messages)[0],
     );
 
-    test.fail();
     expectMatchesAny(
       answer,
       [new RegExp(SAVED_MARKER), new RegExp(SAVED_TITLE)],

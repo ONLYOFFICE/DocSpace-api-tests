@@ -18,6 +18,10 @@ import {
   downloadFile,
 } from "@/src/helpers/device-upload";
 import { extractDocxText, listDocxEntries } from "@/src/helpers/docx";
+import {
+  listFolderFiles,
+  waitForExportToSettle,
+} from "@/src/helpers/text-to-docx";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
 import { ApiSDK } from "@/src/services/api-sdk";
 import { Role } from "@/src/services/token-store";
@@ -5861,6 +5865,81 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       `the document went to folder ${created.parentId}, not to the room the chat was opened on`,
     ).toBe(roomId);
     expect(stored.map((file) => file.id)).toContain(created.id);
+
+    await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
+  });
+
+  test("POST /api/2.0/ai/ai/approve-tool-call - a form generated in a Forms-section room chat actually persists in that room", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The report this reproduces: asking AI Chat for a form while it is
+    // scoped to a form filling room (the Forms section) makes an empty file
+    // appear, and it is gone once you leave Forms. A form filling room's root
+    // refuses anything that is not an ONLYOFFICE PDF form — Files API says so
+    // with "The file cannot be uploaded to this room. Please try to upload
+    // the ONLYOFFICE PDF form." (BUG 83070 hit the same refusal through
+    // /ai/text-to-docx, which reports 202 and drops the write). The approval
+    // here answers with a file id regardless, which is exactly the shape that
+    // lets a client say "your form is ready" for something that never lands.
+    // Re-reading the room after the write has had time to settle is the API
+    // analogue of leaving Forms and coming back — it is what tells "created"
+    // from "created and then silently dropped".
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { data: room, status: roomStatus } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Forms Generator Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    expect(roomStatus, "the room the chat is opened on").toBe(200);
+    const roomId = room.response!.id!;
+
+    const formGenerator = GENERATORS.find(
+      (generator) => generator.toolName === "docspace_generate_form",
+    )!;
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest Forms room generator thread",
+      profileId,
+      agentId: roomId,
+    });
+
+    const driven = await driveToolCalls(aiChat, {
+      threadId,
+      profileId,
+      entityId: roomId,
+      message: formGenerator.ask,
+    });
+
+    const generated = driven.calls.find(
+      (call) => call.toolName === formGenerator.toolName,
+    );
+    expect(
+      generated,
+      `the room chat called ${JSON.stringify(driven.calls.map((call) => call.toolName))} and answered "${driven.reply.slice(0, 160)}"`,
+    ).toBeDefined();
+
+    const created = generatedFile(generated!.result);
+    expect(created.id, `tool result was ${generated!.result}`).toEqual(
+      expect.any(Number),
+    );
+    expect(
+      created.parentId,
+      `the form went to folder ${created.parentId}, not to the room the chat was opened on`,
+    ).toBe(roomId);
+
+    await waitForExportToSettle();
+    const stillThere = await listFolderFiles(ownerApi, roomId);
+    expect(
+      stillThere.map((file) => file.id),
+      "the generated form is still in the room once the write has had time to settle",
+    ).toContain(created.id);
 
     await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
   });
