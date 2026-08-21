@@ -3057,13 +3057,11 @@ test.describe("Room templates and form templates are separate collections", () =
 // portal: an authenticated user with no access to the room can obtain access
 // via GET /files/share/{requestToken}?folderId={roomId} (the same call the
 // external-link landing page makes) - after that, GET /files/rooms/{id}
-// returns 200 for them (external: true, sharedForUser: false). That access
-// is real: the room then shows up for them under searchArea=Any. But it
-// never appears under searchArea=Forms, so the room is unreachable from the
-// Forms section despite the user having just viewed it via the link.
-test.describe("BUG 83228: Forms room visited via external link does not appear in the Forms section", () => {
-  test.fail(
-    "BUG 83228: GET /files/rooms?searchArea=Forms - a form room opened via its external link by a user with no direct access is missing from the Forms section",
+// returns 200 for them (external: true, sharedForUser: false), and the room
+// shows up for them under both searchArea=Any and searchArea=Forms.
+test.describe("Forms room visited via external link appears in the Forms section", () => {
+  test(
+    "GET /files/rooms?searchArea=Forms - a form room opened via its external link by a user with no direct access appears in the Forms section",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 

@@ -337,21 +337,12 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
   // chat, the one sent with `entityId` set to an agent, which has to be
   // attributable to it the way vectorization already is.
   //
-  // Measured live 2026-08-19 on one portal, all four rows of one run:
-  //
-  //   Vectorization, Knowledge file       agentId "5584130", agentTitle set
-  //   Vectorization, the chat's question  agentId "5584130", agentTitle set
-  //   Chat, entityId = the agent          both fields absent
-  //   Chat, no entityId (header chat)     both fields absent
-  //
-  // So the two chats are indistinguishable in Billing, and the agent's spend
-  // cannot be broken down. Two controls below keep this a bug rather than an
-  // unimplemented field: vectorization in the same agent carries both fields,
-  // and — the stronger one — the embedding of the very question this chat asked
-  // carries them too. The agent scope reaches the engine on the chat request; it
-  // is the Chat billing row that drops it.
-  test.fail(
-    "BUG 83257: GET /api/2.0/portal/payment/customer/operations - a chat inside an agent names the agent the tokens were spent in",
+  // Two controls keep this meaningful: vectorization in the same agent carries
+  // both fields, and — the stronger one — the embedding of the very question
+  // this chat asked carries them too. BUG 83257 (fixed) was the Chat billing
+  // row dropping the agent scope that the same request's own embedding kept.
+  test(
+    "GET /api/2.0/portal/payment/customer/operations - a chat inside an agent names the agent the tokens were spent in",
     async ({ apiSdk, paymentsApi }) => {
       test.setTimeout(600000);
       const ownerApi = apiSdk.forRole("owner");
@@ -426,8 +417,8 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
         ).toBe(String(agentId));
       }
 
-      // The failing half: the same two fields, the same agent, a different
-      // feature.
+      // The half that used to fail: the same two fields, the same agent, a
+      // different feature.
       expect(charged?.agentId).toBe(String(agentId));
       expect(charged?.agentTitle).toBe(agentTitle);
     },
