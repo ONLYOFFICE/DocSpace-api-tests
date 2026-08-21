@@ -260,10 +260,18 @@ test.describe("AI Chat - AI Disabled", () => {
 // afterwards, inside the thread, as an assistant message with empty content and
 //
 //   status: { type: "incomplete", reason: "error",
-//             error: { code: "auth", message: "403 AI Gateway is not enabled" } }
+//             error: { code: "auth",
+//               message: "403 AI services are disabled for the current portal" } }
 //
 // So a test that only checks the send status cannot tell a working portal from a
 // portal where AI is dead. These tests read the reply back.
+//
+// BUG XXXXX: the send itself should refuse with 402 up front — an unpaid
+// wallet service is a billing gate, not an auth gate, and burying it inside an
+// assistant message (with a message string now indistinguishable from the
+// portal AI switch being off, see the block above) makes it needlessly hard to
+// tell "unpaid" apart from "AI switched off" without reading the reply. Tracked
+// in a dedicated test below so the fix is a one-line flip, not a rewrite.
 //
 // The state itself is set up with `configureAiToolsAsUnpaid`, which turns the
 // portal AI switch ON and asserts AI Tools is absent from the enabled wallet
@@ -310,7 +318,9 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     expect(unpaidStatus?.reason).toBe("error");
     expect(unpaidStatus?.type).toBe("incomplete");
     expect(unpaidStatus?.error?.code).toBe("auth");
-    expect(unpaidStatus?.error?.message).toContain("AI Gateway is not enabled");
+    expect(unpaidStatus?.error?.message).toContain(
+      "AI services are disabled for the current portal",
+    );
     expect(AiAgentChat.assistantText(unpaidMessages)).toBe("");
 
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -338,6 +348,38 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
 
     expect(AiAgentChat.assistantStatus(paidMessages)?.error).toBeUndefined();
     expect(AiAgentChat.assistantText(paidMessages).length).toBeGreaterThan(0);
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - an unpaid AI Tools wallet service should refuse with 402, not a buried async error", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    await configureAiToolsAsUnpaid(ownerApi);
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Unpaid AI Agent 402",
+      profileId,
+      prompt: "You are a test assistant",
+    });
+
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest unpaid thread 402",
+      profileId,
+      agentId,
+    });
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Say hi",
+    });
+
+    test.fail();
+    expect(sent.status).toBe(402);
   });
 
   test("POST /api/2.0/ai/agents, POST /api/2.0/ai/tools/add-custom-server - the management surface is not wallet-gated", async ({
