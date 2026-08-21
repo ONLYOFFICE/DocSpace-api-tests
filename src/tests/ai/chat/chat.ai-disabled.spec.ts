@@ -266,7 +266,7 @@ test.describe("AI Chat - AI Disabled", () => {
 // So a test that only checks the send status cannot tell a working portal from a
 // portal where AI is dead. These tests read the reply back.
 //
-// BUG XXXXX: the send itself should refuse with 402 up front — an unpaid
+// BUG 83344: the send itself should refuse with 402 up front — an unpaid
 // wallet service is a billing gate, not an auth gate, and burying it inside an
 // assistant message (with a message string now indistinguishable from the
 // portal AI switch being off, see the block above) makes it needlessly hard to
@@ -350,7 +350,7 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     expect(AiAgentChat.assistantText(paidMessages).length).toBeGreaterThan(0);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - an unpaid AI Tools wallet service should refuse with 402, not a buried async error", async ({
+  test("BUG 83344: POST /api/2.0/ai/ai/send-with-stream - an unpaid AI Tools wallet service should refuse with 402, not a buried async error", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
