@@ -3060,50 +3060,50 @@ test.describe("Room templates and form templates are separate collections", () =
 // returns 200 for them (external: true, sharedForUser: false), and the room
 // shows up for them under both searchArea=Any and searchArea=Forms.
 test.describe("Forms room visited via external link appears in the Forms section", () => {
-  test(
-    "GET /files/rooms?searchArea=Forms - a form room opened via its external link by a user with no direct access appears in the Forms section",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("GET /files/rooms?searchArea=Forms - a form room opened via its external link by a user with no direct access appears in the Forms section", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest External Link Forms Visibility",
-          roomType: RoomType.FillingFormsRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest External Link Forms Visibility",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      await startFormFilling(apiSdk, "owner", roomId);
+    await startFormFilling(apiSdk, "owner", roomId);
 
-      const { data: linkData } =
-        await ownerApi.rooms.getRoomsPrimaryExternalLink({ id: roomId });
-      const requestToken = linkData.response!.sharedLink!.requestToken!;
+    const { data: linkData } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+      { id: roomId },
+    );
+    const requestToken = linkData.response!.sharedLink!.requestToken!;
 
-      // A second authenticated portal user with no direct access to this room.
-      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "RoomAdmin",
-      );
+    // A second authenticated portal user with no direct access to this room.
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
 
-      await test.step("Open the room via its external link", async () => {
-        const { status } = await roomAdminApi.sharing.getExternalShareData({
-          key: requestToken,
-          folderId: String(roomId),
-        });
-        expect(status).toBe(200);
-
-        // Confirms the visit actually granted access - not a no-op.
-        const { data: info, status: infoStatus } =
-          await roomAdminApi.rooms.getRoomInfo({ id: roomId });
-        expect(infoStatus).toBe(200);
-        expect(info.response!.external).toBe(true);
-      });
-
-      const { data: forms, status } = await roomAdminApi.rooms.getRoomsFolder({
-        searchArea: SearchArea.Forms,
+    await test.step("Open the room via its external link", async () => {
+      const { status } = await roomAdminApi.sharing.getExternalShareData({
+        key: requestToken,
+        folderId: String(roomId),
       });
       expect(status).toBe(200);
-      expect(folderIds(forms)).toContain(roomId);
-    },
-  );
+
+      // Confirms the visit actually granted access - not a no-op.
+      const { data: info, status: infoStatus } =
+        await roomAdminApi.rooms.getRoomInfo({ id: roomId });
+      expect(infoStatus).toBe(200);
+      expect(info.response!.external).toBe(true);
+    });
+
+    const { data: forms, status } = await roomAdminApi.rooms.getRoomsFolder({
+      searchArea: SearchArea.Forms,
+    });
+    expect(status).toBe(200);
+    expect(folderIds(forms)).toContain(roomId);
+  });
 });

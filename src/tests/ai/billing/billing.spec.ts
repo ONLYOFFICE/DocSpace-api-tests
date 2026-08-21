@@ -341,88 +341,91 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
   // both fields, and — the stronger one — the embedding of the very question
   // this chat asked carries them too. BUG 83257 (fixed) was the Chat billing
   // row dropping the agent scope that the same request's own embedding kept.
-  test(
-    "GET /api/2.0/portal/payment/customer/operations - a chat inside an agent names the agent the tokens were spent in",
-    async ({ apiSdk, paymentsApi }) => {
-      test.setTimeout(600000);
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
+  test("GET /api/2.0/portal/payment/customer/operations - a chat inside an agent names the agent the tokens were spent in", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(600000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const agentTitle = "Autotest Attributed Agent";
-      const { agentId, knowledgeFolderId } =
-        await createAgentWithKnowledgeFolder(apiSdk, "owner", agentTitle);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const agentTitle = "Autotest Attributed Agent";
+    const { agentId, knowledgeFolderId } = await createAgentWithKnowledgeFolder(
+      apiSdk,
+      "owner",
+      agentTitle,
+    );
 
-      const beforeIndexing = new Set(
-        (await getServiceOperations(ownerApi.payment, "aiTools")).map(
-          operationKey,
-        ),
-      );
-      await uploadKnowledgeText(apiSdk, knowledgeFolderId, "attributed.txt");
-      const indexing = await waitForMatchingServiceOperation(
-        ownerApi.payment,
-        "aiTools",
-        beforeIndexing,
-        isVectorizationCharge,
-      );
+    const beforeIndexing = new Set(
+      (await getServiceOperations(ownerApi.payment, "aiTools")).map(
+        operationKey,
+      ),
+    );
+    await uploadKnowledgeText(apiSdk, knowledgeFolderId, "attributed.txt");
+    const indexing = await waitForMatchingServiceOperation(
+      ownerApi.payment,
+      "aiTools",
+      beforeIndexing,
+      isVectorizationCharge,
+    );
 
-      // The control: per-agent attribution works, and it works in this agent.
-      expect(indexing?.description).toBe("Vectorization");
-      expect(indexing?.agentId).toBe(String(agentId));
-      expect(indexing?.agentTitle).toBe(agentTitle);
+    // The control: per-agent attribution works, and it works in this agent.
+    expect(indexing?.description).toBe("Vectorization");
+    expect(indexing?.agentId).toBe(String(agentId));
+    expect(indexing?.agentTitle).toBe(agentTitle);
 
-      const beforeChat = new Set(
-        (await getServiceOperations(ownerApi.payment, "aiTools")).map(
-          operationKey,
-        ),
-      );
-      const profileId = await aiChat.defaultProfileId("owner");
-      await spendOnAiTools(aiChat, "owner", {
-        agentId,
-        profileId,
-        threadTitle: "Attributed chat",
-      });
+    const beforeChat = new Set(
+      (await getServiceOperations(ownerApi.payment, "aiTools")).map(
+        operationKey,
+      ),
+    );
+    const profileId = await aiChat.defaultProfileId("owner");
+    await spendOnAiTools(aiChat, "owner", {
+      agentId,
+      profileId,
+      threadTitle: "Attributed chat",
+    });
 
-      const charged = await waitForMatchingServiceOperation(
-        ownerApi.payment,
-        "aiTools",
-        beforeChat,
-        isChatCharge,
-      );
-      // The premise, asserted before the failing part: the chat really was
-      // billed. Otherwise "no agent on the charge" would also be true of a
-      // portal that billed nothing at all.
-      expect(charged, "the chat must be billed at all").toBeDefined();
-      expect(charged?.description).toBe("Chat");
+    const charged = await waitForMatchingServiceOperation(
+      ownerApi.payment,
+      "aiTools",
+      beforeChat,
+      isChatCharge,
+    );
+    // The premise, asserted before the failing part: the chat really was
+    // billed. Otherwise "no agent on the charge" would also be true of a
+    // portal that billed nothing at all.
+    expect(charged, "the chat must be billed at all").toBeDefined();
+    expect(charged?.description).toBe("Chat");
 
-      // The second control, and the one that settles *why* this is a defect:
-      // answering against a filled Knowledge folder also embeds the question, and
-      // that charge — produced by this very send — does name the agent. So the
-      // request knew its scope; only the Chat row lost it.
-      //
-      // Guarded rather than asserted outright: embedding the question is the
-      // engine's own retrieval step, not something the test asks for, so its
-      // absence must not decide the outcome of a test that is about the chat row.
-      const questionEmbedding = await waitForMatchingServiceOperation(
-        ownerApi.payment,
-        "aiTools",
-        beforeChat,
-        isVectorizationCharge,
-        30000,
-      );
-      if (questionEmbedding) {
-        expect(
-          questionEmbedding.agentId,
-          "the embedding of the question this chat asked names the agent",
-        ).toBe(String(agentId));
-      }
+    // The second control, and the one that settles *why* this is a defect:
+    // answering against a filled Knowledge folder also embeds the question, and
+    // that charge — produced by this very send — does name the agent. So the
+    // request knew its scope; only the Chat row lost it.
+    //
+    // Guarded rather than asserted outright: embedding the question is the
+    // engine's own retrieval step, not something the test asks for, so its
+    // absence must not decide the outcome of a test that is about the chat row.
+    const questionEmbedding = await waitForMatchingServiceOperation(
+      ownerApi.payment,
+      "aiTools",
+      beforeChat,
+      isVectorizationCharge,
+      30000,
+    );
+    if (questionEmbedding) {
+      expect(
+        questionEmbedding.agentId,
+        "the embedding of the question this chat asked names the agent",
+      ).toBe(String(agentId));
+    }
 
-      // The half that used to fail: the same two fields, the same agent, a
-      // different feature.
-      expect(charged?.agentId).toBe(String(agentId));
-      expect(charged?.agentTitle).toBe(agentTitle);
-    },
-  );
+    // The half that used to fail: the same two fields, the same agent, a
+    // different feature.
+    expect(charged?.agentId).toBe(String(agentId));
+    expect(charged?.agentTitle).toBe(agentTitle);
+  });
 
   test("GET /api/2.0/portal/payment/customer/operations - a chat outside any agent is billed with no Source", async ({
     apiSdk,
