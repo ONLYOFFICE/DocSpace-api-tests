@@ -1052,6 +1052,353 @@ test.describe("PUT /ai/agents/:id - the agent's profile binding", () => {
   });
 });
 
+// Reported 2026-08-21: an admin disables a model via its provider toggle in AI
+// settings (PUT /portal/payment/ai-model/restrictions — the toggle sends the
+// full restricted-models array, `{models:[...]}`), then opens an agent that was
+// running on that model and tries to move it to a different, still-available
+// one. The save fails with 403. Isolated directly against a live portal:
+//
+//   * Restricting a model the agent is NOT on has no effect at all — GET and a
+//     PUT both stay 200 for that agent.
+//   * A rename that does not touch `profileId` still succeeds (200) even while
+//     the agent's own model is restricted — so the refusal is not "this agent
+//     is generally locked".
+//   * The moment the request body carries a `profileId` and the agent's
+//     CURRENT stored model is restricted, the whole PUT is refused with 403
+//     "Forbidden" — including when the new `profileId` names a perfectly
+//     valid, unrestricted model. The check reads the agent's *existing* model,
+//     not the one being requested. So restricting a model does not just stop
+//     new assignments to it (defensible); it also traps every agent already on
+//     it, unable to ever move off — the one thing restricting a model should
+//     make easier, not impossible.
+//   * Worse, measured 2026-08-21: the 403 is not a no-op. The agent's
+//     `profileId` and its assignment scope (`get-all-assignments` -> `Chat`)
+//     are BOTH erased by the same request the server told the caller failed —
+//     same erased-in-halves shape as BUG 82925, but reached through a refusal
+//     instead of a 200. A client that reads only the status code sees "nothing
+//     happened, try again"; the agent has already lost its model.
+//   * The mirror case is just as broken the other way: if the agent's CURRENT
+//     model is NOT restricted but the TARGET `profileId` IS, the PUT answers
+//     200 and still erases the model — restricting a model makes it behave
+//     like `threads/create`'s unknown-profileId case (BUG 82925's shape again)
+//     for anyone who tries to move onto it, instead of a controlled refusal.
+//   * `POST /ai/agents` with a restricted `profileId` is the create-time twin:
+//     200, and the built agent has no model at all — the same shape as the
+//     already-filed BUG 82922 (create on an unknown profileId), reached here
+//     because restriction hides the profile from the catalogue entirely
+//     (`GET /ai/profiles/list` — confirmed the entry disappears, count drops
+//     by one, and reappears once the restriction is cleared).
+//   * Inference is untouched: a thread already talking to a model that gets
+//     restricted mid-conversation keeps answering normally (`send-with-stream`
+//     stays 200, no `error` frame) — restriction only ever gates the catalogue
+//     and (buggily) the agent-update path, never actual usage.
+//   * `/ai/assignments/assign` is the one place this is handled correctly: a
+//     restricted `profileId` is refused the same documented way an unknown one
+//     is — HTTP 200, `{success:false, error:{field:"name",
+//     message:"Profile not found"}}` — no trap, no erasure. That is what the
+//     agent-update path should be doing instead.
+test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current model", () => {
+  test("PUT /ai/agents/:id - restricting a model the agent is not on has no effect", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const usable = catalogue.filter(
+      (p) => !!p.id && !!p.modelId && p.canUseTool !== false,
+    );
+    if (usable.length < 2) {
+      throw new Error(
+        `Need 2 distinct usable profiles, catalogue has ${usable.length}`,
+      );
+    }
+    const [current, unrelated] = usable;
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Unrelated Restriction Agent",
+      profileId: current.id,
+      prompt: "Original prompt",
+    });
+
+    const { status: restrictStatus } =
+      await ownerApi.payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: {
+          models: new Set([unrelated.modelId!]),
+        },
+      });
+    expect(restrictStatus, "restricting a model this agent does not use").toBe(
+      200,
+    );
+
+    const get = await aiChat.getAgentInfo("owner", agentId);
+    const put = await aiChat.updateAgent("owner", agentId, {
+      title: "Autotest Unrelated Restriction Agent Renamed",
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    expect(get.status, "reading the agent").toBe(200);
+    expect(put.status, "renaming the agent").toBe(200);
+  });
+
+  test("PUT /ai/agents/:id - a rename with no profileId succeeds even while the agent's own model is restricted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const current = AiAgentChat.pickTextProfile(
+      await profiles.catalogue("owner"),
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Rename While Restricted",
+      profileId: current.id,
+      prompt: "Original prompt",
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set([current.modelId!]),
+      },
+    });
+
+    const rename = await aiChat.updateAgent("owner", agentId, {
+      title: "Autotest Renamed While Restricted",
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    expect(rename.status, "a rename that does not touch profileId").toBe(200);
+  });
+
+  test("BUG XXXXX: PUT /ai/agents/:id - moving off a restricted model onto a different, valid one is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const usable = catalogue.filter(
+      (p) => !!p.id && !!p.modelId && p.canUseTool !== false,
+    );
+    if (usable.length < 2) {
+      throw new Error(
+        `Need 2 distinct usable profiles, catalogue has ${usable.length}`,
+      );
+    }
+    const [current, replacement] = usable;
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Trapped Agent",
+      profileId: current.id,
+      prompt: "Original prompt",
+    });
+
+    // Setup premise: the agent really is on `current` before it gets restricted.
+    expect(
+      (await aiChat.getAgentInfo("owner", agentId)).data?.response?.profileId,
+      "the agent is bound to the model that is about to be restricted",
+    ).toBe(current.id);
+
+    const { status: restrictStatus } =
+      await ownerApi.payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: {
+          models: new Set([current.modelId!]),
+        },
+      });
+    expect(restrictStatus, "restricting the agent's current model").toBe(200);
+
+    const update = await aiChat.updateAgent("owner", agentId, {
+      profileId: replacement.id,
+    });
+    const info = await aiChat.getAgentInfo("owner", agentId);
+    const scope = await profiles.getAllAssignments("owner", agentId);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    test.fail();
+    expect(
+      {
+        status: update.status,
+        profileId: info.data?.response?.profileId,
+        chat: scope.data?.Chat,
+      },
+      "an agent should be free to move off a model that was just restricted, " +
+        "not refused AND stripped of the model it already had",
+    ).toEqual({ status: 200, profileId: replacement.id, chat: replacement.id });
+  });
+
+  test("BUG XXXXX: PUT /ai/agents/:id - moving onto a restricted model erases the binding instead of a controlled refusal", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const usable = catalogue.filter(
+      (p) => !!p.id && !!p.modelId && p.canUseTool !== false,
+    );
+    if (usable.length < 2) {
+      throw new Error(
+        `Need 2 distinct usable profiles, catalogue has ${usable.length}`,
+      );
+    }
+    const [current, target] = usable;
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Move Onto Restricted Agent",
+      profileId: current.id,
+      prompt: "Original prompt",
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([target.modelId!]) },
+    });
+
+    const update = await aiChat.updateAgent("owner", agentId, {
+      profileId: target.id,
+    });
+    const info = await aiChat.getAgentInfo("owner", agentId);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    test.fail();
+    expect(
+      { status: update.status, profileId: info.data?.response?.profileId },
+      "moving onto a restricted model should be a controlled refusal (like " +
+        "assignments' 'Profile not found'), not a 200 that erases the model",
+    ).toEqual({ status: 200, profileId: target.id });
+  });
+
+  test("POST /ai/agents - a restricted model at create time builds an agent with no model, same shape as BUG 82922", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const target = AiAgentChat.pickTextProfile(
+      await profiles.catalogue("owner"),
+    );
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([target.modelId!]) },
+    });
+
+    const created = await aiChat.createAgent("owner", {
+      title: "Autotest Create On Restricted Model",
+      profileId: target.id,
+      prompt: "Original prompt",
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    // Not a test.fail: this is the documented (if surprising) BUG 82922 shape
+    // — create on an unrecognised profileId succeeds and simply builds no
+    // model — reached here because restriction makes `target` unrecognised.
+    expect(created.status, "create itself is not refused").toBe(200);
+    expect(
+      created.data?.response?.profileId,
+      "but no model was actually bound",
+    ).toBeUndefined();
+  });
+
+  test("PUT /ai/model/restrictions - REPLACE takes effect immediately, both ways, in the same session", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const usable = catalogue.filter(
+      (p) => !!p.id && !!p.modelId && p.canUseTool !== false,
+    );
+    if (usable.length < 3) {
+      throw new Error(
+        `Need 3 distinct usable profiles, catalogue has ${usable.length}`,
+      );
+    }
+    // `free` stays unrestricted for the whole test — the clean move target,
+    // so the final assertion isn't confounded by the *other* restriction bug
+    // (moving ONTO a restricted model, tested separately above).
+    const [a, b, free] = usable;
+    const setRestrictions = (modelIds: string[]) =>
+      ownerApi.payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set(modelIds) },
+      });
+    const catalogueHas = async (id: string) =>
+      (await profiles.catalogue("owner")).some((p) => p.id === id);
+
+    await setRestrictions([a.modelId!]);
+    expect(await catalogueHas(a.id!), "A is hidden right after PUT [A]").toBe(
+      false,
+    );
+
+    // REPLACE, not add: A is freed and B is newly hidden in the very same
+    // call — no re-auth, no new token, no waiting for a cache to expire.
+    await setRestrictions([b.modelId!]);
+    expect(
+      await catalogueHas(a.id!),
+      "A reappears the instant the REPLACE drops it from the set",
+    ).toBe(true);
+    expect(
+      await catalogueHas(b.id!),
+      "B is hidden the instant the same REPLACE adds it",
+    ).toBe(false);
+
+    await setRestrictions([]);
+    expect(await catalogueHas(b.id!), "clearing restores B too").toBe(true);
+
+    // A is unrestricted again, so an agent bound to it moves freely — the
+    // trap in the tests above only fires while the agent's OWN model is
+    // still in the restricted set.
+    const agentOnA = await aiChat.createAgentId("owner", {
+      title: "Autotest Agent On A After Replace",
+      profileId: a.id,
+      prompt: "test",
+    });
+    await setRestrictions([b.modelId!]);
+    const moveOffA = await aiChat.updateAgent("owner", agentOnA, {
+      profileId: free.id,
+    });
+    await setRestrictions([]);
+
+    expect(
+      moveOffA.status,
+      "A was never in this restriction set, so the agent on it is not trapped",
+    ).toBe(200);
+  });
+});
+
 // The third way a room-shaped object comes into being. If an agent could be
 // templated, a room made from that template would be an agent-shaped room whose
 // profile nothing guarantees — the rooms-API path all over again. It cannot:

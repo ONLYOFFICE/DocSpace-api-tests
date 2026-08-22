@@ -9,6 +9,7 @@ import {
   AiProviderModel,
 } from "@/src/helpers/ai-profiles";
 import { AiBuiltinProviderType } from "@onlyoffice/docspace-api-sdk";
+import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 import {
   unsafeSchemeUrls,
   nonResolvingAttackerUrls,
@@ -1489,5 +1490,81 @@ test.describe("AI Profiles - the transport is not checked against the host", () 
         .map((model) => model.id),
       "these models came back without a display name",
     ).toEqual([]);
+  });
+});
+
+// PUT /api/2.0/portal/payment/ai-model/restrictions (portal admin "restrict a
+// model" toggle — see payment.spec.ts for its own contract) reaches into this
+// catalogue: a restricted modelId is not just flagged, it disappears from
+// `list` entirely. Measured live 2026-08-21.
+test.describe("GET /api/2.0/ai/profiles/list - effect of a portal-wide model restriction", () => {
+  test("GET /api/2.0/ai/profiles/list - a restricted model disappears from the catalogue, and reappears once cleared", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const before = await profiles.catalogue("owner");
+    const target = AiAgentChat.pickTextProfile(before);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([target.modelId!]) },
+    });
+
+    const restricted = await profiles.catalogue("owner");
+    expect(
+      restricted.some((p) => p.id === target.id),
+      "the restricted profile is gone from the catalogue",
+    ).toBe(false);
+    expect(restricted.length, "everything else is still there").toBe(
+      before.length - 1,
+    );
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    const cleared = await profiles.catalogue("owner");
+    expect(
+      cleared.some((p) => p.id === target.id),
+      "clearing the restriction brings it straight back",
+    ).toBe(true);
+    expect(cleared.length).toBe(before.length);
+  });
+
+  test("GET /api/2.0/ai/profiles/list - restricting one model does not touch any other profile", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const before = await profiles.catalogue("owner");
+    if (before.length < 2) {
+      throw new Error(
+        `Need at least 2 profiles, catalogue has ${before.length}`,
+      );
+    }
+    const [target, ...rest] = before;
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([target.modelId!]) },
+    });
+
+    const restricted = await profiles.catalogue("owner");
+    const restrictedIds = new Set(restricted.map((p) => p.id));
+    for (const other of rest) {
+      expect(
+        restrictedIds.has(other.id),
+        `${other.modelId} is unaffected`,
+      ).toBe(true);
+    }
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
   });
 });

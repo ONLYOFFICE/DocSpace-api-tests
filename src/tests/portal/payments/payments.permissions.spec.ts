@@ -1,7 +1,12 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { restrictableAiModelIds } from "@/src/helpers/ai-providers";
-import { enableWalletService } from "@/src/helpers/wallet-services";
+import {
+  enableWalletService,
+  enableAiGateway,
+} from "@/src/helpers/wallet-services";
+import { AiProfiles } from "@/src/helpers/ai-profiles";
+import { ApiSDK } from "@/src/services/api-sdk";
 
 // Security tests based on white-hat report:
 // backUrl parameter in PUT /api/2.0/portal/payment/url has no length or domain validation.
@@ -2017,6 +2022,126 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - permissions",
 
     expect(status).toBe(403);
     expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+async function liveModelId(apiSdk: ApiSDK): Promise<string> {
+  const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+  const catalogue = await profiles.catalogue("owner");
+  const modelId = catalogue
+    .map((p) => p.modelId)
+    .find((id): id is string => !!id);
+  if (!modelId) {
+    throw new Error("No modelId in the catalogue");
+  }
+  return modelId;
+}
+
+test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions - a refused write does not mutate existing state", () => {
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - RoomAdmin's refused write leaves the list untouched", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const modelId = await liveModelId(apiSdk);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const { status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+    expect(status).toBe(403);
+
+    await apiSdk.authenticateOwner();
+    const { data } = await ownerApi.payment.getRestrictedAiModels();
+    expect(data.response?.models, "the list Owner set is still there").toEqual([
+      modelId,
+    ]);
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - User's refused write leaves the list untouched", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const modelId = await liveModelId(apiSdk);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const { status } = await apiSdk
+      .forRole("user")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+    expect(status).toBe(403);
+
+    await apiSdk.authenticateOwner();
+    const { data } = await ownerApi.payment.getRestrictedAiModels();
+    expect(data.response?.models, "the list Owner set is still there").toEqual([
+      modelId,
+    ]);
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Guest's refused write leaves the list untouched", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const modelId = await liveModelId(apiSdk);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const { status } = await apiSdk
+      .forRole("guest")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+    expect(status).toBe(403);
+
+    await apiSdk.authenticateOwner();
+    const { data } = await ownerApi.payment.getRestrictedAiModels();
+    expect(data.response?.models, "the list Owner set is still there").toEqual([
+      modelId,
+    ]);
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Anonymous's refused write leaves the list untouched", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const modelId = await liveModelId(apiSdk);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
+    });
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set() },
+      });
+    expect(status).toBe(401);
+
+    const { data } = await ownerApi.payment.getRestrictedAiModels();
+    expect(data.response?.models, "the list Owner set is still there").toEqual([
+      modelId,
+    ]);
   });
 });
 
