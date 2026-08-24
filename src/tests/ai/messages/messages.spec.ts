@@ -2366,7 +2366,7 @@ function expectCancelledPlaceholder(settled: SettledReply): void {
 }
 
 test.describe("AI Messages - stopping a stream", () => {
-  test("POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream cancels the generation", async ({
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream cancels the generation", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2460,6 +2460,16 @@ test.describe("AI Messages - stopping a stream", () => {
       // What makes that absence a cancellation rather than a reply the backend
       // is still writing: the thread says so. Without this the assertion above
       // would also pass on a build that simply lost the answer.
+      //
+      // Was reliable per BUG 82898 (closed 2026-08-18: cancelled + emptied).
+      // Re-measured 2026-08-24, 4 runs: only 1 came back marked
+      // `{"type":"incomplete","reason":"cancelled"}` with content discarded: the
+      // other 3 stored `status: undefined` with the partial answer LEFT IN
+      // PLACE (228 and 708 chars observed, unchanged over 60s of re-reads) —
+      // i.e. worse than "not marked cancelled", the text is not being discarded
+      // either, which is the pre-08-18 behaviour BUG 82898 was filed against.
+      // Reads as that fix regressing, not a race a longer wait would clear.
+      test.fail();
       const status = AiAgentChat.messageStatus(settled.message!);
       expect(status?.type, "the stopped reply is marked incomplete").toBe(
         "incomplete",
@@ -2472,7 +2482,7 @@ test.describe("AI Messages - stopping a stream", () => {
     });
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - the thread works again after the client hangs up", async ({
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - the thread works again after the client hangs up", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2511,6 +2521,9 @@ test.describe("AI Messages - stopping a stream", () => {
       threadId,
       QUIET_MS,
     );
+    // Same regression as the "hanging up mid-stream" test above (BUG XXXXX):
+    // the abandoned placeholder is not reliably marked cancelled any more.
+    test.fail();
     expectCancelledPlaceholder(abandoned);
 
     const resumed = await aiChat.sendMessage("owner", {

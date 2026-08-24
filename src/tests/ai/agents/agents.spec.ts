@@ -1434,12 +1434,19 @@ test.describe("POST /files/roomtemplate - an agent as a template source", () => 
       roomTemplateDto: { roomId: agentId, title: "Autotest Agent Template" },
     });
 
-    // Let the attempt settle before the control starts: the creating status is
-    // a single per-user slot.
-    await expect(async () => {
-      const { data } = await ownerApi.rooms.getRoomTemplateCreatingStatus();
-      expect(data.response?.isCompleted).toBe(true);
-    }).toPass({ intervals: [1000, 2000, 5000], timeout: 30000 });
+    // Unlike the positive control below, an agent source never gets a creating
+    // job registered at all — measured live 2026-08-24: `getRoomTemplateCreatingStatus`
+    // reads back `{"count":0}` with no `response` from the very first poll, and
+    // stays that way. So there is nothing here to wait on becoming `isCompleted`;
+    // a brief settle is enough, and the absence of a job is itself the evidence
+    // that the attempt was dropped rather than left running.
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    const { data: agentAttemptStatus } =
+      await ownerApi.rooms.getRoomTemplateCreatingStatus();
+    expect(
+      agentAttemptStatus.response,
+      "no creating job is ever registered for a source that will not template",
+    ).toBeFalsy();
 
     // Positive control: the same call on an ordinary room does produce a
     // template, so the absence below is about the agent and not about templates

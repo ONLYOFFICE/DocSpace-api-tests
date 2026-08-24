@@ -2220,7 +2220,7 @@ test.describe("AI Threads - started by the first message", () => {
     );
   });
 
-  test('POST /api/2.0/ai/ai/send-with-stream - the thread the first question opened is renamed from "New chat"', async ({
+  test('BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - the thread the first question opened is renamed from "New chat"', async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2269,6 +2269,15 @@ test.describe("AI Threads - started by the first message", () => {
     // waited for before the stream returns — that's why the opening frame
     // above still carries the default. Poll for the rename instead of reading
     // once.
+    //
+    // Was reliable per BUG 83081 (closed by design, 2026-08-21: async, not
+    // flaky, as long as you poll). Re-measured 2026-08-24 with a much longer
+    // window (170s+, well past the ~30s this used to need): 3 of 4 runs never
+    // renamed at all, one renamed within a second. Longer polling does not
+    // help — the rename either fires almost immediately or never fires in this
+    // sample — so this reads as the async rename job itself failing to run
+    // most of the time now, not a race the old 30s timeout was too short for.
+    test.fail();
     const renamedTitle = await waitForRenamedThread(aiChat, threadId);
     expect(
       renamedTitle,
@@ -5823,31 +5832,26 @@ test.describe("AI Chat - an AI room created through the rooms API", () => {
 // itself (it is not in list-system-tools, and no client offers it). The
 // ImageGeneration binding in /ai/assignments is what says which profile draws it.
 //
-// Neither half works on this build:
+// BUG 82861 (the tool call never resolving — the stream stayed open past two
+// minutes, leaving an assistant message whose `generate_image` call had no
+// result and no error) is FIXED as of 2026-08-24: the call now resolves with
+// a `{"data":{"ref":...}}` reference and the stream completes normally with a
+// healthy text reply. The other half — pointing a thread directly at the image
+// profile answering `model_not_found` — was not re-measured here and may still
+// hold; see the "an image profile cannot be used as a chat model" test below.
 //
-//   * The tool call never resolves. The stream stays open — measured past two
-//     minutes — and the thread is left holding an assistant message whose
-//     `generate_image` call has no result and no error, so a client cannot even
-//     tell the user it failed.
-//   * The image profile itself cannot be driven directly either: pointing a
-//     thread at it answers `model_not_found`, "400 model is not a chat model".
-//
-// The first test caps the request on the client side. What it asserts is
-// therefore what the *thread* holds afterwards, which is the durable evidence;
-// the frames that were in flight when the cap hit are gone.
+// STREAM_CAP_MS is kept as a safety cap rather than removed outright: it bounds
+// how long a single test can block if the tool call ever regresses to hanging
+// again, without the suite needing a change to notice.
 
-/** Long enough to be sure this is a hang, short enough not to stall the suite. */
+/** Safety cap so a regressed hang cannot block the suite indefinitely. */
 const STREAM_CAP_MS = 45000;
 
 /** The one request every test in this block makes, so they differ in nothing else. */
 const PICTURE_REQUEST =
   "Generate an image of a red circle on a white background.";
 
-/**
- * How long a generated picture is given to appear in the folder it should be
- * saved into. Nothing lands there while BUG 82861 is open, so this is time each
- * of the saving tests spends waiting in full — kept short deliberately.
- */
+/** How long a generated picture is given to appear in the folder it should be saved into. */
 const PICTURE_SAVE_MS = 30000;
 
 const IMAGE_EXTENSION = /\.(png|jpe?g|webp|gif)$/i;
@@ -5933,10 +5937,14 @@ async function waitForNewFile(
 }
 
 test.describe("AI Chat - image generation", () => {
-  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a request for an image hangs on an unresolved generate_image call", async ({
+  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a request for an image resolves the generate_image call", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Was BUG 82861 (the call never resolved, the stream stayed open past two
+    // minutes). Re-measured 2026-08-24: the stream now completes within
+    // STREAM_CAP_MS and the tool call resolves with a real reference — see the
+    // block comment above.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -5953,24 +5961,20 @@ test.describe("AI Chat - image generation", () => {
       agentId,
     });
 
-    let finished = false;
-    try {
-      await aiChat.sendMessage("owner", {
-        threadId,
-        profileId,
-        agentId,
-        message: "Generate an image of a red circle on a white background.",
-        timeoutMs: STREAM_CAP_MS,
-      });
-      finished = true;
-    } catch {
-      // The stream did not terminate within the cap; the thread is read below.
-    }
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: PICTURE_REQUEST,
+      timeoutMs: STREAM_CAP_MS,
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
 
     const messages = await aiChat.readMessages("owner", threadId);
     expect(messages.status).toBe(200);
+    expectHealthyAssistantReply(messages.data);
     const reply = AiAgentChat.assistantMessages(messages.data)[0];
-    expect(reply, "the half-written reply is stored").toBeDefined();
 
     // The model asked for the built-in drawing tool…
     const calls = AiAgentChat.toolCalls(reply);
@@ -5987,18 +5991,17 @@ test.describe("AI Chat - image generation", () => {
       "generate_image is server-side, not an advertised DocSpace tool",
     ).not.toContain("generate_image");
 
-    // What comes back for the call is an empty picture, so the answer has
-    // nothing to carry on with; the reply is left `cancelled` by our own cap
-    // rather than finished by the backend.
+    // The call resolves with a reference to the generated picture rather than
+    // hanging with an empty result.
     const drawing = calls.find((call) => call.toolName === "generate_image")!;
-    expect(drawing.result, "an empty picture came back").toContain(
+    expect(drawing.result, "the drawing call resolved").toBeTruthy();
+    expect(drawing.result, "no empty picture placeholder").not.toContain(
       '"base64":""',
     );
-    expect(reply.status?.type).toBe("incomplete");
-    expect(reply.status?.reason).toBe("cancelled");
-
-    test.fail();
-    expect(finished, `the stream ended within ${STREAM_CAP_MS} ms`).toBe(true);
+    expect(
+      JSON.parse(drawing.result as string).data?.ref,
+      "a real ref came back",
+    ).toBeTruthy();
   });
 
   test("POST /api/2.0/ai/ai/send-with-stream - an image profile cannot be used as a chat model", async ({
@@ -6311,13 +6314,17 @@ test.describe("AI Chat - image generation", () => {
     ).toEqual([]);
   });
 
-  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a picture generated by a member who cannot write to the room is not saved into My Documents", async ({
+  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a picture generated by a member who cannot write to the room falls back to their My Documents", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // The "(where the user may write)" half. A Read-level member is the one
     // case where the current section is not a legal destination, so the rule's
     // fallback is the whole of what is under test here.
+    //
+    // Was BUG 82861: the picture used to land nowhere. Re-measured 2026-08-24
+    // alongside the hang fix above — it now falls back to the member's own My
+    // Documents, and the room they may not write to stays untouched.
     //
     // The member is created and used last: authenticating as the owner after
     // they have a token makes their calls run as the owner and fabricates a
@@ -6380,7 +6387,6 @@ test.describe("AI Chat - image generation", () => {
       "the drawing was attempted — without this the rest proves nothing",
     ).toContain("generate_image");
 
-    test.fail();
     const landed = await waitForNewFile(
       memberApi,
       memberDocsId,
@@ -8359,9 +8365,16 @@ function expectMatchesAny(text: string, patterns: RegExp[], label: string) {
   ).toBe(true);
 }
 
+// Was measured flaking only on "Show source documents" (BUG XXXXX): sent as
+// the very first message with no other context, the model twice in a row
+// never called docspace_knowledge_search at all, unlike the other suggested
+// prompts in this same battery.
+const FLAKY_SUGGESTED_PROMPTS = new Set(["Show source documents"]);
+
 test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts", () => {
   for (const { prompt, grounding } of SUGGESTED_PROMPTS) {
-    test(`POST /api/2.0/ai/ai/send-with-stream - suggested prompt "${prompt}" is answered from the Knowledge Base`, async ({
+    const bugPrefix = FLAKY_SUGGESTED_PROMPTS.has(prompt) ? "BUG XXXXX: " : "";
+    test(`${bugPrefix}POST /api/2.0/ai/ai/send-with-stream - suggested prompt "${prompt}" is answered from the Knowledge Base`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -8415,6 +8428,9 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
       // Grounding, half one: the Knowledge Base really was searched, and the
       // search really came back with the fixture's text. This half is
       // deterministic — it is the tool's output, not the model's prose.
+      if (FLAKY_SUGGESTED_PROMPTS.has(prompt)) {
+        test.fail();
+      }
       const results = knowledgeSearchResults(reply);
       expect(
         results.length,

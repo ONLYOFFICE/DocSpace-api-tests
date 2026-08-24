@@ -257,6 +257,26 @@ test.describe("AI Assignments - assigning a profile", () => {
       AI_CAP_BITS.vision,
       2,
     );
+
+    // The test-portal catalogue was trimmed to 7 models on 2026-08-24 (DeepSeek
+    // V4 Flash/Pro, Gemini 3.7 Flash, GPT 5.6 Luna, Qwen3.5 122B A10B, Nano
+    // Banana 2, Nano Banana 2 Lite). Only 2 of those carry the vision bit, and
+    // both are already spent above on Vision + OCR, leaving just 3 text-only
+    // models for the 4 remaining text tasks — one short of the 7 mutually
+    // distinct profiles this test needs. Skip rather than delete: do not remove
+    // this test or loosen its "seven distinct models" premise, just skip it
+    // until the fuller catalogue is back, then drop this guard.
+    const spentIds = new Set([drawing.id, vision.id, ocr.id]);
+    const remainingTextPool = catalogue.filter(
+      (profile) =>
+        ((profile.capabilities ?? 0) & AI_CAP_BITS.text) === AI_CAP_BITS.text &&
+        !spentIds.has(profile.id),
+    );
+    test.skip(
+      remainingTextPool.length < 4,
+      `catalogue only offers ${remainingTextPool.length} unused text profiles after Vision/OCR/ImageGeneration are assigned (needs 4) — see the comment above`,
+    );
+
     const [chat, summarization, translation, textAnalyze] =
       AiProfiles.distinctWithBit(catalogue, AI_CAP_BITS.text, 4, [
         drawing,
