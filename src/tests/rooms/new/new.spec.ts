@@ -298,189 +298,185 @@ test.describe("GET /api/2.0/files/rooms/:id/news - Core semantics", () => {
     );
   });
 
-  test.fail(
-    "BUG 81712: GET /files/rooms/:id/news - File created before visit does not appear in news",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest News Pre-Visit File",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81712: GET /files/rooms/:id/news - File created before visit does not appear in news", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest News Pre-Visit File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      // owner creates the file BEFORE user visits
-      await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest News Pre-Visit File.docx" },
-      });
+    // owner creates the file BEFORE user visits
+    await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest News Pre-Visit File.docx" },
+    });
 
-      await userApi.rooms.getRoomInfo({ id: roomId });
+    await userApi.rooms.getRoomInfo({ id: roomId });
 
-      const { data, status } = await userApi.rooms.getNewRoomItems({
-        id: roomId,
-      });
+    const { data, status } = await userApi.rooms.getNewRoomItems({
+      id: roomId,
+    });
 
-      expect(status).toBe(200);
-      expect(titlesOf(data.response)).not.toContain(
-        "Autotest News Pre-Visit File.docx",
-      );
-    },
-  );
+    expect(status).toBe(200);
+    expect(titlesOf(data.response)).not.toContain(
+      "Autotest News Pre-Visit File.docx",
+    );
+  });
 
-  test.fail(
-    "BUG 81712: GET /files/rooms/:id/news - Re-opening room resets news to empty",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest News Re-Visit",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81712: GET /files/rooms/:id/news - Re-opening room resets news to empty", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest News Re-Visit",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      await userApi.rooms.getRoomInfo({ id: roomId });
+    await userApi.rooms.getRoomInfo({ id: roomId });
 
-      await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest News Re-Visit File.docx" },
-      });
+    await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest News Re-Visit File.docx" },
+    });
 
-      // user re-visits — should mark all new items as read
-      await userApi.rooms.getRoomInfo({ id: roomId });
+    // user re-visits — should mark all new items as read
+    await userApi.rooms.getRoomInfo({ id: roomId });
 
-      const { data, status } = await userApi.rooms.getNewRoomItems({
-        id: roomId,
-      });
+    const { data, status } = await userApi.rooms.getNewRoomItems({
+      id: roomId,
+    });
 
-      expect(status).toBe(200);
-      expect(flattenNewItems(data.response)).toEqual([]);
-    },
-  );
+    expect(status).toBe(200);
+    expect(flattenNewItems(data.response)).toEqual([]);
+  });
 
-  test.fail(
-    "BUG 81713: GET /files/rooms/:id/news - File updated by another user appears in news",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest News Updated File",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81713: GET /files/rooms/:id/news - File updated by another user appears in news", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest News Updated File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: {
-          title: "Autotest News File Before Update.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest News File Before Update.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      await userApi.rooms.getRoomInfo({ id: roomId });
+    await userApi.rooms.getRoomInfo({ id: roomId });
 
-      await ownerApi.files.updateFile({
-        fileId,
-        updateFile: { title: "Autotest News File After Update.docx" },
-      });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest News File After Update.docx" },
+    });
 
-      const { data, status } = await userApi.rooms.getNewRoomItems({
-        id: roomId,
-      });
+    const { data, status } = await userApi.rooms.getNewRoomItems({
+      id: roomId,
+    });
 
-      expect(status).toBe(200);
-      expect(titlesOf(data.response)).toContain(
-        "Autotest News File After Update.docx",
-      );
-    },
-  );
+    expect(status).toBe(200);
+    expect(titlesOf(data.response)).toContain(
+      "Autotest News File After Update.docx",
+    );
+  });
 
-  test.fail(
-    "BUG 81713: GET /files/rooms/:id/news - Renamed file appears with the new title",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest News Renamed File",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81713: GET /files/rooms/:id/news - Renamed file appears with the new title", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest News Renamed File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest News Old Title.docx" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest News Old Title.docx" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      await userApi.rooms.getRoomInfo({ id: roomId });
+    await userApi.rooms.getRoomInfo({ id: roomId });
 
-      await ownerApi.files.updateFile({
-        fileId,
-        updateFile: { title: "Autotest News New Title.docx" },
-      });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest News New Title.docx" },
+    });
 
-      const { data, status } = await userApi.rooms.getNewRoomItems({
-        id: roomId,
-      });
+    const { data, status } = await userApi.rooms.getNewRoomItems({
+      id: roomId,
+    });
 
-      expect(status).toBe(200);
-      const titles = titlesOf(data.response);
-      expect(titles).toContain("Autotest News New Title.docx");
-      expect(titles).not.toContain("Autotest News Old Title.docx");
-    },
-  );
+    expect(status).toBe(200);
+    const titles = titlesOf(data.response);
+    expect(titles).toContain("Autotest News New Title.docx");
+    expect(titles).not.toContain("Autotest News Old Title.docx");
+  });
 
   test("GET /files/rooms/:id/news - Subfolder created by another user does not appear in news", async ({
     apiSdk,

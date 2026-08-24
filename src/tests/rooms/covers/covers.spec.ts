@@ -583,28 +583,24 @@ test.describe("PUT /files/rooms/:id/cover - Change room cover", () => {
     expect(status).toBe(400);
   });
 
-  // BUG 81558: PUT /api/2.0/files/rooms/{id}/cover silently accepts color "123"
-  // (too short to be a valid RRGGBB hex). Returns 200 instead of 400 and the
-  // value is treated as a no-op (state unchanged) rather than a validation error.
-  test.fail(
-    "BUG 81558: PUT /files/rooms/:id/cover - Too short hex color returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Cover Short Hex Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81558: PUT /files/rooms/:id/cover - Too short hex color returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Cover Short Hex Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { status } = await ownerApi.rooms.changeRoomCover({
-        id: roomId,
-        coverRequestDto: { color: "123" },
-      });
-      expect(status).toBe(400);
-    },
-  );
+    const { status } = await ownerApi.rooms.changeRoomCover({
+      id: roomId,
+      coverRequestDto: { color: "123" },
+    });
+    expect(status).toBe(400);
+  });
 
   test("PUT /files/rooms/:id/cover - Too long hex color returns 400", async ({
     apiSdk,

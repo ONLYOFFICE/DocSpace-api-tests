@@ -2369,13 +2369,9 @@ test.describe("DELETE /api/2.0/files/tags - Input validation", () => {
     expect(status).toBe(400);
   });
 
-  test("DELETE /api/2.0/files/tags - names array contains empty string returns 400", async ({
+  test("BUG 81689: DELETE /api/2.0/files/tags - names array contains empty string returns 400", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 81689: empty string in names array is silently accepted (200) instead of validation error (400)",
-    );
     const ownerApi = apiSdk.forRole("owner");
     const { status } = await ownerApi.rooms.deleteCustomTags({
       batchTagsRequestDto: { names: [""] },
@@ -2383,13 +2379,9 @@ test.describe("DELETE /api/2.0/files/tags - Input validation", () => {
     expect(status).toBe(400);
   });
 
-  test("DELETE /api/2.0/files/tags - names array contains spaces-only string returns 400", async ({
+  test("BUG 81689: DELETE /api/2.0/files/tags - names array contains spaces-only string returns 400", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 81689: spaces-only string in names array is silently accepted (200) instead of validation error (400)",
-    );
     const ownerApi = apiSdk.forRole("owner");
     const { status } = await ownerApi.rooms.deleteCustomTags({
       batchTagsRequestDto: { names: ["   "] },
@@ -2397,13 +2389,9 @@ test.describe("DELETE /api/2.0/files/tags - Input validation", () => {
     expect(status).toBe(400);
   });
 
-  test("DELETE /api/2.0/files/tags - names array containing null returns 400 (no 500)", async ({
+  test("BUG 81689: DELETE /api/2.0/files/tags - names array containing null returns 400 (no 500)", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 81689: null inside names array is silently accepted (200) instead of validation error (400)",
-    );
     const ownerApi = apiSdk.forRole("owner");
     const { status } = await ownerApi.rooms.deleteCustomTags({
       batchTagsRequestDto: { names: [null] } as any,
@@ -2816,75 +2804,73 @@ test.describe("POST /files/roomtemplate - access control", () => {
     expect(templateId).toBeGreaterThan(0);
   });
 
-  test.fail(
-    "BUG 81693: DocSpaceAdmin cannot create a template from someone else's room they have no access to",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CreateTmpl OtherOwner Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
+  test("BUG 81693: DocSpaceAdmin cannot create a template from someone else's room they have no access to", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CreateTmpl OtherOwner Source",
+        roomType: RoomType.CustomRoom,
+      },
+    });
 
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
-      const templateTitle = "Admin No-Access Template";
-      const { data } = await adminApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: roomData.response!.id!,
-          title: templateTitle,
-        },
-      });
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const templateTitle = "Admin No-Access Template";
+    const { data } = await adminApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: roomData.response!.id!,
+        title: templateTitle,
+      },
+    });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({
-        searchArea: SearchArea.Templates,
-      });
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain(templateTitle);
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    const { data: list } = await ownerApi.rooms.getRoomsFolder({
+      searchArea: SearchArea.Templates,
+    });
+    const titles = (list.response!.folders ?? []).map(
+      (f) => (f as any).title as string,
+    );
+    expect(titles).not.toContain(templateTitle);
+    expect(data.statusCode).toBe(403);
+  });
 
-  test.fail(
-    "BUG 81693: User cannot create a template (no source room access)",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CreateTmpl UserNoAccess Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
+  test("BUG 81693: User cannot create a template (no source room access)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CreateTmpl UserNoAccess Source",
+        roomType: RoomType.CustomRoom,
+      },
+    });
 
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
-      const templateTitle = "User No-Access Template";
-      const { data } = await userApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: roomData.response!.id!,
-          title: templateTitle,
-        },
-      });
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const templateTitle = "User No-Access Template";
+    const { data } = await userApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: roomData.response!.id!,
+        title: templateTitle,
+      },
+    });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({
-        searchArea: SearchArea.Templates,
-      });
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain(templateTitle);
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    const { data: list } = await ownerApi.rooms.getRoomsFolder({
+      searchArea: SearchArea.Templates,
+    });
+    const titles = (list.response!.folders ?? []).map(
+      (f) => (f as any).title as string,
+    );
+    expect(titles).not.toContain(templateTitle);
+    expect(data.statusCode).toBe(403);
+  });
 
-  test.fail("BUG 81693: Guest cannot create a template", async ({ apiSdk }) => {
+  test("BUG 81693: Guest cannot create a template", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: roomData } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
@@ -2968,43 +2954,42 @@ test.describe("POST /files/roomtemplate - access control", () => {
   for (const { label, access } of roomAccesses) {
     if (label === "RoomManager") continue;
 
-    test.fail(
-      `BUG 81693: User with ${label} access to source room cannot create template`,
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: `Autotest CreateTmpl User-${label} Source`,
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = roomData.response!.id!;
+    test(`BUG 81693: User with ${label} access to source room cannot create template`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest CreateTmpl User-${label} Source`,
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        const { data: memberData, api: userApi } =
-          await apiSdk.addAuthenticatedMember("owner", "User");
-        await ownerApi.rooms.setRoomSecurity({
-          id: roomId,
-          roomInvitationRequest: {
-            invitations: [{ id: memberData.response!.id!, access }],
-            notify: false,
-          },
-        });
+      const { data: memberData, api: userApi } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: memberData.response!.id!, access }],
+          notify: false,
+        },
+      });
 
-        const templateTitle = `User ${label} Template`;
-        const { data } = await userApi.rooms.createRoomTemplate({
-          roomTemplateDto: { roomId, title: templateTitle },
-        });
+      const templateTitle = `User ${label} Template`;
+      const { data } = await userApi.rooms.createRoomTemplate({
+        roomTemplateDto: { roomId, title: templateTitle },
+      });
 
-        const { data: list } = await ownerApi.rooms.getRoomsFolder({
-          searchArea: SearchArea.Templates,
-        });
-        const titles = (list.response!.folders ?? []).map(
-          (f) => (f as any).title as string,
-        );
-        expect(titles).not.toContain(templateTitle);
-        expect(data.statusCode).toBe(403);
-      },
-    );
+      const { data: list } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Templates,
+      });
+      const titles = (list.response!.folders ?? []).map(
+        (f) => (f as any).title as string,
+      );
+      expect(titles).not.toContain(templateTitle);
+      expect(data.statusCode).toBe(403);
+    });
   }
 
   test("RoomAdmin with RoomManager access to another's room can create template", async ({
@@ -3463,202 +3448,197 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
     expect(createdId).toBeGreaterThan(0);
   });
 
-  test.fail(
-    "BUG 81662: User cannot create a room from template (no create-room permission)",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest FromTmpl User Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      await ownerApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: roomData.response!.id!,
-          title: "Autotest FromTmpl User Template",
-        },
-      });
-      const templateId = await waitForRoomTemplate(ownerApi.rooms);
-      await ownerApi.rooms.setPublicSettings({
-        setPublicDto: { id: templateId, public: true },
-      });
+  test("BUG 81662: User cannot create a room from template (no create-room permission)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FromTmpl User Source",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: roomData.response!.id!,
+        title: "Autotest FromTmpl User Template",
+      },
+    });
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
+    await ownerApi.rooms.setPublicSettings({
+      setPublicDto: { id: templateId, public: true },
+    });
 
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
-      const { data } = await userApi.rooms.createRoomFromTemplate({
-        createRoomFromTemplateDto: { templateId, title: "User Room" },
-      });
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.rooms.createRoomFromTemplate({
+      createRoomFromTemplateDto: { templateId, title: "User Room" },
+    });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain("User Room");
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+    const titles = (list.response!.folders ?? []).map(
+      (f) => (f as any).title as string,
+    );
+    expect(titles).not.toContain("User Room");
+    expect(data.statusCode).toBe(403);
+  });
 
-  test.fail(
-    "BUG 81663: Guest cannot create a room from template",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest FromTmpl Guest Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      await ownerApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: roomData.response!.id!,
-          title: "Autotest FromTmpl Guest Template",
-        },
-      });
-      const templateId = await waitForRoomTemplate(ownerApi.rooms);
-      await ownerApi.rooms.setPublicSettings({
-        setPublicDto: { id: templateId, public: true },
-      });
+  test("BUG 81663: Guest cannot create a room from template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FromTmpl Guest Source",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: roomData.response!.id!,
+        title: "Autotest FromTmpl Guest Template",
+      },
+    });
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
+    await ownerApi.rooms.setPublicSettings({
+      setPublicDto: { id: templateId, public: true },
+    });
 
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "Guest",
-      );
-      const { data } = await guestApi.rooms.createRoomFromTemplate({
-        createRoomFromTemplateDto: { templateId, title: "Guest Room" },
-      });
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const { data } = await guestApi.rooms.createRoomFromTemplate({
+      createRoomFromTemplateDto: { templateId, title: "Guest Room" },
+    });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain("Guest Room");
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+    const titles = (list.response!.folders ?? []).map(
+      (f) => (f as any).title as string,
+    );
+    expect(titles).not.toContain("Guest Room");
+    expect(data.statusCode).toBe(403);
+  });
 
-  test.fail(
-    "BUG 81664: DocSpaceAdmin cannot create a room from a non-public template they don't own",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest FromTmpl NoAccess Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      await ownerApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: roomData.response!.id!,
-          title: "Autotest FromTmpl NoAccess Template",
-        },
-      });
-      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+  test("BUG 81664: DocSpaceAdmin cannot create a room from a non-public template they don't own", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FromTmpl NoAccess Source",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: roomData.response!.id!,
+        title: "Autotest FromTmpl NoAccess Template",
+      },
+    });
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "DocSpaceAdmin",
-      );
-      const { data } = await adminApi.rooms.createRoomFromTemplate({
-        createRoomFromTemplateDto: { templateId, title: "Should Fail" },
-      });
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const { data } = await adminApi.rooms.createRoomFromTemplate({
+      createRoomFromTemplateDto: { templateId, title: "Should Fail" },
+    });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain("Should Fail");
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+    const titles = (list.response!.folders ?? []).map(
+      (f) => (f as any).title as string,
+    );
+    expect(titles).not.toContain("Should Fail");
+    expect(data.statusCode).toBe(403);
+  });
 
-  test.fail(
-    "BUG 81662: User with source-room access but no template access cannot create room",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest FromTmpl SrcOnly Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const sourceRoomId = roomData.response!.id!;
-      const { data: memberData, api: userApi } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = memberData.response!.id!;
+  test("BUG 81662: User with source-room access but no template access cannot create room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FromTmpl SrcOnly Source",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const sourceRoomId = roomData.response!.id!;
+    const { data: memberData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = memberData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: sourceRoomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Editing }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: sourceRoomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-      await ownerApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: sourceRoomId,
-          title: "Autotest FromTmpl SrcOnly Template",
-        },
-      });
-      const templateId = await waitForRoomTemplate(ownerApi.rooms);
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: sourceRoomId,
+        title: "Autotest FromTmpl SrcOnly Template",
+      },
+    });
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-      const { data } = await userApi.rooms.createRoomFromTemplate({
-        createRoomFromTemplateDto: { templateId, title: "Should Fail" },
-      });
+    const { data } = await userApi.rooms.createRoomFromTemplate({
+      createRoomFromTemplateDto: { templateId, title: "Should Fail" },
+    });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain("Should Fail");
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+    const titles = (list.response!.folders ?? []).map(
+      (f) => (f as any).title as string,
+    );
+    expect(titles).not.toContain("Should Fail");
+    expect(data.statusCode).toBe(403);
+  });
 
-  test.fail(
-    "BUG 81662: User with template access still cannot create room without create-room permission",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest FromTmpl TmplOnly Source",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      await ownerApi.rooms.createRoomTemplate({
-        roomTemplateDto: {
-          roomId: roomData.response!.id!,
-          title: "Autotest FromTmpl TmplOnly Template",
-        },
-      });
-      const templateId = await waitForRoomTemplate(ownerApi.rooms);
-      // Make template public so any user can see/read it.
-      await ownerApi.rooms.setPublicSettings({
-        setPublicDto: { id: templateId, public: true },
-      });
+  test("BUG 81662: User with template access still cannot create room without create-room permission", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest FromTmpl TmplOnly Source",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: roomData.response!.id!,
+        title: "Autotest FromTmpl TmplOnly Template",
+      },
+    });
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
+    // Make template public so any user can see/read it.
+    await ownerApi.rooms.setPublicSettings({
+      setPublicDto: { id: templateId, public: true },
+    });
 
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
-      const { data } = await userApi.rooms.createRoomFromTemplate({
-        createRoomFromTemplateDto: {
-          templateId,
-          title: "User Room TmplOnly",
-        },
-      });
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { data } = await userApi.rooms.createRoomFromTemplate({
+      createRoomFromTemplateDto: {
+        templateId,
+        title: "User Room TmplOnly",
+      },
+    });
 
-      const { data: list } = await ownerApi.rooms.getRoomsFolder({});
-      const titles = (list.response!.folders ?? []).map(
-        (f) => (f as any).title as string,
-      );
-      expect(titles).not.toContain("User Room TmplOnly");
-      expect(data.statusCode).toBe(403);
-    },
-  );
+    const { data: list } = await ownerApi.rooms.getRoomsFolder({});
+    const titles = (list.response!.folders ?? []).map(
+      (f) => (f as any).title as string,
+    );
+    expect(titles).not.toContain("User Room TmplOnly");
+    expect(data.statusCode).toBe(403);
+  });
 
   test("Disabled (terminated) user cannot create a room from template", async ({
     apiSdk,

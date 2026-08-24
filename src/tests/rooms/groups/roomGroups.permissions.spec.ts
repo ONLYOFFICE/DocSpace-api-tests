@@ -127,33 +127,30 @@ test.describe("API room groups permissions", () => {
     }
 
     // Atomicity: the rejected create must not leave a (partially created, empty)
-    // group in the caller's own listing. The API currently DOES create it, so
-    // this is a bug — the same partial-create defect seen for missing/invalid
-    // rooms, here on the access-denied path.
+    // group in the caller's own listing.
     for (const role of gatedRoles) {
-      test.fail(
-        `BUG 82598: ${role} - create rejected for an inaccessible room still leaves a group (partial create)`,
-        async ({ apiSdk }) => {
-          const owner = apiSdk.forRole("owner");
-          const roomId = await createRoomId(owner.rooms, `Gate ${role} Room`);
+      test(`BUG 82598: ${role} - create rejected for an inaccessible room still leaves a group (partial create)`, async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const roomId = await createRoomId(owner.rooms, `Gate ${role} Room`);
 
-          const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+        const { api } = await apiSdk.addAuthenticatedMember("owner", role);
 
-          await api.groups.addRoomGroup({
-            roomGroupRequestDto: {
-              name: `${role} No Access`,
-              icon: "star",
-              rooms: [roomId],
-            },
-          });
+        await api.groups.addRoomGroup({
+          roomGroupRequestDto: {
+            name: `${role} No Access`,
+            icon: "star",
+            rooms: [roomId],
+          },
+        });
 
-          // Correct contract: nothing is created in the caller's listing.
-          const { data: list } = await api.groups.getRoomGroups({ id: 0 });
-          expect(list.response!.map((g) => g.name)).not.toContain(
-            `${role} No Access`,
-          );
-        },
-      );
+        // Correct contract: nothing is created in the caller's listing.
+        const { data: list } = await api.groups.getRoomGroups({ id: 0 });
+        expect(list.response!.map((g) => g.name)).not.toContain(
+          `${role} No Access`,
+        );
+      });
     }
   });
 
@@ -246,41 +243,35 @@ test.describe("API room groups permissions", () => {
     }
 
     // Deleting another user's group must be forbidden (403), consistent with
-    // read/update returning 404 for cross-user access. The API currently
-    // accepts the request as a silent 200 no-op (the group survives, but the
-    // status is wrong), so this is a bug.
+    // read/update returning 404 for cross-user access.
     for (const role of [
       "DocSpaceAdmin",
       "RoomAdmin",
       "User",
       "Guest",
     ] as const) {
-      test.fail(
-        `BUG 82597: ${role} deleting the owner's group should be 403, not a 200 no-op`,
-        async ({ apiSdk }) => {
-          const owner = apiSdk.forRole("owner");
-          const roomId = await createRoomId(owner.rooms, `DelIso ${role} Room`);
-          const { id } = await createRoomGroup(owner.groups, {
-            name: `Owner Del Group vs ${role}`,
-            rooms: [roomId],
-          });
+      test(`BUG 82597: ${role} deleting the owner's group should be 403, not a 200 no-op`, async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const roomId = await createRoomId(owner.rooms, `DelIso ${role} Room`);
+        const { id } = await createRoomGroup(owner.groups, {
+          name: `Owner Del Group vs ${role}`,
+          rooms: [roomId],
+        });
 
-          const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+        const { api } = await apiSdk.addAuthenticatedMember("owner", role);
 
-          const { status } = await api.groups.deleteRoomGroup({ id });
+        const { status } = await api.groups.deleteRoomGroup({ id });
 
-          // The owner's group must survive regardless (holds under both the
-          // current no-op and the correct 403 behaviour).
-          const survive = await owner.groups.getRoomGroupInfo({ id });
-          expect(survive.status).toBe(200);
-          expect(survive.data.response!.name).toBe(
-            `Owner Del Group vs ${role}`,
-          );
+        // The owner's group must survive the forbidden delete attempt.
+        const survive = await owner.groups.getRoomGroupInfo({ id });
+        expect(survive.status).toBe(200);
+        expect(survive.data.response!.name).toBe(`Owner Del Group vs ${role}`);
 
-          // Correct contract: the cross-user delete is refused with 403.
-          expect(status).toBe(403);
-        },
-      );
+        // Correct contract: the cross-user delete is refused with 403.
+        expect(status).toBe(403);
+      });
     }
   });
 

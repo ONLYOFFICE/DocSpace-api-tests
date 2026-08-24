@@ -1648,11 +1648,16 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
   // Measured 2026-08-21: setting restrictions with `setRestrictedAiModels`
   // silently does nothing — 200, echoes the request back — unless the
   // portal's AITools wallet service is enabled first. Every other test in
-  // this file calls `enableAiGateway` (which enables it) for exactly this
-  // reason; this one pins the precondition itself, so a future refactor that
-  // drops the call gets caught here instead of producing baffling empty GETs
-  // three tests away.
-  test("PUT /api/2.0/portal/payment/ai-model/restrictions - without the AITools wallet service, the write does not persist", async ({
+  // this file calls `enableAiGateway` (which enables it) so it isn't hit by
+  // this; this one pins the bug itself, so a future refactor that drops the
+  // call gets caught here instead of producing baffling empty GETs three
+  // tests away.
+  //
+  // Filed as BUG XXXXX: a 200 that persists nothing is a false success — the
+  // route should either refuse the write outright (403/409, "enable AITools
+  // first") or actually persist it. Answering 200 with an echo of the request
+  // while silently doing nothing is neither.
+  test("BUG XXXXX: PUT /api/2.0/portal/payment/ai-model/restrictions - without the AITools wallet service, a 200 write does not persist", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1663,13 +1668,15 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
     const put = await ownerApi.payment.setRestrictedAiModels({
       setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
     });
-    expect(put.status, "the write itself answers 200").toBe(200);
-
     const get = await ownerApi.payment.getRestrictedAiModels();
+
+    test.fail();
     expect(
-      get.data.response?.models,
-      "but nothing was actually persisted without AITools enabled",
-    ).toEqual([]);
+      put.status !== 200 || (get.data.response?.models?.length ?? 0) > 0,
+      "a 200 write should actually persist — a refusal (any non-200) is an " +
+        "equally acceptable fix, so this only fails on the current shape: " +
+        "200 AND nothing stored",
+    ).toBe(true);
   });
 });
 
@@ -2125,10 +2132,12 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
   // array element is accepted (200) rather than rejected, and — because it is
   // filtered out during deserialization — the request is then processed as an
   // empty array, silently CLEARING whatever was restricted before. Every other
-  // wrong-typed element (`123`, `true`, `{}`) correctly 400s instead. Documented
-  // as a real inconsistency, not filed as a bug: the failure mode is "your
-  // restrictions got cleared", not corruption or a crash.
-  test("PUT /api/2.0/portal/payment/ai-model/restrictions - a null array element is accepted and silently clears the list", async ({
+  // wrong-typed element (`123`, `true`, `{}`) correctly 400s instead.
+  //
+  // Filed as BUG XXXXX: the failure mode is "your restrictions got cleared
+  // with no error", not corruption or a crash, but it is still a validation
+  // gap — `[null]` should be rejected the same way `[123]`/`[true]`/`[{}]` are.
+  test("BUG XXXXX: PUT /api/2.0/portal/payment/ai-model/restrictions - a null array element is accepted and silently clears the list", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2140,15 +2149,17 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
       setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
     });
 
-    const { data, status } = await rawRestrictionsCall(apiSdk, "owner", "put", {
+    const { status } = await rawRestrictionsCall(apiSdk, "owner", "put", {
       models: [null],
     });
-
-    expect(status).toBe(200);
-    expect(data.response?.models).toEqual([]);
-
     const { data: got } = await ownerApi.payment.getRestrictedAiModels();
-    expect(got.response?.models).toEqual([]);
+
+    test.fail();
+    expect(
+      { status, models: got.response?.models },
+      "[null] should 400 like its sibling wrong-typed elements and leave the " +
+        "prior list untouched, not be accepted and wipe it",
+    ).toEqual({ status: 400, models: [modelId] });
   });
 
   test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin sets one restricted model (regression: used to 500)", async ({

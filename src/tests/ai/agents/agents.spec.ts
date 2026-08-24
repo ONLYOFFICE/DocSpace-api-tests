@@ -1070,18 +1070,21 @@ test.describe("PUT /ai/agents/:id - the agent's profile binding", () => {
 //     not the one being requested. So restricting a model does not just stop
 //     new assignments to it (defensible); it also traps every agent already on
 //     it, unable to ever move off — the one thing restricting a model should
-//     make easier, not impossible.
+//     make easier, not impossible. Filed as BUG 83355.
 //   * Worse, measured 2026-08-21: the 403 is not a no-op. The agent's
 //     `profileId` and its assignment scope (`get-all-assignments` -> `Chat`)
 //     are BOTH erased by the same request the server told the caller failed —
 //     same erased-in-halves shape as BUG 82925, but reached through a refusal
 //     instead of a 200. A client that reads only the status code sees "nothing
-//     happened, try again"; the agent has already lost its model.
+//     happened, try again"; the agent has already lost its model. Part of the
+//     same BUG 83355 report.
 //   * The mirror case is just as broken the other way: if the agent's CURRENT
 //     model is NOT restricted but the TARGET `profileId` IS, the PUT answers
 //     200 and still erases the model — restricting a model makes it behave
 //     like `threads/create`'s unknown-profileId case (BUG 82925's shape again)
 //     for anyone who tries to move onto it, instead of a controlled refusal.
+//     Filed separately as BUG 83359 — different trigger than BUG 83355 above,
+//     same erase-on-write mechanism.
 //   * `POST /ai/agents` with a restricted `profileId` is the create-time twin:
 //     200, and the built agent has no model at all — the same shape as the
 //     already-filed BUG 82922 (create on an unknown profileId), reached here
@@ -1183,7 +1186,7 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
     expect(rename.status, "a rename that does not touch profileId").toBe(200);
   });
 
-  test("BUG XXXXX: PUT /ai/agents/:id - moving off a restricted model onto a different, valid one is refused", async ({
+  test("BUG 83355: PUT /ai/agents/:id - moving off a restricted model onto a different, valid one is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1245,7 +1248,7 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
     ).toEqual({ status: 200, profileId: replacement.id, chat: replacement.id });
   });
 
-  test("BUG XXXXX: PUT /ai/agents/:id - moving onto a restricted model erases the binding instead of a controlled refusal", async ({
+  test("BUG 83359: PUT /ai/agents/:id - moving onto a restricted model erases the binding instead of a controlled refusal", async ({
     apiSdk,
     paymentsApi,
   }) => {
