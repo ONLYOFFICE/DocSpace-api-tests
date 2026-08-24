@@ -93,6 +93,23 @@ export const AI_ACTION_TYPES = [
   "Vision",
 ] as const;
 
+/**
+ * Preferred modelId fragments within a capability class, cheapest usable
+ * first — same idea as AiAgentChat.TEXT_MODEL_PREFERENCE, but for the
+ * capability-based picker most AI tests use. A fragment that has left the
+ * catalogue is simply skipped, so this does not need to track it.
+ *
+ * The image-only bucket has no "banana" in any modelId — "Nano Banana 2 Lite"
+ * is the storefront name for what the catalogue calls `gemini-3.1-flash-lite-image`
+ * (confirmed live 2026-08-24, alongside `gemini-3.1-flash-image` and
+ * `gpt-5.4-image-2`), so the fragment below matches on that instead.
+ */
+const CAPABILITY_MODEL_PREFERENCE: Partial<Record<number, string[]>> = {
+  [AI_CAPS.textTools]: ["deepseek-v4-flash"],
+  [AI_CAPS.textVisionTools]: ["deepseek-v4-flash"],
+  [AI_CAPS.imageOnly]: ["flash-lite-image"],
+};
+
 export type AiActionType = (typeof AI_ACTION_TYPES)[number];
 
 /** The `{success:false, error:{field, message}}` envelope this surface uses. */
@@ -316,16 +333,26 @@ export class AiProfiles extends AiHttp {
     profiles: AiProfile[],
     capabilities: number,
   ): AiProfile {
-    const match = profiles.find(
+    const matches = profiles.filter(
       (profile) => profile.capabilities === capabilities,
     );
-    if (!match) {
+    if (matches.length === 0) {
       throw new Error(
         `No profile with capabilities ${capabilities} in the catalogue: ` +
           profiles.map((p) => `${p.modelId}:${p.capabilities}`).join(", "),
       );
     }
-    return match;
+
+    for (const fragment of CAPABILITY_MODEL_PREFERENCE[capabilities] ?? []) {
+      const preferred = matches.find((profile) =>
+        profile.modelId?.toLowerCase().includes(fragment),
+      );
+      if (preferred) {
+        return preferred;
+      }
+    }
+
+    return matches[0];
   }
 
   /**
