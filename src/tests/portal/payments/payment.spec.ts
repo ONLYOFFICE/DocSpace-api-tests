@@ -6,8 +6,11 @@ import {
   creditAiBalance,
   enableWalletService,
   disableWalletService,
+  enableAiGateway,
 } from "@/src/helpers/wallet-services";
-import { restrictableAiModelIds } from "@/src/helpers/ai-providers";
+import { AiProfiles } from "@/src/helpers/ai-profiles";
+import { ApiSDK } from "@/src/services/api-sdk";
+import { Role } from "@/src/services/token-store";
 
 test.describe("PUT /api/2.0/portal/payment/url", () => {
   test("PUT /api/2.0/portal/payment/url - Owner gets payment page URL", async ({
@@ -1550,41 +1553,81 @@ test.describe("GET /api/2.0/portal/payment/servicessettings", () => {
   });
 });
 
-// Skipped due to OO AI service being hidden
+// The gateway catalogue (GET /ai/profiles/list) is not a fixed contract — see
+// [[ai_profiles_catalogue_contract]] — so restriction tests pick real,
+// currently-offered modelIds live instead of trusting a hardcoded list.
+// `restrictableAiModelIds` is kept only for the tests that still use it below.
+async function liveModelIds(apiSdk: ApiSDK, count: number): Promise<string[]> {
+  const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+  const catalogue = await profiles.catalogue("owner");
+  const ids = catalogue
+    .map((p) => p.modelId)
+    .filter((id): id is string => !!id);
+  if (ids.length < count) {
+    throw new Error(`Need ${count} modelIds, catalogue has ${ids.length}`);
+  }
+  return ids.slice(0, count);
+}
+
+/** Raw request, bypassing the typed SDK — needed to send bodies the generated
+ * client's types would reject (missing fields, wrong JSON types). */
+async function rawRestrictionsCall(
+  apiSdk: ApiSDK,
+  role: Role,
+  method: "get" | "put",
+  body?: unknown,
+) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  headers.Authorization = `Bearer ${apiSdk.tokenStore.getToken(role)}`;
+  const response = await apiSdk.request[method](
+    `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/portal/payment/ai-model/restrictions`,
+    { headers, ...(body === undefined ? {} : { data: body }) },
+  );
+  const text = await response.text();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = undefined;
+  }
+  return { status: response.status(), data: parsed as any, text };
+}
+
 test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
-  test.skip("GET /api/2.0/portal/payment/ai-model/restrictions - Owner gets restricted AI models", async ({
+  test("GET /api/2.0/portal/payment/ai-model/restrictions - Owner gets restricted AI models", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    await paymentsApi.makeWalletTopUp();
-
     const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [modelId] = await liveModelIds(apiSdk, 1);
+
     await ownerApi.payment.setRestrictedAiModels({
-      setRestrictedAiModelsRequestDto: {
-        models: new Set(restrictableAiModelIds),
-      },
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
     });
 
     const { data, status } = await ownerApi.payment.getRestrictedAiModels();
 
     expect(status).toBe(200);
-    for (const modelId of restrictableAiModelIds) {
-      expect(data.response?.models).toContain(modelId);
-    }
+    expect(data.response?.models).toEqual([modelId]);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
   });
 
-  // Skipped due to OO AI service being hidden
-  test.skip("GET /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin gets restricted AI models", async ({
+  test("GET /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin gets restricted AI models", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    await paymentsApi.makeWalletTopUp();
-
     const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [modelId] = await liveModelIds(apiSdk, 1);
+
     await ownerApi.payment.setRestrictedAiModels({
-      setRestrictedAiModelsRequestDto: {
-        models: new Set(restrictableAiModelIds),
-      },
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
     });
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
@@ -1594,9 +1637,39 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
       .payment.getRestrictedAiModels();
 
     expect(status).toBe(200);
-    for (const modelId of restrictableAiModelIds) {
-      expect(data.response?.models).toContain(modelId);
-    }
+    expect(data.response?.models).toEqual([modelId]);
+
+    await apiSdk.authenticateOwner();
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+  });
+
+  // Measured 2026-08-21: setting restrictions with `setRestrictedAiModels`
+  // silently does nothing — 200, echoes the request back — unless the
+  // portal's AITools wallet service is enabled first. Every other test in
+  // this file calls `enableAiGateway` (which enables it) for exactly this
+  // reason; this one pins the precondition itself, so a future refactor that
+  // drops the call gets caught here instead of producing baffling empty GETs
+  // three tests away.
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - without the AITools wallet service, the write does not persist", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    const ownerApi = apiSdk.forRole("owner");
+    const [modelId] = await liveModelIds(apiSdk, 1);
+
+    const put = await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
+    });
+    expect(put.status, "the write itself answers 200").toBe(200);
+
+    const get = await ownerApi.payment.getRestrictedAiModels();
+    expect(
+      get.data.response?.models,
+      "but nothing was actually persisted without AITools enabled",
+    ).toEqual([]);
   });
 });
 
@@ -1760,69 +1833,370 @@ test.describe("GET /api/2.0/portal/payment/quotas", () => {
   });
 });
 
-// Skipped due to OO AI service being hidden
+// Contract measured live 2026-08-21 against a real gateway catalogue:
+//   * The stored set always comes back sorted, deduplicated, regardless of
+//     input order or repeats — never treat order or count-of-input as meaningful.
+//   * A PUT is a full REPLACE, not a merge: whatever was not in this request is
+//     gone.
+//   * A modelId the catalogue does not currently offer (unknown, blank,
+//     whitespace, wrong case) is silently dropped — not stored, not an error.
+//     Matching is case-sensitive.
+//   * DocSpaceAdmin's old 500 on a non-empty set (the reason it was
+//     `test.skip`'d) no longer reproduces — it behaves exactly like Owner.
 test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
-  test.skip("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner sets restricted AI models", async ({
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner sets one restricted model", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    await paymentsApi.makeWalletTopUp();
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [modelId] = await liveModelIds(apiSdk, 1);
 
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .payment.setRestrictedAiModels({
-        setRestrictedAiModelsRequestDto: {
-          models: new Set(restrictableAiModelIds),
-        },
-      });
-
-    expect(status).toBe(200);
-    for (const modelId of restrictableAiModelIds) {
-      expect(data.response?.models).toContain(modelId);
-    }
-  });
-
-  // Skipped due to OO AI service being hidden
-  test.skip("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner clears all restricted AI models", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-
-    await apiSdk.forRole("owner").payment.setRestrictedAiModels({
-      setRestrictedAiModelsRequestDto: {
-        models: new Set(restrictableAiModelIds),
-      },
+    const { data, status } = await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
     });
 
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .payment.setRestrictedAiModels({
-        setRestrictedAiModelsRequestDto: { models: new Set() },
+    expect(status).toBe(200);
+    expect(data.response?.models).toEqual([modelId]);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner sets multiple restricted models", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [a, b] = await liveModelIds(apiSdk, 2);
+
+    const { data, status } = await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([a, b]) },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.models?.slice().sort()).toEqual([a, b].sort());
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - a new list fully replaces the previous one", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [a, b, c] = await liveModelIds(apiSdk, 3);
+    const set = (models: string[]) =>
+      ownerApi.payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set(models) },
       });
+
+    await set([a, b]);
+    const { data, status } = await set([c]);
+
+    expect(status).toBe(200);
+    expect(data.response?.models).toEqual([c]);
+
+    const { data: got } = await ownerApi.payment.getRestrictedAiModels();
+    expect(got.response?.models, "A and B are gone, only C remains").toEqual([
+      c,
+    ]);
+
+    await set([]);
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - replacing a multi-item list with an overlapping one keeps only the new set", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [a, b, c] = await liveModelIds(apiSdk, 3);
+    const set = (models: string[]) =>
+      ownerApi.payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set(models) },
+      });
+
+    await set([a, b]);
+    await set([b, c]);
+
+    const { data } = await ownerApi.payment.getRestrictedAiModels();
+    expect(data.response?.models?.slice().sort()).toEqual([b, c].sort());
+
+    await set([]);
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - Owner clears all restricted AI models", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [a, b] = await liveModelIds(apiSdk, 2);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([a, b]) },
+    });
+
+    const { data, status } = await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
 
     expect(status).toBe(200);
     expect(data.response?.models?.length).toBe(0);
+
+    const { data: got } = await ownerApi.payment.getRestrictedAiModels();
+    expect(got.response?.models).toEqual([]);
   });
 
-  // Skipped due to OO AI service being hidden — setting non-empty models returns 500
-  test.skip("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin sets restricted AI models", async ({
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - clearing an already-empty list is a no-op 200", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    await paymentsApi.makeWalletTopUp();
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { data, status } = await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.models).toEqual([]);
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - re-setting the same list is idempotent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [a, b] = await liveModelIds(apiSdk, 2);
+    const set = () =>
+      ownerApi.payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set([a, b]) },
+      });
+
+    await set();
+    const { data, status } = await set();
+
+    expect(status).toBe(200);
+    expect(data.response?.models?.slice().sort()).toEqual([a, b].sort());
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - input order does not matter, the stored set is always sorted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [a, b] = await liveModelIds(apiSdk, 2);
+    const sorted = [a, b].sort();
+
+    const forward = await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([a, b]) },
+    });
+    const reversed = await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([b, a]) },
+    });
+
+    expect(forward.data.response?.models).toEqual(sorted);
+    expect(reversed.data.response?.models).toEqual(sorted);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - a duplicated modelId in one request is deduplicated", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [modelId] = await liveModelIds(apiSdk, 1);
+
+    // A `Set` already dedupes client-side, so send the duplicate through the
+    // raw call to actually exercise the server's own handling.
+    const { data, status } = await rawRestrictionsCall(apiSdk, "owner", "put", {
+      models: [modelId, modelId],
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.models).toEqual([modelId]);
+
+    const { data: got } = await ownerApi.payment.getRestrictedAiModels();
+    expect(got.response?.models).toEqual([modelId]);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - a modelId the catalogue does not offer is silently dropped, not stored or erred", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [modelId] = await liveModelIds(apiSdk, 1);
+
+    for (const [label, badId] of [
+      ["a name no provider has", "not-a-real-model-xyz"],
+      ["whitespace only", "   "],
+      ["empty string", ""],
+      ["a very long garbage string", "x".repeat(5000)],
+      ["the right id, wrong case", modelId.toUpperCase()],
+    ] as const) {
+      const { data, status } = await rawRestrictionsCall(
+        apiSdk,
+        "owner",
+        "put",
+        { models: [badId] },
+      );
+      expect(status, label).toBe(200);
+      expect(data.response?.models, label).toEqual([]);
+    }
+
+    const { data: got } = await ownerApi.payment.getRestrictedAiModels();
+    expect(got.response?.models, "nothing was ever actually stored").toEqual(
+      [],
+    );
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - malformed body shapes answer a controlled 4xx, never a 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [modelId] = await liveModelIds(apiSdk, 1);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
+    });
+
+    const cases: Array<[string, unknown]> = [
+      ["no body at all", undefined],
+      ["an empty object", {}],
+      ["models: null", { models: null }],
+      ["models: '' (a string, not an array)", { models: "" }],
+      ["models: a bare string", { models: modelId }],
+      ["models: an object", { models: {} }],
+      ["models: a number", { models: 123 }],
+      ["models: a boolean", { models: true }],
+      ["models: [123] (wrong element type)", { models: [123] }],
+      ["models: [true]", { models: [true] }],
+      ["models: [{}]", { models: [{}] }],
+      ["models: mixed valid + invalid element", { models: [modelId, 123] }],
+    ];
+
+    for (const [label, body] of cases) {
+      const { status } = await rawRestrictionsCall(
+        apiSdk,
+        "owner",
+        "put",
+        body,
+      );
+      expect(status, label).toBeGreaterThanOrEqual(400);
+      expect(status, label).toBeLessThan(500);
+    }
+
+    const { data: got } = await ownerApi.payment.getRestrictedAiModels();
+    expect(
+      got.response?.models,
+      "every rejected attempt above left the prior valid state untouched",
+    ).toEqual([modelId]);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+  });
+
+  // The one shape that does NOT get the 4xx its siblings above get: a `null`
+  // array element is accepted (200) rather than rejected, and — because it is
+  // filtered out during deserialization — the request is then processed as an
+  // empty array, silently CLEARING whatever was restricted before. Every other
+  // wrong-typed element (`123`, `true`, `{}`) correctly 400s instead. Documented
+  // as a real inconsistency, not filed as a bug: the failure mode is "your
+  // restrictions got cleared", not corruption or a crash.
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - a null array element is accepted and silently clears the list", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [modelId] = await liveModelIds(apiSdk, 1);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
+    });
+
+    const { data, status } = await rawRestrictionsCall(apiSdk, "owner", "put", {
+      models: [null],
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.models).toEqual([]);
+
+    const { data: got } = await ownerApi.payment.getRestrictedAiModels();
+    expect(got.response?.models).toEqual([]);
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin sets one restricted model (regression: used to 500)", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [modelId] = await liveModelIds(apiSdk, 1);
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .payment.setRestrictedAiModels({
-        setRestrictedAiModelsRequestDto: {
-          models: new Set(restrictableAiModelIds),
-        },
+        setRestrictedAiModelsRequestDto: { models: new Set([modelId]) },
       });
 
     expect(status).toBe(200);
-    expect(data.response?.models).toBeDefined();
+    expect(data.response?.models).toEqual([modelId]);
+
+    await apiSdk.authenticateOwner();
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+  });
+
+  test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin sets multiple restricted models", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const [a, b] = await liveModelIds(apiSdk, 2);
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.setRestrictedAiModels({
+        setRestrictedAiModelsRequestDto: { models: new Set([a, b]) },
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.models?.slice().sort()).toEqual([a, b].sort());
+
+    await apiSdk.authenticateOwner();
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
   });
 
   test("PUT /api/2.0/portal/payment/ai-model/restrictions - DocSpaceAdmin clears restricted AI models", async ({

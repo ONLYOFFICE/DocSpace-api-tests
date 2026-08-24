@@ -5209,3 +5209,67 @@ test.describe("AI Messages - markdown in the .docx export", () => {
     }
   });
 });
+
+// PUT /api/2.0/portal/payment/ai-model/restrictions (payment.spec.ts) hides a
+// model from GET /ai/profiles/list and, buggily, from the agent-update path
+// (agents.spec.ts, "restricting the agent's current model"). Measured live
+// 2026-08-21: it does NOT reach inference. A thread already talking to a model
+// keeps talking to it after that model gets restricted mid-conversation —
+// restriction only ever gates the catalogue and agent updates, never actual
+// usage of a model an agent or thread already has.
+test.describe("POST /api/2.0/ai/ai/send-with-stream - a model restricted mid-conversation", () => {
+  test("send-with-stream - a thread keeps answering normally after its model gets restricted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profile = AiAgentChat.pickTextProfile(
+      await profiles.catalogue("owner"),
+    );
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Restricted Inference Agent",
+      profileId: profile.id,
+      prompt: "Reply with exactly one short word.",
+    });
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest restricted inference thread",
+      profileId: profile.id,
+      agentId,
+    });
+
+    const before = await aiChat.sendMessage("owner", {
+      threadId,
+      agentId,
+      message: "Say hello.",
+    });
+    expect(before.status, "before restricting").toBe(200);
+    expect(before.streamError).toBeUndefined();
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([profile.modelId!]) },
+    });
+
+    const after = await aiChat.sendMessage("owner", {
+      threadId,
+      agentId,
+      message: "Say hello again.",
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    expect(after.status, "after restricting the agent's model").toBe(200);
+    expect(
+      after.streamError,
+      "restriction does not gate inference, only the catalogue and agent updates",
+    ).toBeUndefined();
+
+    const messages = await aiChat.waitForAssistantReplies("owner", threadId, 2);
+    expectHealthyAssistantReply(messages, 2);
+  });
+});

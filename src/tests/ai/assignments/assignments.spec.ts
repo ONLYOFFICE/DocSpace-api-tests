@@ -990,3 +990,81 @@ test.describe("AI Assignments - entity scope", () => {
     ).toBeUndefined();
   });
 });
+
+// PUT /api/2.0/portal/payment/ai-model/restrictions (see payment.spec.ts) hides
+// a model from the catalogue entirely — this is the one place in the whole AI
+// stack that reacts to a restricted profile the *right* way: a documented soft
+// refusal, not a silent erase or a hard block. Contrast the agent-update path
+// in agents.spec.ts ("restricting the agent's current model"), which does both.
+test.describe("PUT /api/2.0/ai/assignments/assign - a restricted profile", () => {
+  test("PUT /api/2.0/ai/assignments/assign - assigning a restricted profile is refused exactly like an unknown one", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const target = AiAgentChat.pickTextProfile(catalogue);
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([target.modelId!]) },
+    });
+
+    const { status, data } = await profiles.assign("owner", {
+      actionType: "Summarization",
+      profileId: target.id,
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    expect(status).toBe(200);
+    expect(data?.success, "the assignment is refused").toBe(false);
+    expect(data?.error?.message).toBe("Profile not found");
+  });
+
+  test("PUT /api/2.0/ai/assignments/assign - an unrelated restriction does not block assigning a different profile", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const usable = catalogue.filter(
+      (p) => p.canUseTool !== false && !!p.modelId,
+    );
+    if (usable.length < 2) {
+      throw new Error(`Need 2 usable profiles, catalogue has ${usable.length}`);
+    }
+    const [restricted, target] = usable;
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: {
+        models: new Set([restricted.modelId!]),
+      },
+    });
+
+    const { status, data } = await profiles.assign("owner", {
+      actionType: "Summarization",
+      profileId: target.id,
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
+
+    const { data: assignment } = await profiles.getAssignment(
+      "owner",
+      "Summarization",
+    );
+    expect(assignment).toBe(target.id);
+  });
+});
