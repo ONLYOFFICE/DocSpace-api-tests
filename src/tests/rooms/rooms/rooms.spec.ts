@@ -6193,7 +6193,7 @@ test.describe("API rooms methods", () => {
     // non-existent roomId never yields a populated response — data.response
     // stays undefined until the 30s toPass timeout, not an environmental flake.
     test.fail(
-      "BUG XXXXX: GET /files/roomtemplate/status - Status after failed template creation returns isCompleted=true and non-empty error",
+      "BUG 83370: GET /files/roomtemplate/status - Status after failed template creation returns isCompleted=true and non-empty error",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         await ownerApi.rooms.createRoomTemplate({
