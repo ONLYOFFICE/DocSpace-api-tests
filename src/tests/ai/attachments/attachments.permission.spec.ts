@@ -234,7 +234,7 @@ test.describe("AI Attachments - who may create a draft", () => {
   });
 
   for (const { type, role } of MEMBER_TYPES) {
-    test(`POST /api/2.0/ai/attachments/save-image - ${role} saves an image draft`, async ({
+    test(`BUG 83289: POST /api/2.0/ai/attachments/save-image - ${role} saves an image draft`, async ({
       apiSdk,
     }) => {
       // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone,

@@ -853,7 +853,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(status).toBe(200);
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - Owner saves an image draft and reads it back", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - Owner saves an image draft and reads it back", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
@@ -880,7 +880,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(stored.base64).toBe(PNG_1X1);
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - title falls back to name, and name is required", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - title falls back to name, and name is required", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
@@ -904,7 +904,7 @@ test.describe("AI Attachments - save-image", () => {
     );
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - a large base64 payload is accepted and an oversized one is 413", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - a large base64 payload is accepted and an oversized one is 413", async ({
     apiSdk,
   }) => {
     // Same request-body limit as save-file, applied to the data URL. Worth its own
@@ -996,7 +996,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(statuses).toEqual(bodies.map(() => 400));
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - an image draft comes back without a source either", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - an image draft comes back without a source either", async ({
     apiSdk,
   }) => {
     // `source` matters most on images, since a generated one is exactly what the
@@ -1020,7 +1020,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(stored.source).toBeUndefined();
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - png, jpeg, gif and webp are all stored and read back byte for byte", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - png, jpeg, gif and webp are all stored and read back byte for byte", async ({
     apiSdk,
   }) => {
     // The formats a user can paste or drop into the composer. Every other test on
@@ -1112,7 +1112,7 @@ test.describe("AI Attachments - batch saves", () => {
     }
   });
 
-  test("POST /api/2.0/ai/attachments/save-images-many - saves a batch in order with unique ids", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-images-many - saves a batch in order with unique ids", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-images-many answers 500 for everyone.
@@ -1968,7 +1968,7 @@ test.describe("AI Attachments - delete", () => {
     expect(data?.success).toBe(true);
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete - Owner deletes an image draft with a bare JSON string literal body", async ({
+  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete - Owner deletes an image draft with a bare JSON string literal body", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
@@ -2044,7 +2044,7 @@ test.describe("AI Attachments - delete", () => {
     );
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not stop the real ones being deleted", async ({
+  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not stop the real ones being deleted", async ({
     apiSdk,
   }) => {
     // This is the atomicity question for delete-many, and the one form of it that
@@ -2084,7 +2084,7 @@ test.describe("AI Attachments - delete", () => {
     await attachments.expectAbsent("owner", imageId, "deleted image draft");
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete - removing one draft out of a composer's set leaves the others alone", async ({
+  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete - removing one draft out of a composer's set leaves the others alone", async ({
     apiSdk,
   }) => {
     // What the ✕ on one preview does. The tests above delete a lone draft or the
@@ -2742,7 +2742,7 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     );
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - a picture sent to a model without vision is accepted with no warning at all", async ({
+  test("BUG 83289: POST /api/2.0/ai/ai/send-with-stream - a picture sent to a model without vision is accepted with no warning at all", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3024,7 +3024,7 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     expect(sniffed.status, "ZIP magic bytes under a .txt name").toBe(400);
   });
 
-  test("POST /api/2.0/ai/threads/append-user-message - a message at the cap carries all five files and all five images", async ({
+  test("BUG 83289: POST /api/2.0/ai/threads/append-user-message - a message at the cap carries all five files and all five images", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3261,7 +3261,7 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     }
   });
 
-  test("POST /api/2.0/ai/threads/append-user-message - a draft staged in one thread stays readable and can still be sent from another", async ({
+  test("BUG 83289: POST /api/2.0/ai/threads/append-user-message - a draft staged in one thread stays readable and can still be sent from another", async ({
     apiSdk,
     paymentsApi,
   }) => {
