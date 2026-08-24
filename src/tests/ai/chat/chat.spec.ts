@@ -2522,7 +2522,7 @@ test.describe("AI Chat - the global entry point", () => {
     expect(listed.status, "a Guest listing global chats").toBe(403);
   });
 
-  test("GET /api/2.0/ai/threads/list - the global chat's history is listed inside rooms and folders", async ({
+  test("BUG 82855: GET /api/2.0/ai/threads/list - the global chat's history is listed inside rooms and folders", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2704,7 +2704,7 @@ test.describe("AI Chat - room and folder entity context", () => {
     expect(listed.data.map((thread) => thread.threadId)).toContain(threadId);
   });
 
-  test("GET /api/2.0/ai/threads/list - every non-agent entity shares one thread list", async ({
+  test("BUG 82855: GET /api/2.0/ai/threads/list - every non-agent entity shares one thread list", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2781,7 +2781,7 @@ test.describe("AI Chat - room and folder entity context", () => {
     }
   });
 
-  test("GET /api/2.0/ai/threads/list - a thread started in a folder is listed for every other folder and room", async ({
+  test("BUG 82855: GET /api/2.0/ai/threads/list - a thread started in a folder is listed for every other folder and room", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2878,7 +2878,7 @@ test.describe("AI Chat - room and folder entity context", () => {
   // either of them are not in an inheritance relationship — they all resolve to
   // the exact same shared bucket. This test pins that flattened reality instead
   // of a nesting rule that has no boundary left to apply to.
-  test("GET /api/2.0/ai/threads/list - a room, its subfolders, another room and an outside folder all list the same shared bucket", async ({
+  test("BUG 82855: GET /api/2.0/ai/threads/list - a room, its subfolders, another room and an outside folder all list the same shared bucket", async ({
     apiSdk,
     paymentsApi,
   }) => {
