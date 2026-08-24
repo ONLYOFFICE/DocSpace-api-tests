@@ -2325,10 +2325,11 @@ test.describe("AI Threads - started by the first message", () => {
 // which sees the main section can do it, and that the history stays with whoever
 // wrote it.
 //
-// The scoping half of it is broken in the way the BUG 82855 tests below pin: no
-// entity resolves to the same shared bucket as every room and folder, so the
-// global chat's history is also what a room's chat panel shows. That direction is
-// asserted at the end of this block.
+// The scoping half of it is confirmed by design (BUG 82855, dev response
+// 2026-08-24: "chat is isolated inside agents; outside an agent it shares one
+// context across every other entity"): no entity resolves to the same shared
+// bucket as every room and folder, so the global chat's history is also what a
+// room's chat panel shows. That direction is asserted at the end of this block.
 
 const GLOBAL_CHAT_TITLE = "Autotest global chat";
 
@@ -2527,9 +2528,10 @@ test.describe("AI Chat - the global entry point", () => {
   }) => {
     // The other direction of the shared bucket: a chat started from the portal
     // interface, with no entity at all, is listed when the same user opens the
-    // chat panel in an unrelated room and in a folder. An agent is made alongside
-    // as the control — its scope stays clean, so this is the room/folder scope
-    // specifically and not "entityId does nothing".
+    // chat panel in an unrelated room and in a folder. Confirmed by design
+    // (BUG 82855, dev response 2026-08-24: isolation only exists inside agents).
+    // An agent is made alongside as the control — its scope stays clean, so this
+    // is the room/folder behaviour specifically and not "entityId does nothing".
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2568,20 +2570,14 @@ test.describe("AI Chat - the global entry point", () => {
       ["My Documents", folderId],
     ];
 
-    const leaked: string[] = [];
     for (const [label, entityId] of scopes) {
       const listed = await aiChat.listThreads("owner", entityId);
       expect(listed.status, `listing threads for ${label}`).toBe(200);
-      if (listed.data.some((thread) => thread.threadId === globalThread)) {
-        leaked.push(label);
-      }
+      expect(
+        listed.data.map((thread) => thread.threadId),
+        `the global chat's thread is listed for ${label}`,
+      ).toContain(globalThread);
     }
-
-    test.fail();
-    expect(
-      leaked,
-      "the global chat's thread is listed for these locations",
-    ).toEqual([]);
   });
 });
 
@@ -2597,7 +2593,10 @@ test.describe("AI Chat - the global entry point", () => {
 //   GET  /ai/threads/list?entityId=
 //   GET  /ai/assignments/get-all-assignments?entityId=
 //
-// What the portal actually does, measured on 2026-08-05, is split in two:
+// What the portal actually does, measured on 2026-08-05 and confirmed by design
+// on 2026-08-24 (dev response to BUG 82855: "chat is isolated inside agents;
+// outside an agent it shares one context across every other entity"), is split
+// in two:
 //
 //   * An AGENT id is a real scope. Its threads are listed for it and for
 //     nothing else. So is a roomType 9 room made through /files/rooms, which is
@@ -2606,16 +2605,19 @@ test.describe("AI Chat - the global entry point", () => {
 //   * Every OTHER value — an ordinary room id, a folder id, a string that is not
 //     an id at all, or no entityId — resolves to one single shared bucket. A
 //     thread started while looking at room A is listed when looking at room B.
-//     That is the bug the BUG 82855 tests below pin.
+//     That is the contract the tests below pin, now that BUG 82855 is closed
+//     as intended behaviour rather than a defect to fix.
 //
-// A room does own what is held below it: a chat started in one of its subfolders
-// is part of the room (product decision, 2026-08-13), at any depth. That half is
-// unobservable while the bucket exists, so it lives in the nesting test together
-// with the half the bucket breaks.
+// Since every non-agent scope is really the same bucket, "a room inherits its
+// subfolders' threads" (product language from 2026-08-13) isn't a nesting rule
+// with an inside and an outside — there is no boundary at all outside an agent,
+// so a room, its subfolders at any depth, an unrelated room and a folder outside
+// either of them all list the exact same set of threads.
 //
 // Per-user isolation is unaffected and holds: the bucket is per user, so another
 // member never sees these threads. That is asserted here too, because a test
-// that only showed the leak would leave "does it cross users as well" open.
+// that only showed the shared bucket would leave "does it cross users as well"
+// open.
 
 const CHAT_TITLE = "Autotest entity thread";
 
@@ -2708,9 +2710,10 @@ test.describe("AI Chat - room and folder entity context", () => {
   }) => {
     // Threads started in room A are listed while the user is in room B, in an
     // unrelated folder, and with no entity at all: the scope token is accepted
-    // and then ignored for everything that is not an agent. An agent thread is
-    // created alongside as the control — that one IS scoped, so this is a gap in
-    // the room/folder context specifically, not "entityId does nothing".
+    // and then ignored for everything that is not an agent — confirmed by design
+    // (BUG 82855, dev response 2026-08-24). An agent thread is created alongside
+    // as the control — that one IS scoped, so this is the room/folder context
+    // specifically, not "entityId does nothing".
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2763,25 +2766,19 @@ test.describe("AI Chat - room and folder entity context", () => {
       ["no entity at all", undefined],
     ];
 
-    const leaked: string[] = [];
     for (const [label, entityId] of scopes) {
       const listed = await aiChat.listThreads("owner", entityId);
       expect(listed.status, `listing threads for ${label}`).toBe(200);
-      if (listed.data.some((thread) => thread.threadId === inRoomA)) {
-        leaked.push(label);
-      }
-      // Whatever else is wrong, the agent's thread stays in the agent.
+      expect(
+        listed.data.map((thread) => thread.threadId),
+        `room A's thread is listed for ${label}`,
+      ).toContain(inRoomA);
+      // Whatever else is shared, the agent's thread stays in the agent.
       expect(
         listed.data.map((thread) => thread.threadId),
         `the agent's thread must not be listed for ${label}`,
       ).not.toContain(inAgent);
     }
-
-    test.fail();
-    expect(
-      leaked,
-      "room A's thread is listed for these unrelated scopes",
-    ).toEqual([]);
   });
 
   test("BUG 82855: GET /api/2.0/ai/threads/list - a thread started in a folder is listed for every other folder and room", async ({
@@ -2790,12 +2787,12 @@ test.describe("AI Chat - room and folder entity context", () => {
   }) => {
     // The test above starts its thread in a room. This one starts it in a folder,
     // which is the scope the composer sends while the user is browsing documents,
-    // and it checks the pairs that one does not: folder -> sibling folder,
-    // folder -> a room, folder -> a folder inside a room. The fix for BUG 82855
-    // has to scope every location, and "room A vs room B" alone would leave
-    // folder-to-folder isolation resting on the assumption that both kinds of id
-    // travel through the same code — they are the same id space, but the entity
-    // is resolved before it is scoped, and Trash/file ids already show that
+    // and it checks the pairs that one does too: folder -> sibling folder,
+    // folder -> a room, folder -> a folder inside a room. Confirmed by design
+    // (BUG 82855) applies to every location, and "room A vs room B" alone would
+    // leave folder-to-folder open to the assumption that both kinds of id travel
+    // through the same code — they are the same id space, but the entity is
+    // resolved before it is scoped, and Trash/file ids already show that
     // resolution treating ids alike is not something to assume (BUG 82719).
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -2864,38 +2861,24 @@ test.describe("AI Chat - room and folder entity context", () => {
       ["a folder inside that room", subFolderId],
     ];
 
-    const leaked: string[] = [];
     for (const [label, entityId] of scopes) {
       const listed = await aiChat.listThreads("owner", entityId);
       expect(listed.status, `listing threads for ${label}`).toBe(200);
-      if (listed.data.some((thread) => thread.threadId === inFolderA)) {
-        leaked.push(label);
-      }
+      expect(
+        listed.data.map((thread) => thread.threadId),
+        `folder A's thread is listed for ${label}`,
+      ).toContain(inFolderA);
     }
-
-    test.fail();
-    expect(
-      leaked,
-      "folder A's thread is listed for these unrelated scopes",
-    ).toEqual([]);
   });
 
-  // Nesting, settled as a product decision on 2026-08-13: a room inherits the
-  // threads of its subfolders. Standing at the room root a user sees the chats
-  // they held anywhere inside it, however deep; standing outside the room they
-  // see none of them.
-  //
-  // Which makes the inheritance itself unobservable today — every non-agent
-  // entity shares one bucket (BUG 82855), so the room root lists a subfolder's
-  // thread whether or not anything inherits anything. What separates the two is
-  // the second half of the rule, that nothing from *outside* the room is listed
-  // for it, and that is the half the bucket breaks. So this is one test.fail on
-  // 82855 rather than a green inheritance test plus a red isolation one.
-  //
-  // The order matters: the inheritance assertions run before test.fail(), so a
-  // fix that scopes each folder strictly — subfolder chats no longer part of the
-  // room — is reported as a real failure and not swallowed as "expected".
-  test("BUG 82855: GET /api/2.0/ai/threads/list - a room lists the threads of its subfolders and nothing from outside it", async ({
+  // "A room inherits the threads of its subfolders" was floated as a product
+  // decision on 2026-08-13, but the dev response to BUG 82855 (2026-08-24) makes
+  // it moot: outside an agent there is no per-location boundary at all, so a
+  // room, its subfolders at any depth, an unrelated room and a folder outside
+  // either of them are not in an inheritance relationship — they all resolve to
+  // the exact same shared bucket. This test pins that flattened reality instead
+  // of a nesting rule that has no boundary left to apply to.
+  test("BUG 82855: GET /api/2.0/ai/threads/list - a room, its subfolders, another room and an outside folder all list the same shared bucket", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2961,51 +2944,30 @@ test.describe("AI Chat - room and folder entity context", () => {
       agentId: outsideFolderId,
     });
 
-    // Each thread is listed for the folder it was started in.
-    for (const [label, entityId, threadId] of [
-      ["the room root", roomId, inRoomRoot],
-      ["the subfolder", subFolderId, inSubFolder],
-      ["the deep subfolder", deepFolderId, inDeepFolder],
-      ["the folder outside the room", outsideFolderId, inOutsideFolder],
-    ] as Array<[string, number, string]>) {
+    // Every one of the four threads, wherever it was started, is listed for
+    // every one of the four locations — the room root, its subfolder, its deep
+    // subfolder and the folder outside the room. There is no per-location
+    // boundary to check separately.
+    const allThreads = [inRoomRoot, inSubFolder, inDeepFolder, inOutsideFolder];
+    const locations: Array<[string, number]> = [
+      ["the room root", roomId],
+      ["the subfolder", subFolderId],
+      ["the deep subfolder", deepFolderId],
+      ["the folder outside the room", outsideFolderId],
+      ["an unrelated room", otherRoomId],
+    ];
+
+    for (const [label, entityId] of locations) {
       const listed = await aiChat.listThreads("owner", entityId);
       expect(listed.status, `listing ${label}`).toBe(200);
-      expect(
-        listed.data.map((thread) => thread.threadId),
-        `the thread of ${label} is listed there`,
-      ).toContain(threadId);
-    }
-
-    // The inheritance: the room root carries its own conversation and everything
-    // held below it, at any depth.
-    const rootList = await aiChat.listThreads("owner", roomId);
-    expect(rootList.status).toBe(200);
-    const atRoot = rootList.data.map((thread) => thread.threadId);
-    expect(atRoot, "the room's own thread").toContain(inRoomRoot);
-    expect(atRoot, "a thread held one level down").toContain(inSubFolder);
-    expect(atRoot, "a thread held two levels down").toContain(inDeepFolder);
-
-    // And the half the shared bucket breaks: nothing from outside the room is
-    // part of it, and the room's own conversations do not reach another room.
-    const leaked: string[] = [];
-    if (atRoot.includes(inOutsideFolder)) {
-      leaked.push("the room lists a thread from a folder outside it");
-    }
-    const otherRoomList = await aiChat.listThreads("owner", otherRoomId);
-    expect(otherRoomList.status).toBe(200);
-    const atOtherRoom = otherRoomList.data.map((thread) => thread.threadId);
-    for (const [label, threadId] of [
-      ["the room root", inRoomRoot],
-      ["its subfolder", inSubFolder],
-      ["its deep subfolder", inDeepFolder],
-    ] as Array<[string, string]>) {
-      if (atOtherRoom.includes(threadId)) {
-        leaked.push(`another room lists the thread of ${label}`);
+      const ids = listed.data.map((thread) => thread.threadId);
+      for (const threadId of allThreads) {
+        expect(
+          ids,
+          `${label} lists every thread in the shared bucket`,
+        ).toContain(threadId);
       }
     }
-
-    test.fail();
-    expect(leaked, "the room's tree is not a closed scope").toEqual([]);
   });
 
   test("GET /api/2.0/ai/threads/get-by-id, read-messages, POST /api/2.0/ai/ai/send-with-stream - a thread is read and continued from another location", async ({
@@ -3019,10 +2981,11 @@ test.describe("AI Chat - room and folder entity context", () => {
     // while the client says it is in room B, and a thread record carries no scope
     // field to compare against either.
     //
-    // Asserted green because that is today's contract and the listing bug
-    // (BUG 82855) hides it: whatever "bound to the room" comes to mean, this test
-    // says which routes the binding is currently absent from, and it turns red
-    // the moment one of them starts enforcing a scope.
+    // Asserted green because that is today's contract, and the shared bucket
+    // outside agents (BUG 82855, confirmed by design) hides it: whatever "bound
+    // to the room" comes to mean, this test says which routes the binding is
+    // currently absent from, and it turns red the moment one of them starts
+    // enforcing a scope.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -4418,9 +4381,9 @@ test.describe("AI Chat - the model of one thread", () => {
   }) => {
     // The picker is shown everywhere except an agent, and a folder is the third
     // context it appears in (agent, room, folder). Worth its own case because
-    // every non-agent entity shares one thread list (BUG 82855) — the model has
-    // to stay attached to the thread even though the listing does not separate
-    // the entities.
+    // every non-agent entity shares one thread list (BUG 82855, confirmed by
+    // design) — the model has to stay attached to the thread even though the
+    // listing does not separate the entities.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -5779,8 +5742,9 @@ test.describe("AI Chat - an AI room created through the rooms API", () => {
     // model and having an empty assignment scope (the test above).
     //
     // Worth pinning as its own contract: this room is the only entity that is
-    // scoped without being an agent, so a fix for BUG 82855 that reworks how the
-    // scope is resolved could easily drop it back into the bucket, and nothing
+    // scoped without being an agent, so a future change to how non-agent scope
+    // is resolved (BUG 82855 is closed as by-design, but the resolution logic
+    // could still move) could easily drop it back into the bucket, and nothing
     // else in the suite would notice.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
