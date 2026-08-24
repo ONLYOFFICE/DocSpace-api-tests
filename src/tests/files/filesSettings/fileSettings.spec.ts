@@ -3071,9 +3071,9 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     rights.forEach((r) => expect(validFileShareValues).toContain(r));
   });
 
-  // BUG XXXXX: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 200 instead of 400
+  // BUG 79905: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 200 instead of 400
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 200 instead of 400",
+    "BUG 79905: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 200 instead of 400",
     async ({ apiSdk }) => {
       const { status } = await apiSdk
         .forRole("owner")
@@ -3146,6 +3146,26 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - Validation", () => 
 
     expect(status).toBe(400);
   });
+
+  // BUG 79905: PUT /api/2.0/files/settings/defaulttemplate - fileExtension mismatch with actual file format is accepted instead of rejected
+  test.fail(
+    "BUG 79905: PUT /api/2.0/files/settings/defaulttemplate - Setting .pptx file as .docx" +
+      " template returns 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Mismatched Template.pptx" },
+      });
+      const fileId = fileData.response!.id!;
+      const { status } = await ownerApi.filesSettings.setDefaultTemplate({
+        defaultTemplateSettingsRequestDto: {
+          selectedFile: fileId,
+          fileExtension: ".docx",
+        },
+      });
+      expect(status).toBe(400);
+    },
+  );
 });
 
 test.describe("POST /api/2.0/files/settings/defaulttemplate - Upload default template", () => {
@@ -3167,6 +3187,55 @@ test.describe("POST /api/2.0/files/settings/defaulttemplate - Upload default tem
       expect(status).toBe(400);
       expect((data as any).error).toBeDefined();
       expect((data as any).error).not.toBe("");
+    },
+  );
+
+  // BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading file with extension mismatching fileExtension parameter is accepted instead of rejected
+  test.fail(
+    "BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .pdf file as .docx" +
+      " template returns 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const file = new File([new Uint8Array(100)], "template.pdf", {
+        type: "application/pdf",
+      });
+      const { status } = await ownerApi.filesSettings.uploadDefaultTemplate({
+        fileExtension: ".docx",
+        file,
+      });
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .docx file as .xlsx" +
+      " template returns 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const file = new File([new Uint8Array(100)], "template.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const { status } = await ownerApi.filesSettings.uploadDefaultTemplate({
+        fileExtension: ".xlsx",
+        file,
+      });
+      expect(status).toBe(400);
+    },
+  );
+
+  test.fail(
+    "BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .xlsx file as .pptx" +
+      " template returns 400",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const file = new File([new Uint8Array(100)], "template.xlsx", {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const { status } = await ownerApi.filesSettings.uploadDefaultTemplate({
+        fileExtension: ".pptx",
+        file,
+      });
+      expect(status).toBe(400);
     },
   );
 });
