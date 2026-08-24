@@ -219,17 +219,16 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/quota", () => {
 });
 
 test.describe("GET /api/2.0/settings/docscloud/tenant/info - negative", () => {
-  test(
-    "BUG 83321: GET /api/2.0/settings/docscloud/tenant/info - returns 500 instead of 400 when DocsCloud tenant is not activated",
-    async ({ apiSdk }) => {
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.getTenantInfo();
+  test("BUG 83321: GET /api/2.0/settings/docscloud/tenant/info - returns 500 instead of 400 when DocsCloud tenant is not activated", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.getTenantInfo();
 
-      expect(status).toBe(400);
-      expect((data as any).error?.message).toBe("DocsCloud resource not found");
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBe("DocsCloud resource not found");
+  });
 });
 
 test.describe("GET /api/2.0/settings/docscloud/tenant/usage", () => {
@@ -441,106 +440,105 @@ test.describe("POST /api/2.0/settings/docscloud/switchtodevpack", () => {
 });
 
 test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length validation", () => {
-  test(
-    "BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - tenantName is not validated for length",
-    async ({ apiSdk }) => {
-      await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+  test("BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - tenantName is not validated for length", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
 
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.updateTenantConfig({
-          docsCloudConfig: {
-            tenantName: apiSdk.faker.generateString(256),
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.updateTenantConfig({
+        docsCloudConfig: {
+          tenantName: apiSdk.faker.generateString(256),
+        },
+      });
+
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.TenantName).toEqual([
+      "The field TenantName must be a string with a maximum length of 255.",
+    ]);
+  });
+
+  test("BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - security.secret is not validated for length", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.updateTenantConfig({
+        docsCloudConfig: {
+          security: { secret: apiSdk.faker.generateString(256) },
+        },
+      });
+
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.["Security.Secret"]).toEqual([
+      "The field Secret must be a string with a maximum length of 255.",
+    ]);
+  });
+
+  test("BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - security.header is not validated for length", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.updateTenantConfig({
+        docsCloudConfig: {
+          security: { header: apiSdk.faker.generateString(256) },
+        },
+      });
+
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.["Security.Header"]).toEqual([
+      "The field Header must be a string with a maximum length of 255.",
+    ]);
+  });
+
+  test("BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - ipFilter.rules[].address is not validated for length", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.updateTenantConfig({
+        docsCloudConfig: {
+          ipFilter: {
+            rules: [
+              { address: apiSdk.faker.generateString(256), allowed: true },
+            ],
           },
-        });
+        },
+      });
 
-      expect(status).toBe(400);
-      expect((data as any).response?.errors?.TenantName).toEqual(["The field TenantName must be a string with a maximum length of 255."]);
-    },
-  );
-
-  test(
-    "BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - security.secret is not validated for length",
-    async ({ apiSdk }) => {
-      await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
-
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.updateTenantConfig({
-          docsCloudConfig: {
-            security: { secret: apiSdk.faker.generateString(256) },
-          },
-        });
-
-      expect(status).toBe(400);
-      expect((data as any).response?.errors?.["Security.Secret"]).toEqual([
-        "The field Secret must be a string with a maximum length of 255.",
-      ]);
-    },
-  );
-
-  test(
-    "BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - security.header is not validated for length",
-    async ({ apiSdk }) => {
-      await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
-
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.updateTenantConfig({
-          docsCloudConfig: {
-            security: { header: apiSdk.faker.generateString(256) },
-          },
-        });
-
-      expect(status).toBe(400);
-      expect((data as any).response?.errors?.["Security.Header"]).toEqual([
-        "The field Header must be a string with a maximum length of 255.",
-      ]);
-    },
-  );
-
-  test(
-    "BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - ipFilter.rules[].address is not validated for length",
-    async ({ apiSdk }) => {
-      await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
-
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.updateTenantConfig({
-          docsCloudConfig: {
-            ipFilter: {
-              rules: [
-                { address: apiSdk.faker.generateString(256), allowed: true },
-              ],
-            },
-          },
-        });
-
-      expect(status).toBe(400);
-      expect((data as any).response?.errors?.["IpFilter.Rules[0].Address"]).toEqual([
-        "The field Address must be a string with a maximum length of 255.",
-      ]);
-    },
-  );
+    expect(status).toBe(400);
+    expect(
+      (data as any).response?.errors?.["IpFilter.Rules[0].Address"],
+    ).toEqual([
+      "The field Address must be a string with a maximum length of 255.",
+    ]);
+  });
 });
 
 test.describe("PUT /api/2.0/settings/docscloud/tenant/config - server.fileSizeLimit validation", () => {
-  test(
-    "BUG 83326: PUT /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when server.fileSizeLimit is too large",
-    async ({ apiSdk }) => {
-      await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+  test("BUG 83326: PUT /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when server.fileSizeLimit is too large", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
 
-      const { status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.updateTenantConfig({
-          docsCloudConfig: {
-            server: { fileSizeLimit: 9999999999 },
-          },
-        });
+    const { status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.updateTenantConfig({
+        docsCloudConfig: {
+          server: { fileSizeLimit: 9999999999 },
+        },
+      });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("DELETE /api/2.0/settings/docscloud/tenant/quota/report", () => {
@@ -573,45 +571,42 @@ test.describe("DELETE /api/2.0/settings/docscloud/tenant/quota/report", () => {
 });
 
 test.describe("GET /api/2.0/settings/docscloud/tenant/usage - negative", () => {
-  test(
-    "BUG 83322: GET /api/2.0/settings/docscloud/tenant/usage - returns 500 instead of 400 when DocsCloud tenant is not activated",
-    async ({ apiSdk }) => {
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.getTenantUsage();
+  test("BUG 83322: GET /api/2.0/settings/docscloud/tenant/usage - returns 500 instead of 400 when DocsCloud tenant is not activated", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.getTenantUsage();
 
-      expect(status).toBe(400);
-      expect((data as any).error?.message).toBe("DocsCloud resource not found");
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBe("DocsCloud resource not found");
+  });
 });
 
 test.describe("GET /api/2.0/settings/docscloud/tenant/quota - negative", () => {
-  test(
-    "BUG 83325: GET /api/2.0/settings/docscloud/tenant/quota - returns 500 instead of 400 when DocsCloud tenant is not activated",
-    async ({ apiSdk }) => {
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.getTenantQuota();
+  test("BUG 83325: GET /api/2.0/settings/docscloud/tenant/quota - returns 500 instead of 400 when DocsCloud tenant is not activated", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.getTenantQuota();
 
-      expect(status).toBe(400);
-      expect((data as any).error?.message).toBe("DocsCloud resource not found");
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBe("DocsCloud resource not found");
+  });
 });
 
 test.describe("GET /api/2.0/settings/docscloud/tenant/config - negative", () => {
-  test(
-    "BUG 83320: GET /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when DocsCloud tenant is not activated",
-    async ({ apiSdk }) => {
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.getTenantConfig();
+  test("BUG 83320: GET /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when DocsCloud tenant is not activated", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.getTenantConfig();
 
-      expect(status).toBe(400);
-      expect((data as any).error?.message).toBe("DocsCloud resource not found");
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBe("DocsCloud resource not found");
+  });
 });
 
 test.describe("GET /api/2.0/settings/docscloud/tenant", () => {
@@ -709,19 +704,18 @@ test.describe("GET /api/2.0/settings/docscloud/tenant - when not activated", () 
 });
 
 test.describe("PUT /api/2.0/settings/docscloud/tenant/config - negative", () => {
-  test(
-    "BUG 83323: PUT /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when DocsCloud tenant is not activated",
-    async ({ apiSdk }) => {
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .docsCloud.updateTenantConfig({
-          docsCloudConfig: { wopi: { enable: true } },
-        });
+  test("BUG 83323: PUT /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when DocsCloud tenant is not activated", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .docsCloud.updateTenantConfig({
+        docsCloudConfig: { wopi: { enable: true } },
+      });
 
-      expect(status).toBe(400);
-      expect((data as any).error?.message).toBe("DocsCloud resource not found");
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBe("DocsCloud resource not found");
+  });
 });
 
 test.describe("POST /api/2.0/settings/docscloud/calculatedevpack - negative", () => {
