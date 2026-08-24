@@ -3982,7 +3982,7 @@ test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links - access 
     expect(data.response).toHaveLength(0);
   });
 
-  test("GET /api/2.0/files/folder/{id}/links - User without room access gets 200 with empty links list", async ({
+  test("GET /api/2.0/files/folder/{id}/links - User without room access gets 403", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -4004,15 +4004,14 @@ test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links - access 
       "User",
     );
 
-    const { data, status } = await userApi.folders.getFolderLinks({
+    const { status } = await userApi.folders.getFolderLinks({
       id: roomId,
     });
 
-    expect(status).toBe(200);
-    expect(data.response).toHaveLength(0);
+    expect(status).toBe(403);
   });
 
-  test("GET /api/2.0/files/folder/{id}/links - Guest without room access gets 200 with empty links list", async ({
+  test("GET /api/2.0/files/folder/{id}/links - Guest without room access gets 403", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -4034,12 +4033,11 @@ test.describe("GET /api/2.0/files/folder/{id}/links - Get folder links - access 
       "Guest",
     );
 
-    const { data, status } = await guestApi.folders.getFolderLinks({
+    const { status } = await guestApi.folders.getFolderLinks({
       id: roomId,
     });
 
-    expect(status).toBe(200);
-    expect(data.response).toHaveLength(0);
+    expect(status).toBe(403);
   });
 
   test("GET /api/2.0/files/folder/{id}/links - Anonymous request returns 401", async ({
