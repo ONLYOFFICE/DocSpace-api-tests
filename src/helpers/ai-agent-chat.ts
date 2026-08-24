@@ -181,8 +181,8 @@ export class AiAgentChat extends AiHttp {
    * simply skipped, so this list does not need to be kept in lockstep with it.
    */
   static readonly TEXT_MODEL_PREFERENCE = [
-    "gemini-3.5-flash",
     "deepseek-v4-flash",
+    "gemini-3.5-flash",
     "gpt-5.6-luna",
     "claude-sonnet-5",
   ];

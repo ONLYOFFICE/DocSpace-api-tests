@@ -5636,42 +5636,41 @@ test.describe("API rooms methods", () => {
       },
     );
 
-    test.fail(
-      "BUG 81691: POST /files/roomtemplate - Cannot create template from archived source room",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Archived Src",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = roomData.response!.id!;
+    test("BUG 81691: POST /files/roomtemplate - Cannot create template from archived source room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Archived Src",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        await ownerApi.rooms.archiveRoom({
-          id: roomId,
-          archiveRoomRequest: { deleteAfter: false },
-        });
-        await waitForOperation(ownerApi.operations);
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
 
-        const templateTitle = "Should Not Be Created From Archived";
-        const { data } = await ownerApi.rooms.createRoomTemplate({
-          roomTemplateDto: {
-            roomId,
-            title: templateTitle,
-          },
-        });
+      const templateTitle = "Should Not Be Created From Archived";
+      const { data } = await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId,
+          title: templateTitle,
+        },
+      });
 
-        const { data: list } = await ownerApi.rooms.getRoomsFolder({
-          searchArea: SearchArea.Templates,
-        });
-        const titles = (list.response!.folders ?? []).map(
-          (f) => (f as any).title as string,
-        );
-        expect(titles).not.toContain(templateTitle);
-        expect(data.statusCode).toBe(403);
-      },
-    );
+      const { data: list } = await ownerApi.rooms.getRoomsFolder({
+        searchArea: SearchArea.Templates,
+      });
+      const titles = (list.response!.folders ?? []).map(
+        (f) => (f as any).title as string,
+      );
+      expect(titles).not.toContain(templateTitle);
+      expect(data.statusCode).toBe(403);
+    });
 
     // === Integration ===
 
@@ -6189,23 +6188,28 @@ test.describe("API rooms methods", () => {
       },
     );
 
-    test("GET /files/roomtemplate/status - Status after failed template creation returns isCompleted=true and non-empty error", async ({
-      apiSdk,
-    }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await ownerApi.rooms.createRoomTemplate({
-        roomTemplateDto: { roomId: 999999999, title: "Failed Template" },
-      });
+    // Confirmed reproducible 3/3 with --repeat-each=3 on 2026-08-24: polling
+    // getRoomTemplateCreatingStatus() after a createRoomTemplate with a
+    // non-existent roomId never yields a populated response — data.response
+    // stays undefined until the 30s toPass timeout, not an environmental flake.
+    test.fail(
+      "BUG 83370: GET /files/roomtemplate/status - Status after failed template creation returns isCompleted=true and non-empty error",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        await ownerApi.rooms.createRoomTemplate({
+          roomTemplateDto: { roomId: 999999999, title: "Failed Template" },
+        });
 
-      await expect(async () => {
+        await expect(async () => {
+          const { data } = await ownerApi.rooms.getRoomTemplateCreatingStatus();
+          expect(data.response!.isCompleted).toBe(true);
+        }).toPass({ intervals: [1_000, 2_000], timeout: 30_000 });
+
         const { data } = await ownerApi.rooms.getRoomTemplateCreatingStatus();
         expect(data.response!.isCompleted).toBe(true);
-      }).toPass({ intervals: [1_000, 2_000], timeout: 30_000 });
-
-      const { data } = await ownerApi.rooms.getRoomTemplateCreatingStatus();
-      expect(data.response!.isCompleted).toBe(true);
-      expect(data.response!.error).toBeTruthy();
-    });
+        expect(data.response!.error).toBeTruthy();
+      },
+    );
 
     test.fail(
       "BUG 81691: GET /files/roomtemplate/status - Status after failed template creation does not return a valid templateId",
@@ -8168,55 +8172,53 @@ test.describe("API rooms methods", () => {
       expect(status).toBe(200);
     });
 
-    test.fail(
-      "BUG 81787: GET /files/rooms/:id/share - User not invited to room cannot get security info",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Share Outside User",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = roomData.response!.id!;
+    test("BUG 81787: GET /files/rooms/:id/share - User not invited to room cannot get security info", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Outside User",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        const { api: userApi } = await apiSdk.addAuthenticatedMember(
-          "owner",
-          "User",
-        );
+      const { api: userApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
 
-        const { data } = await userApi.rooms.getRoomSecurityInfo({
-          id: roomId,
-        });
+      const { data } = await userApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
 
-        expect(data.statusCode).toBe(403);
-      },
-    );
+      expect(data.statusCode).toBe(403);
+    });
 
-    test.fail(
-      "BUG 81788: GET /files/rooms/:id/share - Guest not invited to room cannot get security info",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Share Outside Guest",
-            roomType: RoomType.CustomRoom,
-          },
-        });
-        const roomId = roomData.response!.id!;
+    test("BUG 81788: GET /files/rooms/:id/share - Guest not invited to room cannot get security info", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Share Outside Guest",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-          "owner",
-          "Guest",
-        );
+      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "Guest",
+      );
 
-        const { data } = await guestApi.rooms.getRoomSecurityInfo({
-          id: roomId,
-        });
+      const { data } = await guestApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
 
-        expect(data.statusCode).toBe(403);
-      },
-    );
+      expect(data.statusCode).toBe(403);
+    });
 
     test("GET /files/rooms/:id/share - Anonymous request returns 401", async ({
       apiSdk,
@@ -9971,7 +9973,7 @@ test.describe("API rooms methods", () => {
       expect(data.response![0].sharedLink?.linkType).toBe(LinkType.External);
     });
 
-    test("GET /files/rooms/:id/links - RoomAdmin without access gets 200 and empty list", async ({
+    test("GET /files/rooms/:id/links - RoomAdmin without access gets 403", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -9988,15 +9990,14 @@ test.describe("API rooms methods", () => {
         "RoomAdmin",
       );
 
-      const { data, status } = await roomAdminApi.rooms.getRoomLinks({
+      const { status } = await roomAdminApi.rooms.getRoomLinks({
         id: roomId,
       });
 
-      expect(status).toBe(200);
-      expect(data.response!.length).toBe(0);
+      expect(status).toBe(403);
     });
 
-    test("GET /files/rooms/:id/links - User without access gets 200 and empty list", async ({
+    test("GET /files/rooms/:id/links - User without access gets 403", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -10013,13 +10014,12 @@ test.describe("API rooms methods", () => {
         "User",
       );
 
-      const { data, status } = await userApi.rooms.getRoomLinks({ id: roomId });
+      const { status } = await userApi.rooms.getRoomLinks({ id: roomId });
 
-      expect(status).toBe(200);
-      expect(data.response!.length).toBe(0);
+      expect(status).toBe(403);
     });
 
-    test("GET /files/rooms/:id/links - Guest without access gets 200 and empty list", async ({
+    test("GET /files/rooms/:id/links - Guest without access gets 403", async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -10036,12 +10036,11 @@ test.describe("API rooms methods", () => {
         "Guest",
       );
 
-      const { data, status } = await guestApi.rooms.getRoomLinks({
+      const { status } = await guestApi.rooms.getRoomLinks({
         id: roomId,
       });
 
-      expect(status).toBe(200);
-      expect(data.response!.length).toBe(0);
+      expect(status).toBe(403);
     });
 
     test("GET /files/rooms/:id/links - Non-existing room id returns 404", async ({
@@ -19100,8 +19099,7 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     expect(status).toBe(400);
   });
 
-  // deleteRoomTags treats empty/whitespace strings as non-matching names — no-op 200
-  test("DELETE /files/rooms/:id/tags - names array containing empty string is a no-op (200)", async ({
+  test("DELETE /files/rooms/:id/tags - names array containing empty string returns 400", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -19118,16 +19116,18 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
       batchTagsRequestDto: { names: ["Keep"] },
     });
 
-    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+    const { status } = await ownerApi.rooms.deleteRoomTags({
       id: roomId,
       batchTagsRequestDto: { names: [""] },
     });
 
-    expect(status).toBe(200);
-    expect((data.response!.tags ?? []) as string[]).toContain("Keep");
+    expect(status).toBe(400);
+
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect((info.response!.tags ?? []) as string[]).toContain("Keep");
   });
 
-  test("DELETE /files/rooms/:id/tags - names array containing spaces-only string is a no-op (200)", async ({
+  test("DELETE /files/rooms/:id/tags - names array containing spaces-only string returns 400", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -19144,13 +19144,15 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
       batchTagsRequestDto: { names: ["Keep"] },
     });
 
-    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+    const { status } = await ownerApi.rooms.deleteRoomTags({
       id: roomId,
       batchTagsRequestDto: { names: ["   "] },
     });
 
-    expect(status).toBe(200);
-    expect((data.response!.tags ?? []) as string[]).toContain("Keep");
+    expect(status).toBe(400);
+
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect((info.response!.tags ?? []) as string[]).toContain("Keep");
   });
 
   test("DELETE /files/rooms/:id/tags - Duplicate names in array are handled (single detach effect)", async ({
@@ -19284,7 +19286,7 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     );
   });
 
-  test("DELETE /files/rooms/:id/tags - Detach mix of valid and invalid (empty string) names: valid tag is removed", async ({
+  test("DELETE /files/rooms/:id/tags - Detach mix of valid and invalid (empty string) names returns 400, valid tag is kept", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -19301,13 +19303,15 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
       batchTagsRequestDto: { names: ["ValidTag"] },
     });
 
-    const { data, status } = await ownerApi.rooms.deleteRoomTags({
+    const { status } = await ownerApi.rooms.deleteRoomTags({
       id: roomId,
       batchTagsRequestDto: { names: ["ValidTag", ""] },
     });
 
-    expect(status).toBe(200);
-    expect((data.response!.tags ?? []) as string[]).not.toContain("ValidTag");
+    expect(status).toBe(400);
+
+    const { data: info } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect((info.response!.tags ?? []) as string[]).toContain("ValidTag");
   });
 
   test("DELETE /files/rooms/:id/tags - Case-insensitive: different-case name detaches the tag", async ({

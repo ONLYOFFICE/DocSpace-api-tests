@@ -265,7 +265,7 @@ test.describe("AI Attachments - AI access disabled", () => {
     expect(error).toBe("Forbidden");
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - an image draft can still be created when AI access is disabled", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - an image draft can still be created when AI access is disabled", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone, which
@@ -291,7 +291,7 @@ test.describe("AI Attachments - AI access disabled", () => {
     expect(stored.base64).toBe(PNG_1X1);
   });
 
-  test("POST /api/2.0/ai/attachments/save-files-many, save-images-many - only the file batch is gated when AI access is disabled", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-files-many, save-images-many - only the file batch is gated when AI access is disabled", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-images-many answers 500 for everyone,

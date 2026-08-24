@@ -22,7 +22,7 @@ import {
 import { AiAttachments } from "@/src/helpers/ai-attachments";
 import { AiHttp } from "@/src/helpers/ai-http";
 import { postAndReadStream } from "@/src/helpers/ai-stream-transport";
-import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
+import { AiProfiles, AI_CAPS, AI_CAP_BITS } from "@/src/helpers/ai-profiles";
 import { AiSettings } from "@/src/helpers/ai-settings";
 import { AiTools } from "@/src/helpers/ai-tools";
 import { agentStorageFolderId } from "@/src/helpers/device-upload";
@@ -427,6 +427,102 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
       expectHealthyAssistantReply(messages);
     });
   }
+});
+
+// Every model the payments "AI models" page lists (Off/On column) is supposed
+// to be usable: switched on by default, and — for anything that is a chat
+// model at all — able to actually answer. This is the whole catalogue, not one
+// representative per capability class the way the tests above pick.
+//
+// Image-generation-only profiles (capabilities === AI_CAPS.imageOnly, e.g. the
+// "Nano Banana" / image models) are deliberately left out of the chat loop
+// below: driving one directly as a chat model is refused with
+// `code:"model_not_found"`, and the only in-product path to an image model — a
+// chat model calling the built-in `generate_image` tool — never resolves
+// (BUG 82861, see the "AI Chat - image generation" describe further down). Both
+// are already pinned elsewhere; repeating a two-minute hang for every image
+// profile here would not add coverage. They are still covered by the "on"
+// check, since that reads the whole catalogue.
+test.describe("AI Chat - every catalogue model is alive", () => {
+  test("every AI model is switched on, and every chat-capable one answers a real question", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(600000);
+
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    // "Off/On" on the payments page is the restricted-models list turned
+    // inside out: a model is on exactly when it is absent from it. A fresh
+    // portal ships with nothing restricted, so every catalogue model must
+    // start there.
+    const { status: restrictedStatus, data: restricted } =
+      await ownerApi.payment.getRestrictedAiModels();
+    expect(restrictedStatus).toBe(200);
+    const restrictedIds = new Set(restricted.response?.models ?? []);
+    const restrictedFromCatalogue = catalogue
+      .map((profile) => profile.modelId)
+      .filter((modelId) => restrictedIds.has(modelId));
+    expect(
+      restrictedFromCatalogue,
+      "every catalogue model is on by default",
+    ).toEqual([]);
+
+    const chatCapable = catalogue.filter(
+      (profile) =>
+        ((profile.capabilities ?? 0) & AI_CAP_BITS.text) === AI_CAP_BITS.text,
+    );
+    expect(
+      chatCapable.length,
+      "the catalogue offers at least one chat-capable model",
+    ).toBeGreaterThan(0);
+
+    const failures: string[] = [];
+    for (const profile of chatCapable) {
+      try {
+        const agentId = await aiChat.createAgentId("owner", {
+          title: `Autotest liveness agent — ${profile.modelId}`,
+          profileId: profile.id,
+          prompt: SHORT_ANSWER_PROMPT,
+        });
+        const threadId = await aiChat.createThreadId("owner", {
+          title: `liveness — ${profile.modelId}`,
+          profileId: profile.id,
+          agentId,
+        });
+
+        const question = "What is 2+2? Answer in one word.";
+        const { status, streamError } = await aiChat.sendMessage("owner", {
+          threadId,
+          profileId: profile.id,
+          agentId,
+          message: question,
+        });
+        if (streamError !== undefined) {
+          throw new Error(`stream error: ${streamError}`);
+        }
+        if (status !== 200) {
+          throw new Error(`send-with-stream answered ${status}`);
+        }
+
+        const messages = await aiChat.waitForAssistantReply("owner", threadId);
+        expectHealthyAssistantReply(messages);
+      } catch (err) {
+        failures.push(
+          `${profile.name} (${profile.modelId}): ${(err as Error).message}`,
+        );
+      }
+    }
+
+    // Collected rather than thrown as soon as the first model fails, so one
+    // dead model does not hide every other model's result in the same run.
+    expect(failures, "models that did not answer in chat").toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------

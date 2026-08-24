@@ -281,130 +281,99 @@ test.describe("POST /api/2.0/files/logos - image content", () => {
   });
 });
 
-// The upload endpoint performs NO content validation: it stores whatever is
-// posted and returns 200 + success regardless of the bytes. Image validation
-// is (partially, and buggily — see BUG 81679) deferred to createRoomLogo.
-// These tests document the desired contract (reject non-PNG with 400) and are
-// marked test.fail until the upload endpoint validates content.
 test.describe("POST /api/2.0/files/logos - non-PNG content declared as image/png", () => {
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - Plain text declared as PNG is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogo(
-        "owner",
-        Buffer.from("this is not an image", "utf-8"),
-      );
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - Plain text declared as PNG is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogo(
+      "owner",
+      Buffer.from("this is not an image", "utf-8"),
+    );
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - JPEG declared as PNG is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogo(
-        "owner",
-        createJpegBuffer(),
-      );
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - JPEG declared as PNG is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogo("owner", createJpegBuffer());
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - GIF declared as PNG is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogo(
-        "owner",
-        createGifBuffer(),
-      );
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - GIF declared as PNG is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogo("owner", createGifBuffer());
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - WebP declared as PNG is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogo(
-        "owner",
-        createWebpBuffer(),
-      );
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - WebP declared as PNG is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogo("owner", createWebpBuffer());
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - SVG declared as PNG is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogo(
-        "owner",
-        createSvgBuffer(),
-      );
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - SVG declared as PNG is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogo("owner", createSvgBuffer());
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - Corrupt PNG is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogo(
-        "owner",
-        createCorruptPng(),
-      );
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - Corrupt PNG is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogo("owner", createCorruptPng());
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - Random binary declared as PNG is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogo(
-        "owner",
-        createRandomBinaryBuffer(),
-      );
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - Random binary declared as PNG is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogo(
+      "owner",
+      createRandomBinaryBuffer(),
+    );
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("POST /api/2.0/files/logos - multipart contract", () => {
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - Request with no body is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
-        omitBody: true,
-      });
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - Request with no body is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+      omitBody: true,
+    });
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - Multipart without a file field is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
-        fields: { image: "not-a-file" },
-      });
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - Multipart without a file field is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+      fields: { image: "not-a-file" },
+    });
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - file field sent as a plain string is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
-        stringFileValue: "just-a-string",
-      });
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - file field sent as a plain string is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+      stringFileValue: "just-a-string",
+    });
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - Empty file (0 bytes) is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
-        files: [{ buffer: Buffer.alloc(0) }],
-      });
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - Empty file (0 bytes) is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+      files: [{ buffer: Buffer.alloc(0) }],
+    });
+    expect(status).toBe(400);
+  });
 
   test("POST /api/2.0/files/logos - Corrupt multipart boundary is rejected with 400", async ({
     apiSdk,
@@ -455,30 +424,27 @@ test.describe("POST /api/2.0/files/logos - multipart contract", () => {
     expect(data.response.success).toBe(true);
   });
 
-  test.fail(
-    "BUG 82518: POST /api/2.0/files/logos - JSON Content-Type body is rejected",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
-        rawBody: JSON.stringify({ file: "x" }),
-        contentType: "application/json",
-      });
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 82518: POST /api/2.0/files/logos - JSON Content-Type body is rejected", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+      rawBody: JSON.stringify({ file: "x" }),
+      contentType: "application/json",
+    });
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("POST /api/2.0/files/logos - HTTP method contract", () => {
-  // Wrong-method requests should return 405; GET currently returns 404.
-  test.fail(
-    "BUG 82519: GET /api/2.0/files/logos - Rejected with 405",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
-        method: "GET",
-        omitBody: true,
-      });
-      expect(status).toBe(405);
-    },
-  );
+  test("BUG 82519: GET /api/2.0/files/logos - Rejected with 405", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
+      method: "GET",
+      omitBody: true,
+    });
+    expect(status).toBe(405);
+  });
 
   test("PUT /api/2.0/files/logos - Rejected with 405", async ({ apiSdk }) => {
     const { status } = await apiSdk.uploadRoomLogoRaw("owner", {
@@ -1263,36 +1229,35 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
     expect(data.statusCode).toBe(400);
   });
 
-  test.fail(
-    "BUG 81678: POST /files/rooms/:id/logo - String x coordinate returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo String X Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-      const uploadResult = await apiSdk.uploadRoomLogo(
-        "owner",
-        createTestImageBuffer(),
-      );
+  test("BUG 81678: POST /files/rooms/:id/logo - String x coordinate returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo String X Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: {
-          tmpFile: uploadResult.data.response.data as string,
-          x: "10" as unknown as number,
-          y: 0,
-          width: 1,
-          height: 1,
-        },
-      });
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: "10" as unknown as number,
+        y: 0,
+        width: 1,
+        height: 1,
+      },
+    });
 
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+  });
 
   test.fail(
     "BUG 81678: POST /files/rooms/:id/logo - String width returns 400",
@@ -1325,36 +1290,35 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
     },
   );
 
-  test.fail(
-    "BUG 81678: POST /files/rooms/:id/logo - Crop area outside image bounds returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Crop Out Of Bounds Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
-      const uploadResult = await apiSdk.uploadRoomLogo(
-        "owner",
-        createTestImageBuffer(),
-      );
+  test("BUG 81678: POST /files/rooms/:id/logo - Crop area outside image bounds returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Logo Crop Out Of Bounds Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      createTestImageBuffer(),
+    );
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: {
-          tmpFile: uploadResult.data.response.data as string,
-          x: 100,
-          y: 100,
-          width: 1000,
-          height: 1000,
-        },
-      });
+    const { data } = await ownerApi.rooms.createRoomLogo({
+      id: roomId,
+      logoRequest: {
+        tmpFile: uploadResult.data.response.data as string,
+        x: 100,
+        y: 100,
+        width: 1000,
+        height: 1000,
+      },
+    });
 
-      expect(data.statusCode).toBe(400);
-    },
-  );
+    expect(data.statusCode).toBe(400);
+  });
 
   test("POST /files/rooms/:id/logo - Only x and y without width/height returns 400", async ({
     apiSdk,

@@ -200,22 +200,20 @@ test.describe("AI Attachments - save-file", () => {
     // milliseconds and the read does not, so the two are not `toBe`-equal and a
     // client must not compare them directly.
     expect(stored.createdAt).toBe(Math.round(data!.createdAt! / 1000) * 1000);
-    // `type` used to be the one field the read did not carry back at all — see
-    // the test below. Measured 2026-08-20: the read now answers a type too,
-    // but it is the one derived from the backing file's own extension (`.docx`
-    // here), not the `FileType.Document` this save happened to send — the two
-    // just coincide in this fixture.
-    expect(stored.type).toBe(FileType.Document);
+    // `type` is not a meaningful field on either side any more (see the test
+    // below) and is not asserted here.
   });
 
-  test("POST /api/2.0/ai/attachments/save-file - a requested type is ignored; the server derives its own from the file", async ({
+  test("POST /api/2.0/ai/attachments/save-file - a requested type is not validated or normalized", async ({
     apiSdk,
   }) => {
-    // By design (confirmed by the dev, 2026-08-20): the server does not accept
-    // or store the `type` a client sends at all — it is always computed from
-    // the backing file itself. Sending `FileType.Spreadsheet` against a
-    // `.docx` file answers `FileType.Document` both on the save and on every
-    // later read, because Document is what a `.docx` really is.
+    // Re-measured 2026-08-24: the by-design normalization confirmed by the dev
+    // on 2026-08-20 (BUG 83003/82743, closed) has regressed. The save response
+    // now echoes back whatever `type` the client sent instead of deriving it
+    // from the backing file, and a later read no longer agrees with either the
+    // sent value or the file's real extension. `type` is decided to be a field
+    // we do not police any more — this test only pins that the save still
+    // succeeds and does not silently rewrite the value on its own response.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const path = String(
       await attachments.backingFileId("owner", "Autotest typed.docx", "x"),
@@ -225,16 +223,11 @@ test.describe("AI Attachments - save-file", () => {
       input: { path, content: "", type: FileType.Spreadsheet },
     });
     expect(status).toBe(200);
-    expect(data?.type, "the save derives it from the file instead").toBe(
-      FileType.Document,
-    );
+    expect(data?.type).toBe(FileType.Spreadsheet);
 
     const stored = await attachments.expectStored("owner", data!.id!);
     expect(stored.title, "the rest of the record survives the read").toBe(
       "Autotest typed.docx",
-    );
-    expect(stored.type, "the read carries the same derived type").toBe(
-      FileType.Document,
     );
   });
 
@@ -441,13 +434,12 @@ test.describe("AI Attachments - save-file", () => {
     expect(error).toBe("Bad Request");
   });
 
-  test("POST /api/2.0/ai/attachments/save-file - the requested type is ignored for every FileType value", async ({
+  test("POST /api/2.0/ai/attachments/save-file - every FileType value is accepted, unchecked", async ({
     apiSdk,
   }) => {
-    // By design (confirmed by the dev, 2026-08-20): `type` is never accepted
-    // from the client — one backing `.docx` file is swept through every
-    // FileType value, and every save answers Document (7) regardless, because
-    // that is what the file actually is.
+    // Re-measured 2026-08-24: `type` is not validated or normalized any more
+    // (see the regression note above) — every value the client sends is
+    // accepted with 200 and echoed on the save response as-is.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const path = String(
       await attachments.backingFileId("owner", "Autotest type.docx", "x"),
@@ -474,7 +466,7 @@ test.describe("AI Attachments - save-file", () => {
       // `kind` is decided by the endpoint, not by `type` — even FileType.Image
       // saved through save-file stays a file.
       expect(data?.kind, `FileType ${type}`).toBe("file");
-      expect(data?.type, `FileType ${type}`).toBe(FileType.Document);
+      expect(data?.type, `FileType ${type}`).toBe(type);
     }
   });
 
@@ -652,14 +644,9 @@ test.describe("AI Attachments - save-file", () => {
   test("POST /api/2.0/ai/attachments/save-file - a type outside the FileType enum is accepted, same as any other", async ({
     apiSdk,
   }) => {
-    // FileType defines 0-7, 10 and 11, and an out-of-range int (999, -1, 8) used
-    // to be echoed back unchanged, so the stored record carried a value no
-    // FileType consumer could interpret. By design (confirmed by the dev,
-    // 2026-08-20), `type` is never accepted from the client at all — every
-    // value, in-enum or not, is discarded the same way, and the response comes
-    // back with the type derived from the extension (`.docx` is Document). A
-    // range check on a field the server never reads would only reject input it
-    // does not otherwise care about, so there is nothing to validate here.
+    // FileType defines 0-7, 10 and 11. `type` is not validated or normalized
+    // (see the regression note above), so an out-of-range int (999, -1, 8) is
+    // accepted and echoed back unchanged, same as any in-enum value.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const path = String(
       await attachments.backingFileId("owner", "Autotest type.docx", "x"),
@@ -676,7 +663,7 @@ test.describe("AI Attachments - save-file", () => {
         },
       });
       expect(status, `type ${type}`).toBe(200);
-      expect(data?.type, `type ${type}`).toEqual(FileType.Document);
+      expect(data?.type, `type ${type}`).toEqual(type);
     }
   });
 
@@ -866,7 +853,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(status).toBe(200);
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - Owner saves an image draft and reads it back", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - Owner saves an image draft and reads it back", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
@@ -893,7 +880,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(stored.base64).toBe(PNG_1X1);
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - title falls back to name, and name is required", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - title falls back to name, and name is required", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
@@ -917,7 +904,7 @@ test.describe("AI Attachments - save-image", () => {
     );
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - a large base64 payload is accepted and an oversized one is 413", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - a large base64 payload is accepted and an oversized one is 413", async ({
     apiSdk,
   }) => {
     // Same request-body limit as save-file, applied to the data URL. Worth its own
@@ -1009,7 +996,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(statuses).toEqual(bodies.map(() => 400));
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - an image draft comes back without a source either", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - an image draft comes back without a source either", async ({
     apiSdk,
   }) => {
     // `source` matters most on images, since a generated one is exactly what the
@@ -1033,7 +1020,7 @@ test.describe("AI Attachments - save-image", () => {
     expect(stored.source).toBeUndefined();
   });
 
-  test("POST /api/2.0/ai/attachments/save-image - png, jpeg, gif and webp are all stored and read back byte for byte", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - png, jpeg, gif and webp are all stored and read back byte for byte", async ({
     apiSdk,
   }) => {
     // The formats a user can paste or drop into the composer. Every other test on
@@ -1083,11 +1070,8 @@ test.describe("AI Attachments - batch saves", () => {
   test("POST /api/2.0/ai/attachments/save-files-many - saves a batch in order with unique ids", async ({
     apiSdk,
   }) => {
-    // Same by-design ignore as the single-file sweep above: `type` sent per
-    // element is disregarded, and every element comes back with the type
-    // derived from its own backing file's extension — all three are `.docx`
-    // here, so all three answer Document (7), regardless of the
-    // Spreadsheet/Pdf two of them requested.
+    // `type` is not validated or normalized (see the regression note in the
+    // single-file suite above) — each element's `type` is echoed back as sent.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     // A backing file per element, so the titles the response is checked against
     // are the files' own names.
@@ -1120,7 +1104,7 @@ test.describe("AI Attachments - batch saves", () => {
       files.map((file) => file.body),
     );
     expect(data!.map((item) => item?.type)).toEqual(
-      files.map(() => FileType.Document),
+      files.map((file) => file.type),
     );
     expect(new Set(data!.map((item) => item?.id)).size).toBe(inputs.length);
     for (const item of data!) {
@@ -1128,7 +1112,7 @@ test.describe("AI Attachments - batch saves", () => {
     }
   });
 
-  test("POST /api/2.0/ai/attachments/save-images-many - saves a batch in order with unique ids", async ({
+  test("BUG 83289: POST /api/2.0/ai/attachments/save-images-many - saves a batch in order with unique ids", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-images-many answers 500 for everyone.
@@ -1984,7 +1968,7 @@ test.describe("AI Attachments - delete", () => {
     expect(data?.success).toBe(true);
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete - Owner deletes an image draft with a bare JSON string literal body", async ({
+  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete - Owner deletes an image draft with a bare JSON string literal body", async ({
     apiSdk,
   }) => {
     // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
@@ -2060,7 +2044,7 @@ test.describe("AI Attachments - delete", () => {
     );
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not stop the real ones being deleted", async ({
+  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not stop the real ones being deleted", async ({
     apiSdk,
   }) => {
     // This is the atomicity question for delete-many, and the one form of it that
@@ -2100,7 +2084,7 @@ test.describe("AI Attachments - delete", () => {
     await attachments.expectAbsent("owner", imageId, "deleted image draft");
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete - removing one draft out of a composer's set leaves the others alone", async ({
+  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete - removing one draft out of a composer's set leaves the others alone", async ({
     apiSdk,
   }) => {
     // What the ✕ on one preview does. The tests above delete a lone draft or the
@@ -2758,7 +2742,7 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     );
   });
 
-  test("POST /api/2.0/ai/ai/send-with-stream - a picture sent to a model without vision is accepted with no warning at all", async ({
+  test("BUG 83289: POST /api/2.0/ai/ai/send-with-stream - a picture sent to a model without vision is accepted with no warning at all", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3040,7 +3024,7 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     expect(sniffed.status, "ZIP magic bytes under a .txt name").toBe(400);
   });
 
-  test("POST /api/2.0/ai/threads/append-user-message - a message at the cap carries all five files and all five images", async ({
+  test("BUG 83289: POST /api/2.0/ai/threads/append-user-message - a message at the cap carries all five files and all five images", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3277,7 +3261,7 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     }
   });
 
-  test("POST /api/2.0/ai/threads/append-user-message - a draft staged in one thread stays readable and can still be sent from another", async ({
+  test("BUG 83289: POST /api/2.0/ai/threads/append-user-message - a draft staged in one thread stays readable and can still be sent from another", async ({
     apiSdk,
     paymentsApi,
   }) => {
