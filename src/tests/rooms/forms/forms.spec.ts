@@ -3060,7 +3060,7 @@ test.describe("Room templates and form templates are separate collections", () =
 // returns 200 for them (external: true, sharedForUser: false), and the room
 // shows up for them under both searchArea=Any and searchArea=Forms.
 test.describe("Forms room visited via external link appears in the Forms section", () => {
-  test("GET /files/rooms?searchArea=Forms - a form room opened via its external link by a user with no direct access appears in the Forms section", async ({
+  test("BUG 83228: GET /files/rooms?searchArea=Forms - a form room opened via its external link by a user with no direct access appears in the Forms section", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
