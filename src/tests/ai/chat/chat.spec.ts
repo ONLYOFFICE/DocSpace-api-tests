@@ -8365,11 +8365,18 @@ function expectMatchesAny(text: string, patterns: RegExp[], label: string) {
   ).toBe(true);
 }
 
-// Was measured flaking only on "Show source documents" (BUG XXXXX): sent as
-// the very first message with no other context, the model twice in a row
-// never called docspace_knowledge_search at all, unlike the other suggested
-// prompts in this same battery.
-const FLAKY_SUGGESTED_PROMPTS = new Set(["Show source documents"]);
+// BUG XXXXX: not unique to "Show source documents" as first measured — sent
+// as the very first message with no other context, the model intermittently
+// never calls docspace_knowledge_search at all. Re-measured 2026-08-24, 6
+// runs each: "Show source documents" flaked 5/6, "Find a document" 4/6,
+// "Find contradictions" 3/6. "Summarize the knowledge base" and "Compare
+// documents" were not observed to flake in the same sampling, but the sample
+// is small enough that absence isn't proof they're immune.
+const FLAKY_SUGGESTED_PROMPTS = new Set([
+  "Show source documents",
+  "Find a document",
+  "Find contradictions",
+]);
 
 test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts", () => {
   for (const { prompt, grounding } of SUGGESTED_PROMPTS) {
