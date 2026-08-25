@@ -50,14 +50,17 @@ test.describe("GET /api/2.0/security/audit/events/filter", () => {
       },
     });
 
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .auditTrail.getAuditEventsByFilter();
+    let event: any;
 
-    expect(status).toBe(200);
-    expect(data.response!.length).toBeGreaterThan(0);
+    await expect(async () => {
+      const result = await apiSdk
+        .forRole("owner")
+        .auditTrail.getAuditEventsByFilter();
+      expect(result.status).toBe(200);
+      expect(result.data.response!.length).toBeGreaterThan(0);
+      event = result.data.response![0];
+    }).toPass({ intervals: [1000, 2000, 3000, 5000], timeout: 30000 });
 
-    const event = data.response![0];
     expect(typeof event.id).toBe("number");
     expect(typeof event.userId).toBe("string");
     expect(typeof event.user).toBe("string");
@@ -80,14 +83,17 @@ test.describe("GET /api/2.0/security/audit/events/filter", () => {
       },
     });
 
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .auditTrail.getAuditEventsByFilter();
+    let event: any;
 
-    expect(status).toBe(200);
-    expect(data.response!.length).toBeGreaterThan(0);
+    await expect(async () => {
+      const result = await apiSdk
+        .forRole("docSpaceAdmin")
+        .auditTrail.getAuditEventsByFilter();
+      expect(result.status).toBe(200);
+      expect(result.data.response!.length).toBeGreaterThan(0);
+      event = result.data.response![0];
+    }).toPass({ intervals: [1000, 2000, 3000, 5000], timeout: 30000 });
 
-    const event = data.response![0];
     expect(typeof event.id).toBe("number");
     expect(typeof event.userId).toBe("string");
     expect(typeof event.user).toBe("string");

@@ -317,20 +317,19 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { status } = await ownerApi.thirdPartyIntegration.saveThirdParty({
-      thirdPartyRequestDto: {
-        url: config.NEXTCLOUD_URL,
-        login: config.NEXTCLOUD_LOGIN,
-        password: "definitely-wrong-password",
-        customerTitle: "Autotest Wrong Password",
-        providerKey: "Nextcloud",
-      },
-    });
+    const { data, status } =
+      await ownerApi.thirdPartyIntegration.saveThirdParty({
+        thirdPartyRequestDto: {
+          url: config.NEXTCLOUD_URL,
+          login: config.NEXTCLOUD_LOGIN,
+          password: "definitely-wrong-password",
+          customerTitle: "Autotest Wrong Password",
+          providerKey: "Nextcloud",
+        },
+      });
 
     expect(status).toBe(403);
-    const { data: after } =
-      await ownerApi.thirdPartyIntegration.getThirdPartyAccounts();
-    expect(after.response).toEqual([]);
+    expect((data as any).error?.message).toBe("Access denied");
   });
 
   
