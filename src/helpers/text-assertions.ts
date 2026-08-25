@@ -40,7 +40,7 @@ export function splitClauses(text: string): string[] {
 }
 
 const NEGATION_RE =
-  /\b(not|isn['’]?t|doesn['’]?t|didn['’]?t|wasn['’]?t|weren['’]?t|aren['’]?t|hasn['’]?t|haven['’]?t|won['’]?t|can['’]?t|cannot|never|no longer|without|excluded?|instead of|rather than|other than)\b|n['’]t\b/i;
+  /\b(not|isn['’]?t|doesn['’]?t|didn['’]?t|wasn['’]?t|weren['’]?t|aren['’]?t|hasn['’]?t|haven['’]?t|won['’]?t|can['’]?t|cannot|never|no longer|without|excluded?|instead of|rather than|other than|none|neither|nor)\b|n['’]t\b/i;
 
 /** Whether a clause negates or excludes rather than positively asserts. */
 export function isNegatedClause(clause: string): boolean {
