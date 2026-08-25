@@ -8124,11 +8124,16 @@ test.describe("AI Threads - a cleared thread carries on", () => {
 //     `/ai/config/user` carry no such field, and `/ai/prompts/list` is the
 //     user's own prompt library — empty on a fresh portal, see
 //     ai/prompts/prompts.spec.ts. The labels are client-side constants.
-//   * Pressing one is an ORDINARY text message: the label is sent verbatim as
-//     `userMessage.content[0].text` on `POST /ai/ai/send-with-stream`. No
-//     dedicated route, no action type, no extra `actionArgs` — which is why
-//     every test below asserts the stored user message equals the label
-//     character for character. There is nothing else to reproduce.
+//   * Pressing one is an ORDINARY text message: the button inserts and sends
+//     its FULL instruction text (not its short label) verbatim as
+//     `userMessage.content[0].text` on `POST /ai/ai/send-with-stream`. E.g.
+//     the "Find a document" button actually sends "Find a document among the
+//     available files and return the most relevant results. If this
+//     information is not provided, ask me for the search term and any useful
+//     filters such as owner, date, or type." No dedicated route, no action
+//     type, no extra `actionArgs` — which is why every test below asserts the
+//     stored user message equals that full text character for character. The
+//     short label (`SUGGESTED_PROMPTS[].label`) is used only to name tests.
 //   * Six of the eight are answered out of the Knowledge Base through ONE
 //     server-executed `docspace_knowledge_search` tool call. It is auto-run:
 //     the stream carries no `tool-call-pending`, so no approve-tool-call round
@@ -8180,12 +8185,19 @@ const KNOWLEDGE_SEARCH_TOOL = "docspace_knowledge_search";
  * matter on the bare numbers — an unanchored "45" also matches "2045".
  */
 const SUGGESTED_PROMPTS: Array<{
-  /** The button label, sent verbatim. */
+  /** The button's short label — used only to name the test. */
+  label: string;
+  /** The full text the button actually inserts and sends, verbatim. */
   prompt: string;
   grounding: RegExp[];
 }> = [
   {
-    prompt: "Summarize the knowledge base",
+    label: "Summarize the knowledge base",
+    prompt:
+      "Summarize the documents available to you and highlight their main " +
+      "topics, decisions, tasks, deadlines, and open questions. If this " +
+      "information is not provided, ask me for the desired scope, focus, " +
+      "and summary length.",
     grounding: [
       new RegExp(VENDOR_CODE),
       new RegExp(CONTRACT_TITLE),
@@ -8193,7 +8205,11 @@ const SUGGESTED_PROMPTS: Array<{
     ],
   },
   {
-    prompt: "Show source documents",
+    label: "Show source documents",
+    prompt:
+      "Show the documents you can use to answer, grouped by topic, with a " +
+      "short description of each. If this information is not provided, ask " +
+      "me for the desired level of detail.",
     grounding: [
       new RegExp(CONTRACT_TITLE),
       new RegExp(ADDENDUM_TITLE),
@@ -8201,7 +8217,11 @@ const SUGGESTED_PROMPTS: Array<{
     ],
   },
   {
-    prompt: "Find a document",
+    label: "Find a document",
+    prompt:
+      "Find a document among the available files and return the most " +
+      "relevant results. If this information is not provided, ask me for " +
+      "the search term and any useful filters such as owner, date, or type.",
     grounding: [
       new RegExp(CONTRACT_TITLE),
       new RegExp(ADDENDUM_TITLE),
@@ -8209,7 +8229,11 @@ const SUGGESTED_PROMPTS: Array<{
     ],
   },
   {
-    prompt: "Find tasks and deadlines",
+    label: "Find tasks and deadlines",
+    prompt:
+      "Find tasks and deadlines across the available documents and return " +
+      "the most relevant results. If this information is not provided, ask " +
+      "me for the documents to include and the relevant time range.",
     grounding: [
       /\bKate\b/,
       /\bBoris\b/,
@@ -8220,7 +8244,12 @@ const SUGGESTED_PROMPTS: Array<{
     ],
   },
   {
-    prompt: "Compare documents",
+    label: "Compare documents",
+    prompt:
+      "Compare the available documents and highlight the most meaningful " +
+      "similarities, differences, and conflicts. If this information is " +
+      "not provided, ask me for the documents to compare and the " +
+      "comparison criteria.",
     grounding: [
       /\b45\b/,
       /\b90\b/,
@@ -8229,7 +8258,12 @@ const SUGGESTED_PROMPTS: Array<{
     ],
   },
   {
-    prompt: "Find contradictions",
+    label: "Find contradictions",
+    prompt:
+      "Find conflicting facts, dates, values, decisions, or requirements " +
+      "across the available documents and cite their sources. If this " +
+      "information is not provided, ask me for the topic and the documents " +
+      "to include.",
     grounding: [/\b45\b/, /\b90\b/, new RegExp(VENDOR_CODE)],
   },
 ];
@@ -8367,21 +8401,26 @@ function expectMatchesAny(text: string, patterns: RegExp[], label: string) {
 
 // BUG XXXXX: not unique to "Show source documents" as first measured — sent
 // as the very first message with no other context, the model intermittently
-// never calls docspace_knowledge_search at all. Re-measured 2026-08-24, 6
-// runs each: "Show source documents" flaked 5/6, "Find a document" 4/6,
-// "Find contradictions" 3/6. "Summarize the knowledge base" and "Compare
-// documents" were not observed to flake in the same sampling, but the sample
-// is small enough that absence isn't proof they're immune.
+// never calls docspace_knowledge_search at all. First measured sending only
+// the button's short label; re-measured 2026-08-25 sending the button's real
+// full instruction text (see SUGGESTED_PROMPTS[].prompt) and the flake turned
+// out much broader: 3 reps each, "Find a document" failed 3/3, "Show source
+// documents" 2/3, "Summarize the knowledge base" ~2/3, "Find contradictions"
+// 1/3 (plus 2 unrelated 120s API timeouts), "Compare documents" 1/3. Only
+// "Find tasks and deadlines" showed no failures (0/3) in this sample. Given
+// the small sample, absence isn't proof of immunity for that one either.
 const FLAKY_SUGGESTED_PROMPTS = new Set([
   "Show source documents",
   "Find a document",
   "Find contradictions",
+  "Summarize the knowledge base",
+  "Compare documents",
 ]);
 
 test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts", () => {
-  for (const { prompt, grounding } of SUGGESTED_PROMPTS) {
-    const bugPrefix = FLAKY_SUGGESTED_PROMPTS.has(prompt) ? "BUG XXXXX: " : "";
-    test(`${bugPrefix}POST /api/2.0/ai/ai/send-with-stream - suggested prompt "${prompt}" is answered from the Knowledge Base`, async ({
+  for (const { label, prompt, grounding } of SUGGESTED_PROMPTS) {
+    const bugPrefix = FLAKY_SUGGESTED_PROMPTS.has(label) ? "BUG XXXXX: " : "";
+    test(`${bugPrefix}POST /api/2.0/ai/ai/send-with-stream - suggested prompt "${label}" is answered from the Knowledge Base`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -8412,8 +8451,9 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
         threadId,
       );
 
-      // The label is what reached the backend — no prefix, no wrapper, no
-      // hidden instruction bolted onto a starter button.
+      // The button inserts and sends its full instruction text, not its
+      // short label — this is what actually reached the backend, with no
+      // extra prefix, wrapper, or hidden instruction bolted on.
       expect(
         AiAgentChat.userMessages(messages).map((message) =>
           AiAgentChat.messageText(message),
@@ -8469,11 +8509,15 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
       agentId: agent.agentId,
     });
 
+    const prompt =
+      "Explain what you can help me with here, based on your instructions " +
+      "and the documents available to you, and give a few concrete examples.";
+
     const sent = await agent.aiChat.sendMessage("owner", {
       threadId,
       profileId: agent.profileId,
       agentId: agent.agentId,
-      message: "What can I ask you",
+      message: prompt,
     });
 
     expect(sent.status).toBe(200);
@@ -8488,7 +8532,7 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
       AiAgentChat.userMessages(messages).map((message) =>
         AiAgentChat.messageText(message),
       ),
-    ).toEqual(["What can I ask you"]);
+    ).toEqual([prompt]);
     expectHealthyAssistantReply(messages);
 
     const answer = AiAgentChat.messageText(
@@ -8537,7 +8581,11 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
       threadId,
       profileId: agent.profileId,
       agentId: agent.agentId,
-      message: "Summarize the knowledge base",
+      message:
+        "Summarize the documents available to you and highlight their main " +
+        "topics, decisions, tasks, deadlines, and open questions. If this " +
+        "information is not provided, ask me for the desired scope, focus, " +
+        "and summary length.",
     });
 
     expect(sent.status).toBe(200);
@@ -8599,7 +8647,11 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
       threadId,
       profileId: agent.profileId,
       agentId: agent.agentId,
-      message: "Show saved results",
+      message:
+        "Show the files you have already generated and saved, newest " +
+        "first, with a short description of each. If this information is " +
+        "not provided, ask me for the date range or file type to narrow " +
+        "the list.",
     });
 
     expect(sent.status).toBe(200);
