@@ -312,7 +312,6 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
     expect(status).toBe(400);
   });
 
-  
   test("POST /files/thirdparty - Wrong password returns 403 Access denied, not 500", async ({
     apiSdk,
   }) => {
@@ -332,8 +331,7 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
     expect((data as any).error?.message).toBe("Access denied");
   });
 
-  
-// In isolation this is fully deterministic: 403 "Access denied", verified
+  // In isolation this is fully deterministic: 403 "Access denied", verified
   // directly against the Nextcloud server too (PROPFIND with a wrong
   // password always 401s there). If you see a 200 here while running the
   // full suite in parallel, that's not this test being flaky - it's
@@ -370,8 +368,8 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
 
     await connectNextcloud(apiSdk, "owner", "Autotest Session Reuse Correct");
 
-    const { data, status } = await ownerApi.thirdPartyIntegration.saveThirdParty(
-      {
+    const { data, status } =
+      await ownerApi.thirdPartyIntegration.saveThirdParty({
         thirdPartyRequestDto: {
           url: config.NEXTCLOUD_URL,
           login: config.NEXTCLOUD_LOGIN,
@@ -379,8 +377,7 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
           customerTitle: "Autotest Session Reuse Wrong",
           providerKey: "Nextcloud",
         },
-      },
-    );
+      });
 
     const { data: accounts } =
       await ownerApi.thirdPartyIntegration.getThirdPartyAccounts();
