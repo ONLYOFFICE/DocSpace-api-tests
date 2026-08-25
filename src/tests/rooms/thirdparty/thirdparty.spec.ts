@@ -312,17 +312,6 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
     expect(status).toBe(400);
   });
 
-  // In isolation this is fully deterministic: 403 "Access denied", verified
-  // directly against the Nextcloud server too (PROPFIND with a wrong
-  // password always 401s there). If you see a 200 here while running the
-  // full suite in parallel, that's not this test being flaky - it's
-  // BUG XXXXX: see [[bug_third_party_concurrent_auth_cross_contamination]].
-  // Concurrent saveThirdParty calls against the same external host can swap
-  // auth results between unrelated requests (a wrong-password call gets 200,
-  // a correct-password call gets 403), because the connection is only ever
-  // usable when actually correct - a "200 wrong password" folder 404s on
-  // access - don't chase it as this test's bug, it belongs to the
-  // concurrency-race finding, not to single-request validation.
   test("POST /files/thirdparty - Wrong password returns 403 Access denied, not 500", async ({
     apiSdk,
   }) => {
@@ -340,6 +329,74 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
 
     expect(status).toBe(403);
     expect((data as any).error?.message).toBe("Access denied");
+  });
+
+  // In isolation this is fully deterministic: 403 "Access denied", verified
+  // directly against the Nextcloud server too (PROPFIND with a wrong
+  // password always 401s there). If you see a 200 here while running the
+  // full suite in parallel, that's not this test being flaky - it's
+  // BUG XXXXX: see [[bug_third_party_concurrent_auth_cross_contamination]].
+  // Concurrent saveThirdParty calls against the same external host can swap
+  // auth results between unrelated requests (a wrong-password call gets 200,
+  // a correct-password call gets 403), because the connection is only ever
+  // usable when actually correct - a "200 wrong password" folder 404s on
+  // access - don't chase it as this test's bug, it belongs to the
+  // concurrency-race finding, not to single-request validation.
+  // Sequential (not concurrent) reproduction of the session-reuse bug: connect
+  // with correct credentials, then immediately connect the SAME host again
+  // with a wrong password, twice in a row. The WebDAV client is expected to
+  // isolate connections per credentials, but it caches the authenticated
+  // session from the correct call for longer than it should, so a
+  // wrong-password call piggybacks on it and gets 200 instead of 403 - the
+  // cache doesn't always evict between the two wrong-password attempts
+  // either, hence issuing it twice. See
+  // [[bug_third_party_concurrent_auth_cross_contamination]] for the related
+  // concurrent-request variant found earlier.
+  test("BUG XXXXX: POST /files/thirdparty - Wrong password right after a correct connection to the same host returns 200, not 403", async ({
+    apiSdk,
+  }) => {
+    test.fail(
+      true,
+      "BUG XXXXX: the WebDAV client does not isolate connections to a host by " +
+        "credentials - it caches the previous request's authenticated session " +
+        "for longer than it should instead of opening a fresh one for the new " +
+        "login/password. Connecting a correct Nextcloud account, then " +
+        "connecting the same host with a wrong password, can return 200 " +
+        "(piggybacking on the still-cached correct session) instead of 403.",
+    );
+
+    const ownerApi = apiSdk.forRole("owner");
+
+    await connectNextcloud(apiSdk, "owner", "Autotest Session Reuse Correct");
+
+    const wrongPasswordAttempt = () =>
+      ownerApi.thirdPartyIntegration.saveThirdParty({
+        thirdPartyRequestDto: {
+          url: config.NEXTCLOUD_URL,
+          login: config.NEXTCLOUD_LOGIN,
+          password: "definitely-wrong-password",
+          customerTitle: "Autotest Session Reuse Wrong",
+          providerKey: "Nextcloud",
+        },
+      });
+
+    // Both attempts run before either is asserted on, so a failing
+    // `expect` doesn't cut the second attempt short - see
+    // [[feedback_assertion_order]].
+    const first = await wrongPasswordAttempt();
+    const second = await wrongPasswordAttempt();
+
+    const { data: accounts } =
+      await ownerApi.thirdPartyIntegration.getThirdPartyAccounts();
+    const wrongPasswordAccounts = (accounts.response as any[]).filter(
+      (a) => a.customer_title === "Autotest Session Reuse Wrong",
+    );
+    expect(
+      wrongPasswordAccounts,
+      JSON.stringify({ first: first.data, second: second.data }),
+    ).toHaveLength(0);
+
+    expect([first.status, second.status]).toEqual([403, 403]);
   });
 
   test("POST /files/thirdparty - No url/login/password/token at all returns 400", async ({
