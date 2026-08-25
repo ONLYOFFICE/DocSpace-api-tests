@@ -2521,3 +2521,484 @@ test.describe("GET /api/2.0/portal/payment/subscription/balance - permissions", 
     expect((data as any)?.error?.message).toBe("Customer could not be found");
   });
 });
+
+test.describe("GET /api/2.0/portal/payment/customer/usage/monthly - permissions", () => {
+  test("GET /api/2.0/portal/payment/customer/usage/monthly - Anonymous cannot get monthly usage", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getCustomerMonthlyUsage({});
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/monthly - RoomAdmin cannot get monthly usage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCustomerMonthlyUsage({});
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/monthly - User cannot get monthly usage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCustomerMonthlyUsage({});
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/monthly - Guest cannot get monthly usage", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCustomerMonthlyUsage({});
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/usage/monthly/report - permissions", () => {
+  test("GET /api/2.0/portal/payment/customer/usage/monthly/report - Anonymous cannot get monthly usage report", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getCustomerMonthlyUsageReport();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/monthly/report - RoomAdmin cannot get monthly usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCustomerMonthlyUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/monthly/report - User cannot get monthly usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCustomerMonthlyUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/monthly/report - Guest cannot get monthly usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCustomerMonthlyUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("DELETE /api/2.0/portal/payment/customer/usage/monthly/report - permissions", () => {
+  test("DELETE /api/2.0/portal/payment/customer/usage/monthly/report - Anonymous cannot terminate monthly report", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.terminateCustomerMonthlyUsageReport();
+
+    expect(status).toBe(401);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/monthly/report - RoomAdmin cannot terminate monthly report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.terminateCustomerMonthlyUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/monthly/report - User cannot terminate monthly report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.terminateCustomerMonthlyUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/monthly/report - Guest cannot terminate monthly report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.terminateCustomerMonthlyUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/customer/usage/monthly/report - permissions", () => {
+  test("POST /api/2.0/portal/payment/customer/usage/monthly/report - Anonymous cannot create monthly usage report", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.createCustomerMonthlyUsageReport({});
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/customer/usage/monthly/report - RoomAdmin cannot create monthly usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.createCustomerMonthlyUsageReport({});
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/customer/usage/monthly/report - User cannot create monthly usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.createCustomerMonthlyUsageReport({});
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/customer/usage/monthly/report - Guest cannot create monthly usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.createCustomerMonthlyUsageReport({});
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/customer/usage/report - permissions", () => {
+  test("POST /api/2.0/portal/payment/customer/usage/report - Anonymous cannot create service usage report", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.createCustomerServiceUsageReport({});
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/customer/usage/report - RoomAdmin cannot create service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.createCustomerServiceUsageReport({});
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/customer/usage/report - User cannot create service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.createCustomerServiceUsageReport({});
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/customer/usage/report - Guest cannot create service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.createCustomerServiceUsageReport({});
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/usage/report - permissions", () => {
+  test("GET /api/2.0/portal/payment/customer/usage/report - Anonymous cannot get service usage report", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getCustomerServiceUsageReport();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/report - RoomAdmin cannot get service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.getCustomerServiceUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/report - User cannot get service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.getCustomerServiceUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/report - Guest cannot get service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.getCustomerServiceUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("DELETE /api/2.0/portal/payment/customer/usage/report - permissions", () => {
+  test("DELETE /api/2.0/portal/payment/customer/usage/report - Anonymous cannot terminate service usage report", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.terminateCustomerServiceUsageReport();
+
+    expect(status).toBe(401);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/report - RoomAdmin cannot terminate service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.terminateCustomerServiceUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/report - User cannot terminate service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.terminateCustomerServiceUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/report - Guest cannot terminate service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.terminateCustomerServiceUsageReport();
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/subscription/movetowallet - permissions", () => {
+  test("POST /api/2.0/portal/payment/subscription/movetowallet - Anonymous cannot migrate subscription to wallet", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.moveSubscriptionToWallet({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/portal/payment/subscription/movetowallet - DocSpaceAdmin cannot migrate subscription to wallet", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.moveSubscriptionToWallet({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/subscription/movetowallet - RoomAdmin cannot migrate subscription to wallet", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .payment.moveSubscriptionToWallet({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/subscription/movetowallet - User cannot migrate subscription to wallet", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "User");
+
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .payment.moveSubscriptionToWallet({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+
+  test("POST /api/2.0/portal/payment/subscription/movetowallet - Guest cannot migrate subscription to wallet", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .payment.moveSubscriptionToWallet({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
+});
