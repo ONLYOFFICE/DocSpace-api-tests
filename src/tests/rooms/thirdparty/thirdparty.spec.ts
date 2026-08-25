@@ -344,11 +344,12 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
   // concurrency-race finding, not to single-request validation.
   // Sequential (not concurrent) reproduction of the session-reuse bug: connect
   // with correct credentials, then immediately connect the SAME host again
-  // with a wrong password. The WebDAV client is expected to isolate
-  // connections per credentials, but it reuses the still-open authenticated
-  // session from the first call, so the wrong-password call piggybacks on it
-  // and gets 200 instead of 403. This is deterministic (no --workers>=6 or
-  // multi-tenant race needed) and is what actually happens in CI - see
+  // with a wrong password, twice in a row. The WebDAV client is expected to
+  // isolate connections per credentials, but it caches the authenticated
+  // session from the correct call for longer than it should, so a
+  // wrong-password call piggybacks on it and gets 200 instead of 403 - the
+  // cache doesn't always evict between the two wrong-password attempts
+  // either, hence issuing it twice. See
   // [[bug_third_party_concurrent_auth_cross_contamination]] for the related
   // concurrent-request variant found earlier.
   test("BUG XXXXX: POST /files/thirdparty - Wrong password right after a correct connection to the same host returns 200, not 403", async ({
@@ -357,19 +358,19 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
     test.fail(
       true,
       "BUG XXXXX: the WebDAV client does not isolate connections to a host by " +
-        "credentials - it reuses the previous request's authenticated session " +
-        "instead of opening a fresh one for the new login/password. Connecting " +
-        "a correct Nextcloud account, then immediately connecting the same host " +
-        "with a wrong password, returns 200 (piggybacking on the still-open " +
-        "correct session) instead of 403.",
+        "credentials - it caches the previous request's authenticated session " +
+        "for longer than it should instead of opening a fresh one for the new " +
+        "login/password. Connecting a correct Nextcloud account, then " +
+        "connecting the same host with a wrong password, can return 200 " +
+        "(piggybacking on the still-cached correct session) instead of 403.",
     );
 
     const ownerApi = apiSdk.forRole("owner");
 
     await connectNextcloud(apiSdk, "owner", "Autotest Session Reuse Correct");
 
-    const { data, status } =
-      await ownerApi.thirdPartyIntegration.saveThirdParty({
+    const wrongPasswordAttempt = () =>
+      ownerApi.thirdPartyIntegration.saveThirdParty({
         thirdPartyRequestDto: {
           url: config.NEXTCLOUD_URL,
           login: config.NEXTCLOUD_LOGIN,
@@ -379,14 +380,23 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
         },
       });
 
+    // Both attempts run before either is asserted on, so a failing
+    // `expect` doesn't cut the second attempt short - see
+    // [[feedback_assertion_order]].
+    const first = await wrongPasswordAttempt();
+    const second = await wrongPasswordAttempt();
+
     const { data: accounts } =
       await ownerApi.thirdPartyIntegration.getThirdPartyAccounts();
-    const wrongPasswordAccount = (accounts.response as any[]).find(
+    const wrongPasswordAccounts = (accounts.response as any[]).filter(
       (a) => a.customer_title === "Autotest Session Reuse Wrong",
     );
-    expect(wrongPasswordAccount, JSON.stringify(data)).toBeUndefined();
+    expect(
+      wrongPasswordAccounts,
+      JSON.stringify({ first: first.data, second: second.data }),
+    ).toHaveLength(0);
 
-    expect(status).toBe(403);
+    expect([first.status, second.status]).toEqual([403, 403]);
   });
 
   test("POST /files/thirdparty - No url/login/password/token at all returns 400", async ({
