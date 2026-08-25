@@ -58,10 +58,10 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/quota/report", () => {
         .docsCloud.getTenantQuotaReport();
       expect(status).toBe(200);
       expect(data.response!.isCompleted).toBe(true);
+      expect((data.response as any).error).toBe("");
       task = data.response;
     }).toPass({ intervals: [2000, 3000, 5000], timeout: 60000 });
 
-    expect(task.error).toBe("");
     expect(task.percentage).toBe(100);
     expect(task.status).toBe(2);
     expect((task as any).resultFileId).toBeGreaterThan(0);
@@ -84,10 +84,10 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/quota/report", () => {
         .docsCloud.getTenantQuotaReport();
       expect(status).toBe(200);
       expect(data.response!.isCompleted).toBe(true);
+      expect((data.response as any).error).toBe("");
       task = data.response;
     }).toPass({ intervals: [2000, 3000, 5000], timeout: 60000 });
 
-    expect(task.error).toBe("");
     expect(task.percentage).toBe(100);
     expect(task.status).toBe(2);
     expect((task as any).resultFileId).toBeGreaterThan(0);
@@ -352,8 +352,7 @@ test.describe("POST /api/2.0/settings/docscloud/calculatedevpack", () => {
     const calc = data.response!;
     expect(typeof calc.operationId).toBe("number");
     expect(typeof calc.amount).toBe("number");
-    expect(typeof calc.currency).toBe("USD");
-    expect(calc.currency!.length).toBeGreaterThan(0);
+    expect(calc.currency).toBe("USD");
     expect(calc.quantity).toBe(10);
   });
 
@@ -382,8 +381,7 @@ test.describe("POST /api/2.0/settings/docscloud/calculatedevpack", () => {
     const calc = data.response!;
     expect(typeof calc.operationId).toBe("number");
     expect(typeof calc.amount).toBe("number");
-    expect(typeof calc.currency).toBe("USD");
-    expect(calc.currency!.length).toBeGreaterThan(0);
+    expect(calc.currency).toBe("USD");
     expect(calc.quantity).toBe(10);
   });
 });
