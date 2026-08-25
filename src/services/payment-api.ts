@@ -168,10 +168,14 @@ export class PaymentApi {
       { headers, params: { refresh: true }, timeout: 120_000 },
     );
     if (!tariffResponse.ok()) {
-      const error = await tariffResponse.json();
-      throw new Error(
-        `Failed to refresh tariff info: ${error.message || "Unknown error"}`,
-      );
+      const body = await tariffResponse.text();
+      let message = "Unknown error";
+      try {
+        message = JSON.parse(body).message || body;
+      } catch {
+        message = body;
+      }
+      throw new Error(`Failed to refresh tariff info: ${message}`);
     }
 
     const quotaResponse = await this.apiContext.get(
@@ -179,10 +183,14 @@ export class PaymentApi {
       { headers, params: { refresh: true }, timeout: 120_000 },
     );
     if (!quotaResponse.ok()) {
-      const error = await quotaResponse.json();
-      throw new Error(
-        `Failed to refresh quota info: ${error.message || "Unknown error"}`,
-      );
+      const body = await quotaResponse.text();
+      let message = "Unknown error";
+      try {
+        message = JSON.parse(body).message || body;
+      } catch {
+        message = body;
+      }
+      throw new Error(`Failed to refresh quota info: ${message}`);
     }
 
     return {

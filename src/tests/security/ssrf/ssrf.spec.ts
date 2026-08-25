@@ -13,11 +13,6 @@ test.describe("GET /filehandler.ashx - fileuri parameter must not trigger outbou
   test("GET /filehandler.ashx - should not create file from loopback URL", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82548: filehandler.ashx allows SSRF — server fetches fileuri without URL validation",
-    );
-
     const baseUrl = apiSdk.tokenStore.portalBaseUrl;
     const token = apiSdk.tokenStore.getToken("owner");
 
@@ -44,11 +39,6 @@ test.describe("GET /filehandler.ashx - fileuri parameter must not trigger outbou
   test("GET /filehandler.ashx - should not create file from link-local URL (169.254.x.x)", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 82548: filehandler.ashx allows SSRF — server fetches fileuri without URL validation",
-    );
-
     const baseUrl = apiSdk.tokenStore.portalBaseUrl;
     const token = apiSdk.tokenStore.getToken("owner");
 

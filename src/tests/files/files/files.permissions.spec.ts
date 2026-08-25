@@ -2654,7 +2654,7 @@ test.describe("GET /files/file/:id/links permissions", () => {
     expect(status).toBe(401);
   });
 
-  test("GET /files/file/:id/links - User gets 200 with empty array for another user's private file", async ({
+  test("GET /files/file/:id/links - User cannot get links for another user's private file", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -2672,9 +2672,8 @@ test.describe("GET /files/file/:id/links permissions", () => {
 
     const { data, status } = await userApi.files.getFileLinks({ id: fileId });
 
-    expect(status).toBe(200);
-    expect(data.count).toBe(0);
-    expect(data.response).toEqual([]);
+    expect(status).toBe(403);
+    expect((data as any).error?.message).toBe("Access denied");
   });
 });
 
