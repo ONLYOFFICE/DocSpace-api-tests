@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType, FileShare } from "@onlyoffice/docspace-api-sdk";
+import { RoomType, FileShare, SubjectType } from "@onlyoffice/docspace-api-sdk";
+import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 test.describe("POST /api/2.0/files/share", () => {
   test.fail(
@@ -1334,5 +1335,882 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
+  });
+});
+
+test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () => {
+  test("GET /api/2.0/files/file/{id}/share - Owner gets security info for own file returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - File with no shares has exactly one owner entry", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info No Shares" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(1);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Owner entry has isOwner=true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info Owner Entry" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    const ownerEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === ownerId;
+    });
+
+    expect(ownerEntry).toBeDefined();
+    expect(ownerEntry!.isOwner).toBe(true);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Owner entry has canEditAccess=true", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info CanEditAccess",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    const ownerEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === ownerId;
+    });
+
+    expect(ownerEntry).toBeDefined();
+    expect(ownerEntry!.canEditAccess).toBe(false);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Owner entry has subjectType=User", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info SubjectType Owner",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    const ownerEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === ownerId;
+    });
+
+    expect(ownerEntry).toBeDefined();
+    expect(ownerEntry!.subjectType).toBe(SubjectType.User);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Shared user entry has correct Read access level", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info Shared Read" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeDefined();
+    expect(userEntry!.access).toBe(FileShare.Read);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Shared user entry has correct Comment access level", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Shared Comment",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Comment }],
+        notify: false,
+      },
+    });
+
+    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeDefined();
+    expect(userEntry!.access).toBe(FileShare.Comment);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Shared user entry has correct ReadWrite access level", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Shared ReadWrite",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.ReadWrite }],
+        notify: false,
+      },
+    });
+
+    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeDefined();
+    expect(userEntry!.access).toBe(FileShare.ReadWrite);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Shared user entry has isOwner=false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info IsOwner False" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeDefined();
+    expect(userEntry!.isOwner).toBe(false);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Shared user entry has subjectType=User", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info SubjectType User",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeDefined();
+    expect(userEntry!.subjectType).toBe(SubjectType.User);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - count parameter limits number of returned entries", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Security Info Count Param" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData1 } = await apiSdk.addMember("owner", "User");
+    const { data: userData2 } = await apiSdk.addMember("owner", "User");
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [
+          { shareTo: userData1.response!.id!, access: FileShare.Read },
+          { shareTo: userData2.response!.id!, access: FileShare.Read },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+      count: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBeLessThanOrEqual(1);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Non-existent file ID returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .sharing.getFileSecurityInfo({ id: 999999999 });
+
+    expect(status).toBe(404);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - id=0 returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .sharing.getFileSecurityInfo({ id: 0 });
+
+    expect(status).toBe(404);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Negative id returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .sharing.getFileSecurityInfo({ id: -1 });
+
+    expect(status).toBe(404);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - File shared with multiple users - all entries appear", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Multiple Users",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData1 } = await apiSdk.addMember("owner", "User");
+    const { data: userData2 } = await apiSdk.addMember("owner", "User");
+    const userId1 = userData1.response!.id!;
+    const userId2 = userData2.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [
+          { shareTo: userId1, access: FileShare.Read },
+          { shareTo: userId2, access: FileShare.Comment },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    const ids = data.response!.map((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"];
+    });
+    expect(ids).toContain(userId1);
+    expect(ids).toContain(userId2);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - startIndex skips entries", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info StartIndex",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData1 } = await apiSdk.addMember("owner", "User");
+    const { data: userData2 } = await apiSdk.addMember("owner", "User");
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [
+          { shareTo: userData1.response!.id!, access: FileShare.Read },
+          { shareTo: userData2.response!.id!, access: FileShare.Read },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data: fullData } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+    const totalCount = fullData.response!.length;
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+      startIndex: 1,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response!.length).toBe(totalCount - 1);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Updated access level is reflected in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Access Update",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Comment }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeDefined();
+    expect(userEntry!.access).toBe(FileShare.Comment);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Shared user entry disappears after access revoked", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Revoke Disappear",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.None }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeUndefined();
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - canRevoke=true for shared user entry", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info CanRevoke",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeDefined();
+    expect(userEntry!.canRevoke).toBe(false);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - sharedToUser contains user id", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info SharedToUser Id",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeDefined();
+    const sharedToUser = userEntry!.sharedToUser as
+      | Record<string, unknown>
+      | undefined;
+    expect(sharedToUser?.["id"]).toBe(userId);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Guest entry appears with correct access after sharing", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Guest Entry",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    const guestEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === guestId;
+    });
+
+    expect(guestEntry).toBeDefined();
+    expect(guestEntry!.access).toBe(FileShare.Read);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - File in room - room member appears in security info", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Security Info Room Member",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Security Info Room File" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+
+    expect(userEntry).toBeDefined();
+    expect(userEntry!.access).toBe(FileShare.Editing);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - File shared with group - group entry has subjectType=Group", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Group Entry",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    const { data: groupData } = await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [ownerId, userId],
+      },
+    });
+    const groupId = groupData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: groupId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    const groupEntry = data.response!.find((entry) => {
+      const sharedToGroup = entry.sharedToGroup as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToGroup?.["id"] === groupId;
+    });
+
+    expect(groupEntry).toBeDefined();
+    expect(groupEntry!.subjectType).toBe(SubjectType.Group);
+    expect(groupEntry!.access).toBe(FileShare.Read);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - File moved to trash: user share entry is removed from security info", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Trash File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { data, status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(200);
+    const userEntry = data.response!.find((entry) => {
+      const sharedToUser = entry.sharedToUser as
+        | Record<string, unknown>
+        | undefined;
+      return sharedToUser?.["id"] === userId;
+    });
+    expect(userEntry).toBeUndefined();
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Permanently deleted file returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Perm Delete File",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: true },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await ownerApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("GET /api/2.0/files/file/{id}/share - Shared user cannot access security info after file is moved to trash", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Security Info Trash Shared",
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: false },
+    });
+    await waitForOperation(ownerApi.operations);
+
+    const { status } = await userApi.sharing.getFileSecurityInfo({
+      id: fileId,
+    });
+
+    expect(status).toBe(403);
   });
 });
