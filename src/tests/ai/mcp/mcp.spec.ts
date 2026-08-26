@@ -4534,7 +4534,6 @@ test.describe("MCP - the per-request tool switch", () => {
       .map((call) => call.toolName ?? "");
     const frames = AiAgentChat.frameTypes(sent.text);
 
-    test.fail();
     // The stored transcript first: it is what the user is left with, and it
     // outlives the stream.
     expect(

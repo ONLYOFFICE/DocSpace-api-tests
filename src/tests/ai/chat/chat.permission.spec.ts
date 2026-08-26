@@ -172,7 +172,6 @@ test.describe("Threads - access control for non-members", () => {
       }
 
       // Refusing an outsider is a 403, not an Internal Server Error.
-      test.fail();
       expect(status).toBe(403);
     });
   }
@@ -758,7 +757,6 @@ test.describe("Threads - access control on a room or folder entity", () => {
     );
 
     // Refusing an outsider is a 403, not an Internal Server Error.
-    test.fail();
     expect(status).toBe(403);
   });
 
@@ -874,7 +872,6 @@ test.describe("Threads - access control on a room or folder entity", () => {
     expect(control.threadId).toBeTruthy();
 
     // Refusing a folder the caller cannot open is a 403, not a crash.
-    test.fail();
     expect(status).toBe(403);
   });
 });
@@ -1329,7 +1326,6 @@ test.describe("Threads - the room membership is revoked", () => {
 
     // Same defect as an outsider who never was a member: the access check
     // crashes where it should refuse.
-    test.fail();
     expect(listed.status, "listing the threads of a room they left").toBe(403);
     expect(created.status).toBe(403);
   });
@@ -1386,15 +1382,10 @@ test.describe("Threads - the room membership is revoked", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    // The important half is good news: losing the room really does stop the
-    // conversation from going any further. Nothing new is written and the model
-    // is never called, so a user who was taken out of a room cannot keep asking
-    // questions in its context — which is what the routes above, all still
-    // answering 200, might suggest.
-    //
-    // What is wrong is only how the refusal is delivered: HTTP 200 with
-    // `{"type":"error","message":"stream error"}` in the body, the same wrong
-    // response contract as BUG 82717 on another member's thread.
+    // Was the same wrong response contract as BUG 82717 on another member's
+    // thread — HTTP 200 with `{"type":"error","message":"stream error"}` in
+    // the body instead of a 403. Fixed alongside it: a removed member's send
+    // now refuses with 403 `{"error":"Forbidden"}`.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -1406,12 +1397,15 @@ test.describe("Threads - the room membership is revoked", () => {
       profileId,
     );
 
-    const { status, streamError } = await aiChat.sendMessage("roomAdmin", {
-      threadId,
-      profileId,
-      agentId: roomId,
-      message: "Reply with the single word OK.",
-    });
+    const { status, error, streamError } = await aiChat.sendMessage(
+      "roomAdmin",
+      {
+        threadId,
+        profileId,
+        agentId: roomId,
+        message: "Reply with the single word OK.",
+      },
+    );
 
     // The wait matters: a send that had gone through would store the user
     // message at once and the reply seconds later, so looking straight away
@@ -1427,10 +1421,12 @@ test.describe("Threads - the room membership is revoked", () => {
       AiAgentChat.assistantMessages(after.data),
       "the model was never called for a user who left the room",
     ).toEqual([]);
-    expect(streamError).toBe("stream error");
 
-    test.fail();
     expect(status).toBe(403);
+    expect(error).toBe("Forbidden");
+    expect(streamError, "the refusal is the status, not a stream frame").toBe(
+      undefined,
+    );
   });
 });
 

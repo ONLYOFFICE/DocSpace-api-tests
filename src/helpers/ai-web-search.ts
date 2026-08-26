@@ -11,6 +11,15 @@ import { AiAgentChat, AiThreadMessage } from "./ai-agent-chat";
 //   POST   /ai/web-search/test-connection  { provider, key?, baseUrl? }
 //   DELETE /ai/web-search/clear            { entityId? }
 //
+// entityId existence is validated on the two GET routes above (measured
+// 2026-08-26): omitting it, or an empty `entityId=`, still reads the bare
+// true/false / config|null shown above, but any non-empty entityId that does
+// not resolve to a real entity — "0", "-1", huge numbers, non-numeric — 404s
+// with `{"error":"Entity \"<value>\" not found"}"` instead. `clear` and the
+// threads routes are unaffected by the same bogus entityId, so this is scoped
+// to these two GET routes, not a shared resolver. See
+// [[ai_web_search_contract]] / [[ai_full_suite_run_2026_08_26]].
+//
 // HOW WEB SEARCH IS ACTUALLY SWITCHED ON
 //
 // Not through any of these routes. The product moved it to Billing → Add-ons:
