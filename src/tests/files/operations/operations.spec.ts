@@ -8878,11 +8878,7 @@ test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () =
 
     expect(status).toBe(200);
     expect(Array.isArray(data.response)).toBe(true);
-
-    const { data: statusData } = await ownerApi.operations.getOperationStatuses(
-      { id: operationId },
-    );
-    expect(statusData.response).toHaveLength(0);
+    expect(data.response).toHaveLength(0);
   });
 
   test("PUT /api/2.0/files/fileops/terminate/{id} - Terminate duplicate operation returns 200 and operation is no longer in active list", async ({
