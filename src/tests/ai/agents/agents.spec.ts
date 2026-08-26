@@ -234,7 +234,6 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
       ? (await profiles.getAllAssignments("owner", agentId)).data
       : undefined;
 
-    test.fail();
     expect(
       { id: agentId, listed, room, folders, scope },
       "a create on a profileId the catalogue does not have leaves nothing behind",
@@ -1030,7 +1029,6 @@ test.describe("PUT /ai/agents/:id - the agent's profile binding", () => {
     const scope = await profiles.getAllAssignments("owner", agentId);
     const thread = await aiChat.getThread("owner", threadId);
 
-    test.fail();
     expect(
       {
         title: info.data?.response?.title,
@@ -1236,7 +1234,6 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
       setRestrictedAiModelsRequestDto: { models: new Set() },
     });
 
-    test.fail();
     expect(
       {
         status: update.status,

@@ -6238,7 +6238,6 @@ test.describe("AI Chat - image generation", () => {
       "the drawing was attempted — without this the rest proves nothing",
     ).toContain("generate_image");
 
-    test.fail();
     const landed = await waitForNewFile(
       ownerApi,
       resultStorageId,
@@ -6306,7 +6305,6 @@ test.describe("AI Chat - image generation", () => {
       "the drawing was attempted — without this the rest proves nothing",
     ).toContain("generate_image");
 
-    test.fail();
     const landed = await waitForNewFile(ownerApi, roomId, roomBefore);
     expect(
       landed,
