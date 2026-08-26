@@ -2260,9 +2260,9 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
     expect(data.statusCode).toBe(200);
   });
 
-  // BUG XXXXX: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
+  // BUG 83430: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/file/{fileId}/sendeditornotify - Response contains user name and permissions for mentioned user",
+    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - Response contains user name and permissions for mentioned user",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2310,9 +2310,9 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
     },
   );
 
-  // BUG XXXXX: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
+  // BUG 83430: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/file/{fileId}/sendeditornotify - User with Editing access gets Full Access in response",
+    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - User with Editing access gets Full Access in response",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2356,9 +2356,9 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
     },
   );
 
-  // BUG XXXXX: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
+  // BUG 83430: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/file/{fileId}/sendeditornotify - User without room access gets Deny Access in response",
+    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - User without room access gets Deny Access in response",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2394,9 +2394,9 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
     },
   );
 
-  // BUG XXXXX: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
+  // BUG 83430: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
   test.fail(
-    "BUG XXXXX: POST /api/2.0/files/file/{fileId}/sendeditornotify - Multiple emails returns entry per mentioned user",
+    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - Multiple emails returns entry per mentioned user",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2559,6 +2559,49 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
     });
 
     expect(status).toBe(200);
+  });
+
+  test("POST /api/2.0/files/file/{fileId}/sendeditornotify - Message longer than 255 characters returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Notify Room Long Message",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Notify File.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+    const userEmail = userData.response!.email!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { status } = await ownerApi.sharing.sendEditorNotify({
+      fileId,
+      mentionMessageWrapper: {
+        actionLink: { action: { data: "test-action", type: "comment" } },
+        emails: [userEmail],
+        message: "a".repeat(256),
+      },
+    });
+
+    expect(status).toBe(400);
   });
 
   test("POST /api/2.0/files/file/{fileId}/sendeditornotify - Non-existent fileId returns 404", async ({
