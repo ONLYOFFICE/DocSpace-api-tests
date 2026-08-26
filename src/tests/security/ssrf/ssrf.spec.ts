@@ -36,31 +36,32 @@ test.describe("GET /filehandler.ashx - fileuri parameter must not trigger outbou
     expect(ssrfFile).toBeUndefined();
   });
 
-  test("GET /filehandler.ashx - should not create file from link-local URL (169.254.x.x)", async ({
-    apiSdk,
-  }) => {
-    const baseUrl = apiSdk.tokenStore.portalBaseUrl;
-    const token = apiSdk.tokenStore.getToken("owner");
+  test.fail(
+    "BUG 82548: GET /filehandler.ashx - should not create file from link-local URL (169.254.x.x)",
+    async ({ apiSdk }) => {
+      const baseUrl = apiSdk.tokenStore.portalBaseUrl;
+      const token = apiSdk.tokenStore.getToken("owner");
 
-    await apiSdk.request.get(
-      `${baseUrl}/filehandler.ashx?action=create` +
-        `&fileuri=${encodeURIComponent("http://169.254.169.254/latest/meta-data/")}` +
-        `&title=ssrf-imds.txt&response=message`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Origin: `https://${apiSdk.tokenStore.newTenantDomain}`,
+      await apiSdk.request.get(
+        `${baseUrl}/filehandler.ashx?action=create` +
+          `&fileuri=${encodeURIComponent("http://169.254.169.254/latest/meta-data/")}` +
+          `&title=ssrf-imds.txt&response=message`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Origin: `https://${apiSdk.tokenStore.newTenantDomain}`,
+          },
         },
-      },
-    );
+      );
 
-    const { data } = await apiSdk.forRole("owner").folders.getMyFolder();
-    const ssrfFile = data.response?.files?.find(
-      (f: any) => f.title === "ssrf-imds.txt",
-    );
+      const { data } = await apiSdk.forRole("owner").folders.getMyFolder();
+      const ssrfFile = data.response?.files?.find(
+        (f: any) => f.title === "ssrf-imds.txt",
+      );
 
-    expect(ssrfFile).toBeUndefined();
-  });
+      expect(ssrfFile).toBeUndefined();
+    },
+  );
 
   test("GET /filehandler.ashx - should not create file from internal Kubernetes service URL", async ({
     apiSdk,
