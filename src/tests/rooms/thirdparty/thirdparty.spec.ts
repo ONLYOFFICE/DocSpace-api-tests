@@ -352,12 +352,12 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
   // either, hence issuing it twice. See
   // [[bug_third_party_concurrent_auth_cross_contamination]] for the related
   // concurrent-request variant found earlier.
-  test("BUG XXXXX: POST /files/thirdparty - Wrong password right after a correct connection to the same host returns 200, not 403", async ({
+  test("BUG 83399: POST /files/thirdparty - Wrong password right after a correct connection to the same host returns 200, not 403", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: the WebDAV client does not isolate connections to a host by " +
+      "BUG 83399: the WebDAV client does not isolate connections to a host by " +
         "credentials - it caches the previous request's authenticated session " +
         "for longer than it should instead of opening a fresh one for the new " +
         "login/password. Connecting a correct Nextcloud account, then " +
