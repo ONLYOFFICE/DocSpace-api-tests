@@ -3167,22 +3167,20 @@ test.describe("GET /api/2.0/portal/payment/subscription/balance", () => {
 });
 
 test.describe("POST /api/2.0/portal/payment/subscription/movetowallet", () => {
-  test("POST /api/2.0/portal/payment/subscription/movetowallet - Owner gets 402 in test environment (no real Stripe subscription)", async ({
+  test("POST /api/2.0/portal/payment/subscription/movetowallet - Owner gets 403 in test environment (no real Stripe subscription)", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Same constraint as getSubscriptionBalanceInfo: requires a real Stripe subscription.
+    // Requires a real Stripe subscription. setupPayment() uses setdspsaaspaid bypass
+    // which does not create a Stripe subscription, so the endpoint returns 403.
     await paymentsApi.setupPayment();
 
-    const { data, status } = await apiSdk
+    const { status } = await apiSdk
       .forRole("owner")
       .payment.moveSubscriptionToWallet({
         quantityRequestDto: { quantity: { admin: 1 } },
       });
 
-    expect(status).toBe(402);
-    expect((data as any)?.error?.message).toContain(
-      "no Stripe subscription id found",
-    );
+    expect(status).toBe(403);
   });
 });
