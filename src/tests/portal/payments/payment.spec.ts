@@ -1126,6 +1126,97 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
 
     expect(status).toBe(200);
   });
+
+  test("GET /api/2.0/portal/payment/customer/operations - orderBy date ascending returns operations in chronological order", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp(500);
+    await paymentsApi.makeWalletTopUp(500);
+
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(start.getDate() - 30);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 0);
+    const startDate = start.toISOString().slice(0, 19);
+    const endDate = end.toISOString().slice(0, 19);
+
+    const { data: asc, status: statusAsc } = await apiSdk
+      .forRole("owner")
+      .payment.getCustomerOperations({
+        offset: 0,
+        limit: 25,
+        credit: true,
+        debit: true,
+        startDate,
+        endDate,
+        orderBy: "date",
+        orderType: 1,
+      });
+
+    const { data: desc, status: statusDesc } = await apiSdk
+      .forRole("owner")
+      .payment.getCustomerOperations({
+        offset: 0,
+        limit: 25,
+        credit: true,
+        debit: true,
+        startDate,
+        endDate,
+        orderBy: "date",
+        orderType: 0,
+      });
+
+    expect(statusAsc).toBe(200);
+    expect(statusDesc).toBe(200);
+
+    const ascItems = (asc.response?.collection ?? []) as any[];
+    const descItems = (desc.response?.collection ?? []) as any[];
+
+    if (ascItems.length >= 2) {
+      const dates = ascItems.map((op: any) => new Date(op.date).getTime());
+      expect(dates[0]).toBeLessThanOrEqual(dates[dates.length - 1]);
+    }
+
+    if (descItems.length >= 2) {
+      const dates = descItems.map((op: any) => new Date(op.date).getTime());
+      expect(dates[0]).toBeGreaterThanOrEqual(dates[dates.length - 1]);
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/customer/operations - participantName filter returns empty collection for unknown name", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const now = new Date();
+    const start2 = new Date(now);
+    start2.setDate(start2.getDate() - 30);
+    start2.setHours(0, 0, 0, 0);
+    const end2 = new Date(now);
+    end2.setHours(23, 59, 59, 0);
+    const startDate = start2.toISOString().slice(0, 19);
+    const endDate = end2.toISOString().slice(0, 19);
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getCustomerOperations({
+        offset: 0,
+        limit: 25,
+        credit: true,
+        debit: true,
+        startDate,
+        endDate,
+        participantName: "nonexistent-participant-xyz",
+      });
+
+    expect(status).toBe(200);
+    expect(data.response?.collection).toBeDefined();
+    expect((data.response?.collection ?? []).length).toBe(0);
+  });
 });
 
 // The per-service side of the wallet: `customer/operations` lists the charges
@@ -1817,6 +1908,26 @@ test.describe("GET /api/2.0/portal/payment/quotas", () => {
     }
   });
 
+  test("GET /api/2.0/portal/payment/quotas - Owner gets additional-only quotas", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getPaymentQuotas({ additional: true });
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect(data.response!.length).toBeGreaterThan(0);
+
+    for (const quota of data.response ?? []) {
+      expect(typeof quota.id).toBe("number");
+      expect(typeof quota.nonProfit).toBe("boolean");
+      expect(typeof quota.free).toBe("boolean");
+      expect(typeof quota.trial).toBe("boolean");
+      expect(Array.isArray((quota as any).features)).toBe(true);
+    }
+  });
+
   test("GET /api/2.0/portal/payment/quotas - DocSpaceAdmin gets all payment quotas", async ({
     apiSdk,
   }) => {
@@ -2344,6 +2455,619 @@ test.describe("DELETE /api/2.0/portal/payment/customer/operationsreport", () => 
   });
 });
 
+test.describe("POST /api/2.0/portal/payment/customer/usage/monthly/report", () => {
+  test("POST /api/2.0/portal/payment/customer/usage/monthly/report - Owner creates monthly usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.createCustomerMonthlyUsageReport({
+        customerMonthlyUsageReportRequestDto: { startDate, endDate },
+      });
+
+    expect(status).toBe(200);
+    expect(data.count).toBe(1);
+    expect(typeof data.response?.id).toBe("string");
+    expect(data.response!.id!.length).toBeGreaterThan(0);
+    expect(data.response!.error).toBe("");
+    expect(data.response!.isCompleted).toBe(false);
+    expect(data.response!.status).toBe(0);
+    expect(data.response!.percentage).toBe(0);
+    expect(data.response!.resultFileUrl).toBe("");
+  });
+
+  test("POST /api/2.0/portal/payment/customer/usage/monthly/report - DocSpaceAdmin creates monthly usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.createCustomerMonthlyUsageReport({
+        customerMonthlyUsageReportRequestDto: { startDate, endDate },
+      });
+
+    expect(status).toBe(200);
+    expect(data.count).toBe(1);
+    expect(typeof data.response?.id).toBe("string");
+    expect(data.response!.id!.length).toBeGreaterThan(0);
+    expect(data.response!.error).toBe("");
+    expect(data.response!.isCompleted).toBe(false);
+    expect(data.response!.status).toBe(0);
+    expect(data.response!.percentage).toBe(0);
+    expect(data.response!.resultFileUrl).toBe("");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/usage/monthly/report", () => {
+  test("GET /api/2.0/portal/payment/customer/usage/monthly/report - Owner polls report until completed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk.forRole("owner").payment.createCustomerMonthlyUsageReport({
+      customerMonthlyUsageReportRequestDto: { startDate, endDate },
+    });
+
+    let report: any;
+
+    await expect(async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .payment.getCustomerMonthlyUsageReport();
+      expect(status).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBe("");
+      report = data.response;
+    }).toPass({ intervals: [2000, 3000, 5000], timeout: 60000 });
+
+    expect(report.percentage).toBe(100);
+    expect(report.status).toBe(2);
+    expect(report.resultFileId).toBeGreaterThan(0);
+    expect(typeof report.resultFileName).toBe("string");
+    expect(report.resultFileName).toMatch(/\.xlsx$/);
+    expect(report.resultFileUrl).toContain("/doceditor?fileid=");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/monthly/report - DocSpaceAdmin polls report until completed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.createCustomerMonthlyUsageReport({
+        customerMonthlyUsageReportRequestDto: { startDate, endDate },
+      });
+
+    let report: any;
+
+    await expect(async () => {
+      const { data, status } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .payment.getCustomerMonthlyUsageReport();
+      expect(status).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBe("");
+      report = data.response;
+    }).toPass({ intervals: [2000, 3000, 5000], timeout: 60000 });
+
+    expect(report.percentage).toBe(100);
+    expect(report.status).toBe(2);
+    expect(report.resultFileId).toBeGreaterThan(0);
+    expect(typeof report.resultFileName).toBe("string");
+    expect(report.resultFileName).toMatch(/\.xlsx$/);
+    expect(report.resultFileUrl).toContain("/doceditor?fileid=");
+  });
+});
+
+test.describe("DELETE /api/2.0/portal/payment/customer/usage/monthly/report", () => {
+  test("DELETE /api/2.0/portal/payment/customer/usage/monthly/report - Owner terminates monthly report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk.forRole("owner").payment.createCustomerMonthlyUsageReport({
+      customerMonthlyUsageReportRequestDto: { startDate, endDate },
+    });
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .payment.terminateCustomerMonthlyUsageReport();
+
+    expect(status).toBe(200);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/monthly/report - DocSpaceAdmin terminates monthly report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.createCustomerMonthlyUsageReport({
+        customerMonthlyUsageReportRequestDto: { startDate, endDate },
+      });
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.terminateCustomerMonthlyUsageReport();
+
+    expect(status).toBe(200);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/monthly/report - DocSpaceAdmin terminates Owner's monthly report generation", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk.forRole("owner").payment.createCustomerMonthlyUsageReport({
+      customerMonthlyUsageReportRequestDto: { startDate, endDate },
+    });
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.terminateCustomerMonthlyUsageReport();
+
+    expect(status).toBe(200);
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/customer/usage/report", () => {
+  test("POST /api/2.0/portal/payment/customer/usage/report - Owner creates service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.createCustomerServiceUsageReport({
+        customerServiceUsageReportRequestDto: { startDate, endDate },
+      });
+
+    expect(status).toBe(200);
+    expect(data.count).toBe(1);
+    expect(typeof data.response?.id).toBe("string");
+    expect(data.response!.id!.length).toBeGreaterThan(0);
+    expect(data.response!.error).toBe("");
+    expect(data.response!.isCompleted).toBe(false);
+    expect(data.response!.status).toBe(0);
+    expect(data.response!.percentage).toBe(0);
+    expect(data.response!.resultFileUrl).toBe("");
+  });
+
+  test("POST /api/2.0/portal/payment/customer/usage/report - DocSpaceAdmin creates service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.createCustomerServiceUsageReport({
+        customerServiceUsageReportRequestDto: { startDate, endDate },
+      });
+
+    expect(status).toBe(200);
+    expect(data.count).toBe(1);
+    expect(typeof data.response?.id).toBe("string");
+    expect(data.response!.id!.length).toBeGreaterThan(0);
+    expect(data.response!.error).toBe("");
+    expect(data.response!.isCompleted).toBe(false);
+    expect(data.response!.status).toBe(0);
+    expect(data.response!.percentage).toBe(0);
+    expect(data.response!.resultFileUrl).toBe("");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/usage/report", () => {
+  test("GET /api/2.0/portal/payment/customer/usage/report - Owner polls report until completed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk.forRole("owner").payment.createCustomerServiceUsageReport({
+      customerServiceUsageReportRequestDto: { startDate, endDate },
+    });
+
+    let report: any;
+
+    await expect(async () => {
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .payment.getCustomerServiceUsageReport();
+      expect(status).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBe("");
+      report = data.response;
+    }).toPass({ intervals: [2000, 3000, 5000], timeout: 60000 });
+
+    expect(report.percentage).toBe(100);
+    expect(report.status).toBe(2);
+    expect(report.resultFileId).toBeGreaterThan(0);
+    expect(report.resultFileName).toMatch(/\.xlsx$/);
+    expect(report.resultFileUrl).toContain("/doceditor?fileid=");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/report - DocSpaceAdmin polls report until completed", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.createCustomerServiceUsageReport({
+        customerServiceUsageReportRequestDto: { startDate, endDate },
+      });
+
+    let report: any;
+
+    await expect(async () => {
+      const { data, status } = await apiSdk
+        .forRole("docSpaceAdmin")
+        .payment.getCustomerServiceUsageReport();
+      expect(status).toBe(200);
+      expect(data.response!.isCompleted).toBe(true);
+      expect(data.response!.error).toBe("");
+      report = data.response;
+    }).toPass({ intervals: [2000, 3000, 5000], timeout: 60000 });
+
+    expect(report.percentage).toBe(100);
+    expect(report.status).toBe(2);
+    expect(report.resultFileId).toBeGreaterThan(0);
+    expect(report.resultFileName).toMatch(/\.xlsx$/);
+    expect(report.resultFileUrl).toContain("/doceditor?fileid=");
+  });
+});
+
+test.describe("DELETE /api/2.0/portal/payment/customer/usage/report", () => {
+  test("DELETE /api/2.0/portal/payment/customer/usage/report - Owner terminates service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk.forRole("owner").payment.createCustomerServiceUsageReport({
+      customerServiceUsageReportRequestDto: { startDate, endDate },
+    });
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .payment.terminateCustomerServiceUsageReport();
+
+    expect(status).toBe(200);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/report - DocSpaceAdmin terminates service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.createCustomerServiceUsageReport({
+        customerServiceUsageReportRequestDto: { startDate, endDate },
+      });
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.terminateCustomerServiceUsageReport();
+
+    expect(status).toBe(200);
+  });
+
+  test("DELETE /api/2.0/portal/payment/customer/usage/report - DocSpaceAdmin terminates Owner's service usage report", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+
+    const now = new Date();
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 1,
+      1,
+    ).toISOString();
+    const endDate = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      0,
+      23,
+      59,
+      59,
+    ).toISOString();
+
+    await apiSdk.forRole("owner").payment.createCustomerServiceUsageReport({
+      customerServiceUsageReportRequestDto: { startDate, endDate },
+    });
+
+    const { status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.terminateCustomerServiceUsageReport();
+
+    expect(status).toBe(200);
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/customer/usage/monthly", () => {
+  test("GET /api/2.0/portal/payment/customer/usage/monthly - Owner gets monthly usage list", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getCustomerMonthlyUsage({});
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect((data.response as any[]).length).toBeGreaterThan(0);
+
+    const row = (data.response as any[])[0];
+    expect(typeof row.year).toBe("number");
+    expect(typeof row.month).toBe("number");
+    expect(row.month).toBeGreaterThanOrEqual(1);
+    expect(row.month).toBeLessThanOrEqual(12);
+    expect(row.currency).toBe("USD");
+    expect(typeof row.totalAmount).toBe("number");
+    expect(typeof row.operationCount).toBe("number");
+  });
+
+  test("GET /api/2.0/portal/payment/customer/usage/monthly - DocSpaceAdmin gets monthly usage list", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    await apiSdk.forRole("owner").payment.updateWalletPayment({
+      walletQuantityRequestDto: {
+        quantity: { storage: 100 },
+        productQuantityType: 1,
+      },
+    });
+
+    const { data, status } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getCustomerMonthlyUsage({});
+
+    expect(status).toBe(200);
+    expect(Array.isArray(data.response)).toBe(true);
+    expect((data.response as any[]).length).toBeGreaterThan(0);
+
+    const row = (data.response as any[])[0];
+    expect(typeof row.year).toBe("number");
+    expect(typeof row.month).toBe("number");
+    expect(row.month).toBeGreaterThanOrEqual(1);
+    expect(row.month).toBeLessThanOrEqual(12);
+    expect(row.currency).toBe("USD");
+    expect(typeof row.totalAmount).toBe("number");
+    expect(typeof row.operationCount).toBe("number");
+  });
+});
+
 test.describe("POST /api/2.0/portal/payment/deposit", () => {
   test("POST /api/2.0/portal/payment/deposit - Owner tops up wallet deposit", async ({
     apiSdk,
@@ -2362,6 +3086,45 @@ test.describe("POST /api/2.0/portal/payment/deposit", () => {
     // makeWalletTopUp() bypasses Stripe, so Stripe-based deposit returns false but the endpoint is reachable.
     expect(typeof data.response).toBe("boolean");
   });
+
+  test("POST /api/2.0/portal/payment/deposit - Returns error for zero amount", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { status } = await apiSdk.forRole("owner").payment.topUpDeposit({
+      topUpDepositRequestDto: { amount: 0, currency: "USD" },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - Returns error for negative amount", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { status } = await apiSdk.forRole("owner").payment.topUpDeposit({
+      topUpDepositRequestDto: { amount: -100, currency: "USD" },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("POST /api/2.0/portal/payment/deposit - Returns error for invalid currency", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.makeWalletTopUp();
+
+    const { status } = await apiSdk.forRole("owner").payment.topUpDeposit({
+      topUpDepositRequestDto: { amount: 100, currency: "INVALID" },
+    });
+
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("PUT /api/2.0/portal/payment/update", () => {
@@ -2379,5 +3142,45 @@ test.describe("PUT /api/2.0/portal/payment/update", () => {
     expect(status).toBe(200);
     // response is false in test environment because updatePayment requires an active Stripe subscription.
     expect(typeof data.response).toBe("boolean");
+  });
+});
+
+test.describe("GET /api/2.0/portal/payment/subscription/balance", () => {
+  test("GET /api/2.0/portal/payment/subscription/balance - Owner gets 402 in test environment (no real Stripe subscription)", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // setupPayment() calls setdspsaaspaid — an internal API that marks the portal
+    // as paid without creating a real Stripe subscription. getSubscriptionBalanceInfo
+    // requires an actual Stripe subscription_id and returns 402 when none exists.
+    await paymentsApi.setupPayment();
+
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getSubscriptionBalanceInfo();
+
+    expect(status).toBe(402);
+    expect((data as any)?.error?.message).toContain(
+      "no Stripe subscription id found",
+    );
+  });
+});
+
+test.describe("POST /api/2.0/portal/payment/subscription/movetowallet", () => {
+  test("POST /api/2.0/portal/payment/subscription/movetowallet - Owner gets 403 in test environment (no real Stripe subscription)", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Requires a real Stripe subscription. setupPayment() uses setdspsaaspaid bypass
+    // which does not create a Stripe subscription, so the endpoint returns 403.
+    await paymentsApi.setupPayment();
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .payment.moveSubscriptionToWallet({
+        quantityRequestDto: { quantity: { admin: 1 } },
+      });
+
+    expect(status).toBe(403);
   });
 });
