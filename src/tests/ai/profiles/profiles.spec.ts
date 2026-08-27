@@ -1262,11 +1262,6 @@ test.describe("AI Profiles - which field the model picker blames", () => {
     expect(noBaseUrl.status, "a request with no baseUrl").toBe(400);
     expect(noProviderType.status, "a request with no providerType").toBe(400);
 
-    test.fail();
-    // Measured: both answer "providerType and baseUrl required". So the form is
-    // told that two of its inputs are wrong when one of them was filled in
-    // correctly, and it cannot tell which one to highlight. `create` shows the
-    // shape this route is missing — a single `{field, message}` pair.
     expect(
       noBaseUrl.error,
       "a missing baseUrl is reported without blaming providerType",
@@ -1403,10 +1398,6 @@ test.describe("AI Profiles - local providers need no key", () => {
       baseUrl: LOCAL_SERVER_URL,
     });
 
-    test.fail();
-    // Measured: 200 `[]`. A form that gets that shows "no models" for a server
-    // that is not running, and the answer is indistinguishable from a running
-    // server with an empty catalogue — the case the `onlyoffice` test above pins.
     expect(status, "an unreachable gpt4all server is reported as such").toBe(
       502,
     );
@@ -1481,9 +1472,6 @@ test.describe("AI Profiles - the transport is not checked against the host", () 
       ).toEqual([]);
     }
 
-    test.fail();
-    // Measured: the anthropic transport drops `name` entirely, leaving the picker
-    // with nothing to write in the row next to the capability icons.
     expect(
       byTransport[AiBuiltinProviderType.Anthropic]
         .filter((model) => !model.name)

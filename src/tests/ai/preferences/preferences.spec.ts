@@ -369,7 +369,6 @@ test.describe("AI Preferences - deep mode of a room or a folder", () => {
         true,
       );
 
-      test.fail();
       expect(written.status, `set-deep-mode on a ${kind}`).toBe(200);
       expect(written.data?.success).toBe(true);
       expect(readBack.status).toBe(200);

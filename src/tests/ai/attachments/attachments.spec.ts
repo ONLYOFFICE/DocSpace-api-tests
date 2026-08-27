@@ -634,7 +634,6 @@ test.describe("AI Attachments - save-file", () => {
       },
     });
 
-    test.fail();
     expect(
       [missingId.status, pathShaped.status],
       "an id that resolves to nothing is a client error, not a crash",
@@ -1725,8 +1724,6 @@ test.describe("AI Attachments - link-to-message", () => {
       statuses.push([label, status]);
     }
 
-    test.fail();
-    // Not one of these is a legal link, yet each answers 200 {success:true}.
     expect(
       statuses.every(([, status]) => status !== 200),
       JSON.stringify(statuses),

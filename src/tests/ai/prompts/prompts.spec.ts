@@ -709,13 +709,6 @@ test.describe("AI Prompts - export and import", () => {
       "create refuses the duplicate name the import accepted",
     ).toBe(false);
 
-    test.fail();
-    // What happens instead: `200 {success:true, imported:{prompts:2}}`, and the
-    // existing prompt is overwritten in place — same id, `text` replaced by the
-    // bundle's, `createdAt` restamped. There is no `errors` entry and nothing
-    // else in the response a client could use to warn that a saved prompt was
-    // destroyed. AiImportResult documents the opposite: all-or-nothing, with the
-    // offending entry named in `errors`.
     const listed = await prompts.listPrompts("owner");
     expect(
       listed.data.find((prompt) => prompt.id === existing)?.text,
@@ -1315,11 +1308,6 @@ test.describe("AI Prompt folders - moving prompts", () => {
       "create refuses the duplicate the move was allowed to create",
     ).toBe("Prompt name already exists in this folder");
 
-    test.fail();
-    // What happens instead: `200 {success:true}` and the move goes through, so
-    // the folder ends up holding two prompts with the same name and the root is
-    // left empty. The rule is enforced on `create` and on `update{name}` — only
-    // the routes that change a prompt's folder skip it.
     const listed = await prompts.listPrompts("owner", target);
     expect(listed.data.map((prompt) => prompt.id)).toEqual([inFolder]);
     expect(listed.data[0]?.text).toBe("Folder body");
@@ -1369,10 +1357,6 @@ test.describe("AI Prompt folders - moving prompts", () => {
       "create refuses the duplicate the update was allowed to create",
     ).toBe("Prompt name already exists in this folder");
 
-    test.fail();
-    // Same defect reached through `update{folderId}` rather than `move`: 200
-    // {success:true}, and the target folder ends up with two prompts named
-    // "Autotest clash". Both routes need the check, so both are pinned.
     expect(
       (await prompts.listPrompts("owner", target)).data,
       "the target folder still holds one prompt",

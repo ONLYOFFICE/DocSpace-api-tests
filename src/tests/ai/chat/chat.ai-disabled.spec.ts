@@ -378,7 +378,6 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
       message: "Say hi",
     });
 
-    test.fail();
     expect(sent.status).toBe(402);
   });
 

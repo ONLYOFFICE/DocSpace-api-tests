@@ -5563,7 +5563,6 @@ test.describe("AI Chat - an agent picked in the composer from another location",
     expectHealthyAssistantReply(messages);
     const text = AiAgentChat.assistantText(messages);
 
-    test.fail();
     expect(
       {
         request: markerProbe(REQUEST_MARKER).test(text),
@@ -7691,7 +7690,6 @@ test.describe("AI Threads - renaming, deleting and clearing: validation", () => 
       await aiChat.renameThread("owner", threadId, "Autotest renamed");
     }
 
-    test.fail();
     for (const [label, status] of outcomes) {
       expect(status, `rename with ${label} is refused`).toBe(400);
     }
@@ -7860,7 +7858,6 @@ test.describe("AI Threads - renaming, deleting and clearing: validation", () => 
     expect(listed.status).toBe(200);
     expect(listed.data.map((thread) => thread.threadId)).toEqual([keeper]);
 
-    test.fail();
     expect(unknownId.status, "deleting an id that never existed").toBe(404);
     expect(deletedTwice.status, "deleting an already deleted thread").toBe(404);
   });

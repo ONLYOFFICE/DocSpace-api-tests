@@ -3713,7 +3713,6 @@ test.describe("MCP - server names as map keys", () => {
       agentId,
     });
 
-    test.fail();
     expect(
       constructorServer.data?.error?.message,
       "the config is a valid object — the name is what the API dislikes",
@@ -4834,7 +4833,6 @@ test.describe("MCP - a registered server in the tool list", () => {
         (tools ?? []).map((tool) => `${serverType}_${tool.name ?? ""}`),
     );
 
-    test.fail();
     expect(
       listed,
       `the catalogue published only [${Object.keys(catalogue.data ?? {}).join(", ")}]`,
