@@ -6892,7 +6892,7 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
   );
 
   test.fail(
-    "BUG TBD: PUT /api/2.0/files/fileops/markasread - Marking Files section" +
+    "BUG 83509: PUT /api/2.0/files/fileops/markasread - Marking Files section" +
       " root as read does not clear Rooms section news",
     async ({ apiSdk }) => {
       // markAsRead has no rootFolderType/section parameter, so it marks the
