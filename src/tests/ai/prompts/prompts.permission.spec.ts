@@ -375,7 +375,7 @@ test.describe("AI Prompts - cross-user isolation", () => {
     ).toBe("Autotest owner");
   });
 
-  test("BUG 83138: DELETE /api/2.0/ai/prompts/delete-folder - deleting another user's folder reports success", async ({
+  test("BUG 83138 FIXED: DELETE /api/2.0/ai/prompts/delete-folder - deleting another user's folder is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -400,15 +400,14 @@ test.describe("AI Prompts - cross-user isolation", () => {
     );
     await prompts.expectActingAs("user", memberData.response!.id!, "User");
 
-    const { status, data } = await prompts.deleteFolder("user", ownerFolder);
-    expect(status).toBe(200);
-    expect(data?.success, "the call reports the delete succeeded").toBe(true);
+    // Used to answer 200 `{success:true}` while deleting nothing, so a caller
+    // could not tell "deleted" from "not yours". Now matches rename-folder one
+    // test up: the same id, for the same caller, is "Folder not found".
+    const { status, error } = await prompts.deleteFolder("user", ownerFolder);
+    expect(status, "deleting a folder the caller does not own").toBe(404);
+    expect(error).toContain("Folder not found");
 
-    // The data is safe — the store is scoped, so nothing was actually removed,
-    // contents included. The defect is the answer, and rename-folder one test up
-    // shows the store knows better: the same id, for the same caller, is
-    // "Folder not found" there. An id that never existed answers success:true too,
-    // so the caller has no way to tell "deleted" from "not yours".
+    // Untouched either way.
     await apiSdk.authenticateOwner();
     expect(
       (await prompts.getFolder("owner", ownerFolder)).data?.id,
@@ -418,14 +417,6 @@ test.describe("AI Prompts - cross-user isolation", () => {
       (await prompts.getPrompt("owner", ownerPrompt)).data?.id,
       "and so does the prompt inside it",
     ).toBe(ownerPrompt);
-
-    // Same question as BUG 82809 one test up, on the route that would take a
-    // whole folder with it: the answer has to say "not yours", not "done".
-    test.fail();
-    expect(
-      data?.success,
-      "deleting a folder the caller does not own must not report success",
-    ).toBe(false);
   });
 });
 

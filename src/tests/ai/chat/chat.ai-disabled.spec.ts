@@ -254,24 +254,13 @@ test.describe("AI Chat - AI Disabled", () => {
 });
 
 // The other way AI is off: the portal has not paid for the "AI Tools" wallet
-// service — the state every fresh portal starts in. Nothing is blocked up front
-// then: profiles, agents and threads all answer 200, and
-// `POST /ai/ai/send-with-stream` answers 200 too. The refusal only shows up
-// afterwards, inside the thread, as an assistant message with empty content and
+// service — the state every fresh portal starts in. Profiles, agents and
+// threads still answer 200 — only inference itself is billing-gated.
 //
-//   status: { type: "incomplete", reason: "error",
-//             error: { code: "auth",
-//               message: "403 AI services are disabled for the current portal" } }
-//
-// So a test that only checks the send status cannot tell a working portal from a
-// portal where AI is dead. These tests read the reply back.
-//
-// BUG 83344: the send itself should refuse with 402 up front — an unpaid
-// wallet service is a billing gate, not an auth gate, and burying it inside an
-// assistant message (with a message string now indistinguishable from the
-// portal AI switch being off, see the block above) makes it needlessly hard to
-// tell "unpaid" apart from "AI switched off" without reading the reply. Tracked
-// in a dedicated test below so the fix is a one-line flip, not a rewrite.
+// BUG 83344 (fixed): `send-with-stream` used to answer 200 and bury the refusal
+// inside an async assistant message. It now refuses up front with 402
+// `{"error":"The AI Tools service is not paid for the current portal"}`, and
+// nothing reaches the thread — not the question, not a failed reply.
 //
 // The state itself is set up with `configureAiToolsAsUnpaid`, which turns the
 // portal AI switch ON and asserts AI Tools is absent from the enabled wallet
@@ -307,21 +296,15 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
       agentId,
       message: "Say hi",
     });
-    expect(unpaidSend.status).toBe(200);
-
-    const unpaidMessages = await aiChat.waitForAssistantReply(
-      "owner",
-      unpaidThread,
-      60000,
+    // Fixed since BUG 83344: the refusal is now the send's own status, not a
+    // buried async error — see the dedicated 402 test below. Nothing reaches
+    // the thread: not the question, and not a failed reply to show for it.
+    expect(unpaidSend.status).toBe(402);
+    expect(unpaidSend.error).toBe(
+      "The AI Tools service is not paid for the current portal",
     );
-    const unpaidStatus = AiAgentChat.assistantStatus(unpaidMessages);
-    expect(unpaidStatus?.reason).toBe("error");
-    expect(unpaidStatus?.type).toBe("incomplete");
-    expect(unpaidStatus?.error?.code).toBe("auth");
-    expect(unpaidStatus?.error?.message).toContain(
-      "AI services are disabled for the current portal",
-    );
-    expect(AiAgentChat.assistantText(unpaidMessages)).toBe("");
+    const unpaidMessages = await aiChat.readMessages("owner", unpaidThread);
+    expect(unpaidMessages.data).toEqual([]);
 
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -430,11 +413,12 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     expect(addedServer.data?.success).toBe(true);
   });
 
-  test("GET /api/2.0/ai/threads/read-messages - the question is kept even though the answer failed", async ({
+  test("GET /api/2.0/ai/threads/read-messages - neither the question nor a failed answer is stored when the send is refused", async ({
     apiSdk,
   }) => {
-    // The user's message is stored before the gateway is called, so an unpaid
-    // portal ends up with a thread holding a question and a failed answer.
+    // Fixed since BUG 83344: the wallet gate is now checked before the user's
+    // message is stored, not after — an unpaid portal's thread stays empty
+    // rather than holding a question and a failed answer.
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
     await configureAiToolsAsUnpaid(apiSdk.forRole("owner"));
@@ -449,24 +433,16 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
       profileId,
       agentId,
     });
-    await aiChat.sendMessage("owner", {
+    const sent = await aiChat.sendMessage("owner", {
       threadId,
       profileId,
       agentId,
       message: "Say hi",
     });
+    expect(sent.status).toBe(402);
 
-    const messages = await aiChat.waitForAssistantReply(
-      "owner",
-      threadId,
-      60000,
-    );
-
-    const questions = AiAgentChat.userMessages(messages);
-    expect(questions).toHaveLength(1);
-    expect(AiAgentChat.messageText(questions[0])).toBe("Say hi");
-    expect(AiAgentChat.assistantText(messages)).toBe("");
-    expect(AiAgentChat.assistantStatus(messages)?.error?.code).toBe("auth");
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(messages.data).toEqual([]);
   });
 });
 

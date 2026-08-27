@@ -1417,37 +1417,22 @@ test.describe("POST /files/rooms/:id/logo - File lifecycle and consistency", () 
     expect(status).toBe(404);
   });
 
-  test.fail(
-    "BUG 81679: POST /files/rooms/:id/logo - Non-image content as tmpFile returns 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Logo Non Image Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81679: POST /files/rooms/:id/logo - Non-image tmpFile chain is blocked at upload", async ({
+    apiSdk,
+  }) => {
+    // 81679 reported that /rooms/:id/logo accepted a non-image tmpFile. The
+    // only public way to obtain a tmpFile is POST /files/logos, which (per the
+    // BUG 82518 fix, see the "non-PNG content declared as image/png" suite
+    // above) now rejects non-image content outright — so this endpoint can no
+    // longer be reached with a non-image tmpFile via the public API.
+    const uploadResult = await apiSdk.uploadRoomLogo(
+      "owner",
+      Buffer.from("this is not a valid image", "utf-8"),
+    );
 
-      const uploadResult = await apiSdk.uploadRoomLogo(
-        "owner",
-        Buffer.from("this is not a valid image", "utf-8"),
-      );
-
-      const { status } = await ownerApi.rooms.createRoomLogo({
-        id: roomId,
-        logoRequest: {
-          tmpFile: uploadResult.data.response.data as string,
-          x: 0,
-          y: 0,
-          width: 1,
-          height: 1,
-        },
-      });
-
-      expect(status).toBe(403);
-    },
-  );
+    expect(uploadResult.status).toBe(400);
+    expect(uploadResult.data.response).toBeUndefined();
+  });
 
   test("POST /files/rooms/:id/logo - Logo creation does not modify other room metadata", async ({
     apiSdk,

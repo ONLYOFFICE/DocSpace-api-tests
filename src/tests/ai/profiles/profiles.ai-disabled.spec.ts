@@ -71,15 +71,14 @@ test.describe("AI Profiles - AI Disabled", () => {
     }
   });
 
-  test("BUG 82971: GET /api/2.0/ai/profiles/list-models - the provider error is raised before the AI switch is checked", async ({
+  test("BUG 82971 FIXED: GET /api/2.0/ai/profiles/list-models - the AI switch is checked before the provider is dialled", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The same ordering defect as the Guest case in profiles.permission.spec.ts,
-    // through the other gate. `create` on this controller does check the switch
-    // first (the test below), and so do get-by-id and test-connection in the
-    // sweep above — list-models is the one route that answers outward-facing
-    // detail on a portal where AI is off.
+    // Used to answer the provider-key failure ahead of the role check — the
+    // one route in this controller that reached outward before refusing a
+    // disabled portal, unlike its neighbours get-by-id and test-connection
+    // (sweep above) and create (test below). Now refuses first, like them.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -94,10 +93,8 @@ test.describe("AI Profiles - AI Disabled", () => {
     expect(enabled).toBe(false);
 
     const { status, error } = await profiles.listModels("owner", profile.id);
-    expect(error).toBe("Invalid API key for the AI provider");
-
-    test.fail();
-    expect(status, "the AI switch must be checked first").toBe(403);
+    expect(status, "the AI switch is checked first").toBe(403);
+    expect(error).toBe("Forbidden");
   });
 
   test("POST /api/2.0/ai/profiles/create - the AI switch is checked before the provider type is resolved", async ({

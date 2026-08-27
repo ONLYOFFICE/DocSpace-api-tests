@@ -3053,19 +3053,13 @@ test.describe("MCP - a deleted agent's server map", () => {
     expect(scoped.status).toBe(200);
   });
 
-  test("BUG 82975: POST|DELETE /api/2.0/ai/tools/*-custom-server - a write against a deleted agent lands portal-wide", async ({
+  test("BUG 82975 FIXED: POST|DELETE /api/2.0/ai/tools/*-custom-server - a write against a deleted agent is refused, not folded into the portal scope", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Reads fall back to the portal scope (above), and writes now follow them
-    // there. `add` and `replace-all` used to refuse an entity that no longer
-    // exists, which is what kept the fallback from turning into "the client
-    // wrote portal-wide by accident"; they no longer do. `remove` has always
-    // been the hole in that: it validates nothing and reports success.
-    //
-    // Same defect as the unknown-agent case in mcp.permission.spec.ts and the
-    // room-scoped write above: an entityId the tools routes cannot resolve to an
-    // agent is treated as "no scope" instead of being refused.
+    // Same defect as the unknown-agent case in mcp.permission.spec.ts, fixed
+    // the same way: `add`, `replace-all` and `remove` all now refuse a deleted
+    // agent id with 404 instead of one of them landing portal-wide.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3099,18 +3093,17 @@ test.describe("MCP - a deleted agent's server map", () => {
       agentId,
     });
 
+    for (const [label, result] of [
+      ["add", added],
+      ["replace-all", replaced],
+      ["remove", removed],
+    ] as const) {
+      expect(result.status, `${label} against a deleted agent`).toBe(404);
+      expect(result.error, label).toContain(`Entity "${agentId}" not found`);
+    }
+
     const portal = await aiTools.listCustomServers("owner");
-
-    expect(removed.data?.success, "remove does not check the entity").toBe(
-      true,
-    );
-    expect(removed.status).toBe(200);
-
-    test.fail();
-    // Nothing the three calls did may show up portal-wide.
     expect(portal.data).toEqual({ "autotest-portal-server": SERVER_CONFIG });
-    expect(added.status).toBe(404);
-    expect(replaced.status).toBe(404);
   });
 });
 

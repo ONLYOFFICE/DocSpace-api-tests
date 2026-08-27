@@ -875,7 +875,7 @@ test.describe("AI Prompt folders - lifecycle", () => {
     expect(root.data.map((prompt) => prompt.id)).toEqual([outside]);
   });
 
-  test("DELETE /api/2.0/ai/prompts/delete-folder - a missing id is rejected, a second delete is accepted", async ({
+  test("DELETE /api/2.0/ai/prompts/delete-folder - a missing id is rejected, a second delete is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -897,9 +897,11 @@ test.describe("AI Prompt folders - lifecycle", () => {
       true,
     );
 
+    // Second delete lands on an id the store no longer knows — same as any
+    // other folder the caller cannot resolve, per BUG 83138 (fixed).
     const again = await prompts.deleteFolder("owner", folderId);
-    expect(again.status).toBe(200);
-    expect(again.data?.success).toBe(true);
+    expect(again.status).toBe(404);
+    expect(again.error).toContain("Folder not found");
   });
 });
 
