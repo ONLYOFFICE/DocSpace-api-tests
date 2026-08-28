@@ -22,6 +22,16 @@ import { ApiSDK } from "../services/api-sdk";
 import { Role } from "../services/token-store";
 
 /**
+ * Resolves the caller's "My Documents" root folder ID.
+ */
+export async function getMyDocsFolderId(
+  api: ReturnType<ApiSDK["forRole"]>,
+): Promise<number> {
+  const { data } = await api.folders.getMyFolder();
+  return data.response!.current!.id!;
+}
+
+/**
  * Uploads the shared oo-form-empty.pdf asset into a room and starts form
  * filling on it.
  *
