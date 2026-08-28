@@ -2494,6 +2494,13 @@ test.describe("AI Chat - the global entry point", () => {
     // is involved here — the chat is scoped to nothing — so this is the AI surface
     // refusing a Guest outright, the same way /ai/preferences and saving a chat
     // attachment do.
+    //
+    // The send leg is BUG XXXXX: the profile catalogue is closed to a Guest
+    // (profiles.permission.spec.ts), and send-with-stream resolves `profileId`
+    // against the caller's own visible catalogue before it gets to the role
+    // check — so a Guest using the owner's profileId is answered 400 "unknown
+    // profileId", not the 403 "Forbidden" every other leg here gets. Same shape
+    // as the AI-switch-off case in chat.ai-disabled.spec.ts.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2526,10 +2533,11 @@ test.describe("AI Chat - the global entry point", () => {
       profileId,
       message: "Reply with the single word OK.",
     });
-    expect(sent.status, "a Guest sending into a global chat").toBe(403);
-
     const listed = await aiChat.listThreads("guest");
     expect(listed.status, "a Guest listing global chats").toBe(403);
+
+    test.fail();
+    expect(sent.status, "a Guest sending into a global chat").toBe(403);
   });
 
   test("BUG 82855: GET /api/2.0/ai/threads/list - the global chat's history is listed inside rooms and folders", async ({

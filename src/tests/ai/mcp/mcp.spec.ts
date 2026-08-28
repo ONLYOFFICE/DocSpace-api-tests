@@ -380,10 +380,14 @@ test.describe("MCP - Disabling individual tools", () => {
     expect(cleared).toBe(false);
   });
 
-  test("PUT /api/2.0/ai/tools/set-disabled - the disabled list is scoped per agent", async ({
+  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - the disabled list is scoped per agent", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // `DISABLE_TARGET_SERVER` is an invented serverType, which set-disabled
+    // used to accept — see "the server type used to be an open vocabulary" in
+    // the block below. Now it answers 400 `unknown serverType`, so the write
+    // this test measures never lands at all, on either agent.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -399,7 +403,7 @@ test.describe("MCP - Disabling individual tools", () => {
       profileId,
     });
 
-    await aiTools.setDisabledTools("owner", {
+    const written = await aiTools.setDisabledTools("owner", {
       serverType: DISABLE_TARGET_SERVER,
       toolNames: ["calculate"],
       agentId: firstAgent,
@@ -410,6 +414,11 @@ test.describe("MCP - Disabling individual tools", () => {
       toolName: "calculate",
       agentId: secondAgent,
     });
+
+    test.fail();
+    expect(written.status, "an invented serverType is still accepted").toBe(
+      200,
+    );
 
     // The write landed in the first agent's scope and nowhere else. Both halves
     // are asserted: an unstored write would leave the second agent `false` too.
@@ -2067,7 +2076,7 @@ test.describe("MCP - custom servers scoped to a room", () => {
     );
   });
 
-  test("POST|GET /api/2.0/ai/tools/*-custom-server - a room member reads the room's tools but cannot register any", async ({
+  test("BUG XXXXX: POST|GET /api/2.0/ai/tools/*-custom-server - a room member reads the room's tools but cannot register any", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2143,13 +2152,15 @@ test.describe("MCP - custom servers scoped to a room", () => {
       roomId,
     );
     expect(outsiderRead.status).toBe(403);
+    // A non-member's write is refused differently from their read, even
+    // though both target the same room and the same actor: the read above
+    // answers 403 (the room is visible enough to refuse), the write answers
+    // 404 as if the room did not resolve at all.
     const outsiderAdd = await aiTools.addCustomServer("user", {
       name: "autotest-outsider-server",
       config: SERVER_CONFIG,
       agentId: roomId,
     });
-    expect(outsiderAdd.status).toBe(403);
-
     // The room's registration survived every refused write.
     await apiSdk.authenticateOwner();
     const survivor = await aiTools.getCustomServer(
@@ -2159,6 +2170,9 @@ test.describe("MCP - custom servers scoped to a room", () => {
     );
     expect(survivor.status).toBe(200);
     expect(survivor.data).toEqual(SERVER_CONFIG);
+
+    test.fail();
+    expect(outsiderAdd.status).toBe(403);
   });
 });
 
@@ -2720,20 +2734,22 @@ test.describe("MCP - concurrent writes to one scope", () => {
 });
 
 test.describe("MCP - server types", () => {
-  test("PUT /api/2.0/ai/tools/set-disabled - the server type is an open vocabulary", async ({
+  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - the server type used to be an open vocabulary, now a fixed list", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // There is no enum behind `serverType`: `docspace` (the built-in server) and
-    // `host` (tools the client supplies per request, see the pause block above) are
-    // the two that mean something to the engine, but the store takes any string
-    // and reports it back. A test that assumed the editor's tool groups —
-    // `editor`, `document`, `form`, `presentation` — were validated names would
-    // pass for the wrong reason; they are simply stored.
+    // Was: no enum behind `serverType` — the store took any string and reported
+    // it back. `editor`/`document`/`form`/`presentation` (the editor's tool
+    // groups) and an invented name all stored the same way.
     //
-    // `docspace` is deliberately not in the list: it is the one name the store
-    // drops instead of keeping, which the disabling block at the top of this
-    // file pins. Every other string, known or invented, behaves alike.
+    // Now: `set-disabled` answers 400 `{"error":"unknown serverType \"<name>\";
+    // valid values: docspace, docspace-integration,
+    // docspace-integration-approval, image-generation, web-search"}` for every
+    // one of them — none of the five are on that list either. This is not just
+    // a stricter test-data problem: a *custom* MCP server's own name is its
+    // `serverType` for this route (see the "server names as map keys" block
+    // above), so the practical loss is that a custom server's individual tools
+    // can no longer be disabled at all, only the five built-ins.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2753,14 +2769,19 @@ test.describe("MCP - server types", () => {
       "autotest-not-a-server-type",
     ];
 
+    const results: Array<[string, number]> = [];
     for (const serverType of serverTypes) {
       const set = await aiTools.setDisabledTools("owner", {
         serverType,
         toolNames: ["autotest_tool"],
         agentId,
       });
-      expect(set.status, `set-disabled for ${serverType}`).toBe(200);
-      expect(set.data?.success, `set-disabled for ${serverType}`).toBe(true);
+      results.push([serverType, set.status]);
+    }
+
+    test.fail();
+    for (const [serverType, status] of results) {
+      expect(status, `set-disabled for ${serverType}`).toBe(200);
     }
 
     const disabled = await aiTools.getDisabledTools("owner", agentId);
