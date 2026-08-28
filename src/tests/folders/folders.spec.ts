@@ -3203,28 +3203,26 @@ test.describe("PUT /api/2.0/files/folder/:folderId - Rename folder", () => {
     expect(status).toBe(404);
   });
 
-  // BUG 81507: PUT /api/2.0/files/folder/:folderId - empty string title accepted, returns 200 instead of 400
-  test.fail(
-    "BUG 81507:PUT /api/2.0/files/folder/:folderId - empty string title returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 81507: PUT /api/2.0/files/folder/:folderId - empty string title returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Folder Empty Title Check" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Folder Empty Title Check" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const { status } = await ownerApi.folders.renameFolder({
-        folderId,
-        createFolder: { title: "" },
-      });
+    const { status } = await ownerApi.folders.renameFolder({
+      folderId,
+      createFolder: { title: "" },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   test("BUG 81508:PUT /api/2.0/files/folder/:folderId - folderId 0 returns 404 or 400", async ({
     apiSdk,
@@ -5936,46 +5934,42 @@ test.describe("POST /api/2.0/files/folder/{id}/link - Set folder primary externa
     expect(ids).not.toContain(linkId);
   });
 
-  // BUG 81807: GET /api/2.0/files/folder/{id}/link behaves as "get or create" for folders.
-  // After a folder's primary link is explicitly deleted via PUT (access: None),
-  // GET should return 404 but instead recreates a new link.
-  test.fail(
-    "BUG 81807: GET /api/2.0/files/folder/{id}/link - returns 404 after primary link of a folder is deleted",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder Link Delete Bug",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 81807: GET /api/2.0/files/folder/{id}/link - returns 404 after primary link of a folder is deleted", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Link Delete Bug",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: folderData } = await ownerApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: "Autotest Subfolder Link Delete" },
-      });
-      const folderId = folderData.response!.id!;
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: "Autotest Subfolder Link Delete" },
+    });
+    const folderId = folderData.response!.id!;
 
-      const { data: createData } =
-        await ownerApi.folders.createFolderPrimaryExternalLink({
-          id: folderId,
-          folderLinkRequest: { access: FileShare.Read },
-        });
-      const linkId = createData.response!.sharedLink!.id!;
-
-      await ownerApi.folders.setFolderPrimaryExternalLink({
+    const { data: createData } =
+      await ownerApi.folders.createFolderPrimaryExternalLink({
         id: folderId,
-        folderLinkRequest: { linkId, access: FileShare.None },
+        folderLinkRequest: { access: FileShare.Read },
       });
+    const linkId = createData.response!.sharedLink!.id!;
 
-      const { status } = await ownerApi.folders.getFolderPrimaryExternalLink({
-        id: folderId,
-      });
+    await ownerApi.folders.setFolderPrimaryExternalLink({
+      id: folderId,
+      folderLinkRequest: { linkId, access: FileShare.None },
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    const { status } = await ownerApi.folders.getFolderPrimaryExternalLink({
+      id: folderId,
+    });
+
+    expect(status).toBe(404);
+  });
 
   test("POST /api/2.0/files/folder/{id}/link - Non-existent folderId returns 404", async ({
     apiSdk,

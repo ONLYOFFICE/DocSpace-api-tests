@@ -4497,7 +4497,7 @@ test.describe("GET /api/2.0/files/folder/{id}/link - Get folder primary external
     expect(status).toBe(403);
   });
 
-  test("BUG 81571: GET /api/2.0/files/folder/{id}/link - Unauthenticated user gets 403", async ({
+  test("BUG 81571: GET /api/2.0/files/folder/{id}/link - Unauthenticated user returns 401", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -4513,7 +4513,7 @@ test.describe("GET /api/2.0/files/folder/{id}/link - Get folder primary external
       .forAnonymous()
       .folders.getFolderPrimaryExternalLink({ id: roomId });
 
-    expect(status).toBe(403);
+    expect(status).toBe(401);
   });
 
   test("BUG 81572: GET /api/2.0/files/folder/{id}/link - User without room access gets 403", async ({

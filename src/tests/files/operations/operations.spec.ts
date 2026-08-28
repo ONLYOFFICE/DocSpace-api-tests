@@ -2111,113 +2111,98 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 82103: checkMoveOrCopyDestFolder returns 200 AllAllowed for archived room instead of 403
-  test.fail(
-    "BUG 82103: GET /api/2.0/files/fileops/checkdestfolder - Move to" +
-      " archived room returns 403",
-    async ({ apiSdk }) => {
-      // Catches: archived room returns 200 AllAllowed instead of 403;
-      // checkMoveOrCopyBatchItems correctly returns 403 for archived room,
-      // but checkMoveOrCopyDestFolder ignores room archive status
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 82103: GET /api/2.0/files/fileops/checkdestfolder - Move to archived room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest CheckDestFolder Archived Dest.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckDestFolder Archived Dest.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckDestFolder Archived Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckDestFolder Archived Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      await ownerApi.rooms.archiveRoom({
-        id: roomId,
-        archiveRoomRequest: { deleteAfter: false },
-      });
-      await waitForOperation(ownerApi.operations);
+    await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    await waitForOperation(ownerApi.operations);
 
-      const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId: roomId,
-          conflictResolveType: FileConflictResolveType.Skip,
-          deleteAfter: true,
-        },
-      });
+    const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
+      inDto: {
+        fileIds: [fileId],
+        destFolderId: roomId,
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: true,
+      },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
-  // BUG 82158: non-existent destFolderId returns 500 instead of 404
-  test.fail(
-    "BUG 82158: GET /api/2.0/files/fileops/checkdestfolder - Non-existent" +
-      " destFolderId returns 404",
-    async ({ apiSdk }) => {
-      // Catches: non-existent destFolderId returns 500 (NullReferenceException) instead of 404 (Not found)
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 82158: GET /api/2.0/files/fileops/checkdestfolder - Non-existent destFolderId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest CheckDestFolder NonExistent Dest.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckDestFolder NonExistent Dest.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId: 999999999,
-          conflictResolveType: FileConflictResolveType.Skip,
-          deleteAfter: true,
-        },
-      });
+    const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
+      inDto: {
+        fileIds: [fileId],
+        destFolderId: 999999999,
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: true,
+      },
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
-  // BUG 82159: missing destFolderId returns 403 instead of 400
-  test.fail(
-    "BUG 82159: GET /api/2.0/files/fileops/checkdestfolder - No destFolderId" +
-      " specified returns 400",
-    async ({ apiSdk }) => {
-      // Catches: omitting required destFolderId field returns 403 instead of 400,
-      // hiding a client-side input error behind an access-denied response
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 82159: GET /api/2.0/files/fileops/checkdestfolder - No destFolderId specified returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest CheckDestFolder No Dest.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckDestFolder No Dest.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
-        inDto: {
-          fileIds: [fileId],
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
-      });
+    const { status } = await ownerApi.operations.checkMoveOrCopyDestFolder({
+      inDto: {
+        fileIds: [fileId],
+        conflictResolveType: FileConflictResolveType.Skip,
+      },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   test(
     "GET /api/2.0/files/fileops/checkdestfolder - Owner checks move of file" +
@@ -9417,125 +9402,110 @@ test.describe("PUT /api/2.0/files/file/{fileId}/comment - updateFileComment", ()
     expect(data.response).toBe(comment);
   });
 
-  // BUG 82266: PUT /api/2.0/files/file/{fileId}/comment - Very long comment is silently truncated to 255 chars instead of returning 400
-  test.fail(
-    "BUG 82266: PUT /api/2.0/files/file/{fileId}/comment - Very long comment" +
-      " returns 200 with truncation instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 82266: PUT /api/2.0/files/file/{fileId}/comment - Very long comment returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest UpdateComment Long.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Long.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const comment = "A".repeat(2000);
+    const comment = "A".repeat(2000);
 
-      const { status } = await ownerApi.operations.updateFileComment({
-        fileId,
-        updateComment: { version: 1, comment },
-      });
+    const { status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 1, comment },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
-  // BUG 82268: PUT /api/2.0/files/file/{fileId}/comment - Non-existent fileId returns 403 (SecurityException) instead of 404
-  test.fail(
-    "BUG 82268: PUT /api/2.0/files/file/{fileId}/comment - Non-existent fileId" +
-      " returns 403 instead of 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 82268: PUT /api/2.0/files/file/{fileId}/comment - Non-existent fileId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await ownerApi.operations.updateFileComment({
-        fileId: 999999999,
-        updateComment: { version: 1, comment: "test" },
-      });
+    const { status } = await ownerApi.operations.updateFileComment({
+      fileId: 999999999,
+      updateComment: { version: 1, comment: "test" },
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
-  // BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Non-existent version returns 403 (SecurityException) instead of 400
-  test.fail(
-    "BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Non-existent version" +
-      " returns 403 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Non-existent version returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest UpdateComment BadVersion.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment BadVersion.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.operations.updateFileComment({
-        fileId,
-        updateComment: { version: 999, comment: "test" },
-      });
+    const { status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 999, comment: "test" },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
-  // BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Version 0 returns 403 (SecurityException) instead of 400
-  test.fail(
-    "BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Version 0" +
-      " returns 403 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Version 0 returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest UpdateComment Version0.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment Version0.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.operations.updateFileComment({
-        fileId,
-        updateComment: { version: 0, comment: "test" },
-      });
+    const { status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: 0, comment: "test" },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
-  // BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Negative version returns 403 (SecurityException) instead of 400
-  test.fail(
-    "BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Negative version" +
-      " returns 403 instead of 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 82271: PUT /api/2.0/files/file/{fileId}/comment - Negative version returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest UpdateComment NegVer.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest UpdateComment NegVer.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { status } = await ownerApi.operations.updateFileComment({
-        fileId,
-        updateComment: { version: -1, comment: "test" },
-      });
+    const { status } = await ownerApi.operations.updateFileComment({
+      fileId,
+      updateComment: { version: -1, comment: "test" },
+    });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 });
