@@ -11,7 +11,7 @@ import {
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
-import { createOoForm } from "@/src/helpers/files";
+import { createOoForm, getMyDocsFolderId } from "@/src/helpers/files";
 import config from "@/config";
 
 test.describe("POST /api/2.0/files/favorites - Add favorite files and folders", () => {
@@ -6873,6 +6873,141 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
           .flatMap((g) => g.items ?? [])
           .some((f) => f.title === "Autotest MarkAsRead Folder File.docx"),
       ).toBe(false);
+    },
+  );
+
+  test.fail(
+    "BUG 83509: PUT /api/2.0/files/fileops/markasread - Marking Files section" +
+      " root as read does not clear Rooms section news",
+    async ({ apiSdk }) => {
+      // markAsRead has no rootFolderType/section parameter, so it marks the
+      // unified "new" flag read regardless of which section triggered it.
+      // The UI calls markasread with the Files section root folder id, but
+      // that also clears news for an unrelated room the same user owns —
+      // violating the expectation that each root section tracks new items
+      // independently (same root cause pattern as BUG 82588 for emptytrash).
+      const ownerApi = apiSdk.forRole("owner");
+      const { api: userApi, data: userData } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+      const myDocsFolderId = await getMyDocsFolderId(ownerApi);
+
+      let filesTitle: string;
+      let roomId: number;
+      let roomsTitle: string;
+
+      await test.step(
+        "Setup: file in owner's My Documents shared with the" +
+          " invited user, plus a room file created by that user",
+        async () => {
+          const { data: fileData } = await ownerApi.files.createFile({
+            folderId: myDocsFolderId,
+            createFileJsonElement: {
+              title:
+                "Autotest MarkAsRead Cross Files " +
+                apiSdk.faker.generateString(8) +
+                ".docx",
+            },
+          });
+          const fileId = fileData.response!.id!;
+
+          await ownerApi.sharing.setFileSecurityInfo({
+            fileId,
+            securityInfoSimpleRequestDto: {
+              share: [{ shareTo: String(userId), access: FileShare.ReadWrite }],
+              notify: false,
+            },
+          });
+
+          const { data: roomData } = await ownerApi.rooms.createRoom({
+            createRoomRequestDto: {
+              title:
+                "Autotest MarkAsRead Cross Room " +
+                apiSdk.faker.generateString(6),
+              roomType: RoomType.CustomRoom,
+            },
+          });
+          roomId = roomData.response!.id!;
+
+          await ownerApi.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: userId, access: FileShare.ContentCreator }],
+              notify: false,
+            },
+          });
+
+          // invited user edits the shared personal file...
+          filesTitle =
+            "Autotest MarkAsRead Cross Files Edited " +
+            apiSdk.faker.generateString(8) +
+            ".docx";
+          await userApi.files.updateFile({
+            fileId,
+            updateFile: { title: filesTitle },
+          });
+
+          // ...and creates a file inside the room
+          roomsTitle =
+            "Autotest MarkAsRead Cross Rooms " +
+            apiSdk.faker.generateString(8) +
+            ".docx";
+          await userApi.files.createFile({
+            folderId: roomId,
+            createFileJsonElement: { title: roomsTitle },
+          });
+        },
+      );
+
+      await test.step(
+        "Precondition: owner sees both files as new," +
+          " each in its own section",
+        async () => {
+          const { data: filesNews } = await ownerApi.folders.getNewFolderItems({
+            folderId: myDocsFolderId,
+          });
+          expect(
+            (filesNews.response ?? []).some((f) => f.title === filesTitle),
+          ).toBe(true);
+
+          const { data: roomsNews } = await ownerApi.rooms.getNewRoomItems({
+            id: roomId,
+          });
+          expect(
+            (roomsNews.response ?? [])
+              .flatMap((g) => g.items ?? [])
+              .some((f) => f.title === roomsTitle),
+          ).toBe(true);
+        },
+      );
+
+      await test.step("Action: mark only the Files section root as read", async () => {
+        const { status } = await ownerApi.operations.markAsRead({
+          baseBatchRequestDto: { folderIds: [myDocsFolderId as any] },
+        });
+        expect(status).toBe(200);
+        await waitForOperation(ownerApi.operations);
+      });
+
+      await test.step("Assert: Files section news is cleared", async () => {
+        const { data: filesNews } = await ownerApi.folders.getNewFolderItems({
+          folderId: myDocsFolderId,
+        });
+        expect(
+          (filesNews.response ?? []).some((f) => f.title === filesTitle),
+        ).toBe(false);
+      });
+
+      await test.step("Assert: Rooms section news is untouched", async () => {
+        const { data: roomsNews } = await ownerApi.rooms.getNewRoomItems({
+          id: roomId,
+        });
+        expect(
+          (roomsNews.response ?? [])
+            .flatMap((g) => g.items ?? [])
+            .some((f) => f.title === roomsTitle),
+        ).toBe(true);
+      });
     },
   );
 });

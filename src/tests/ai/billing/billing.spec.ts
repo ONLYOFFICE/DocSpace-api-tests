@@ -752,18 +752,16 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
       profileId,
       agentId,
     });
-    await aiChat.sendMessage("owner", {
+    // Fixed since BUG 83344: the refusal is now the send's own synchronous
+    // 402, not a stored reply the thread has to be read back to see.
+    const sent = await aiChat.sendMessage("owner", {
       threadId,
       agentId,
       profileId,
       message: BILLED_QUESTION,
       timeoutMs: 240000,
     });
-
-    // Inference is refused asynchronously, as a stored reply — the send itself
-    // still answers 200.
-    const messages = await aiChat.waitForAssistantReply("owner", threadId);
-    expect(AiAgentChat.assistantStatus(messages)?.error?.code).toBe("auth");
+    expect(sent.status).toBe(402);
 
     expect(
       await waitForServiceOperation(

@@ -39,10 +39,12 @@ const DISABLED_CONFIG = { url: "https://mcp-written-while-off.invalid/sse" };
  *
  * Not `docspace`: the built-in tools were hidden on 2026-08-18 and a write
  * naming them is accepted and dropped, so it can no longer stand for "there is
- * state here to be refused". Any other string is stored — see the server-types
- * block in mcp.spec.ts.
+ * state here to be refused". Not an invented name either — `serverType` used
+ * to be an open vocabulary but is now validated against a fixed list (see "the
+ * server type used to be an open vocabulary" in mcp.spec.ts, BUG XXXXX), so
+ * this uses one of the valid values instead.
  */
-const DISABLE_SERVER = "autotest-disable-server";
+const DISABLE_SERVER = "web-search";
 
 type OwnerApi = Parameters<typeof setPortalAiAccess>[0];
 

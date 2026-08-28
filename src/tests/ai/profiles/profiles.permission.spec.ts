@@ -104,8 +104,11 @@ test.describe("AI Profiles - catalogue read permissions", () => {
       expect(single.status).toBe(200);
       expect(single.data?.modelId).toBe(profile.modelId);
 
-      // A member sees the catalogue but not a credential in it.
-      expect(single.data?.key).toBe("onlyoffice");
+      // A member sees the catalogue but not a credential in it — get-by-id
+      // omits `key` entirely rather than masking it (unlike `list`, which
+      // still carries the literal "onlyoffice" placeholder; see the DTO
+      // comparison in profiles.spec.ts).
+      expect(single.data?.key).toBeUndefined();
     });
   }
 
@@ -141,15 +144,14 @@ test.describe("AI Profiles - catalogue read permissions", () => {
     expect(connection.status).toBe(403);
   });
 
-  test("BUG 82971: GET /api/2.0/ai/profiles/list-models - a Guest gets the provider error instead of 403", async ({
+  test("BUG 82971 FIXED: GET /api/2.0/ai/profiles/list-models - a Guest is refused before the provider is dialled", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The provider-key failure is raised ahead of the role check, so the one
-    // route in this controller that reaches outward is also the one that does
-    // not refuse a Guest first. Its three neighbours — list, get-by-id and
-    // test-connection — all answer 403, which is what makes this an ordering
-    // defect rather than the intended contract.
+    // Used to raise the provider-key failure ahead of the role check — the one
+    // route in this controller that reached outward before refusing a Guest,
+    // unlike its neighbours list, get-by-id and test-connection. Now refuses
+    // first, like them.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -167,13 +169,10 @@ test.describe("AI Profiles - catalogue read permissions", () => {
     await profiles.expectActingAs("guest", guestData.response!.id!, "Guest");
 
     const { status, error } = await profiles.listModels("guest", profile.id);
-    expect(error).toBe("Invalid API key for the AI provider");
-
-    test.fail();
-    expect(
-      status,
-      "a Guest must be refused before the provider is dialled",
-    ).toBe(403);
+    expect(status, "a Guest is refused before the provider is dialled").toBe(
+      403,
+    );
+    expect(error).toBe("Forbidden");
   });
 });
 
