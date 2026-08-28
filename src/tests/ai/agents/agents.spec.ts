@@ -624,6 +624,9 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
@@ -647,6 +650,9 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
@@ -683,6 +689,9 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
+      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+      });
       const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
       const profileId = await aiChat.defaultProfileId("owner");
 
@@ -710,6 +719,9 @@ test.describe("PUT /ai/agents/resetquota - Reset AI agent quota", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
@@ -738,6 +750,9 @@ test.describe("PUT /ai/agents/resetquota - Reset AI agent quota", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
@@ -776,6 +791,9 @@ test.describe("PUT /ai/agents/resetquota - Reset AI agent quota", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
+      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+      });
       const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
       const profileId = await aiChat.defaultProfileId("owner");
 
