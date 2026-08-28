@@ -934,6 +934,11 @@ test.describe("AI Attachments - save-image", () => {
   test("BUG 82751: POST /api/2.0/ai/attachments/save-image - an image draft with no payload at all is refused", async ({
     apiSdk,
   }) => {
+    // Blocked by BUG 83289 (open 2026-08-20, now presenting as a bare Express
+    // 404 "Not Found" instead of the original 500 — the route itself answers
+    // as unregistered): save-image is unreachable for everyone.
+    test.fail();
+
     // `{ input: {} }` and even `{ input: "some string" }` used to create a
     // record: an image attachment with neither a name nor any image data.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -983,6 +988,11 @@ test.describe("AI Attachments - save-image", () => {
   test("BUG 82753: POST /api/2.0/ai/attachments/save-image - a malformed body is a 400", async ({
     apiSdk,
   }) => {
+    // Blocked by BUG 83289 (open 2026-08-20, now presenting as a bare Express
+    // 404 "Not Found" instead of the original 500): save-image is
+    // unreachable for everyone.
+    test.fail();
+
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const bodies: unknown[] = [undefined, {}, { input: null }];
 
@@ -1279,6 +1289,11 @@ test.describe("AI Attachments - batch saves", () => {
   test("BUG 82755: POST /api/2.0/ai/attachments/save-images-many - an element with no payload is refused", async ({
     apiSdk,
   }) => {
+    // Blocked by BUG 83289 (open 2026-08-20, now presenting as a bare Express
+    // 404 "Not Found" instead of the original 500): save-images-many is
+    // unreachable for everyone.
+    test.fail();
+
     // The empty element used to become a record of its own.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 

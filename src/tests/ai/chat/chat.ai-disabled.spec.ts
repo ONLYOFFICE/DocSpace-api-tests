@@ -372,6 +372,7 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
 
   test("POST /api/2.0/ai/agents, POST /api/2.0/ai/tools/add-custom-server - the management surface is not wallet-gated", async ({
     apiSdk,
+    paymentsApi,
   }) => {
     // Pinned so that moving the gate earlier (or later) shows up here: on an
     // unpaid portal the profiles catalog, agent CRUD, agent quota and the MCP
@@ -380,8 +381,13 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     // vectorization `*.ai-disabled.spec.ts`.
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const tools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const ownerApi = apiSdk.forRole("owner");
 
-    await configureAiToolsAsUnpaid(apiSdk.forRole("owner"));
+    await configureAiToolsAsUnpaid(ownerApi);
+    await paymentsApi.setupPayment();
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
     const profiles = await aiChat.listProfiles("owner");
     expect(profiles.length).toBeGreaterThan(0);

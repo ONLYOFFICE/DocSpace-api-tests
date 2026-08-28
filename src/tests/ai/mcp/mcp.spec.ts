@@ -3001,10 +3001,6 @@ test.describe("MCP - the agent body and the per-entity server map", () => {
         label: "an empty chatSettings",
         body: { extra: { chatSettings: {} } },
       },
-      {
-        label: "an mcpServers map in the body",
-        body: { extra: { mcpServers: { intruder: OTHER_CONFIG } } },
-      },
     ];
 
     for (const { label, body, verify } of edits) {
@@ -3016,6 +3012,23 @@ test.describe("MCP - the agent body and the per-entity server map", () => {
         "autotest-survivor": SERVER_CONFIG,
       });
     }
+
+    // An `mcpServers` map is not a real field of the agent body — a client
+    // trying to smuggle server config in through the update route (instead
+    // of `/ai/tools/add-custom-server`, the only real store) is refused
+    // outright rather than silently accepted-and-ignored, confirmed by the
+    // developer as deliberate. The refused write has to leave the real
+    // server untouched, same as every accepted edit above.
+    const smuggled = await aiChat.updateAgent("owner", agentId, {
+      extra: { mcpServers: { intruder: OTHER_CONFIG } },
+    });
+    expect(smuggled.status, "an mcpServers map in the body").toBe(400);
+    expect(
+      await serverMap(aiTools, agentId),
+      "the refused write left the real server untouched",
+    ).toEqual({
+      "autotest-survivor": SERVER_CONFIG,
+    });
   });
 });
 

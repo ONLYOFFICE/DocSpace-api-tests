@@ -624,6 +624,9 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
@@ -647,6 +650,9 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
@@ -683,6 +689,9 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
+      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+      });
       const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
       const profileId = await aiChat.defaultProfileId("owner");
 
@@ -710,6 +719,9 @@ test.describe("PUT /ai/agents/resetquota - Reset AI agent quota", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
@@ -738,6 +750,9 @@ test.describe("PUT /ai/agents/resetquota - Reset AI agent quota", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
     const profileId = await aiChat.defaultProfileId("owner");
@@ -776,6 +791,9 @@ test.describe("PUT /ai/agents/resetquota - Reset AI agent quota", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
+      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+      });
       const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
       const profileId = await aiChat.defaultProfileId("owner");
 
@@ -848,13 +866,14 @@ test.describe("PUT /ai/agents/:id - Update AI agent", () => {
     });
   }
 
-  test("PUT /ai/agents/:id - a flat prompt is silently ignored, only chatSettings.prompt applies", async ({
+  test("PUT /ai/agents/:id - a flat prompt is refused, only chatSettings.prompt is a valid update", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Create takes a flat `prompt`, update does not. The endpoint accepts the
-    // flat field with 200 and drops it, so pin the asymmetry to catch it
-    // changing in either direction.
+    // Create takes a flat `prompt`; update does not. Used to accept the flat
+    // field with 200 and silently drop it — now the whole update is refused
+    // with 400 `{"error":"Bad Request"}` instead, and nothing about the
+    // agent changes. Pin the asymmetry either way it lands.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -881,8 +900,10 @@ test.describe("PUT /ai/agents/:id - Update AI agent", () => {
 
     const stored = await aiChat.getAgentInstructions("owner", agentId);
 
-    expect(stored).toBe("Original prompt");
-    expect(response.status()).toBe(200);
+    expect(stored, "the refused update left the agent untouched").toBe(
+      "Original prompt",
+    );
+    expect(response.status()).toBe(400);
   });
 });
 

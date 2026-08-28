@@ -16,6 +16,7 @@ import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
   AiAgentChat,
   AgentRole,
+  AiThreadMessage,
   inviteToAgent,
   expectHealthyAssistantReply,
   twoTextProfiles,
@@ -952,6 +953,29 @@ const SHORT_ANSWERS =
   "You are a test assistant. Answer with one short sentence.";
 
 /** The client-side half: a chat transcript as markdown. */
+function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * A reply that carries a separate `reasoning` part ahead of its `text` part
+ * (e.g. a short "the user asks..." aside before the answer) has both joined
+ * by `AiAgentChat.messageText` with a bare `\n` in between. `text-to-docx`
+ * renders `content` as markdown, and how a single `\n` inside one paragraph
+ * survives that round-trip is not consistent — sometimes it becomes a space,
+ * sometimes nothing at all, so the exported document reads
+ * "...needed.MERCURY" or "...needed. MERCURY" where the sent transcript had
+ * "...needed.\nMERCURY". Checking each content part on its own, rather than
+ * the joined string, sidesteps that render detail entirely — the test only
+ * needs every piece of what the model said to have made it into the
+ * document, not what glues them together.
+ */
+function replyTextParts(reply: AiThreadMessage): string[] {
+  return typeof reply.content === "string"
+    ? [reply.content]
+    : reply.content.map((block) => block.text ?? "").filter(Boolean);
+}
+
 function renderTranscript(messages: Array<{ role: string; text: string }>) {
   return messages
     .map(
@@ -1073,7 +1097,9 @@ test.describe("AI Messages - exporting a thread", () => {
     expect(text).toContain(firstQuestion);
     expect(text).toContain(secondQuestion);
     for (const reply of AiAgentChat.assistantMessages(messages)) {
-      expect(text).toContain(AiAgentChat.messageText(reply));
+      for (const part of replyTextParts(reply)) {
+        expect(collapseWhitespace(text)).toContain(collapseWhitespace(part));
+      }
     }
     expect(text.indexOf(firstQuestion)).toBeLessThan(
       text.indexOf(secondQuestion),
@@ -1344,7 +1370,9 @@ test.describe("AI Messages - exporting a thread", () => {
     ).toContain(attachmentTitle);
     expect(text).not.toContain(attachmentId);
     for (const reply of AiAgentChat.assistantMessages(messages)) {
-      expect(text).toContain(AiAgentChat.messageText(reply));
+      for (const part of replyTextParts(reply)) {
+        expect(collapseWhitespace(text)).toContain(collapseWhitespace(part));
+      }
     }
   });
 
