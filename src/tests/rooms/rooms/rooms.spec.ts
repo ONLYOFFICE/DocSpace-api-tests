@@ -8489,6 +8489,65 @@ test.describe("API rooms methods", () => {
       expect(data.statusCode).toBe(404);
     });
 
+    // BUG 81790 confirmed by design: room id is not always numeric — a
+    // thirdparty-storage room can have a string id — so the API accepts any
+    // string shape as a potential id and resolves it as "not found" -> 404,
+    // not a 400 validation error. Same reasoning as BUG 81703
+    // (DELETE /files/rooms/:id/tags).
+    test("BUG 81790: GET /files/rooms/:id/share - String room id is a valid id shape (thirdparty rooms), non-existent one returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: "abc" as unknown as number,
+      });
+      expect(data.statusCode).toBe(404);
+    });
+
+    // Other invalid id shapes, not covered by the thirdparty-string reasoning
+    // above (non-integer number, empty string, another non-numeric string) —
+    // all still resolve as "not found" -> 404, same contract as the string
+    // case.
+    for (const [label, badId] of [
+      ["Non-integer numeric id (1.5)", 1.5],
+      ["Special-character string id", "!@#$%"],
+    ] as const) {
+      test(`GET /files/rooms/:id/share - ${label} returns 404`, async ({
+        apiSdk,
+      }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data } = await ownerApi.rooms.getRoomSecurityInfo({
+          id: badId as unknown as number,
+        });
+        expect(data.statusCode).toBe(404);
+      });
+    }
+
+    test("GET /files/rooms/:id/share - Empty string room id returns 404", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: "" as unknown as number,
+      });
+      expect(status).toBe(404);
+    });
+
+    // Same crash class as BUG XXXXX on DELETE /files/rooms/:id/tags — a
+    // whitespace-only string id blows up the thirdparty selector's regex
+    // lookup (ArgumentNullException) instead of resolving to 404 like every
+    // other invalid id shape above.
+    test.fail(
+      "BUG XXXXX: GET /files/rooms/:id/share - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes",
+      async ({ apiSdk }) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { status } = await ownerApi.rooms.getRoomSecurityInfo({
+          id: "   " as unknown as number,
+        });
+        expect(status).toBe(404);
+      },
+    );
+
     // === 9. Stability / consistency ===
 
     test("GET /files/rooms/:id/share - Repeated GET returns the same security list", async ({
