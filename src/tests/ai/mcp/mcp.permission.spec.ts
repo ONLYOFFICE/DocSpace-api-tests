@@ -295,19 +295,22 @@ const MEMBER_OPS: MemberOp[] = [
   {
     // Not `serverType: "docspace"`: the built-in tools were hidden on
     // 2026-08-18 and a write naming them is accepted and dropped, which would
-    // make the read-back below fail for the roles that ARE allowed. Any other
-    // string is stored — see the server-types block in mcp.spec.ts.
+    // make the read-back below fail for the roles that ARE allowed. And not an
+    // invented name either — `serverType` used to be an open vocabulary but is
+    // now validated against a fixed list (see "the server type used to be an
+    // open vocabulary" in mcp.spec.ts, BUG XXXXX); this test is about role
+    // permissions, not that list, so it uses one of the valid values.
     label: "PUT /api/2.0/ai/tools/set-disabled",
     run: (tools, role, agentId) =>
       tools.setDisabledTools(role, {
-        serverType: "autotest-permission-server",
+        serverType: "web-search",
         toolNames: ["calculate"],
         agentId,
       }),
     expectAllowed: async ({ data }, tools, role, agentId) => {
       expect((data as McpMutationResult)?.success).toBe(true);
       const { data: disabled } = await tools.isToolDisabled(role, {
-        serverType: "autotest-permission-server",
+        serverType: "web-search",
         toolName: "calculate",
         agentId,
       });

@@ -97,23 +97,21 @@ test.describe("AI Profiles - AI Disabled", () => {
     expect(error).toBe("Forbidden");
   });
 
-  test("POST /api/2.0/ai/profiles/create - the AI switch is checked before the provider type is resolved", async ({
+  test("POST /api/2.0/ai/profiles/create - the AI switch is its own gate, ahead of the read-only one", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Fixed alongside BUG 83112, `create` is now refused before provider-type
+    // resolution even with AI on — by the read-only gate, since this profile
+    // catalogue is gateway-managed (see profiles.spec.ts). What this test still
+    // pins: the AI switch is a distinct, higher-priority gate rather than the
+    // read-only one silently covering for it — disabling AI swaps the 403's
+    // reason from "read-only" to "Forbidden", it does not just repeat the same
+    // refusal for a different reason.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
-
-    // With AI on, an unknown provider type is answered as a validation error
-    // (200 + success:false) rather than by the read-only gate — see
-    // profiles.spec.ts. So if the switch were checked last, this body would keep
-    // producing that soft error after the disable.
-    //
-    // The baseUrl has to resolve for that to be true: the baseUrl guard runs ahead
-    // of provider resolution, so an `.invalid` host answers 400 both before and
-    // after the disable and the comparison would prove nothing about the switch.
     const unknownProvider = {
       name: "Autotest unknown provider",
       providerType: "totally-unknown",
@@ -122,16 +120,17 @@ test.describe("AI Profiles - AI Disabled", () => {
     };
 
     const before = await profiles.createProfile("owner", unknownProvider);
-    expect(before.status).toBe(200);
-    expect(before.data?.success).toBe(false);
+    expect(before.status).toBe(403);
+    expect(before.error).toBe(
+      "AI profiles are read-only on this portal (managed by the AI gateway)",
+    );
 
     const { enabled } = await setPortalAiAccess(ownerApi, false);
     expect(enabled).toBe(false);
 
-    // It does not: the AI switch wins over body validation on this route, unlike
-    // text-to-docx where validation runs first.
-    const { status } = await profiles.createProfile("owner", unknownProvider);
-    expect(status).toBe(403);
+    const after = await profiles.createProfile("owner", unknownProvider);
+    expect(after.status).toBe(403);
+    expect(after.error, "a different gate refused this one").toBe("Forbidden");
   });
 
   test("BUG 82810: POST /api/2.0/ai/profiles/list-provider-models - provider discovery still runs when AI access is disabled", async ({

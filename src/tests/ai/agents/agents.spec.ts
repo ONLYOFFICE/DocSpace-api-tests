@@ -1292,7 +1292,7 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
     ).toEqual({ status: 200, profileId: target.id });
   });
 
-  test("POST /ai/agents - a restricted model at create time builds an agent with no model, same shape as BUG 82922", async ({
+  test("POST /ai/agents - a restricted model at create time is refused, not silently dropped", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1319,14 +1319,14 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
       setRestrictedAiModelsRequestDto: { models: new Set() },
     });
 
-    // Not a test.fail: this is the documented (if surprising) BUG 82922 shape
-    // — create on an unrecognised profileId succeeds and simply builds no
-    // model — reached here because restriction makes `target` unrecognised.
-    expect(created.status, "create itself is not refused").toBe(200);
-    expect(
-      created.data?.response?.profileId,
-      "but no model was actually bound",
-    ).toBeUndefined();
+    // Used to succeed with a 200 and silently build an agent with no model
+    // bound at all — the same create-time shape as BUG 82922's update-time
+    // case, reached here because restriction makes `target` unrecognised.
+    // Create now refuses it outright, same as an unknown profileId does.
+    expect(created.status, "a restricted model is refused at create time").toBe(
+      400,
+    );
+    expect(created.error).toContain(`AI profile "${target.id}" does not exist`);
   });
 
   test("PUT /ai/model/restrictions - REPLACE takes effect immediately, both ways, in the same session", async ({

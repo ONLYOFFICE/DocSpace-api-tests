@@ -104,8 +104,11 @@ test.describe("AI Profiles - catalogue read permissions", () => {
       expect(single.status).toBe(200);
       expect(single.data?.modelId).toBe(profile.modelId);
 
-      // A member sees the catalogue but not a credential in it.
-      expect(single.data?.key).toBe("onlyoffice");
+      // A member sees the catalogue but not a credential in it — get-by-id
+      // omits `key` entirely rather than masking it (unlike `list`, which
+      // still carries the literal "onlyoffice" placeholder; see the DTO
+      // comparison in profiles.spec.ts).
+      expect(single.data?.key).toBeUndefined();
     });
   }
 
