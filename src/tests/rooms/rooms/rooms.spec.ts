@@ -18858,7 +18858,10 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     expect(status).toBe(403);
   });
 
-  test("BUG 81703: DELETE /files/rooms/:id/tags - Invalid string room id does not return 400", async ({
+  // BUG 81703 confirmed by design: room id is not always numeric — a
+  // thirdparty-storage room can have a string id — so the API accepts any
+  // string shape as a potential id and resolves it as "not found" -> 404.
+  test("BUG 81703: DELETE /files/rooms/:id/tags - String room id is a valid id shape (thirdparty rooms), non-existent one returns 404", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -18879,6 +18882,48 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     });
     expect(data.statusCode).toBe(404);
   });
+
+  // Other invalid id shapes, not covered by the thirdparty-string reasoning
+  // above (negative / non-integer numbers, empty string) — all still resolve
+  // as "not found" -> 404, same contract as the string case.
+  for (const badId of [-1, 1.5]) {
+    test(`DELETE /files/rooms/:id/tags - Invalid numeric room id ${badId} returns 404`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.deleteRoomTags({
+        id: badId,
+        batchTagsRequestDto: { names: ["X"] },
+      });
+      expect(status).toBe(404);
+    });
+  }
+
+  test("DELETE /files/rooms/:id/tags - Empty string room id returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: "" as unknown as number,
+      batchTagsRequestDto: { names: ["X"] },
+    });
+    expect(status).toBe(404);
+  });
+
+  // Unlike other invalid id shapes above, a whitespace-only id crashes the
+  // thirdparty selector's regex lookup (ArgumentNullException) instead of
+  // resolving to a clean "not found".
+  test.fail(
+    "BUG XXXXX: DELETE /files/rooms/:id/tags - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.deleteRoomTags({
+        id: "   " as unknown as number,
+        batchTagsRequestDto: { names: ["X"] },
+      });
+      expect(status).toBe(404);
+    },
+  );
 
   // Note: missing room id (item 20) is enforced by the SDK route — the endpoint
   // cannot be invoked without an id, so there is no API-level test for it.
