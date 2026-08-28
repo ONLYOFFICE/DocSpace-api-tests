@@ -730,15 +730,16 @@ test.describe("AI Preferences - deep mode and the answer", () => {
 // left, and a second chat there starts with the same value rather than its own.
 // The API keys the value on entityId, and a thread id is not one of those:
 //
-//   * a write with a thread id is a 400 — the scope has to be a numeric entity,
 //   * a read with one is answered 200 with the portal-wide fallback instead of
-//     being refused, the same shape as the unknown-entity read above.
-//
-// Which is the behaviour the requirement wants, so this is a green test — but it
-// is worth pinning, because the fallback on read is exactly what would make a
-// broken per-thread scope look like it worked.
+//     being refused, the same shape as the unknown-entity read above — still
+//     the behaviour the requirement wants, asserted as a green check below.
+//   * a write with a thread id used to be a 400 (the scope has to be a numeric
+//     entity) — now it is a 200 `{success:true}` that changes nothing (BUG
+//     XXXXX, see below): confirmed live that this is not silent data
+//     corruption, just an endpoint claiming success for a write with no
+//     effect, which is its own problem.
 test.describe("AI Preferences - deep mode is not per thread", () => {
-  test("GET|PUT /api/2.0/ai/preferences/set-deep-mode - a thread is not a scope of its own", async ({
+  test("BUG XXXXX: GET|PUT /api/2.0/ai/preferences/set-deep-mode - a thread is not a scope of its own", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -793,13 +794,10 @@ test.describe("AI Preferences - deep mode is not per thread", () => {
       value: false,
       entityId: first,
     });
-    expect(
-      threadWrite.status,
-      "a thread id is not a valid scope to write to",
-    ).toBe(400);
 
-    // And the refused write left the section's value alone, so the second chat
-    // opened in the same place still finds the switch on.
+    // The write claims success but changes nothing — checked before the
+    // status assertion below, so both still run even though the status one
+    // is expected to fail.
     expect(
       (await preferences.getDeepMode("owner", agentId)).data,
       "the agent's value survives a write aimed at one of its threads",
@@ -809,5 +807,13 @@ test.describe("AI Preferences - deep mode is not per thread", () => {
       (await preferences.getDeepMode("owner", second)).data,
       "the other thread of the same agent reads the same fallback",
     ).toBe(false);
+
+    // BUG XXXXX: a thread id used to be refused as a write scope (400); it now
+    // answers 200 and silently does nothing instead.
+    test.fail();
+    expect(
+      threadWrite.status,
+      "a thread id is not a valid scope to write to",
+    ).toBe(400);
   });
 });
