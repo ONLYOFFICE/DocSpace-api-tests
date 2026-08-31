@@ -9569,7 +9569,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const fileId = fileData.response!.id!;
 
     const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
-    const trashBefore = beforeData.response!.trashUsedSpace!.usedSpace!;
+    const trashBefore = beforeData.response?.trashUsedSpace?.usedSpace ?? 0;
 
     await ownerApi.files.deleteFile({
       fileId,
@@ -9579,7 +9579,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     const { data: afterData, status } =
       await ownerApi.folders.getFilesUsedSpace();
-    const trashAfter = afterData.response!.trashUsedSpace!.usedSpace!;
+    const trashAfter = afterData.response?.trashUsedSpace?.usedSpace ?? 0;
 
     expect(status).toBe(200);
     // Catches: if trashUsedSpace is not recalculated after soft delete

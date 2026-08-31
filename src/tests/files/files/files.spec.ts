@@ -59,7 +59,7 @@ test.describe("POST /files/@my/file", () => {
   });
 
   // Bug 80324: enableExternalExt: true returns 403 with NullReferenceException
-  test.fail(
+  test(
     "BUG 80324: POST /files/@my/file - Title with .md extension and enableExternalExt keeps original extension",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");

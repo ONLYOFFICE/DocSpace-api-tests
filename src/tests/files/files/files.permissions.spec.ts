@@ -3257,7 +3257,7 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
 });
 
 test.describe("File version access - access control", () => {
-  test.fail(
+  test(
     "BUG 80683: GET /files/file/:id/openedit?version= - Viewer in room cannot open a specific file version",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");

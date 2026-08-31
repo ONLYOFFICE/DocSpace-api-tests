@@ -259,7 +259,7 @@ test.describe("PUT /api/2.0/files/share", () => {
 });
 
 test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
-  test.fail(
+  test(
     "BUG 81109: GET /api/2.0/files/file/{fileId}/sharedusers - Guest gets id, email and name of User in getSharedUsers response",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");

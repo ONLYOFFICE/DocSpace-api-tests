@@ -4,7 +4,7 @@ import { RoomType, FileShare, SubjectType } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 test.describe("POST /api/2.0/files/share", () => {
-  test.fail(
+  test(
     "BUG 80956: POST /api/2.0/files/share - Guest should not see groups field in getSecurityInfo response",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
