@@ -1352,17 +1352,15 @@ test.describe("GET /api/2.0/files/module - Get the Documents module information 
 });
 
 test.describe("GET /api/2.0/files/settings - Get all file settings - Permissions", () => {
-  // BUG 82323: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings
-  test.fail(
-    "BUG 82323: GET /api/2.0/files/settings - Unauthenticated user can access sensitive file settings",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forAnonymous()
-        .filesSettings.getFilesSettings();
+  test("BUG 82323: GET /api/2.0/files/settings - Unauthenticated user returns 401", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .filesSettings.getFilesSettings();
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 
   test("GET /api/2.0/files/settings - Owner can get file settings", async ({
     apiSdk,

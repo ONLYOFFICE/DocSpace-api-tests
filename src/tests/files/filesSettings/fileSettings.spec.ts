@@ -3071,19 +3071,17 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     rights.forEach((r) => expect(validFileShareValues).toContain(r));
   });
 
-  // BUG 79905: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 200 instead of 400
-  test.fail(
-    "BUG 79905: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 200 instead of 400",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .filesSettings.changeDefaultAccessRights({
-          requestBody: [999 as FileShare],
-        });
+  test("BUG 79905: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 400", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.changeDefaultAccessRights({
+        requestBody: [999 as FileShare],
+      });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
   test("PUT /api/2.0/files/settings/dafaultaccessrights - Change is reflected in getFilesSettings", async ({
     apiSdk,
@@ -3147,25 +3145,22 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - Validation", () => 
     expect(status).toBe(400);
   });
 
-  // BUG 79905: PUT /api/2.0/files/settings/defaulttemplate - fileExtension mismatch with actual file format is accepted instead of rejected
-  test.fail(
-    "BUG 79905: PUT /api/2.0/files/settings/defaulttemplate - Setting .pptx file as .docx" +
-      " template returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Mismatched Template.pptx" },
-      });
-      const fileId = fileData.response!.id!;
-      const { status } = await ownerApi.filesSettings.setDefaultTemplate({
-        defaultTemplateSettingsRequestDto: {
-          selectedFile: fileId,
-          fileExtension: ".docx",
-        },
-      });
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 79905: PUT /api/2.0/files/settings/defaulttemplate - Setting .pptx file as .docx template returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Mismatched Template.pptx" },
+    });
+    const fileId = fileData.response!.id!;
+    const { status } = await ownerApi.filesSettings.setDefaultTemplate({
+      defaultTemplateSettingsRequestDto: {
+        selectedFile: fileId,
+        fileExtension: ".docx",
+      },
+    });
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("POST /api/2.0/files/settings/defaulttemplate - Upload default template", () => {
