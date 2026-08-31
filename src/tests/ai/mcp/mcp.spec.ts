@@ -3998,7 +3998,6 @@ test.describe("MCP - a registered server and the conversation", () => {
       .map((call) => call.toolName ?? "");
     const reply = AiAgentChat.assistantText(messages);
 
-    test.fail();
     expect(
       calledTools.length > 0 || !reply.includes(NO_TOOL_SENTINEL),
       `the agent was offered no tool from its registered server: it called [${calledTools.join(", ") || "nothing"}] and answered "${reply.slice(0, 120)}"`,
@@ -4773,15 +4772,25 @@ test.describe("MCP - the editor's toolset and the chat's", () => {
 
     const diagnostics = `called [${asked.calledTools.join(", ")}]; the model answered "${asked.reply.slice(0, 200)}"; frames were ${asked.frames.join(", ")}`;
 
+    // The built-in auto-resolves without pausing; the client shadow pauses for
+    // approval (`tool-call-pending`). If `docspace_generate_docx` appears in
+    // calledTools AND the stream paused, it is the client's version — still
+    // displacement. It is only the built-in that answers when there is no pause.
+    const calledAsBuiltIn =
+      asked.calledTools.includes(BUILT_IN_DOC_TOOL_TOKEN) &&
+      !asked.frames.includes("tool-call-pending");
     expect(
-      asked.calledTools,
+      calledAsBuiltIn,
       `the engine's own generator answered anyway: ${diagnostics}`,
-    ).not.toContain(BUILT_IN_DOC_TOOL_TOKEN);
+    ).toBe(false);
 
     // Named rather than left implicit, so that "no built-in call" cannot be
     // satisfied by the model wandering off into an editor tool or into prose of
-    // its own: the turn has to end in one of the two measured shapes.
-    const shadowCalled = asked.calledTools.includes(BUILT_IN_DOC_TOOL);
+    // its own: the turn has to end in one of the three measured shapes.
+    const shadowCalled =
+      asked.calledTools.includes(BUILT_IN_DOC_TOOL) ||
+      (asked.calledTools.includes(BUILT_IN_DOC_TOOL_TOKEN) &&
+        asked.frames.includes("tool-call-pending"));
     const reportedMissing = asked.reply.includes(NO_TOOL_SENTINEL);
     expect(
       shadowCalled || reportedMissing,

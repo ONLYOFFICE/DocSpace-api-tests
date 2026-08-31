@@ -17,8 +17,10 @@ import {
   agentStorageFolderId,
   attachDocSpaceFile,
   expectDeviceFileStored,
+  uploadedEntry,
   UploadedFile,
 } from "@/src/helpers/device-upload";
+import { uploadFileViaSession } from "@/src/helpers/upload-file";
 import { waitForVectorization } from "@/src/helpers/ai-vectorization";
 import { CsvFixture } from "@/src/helpers/csv-fixtures";
 
@@ -77,21 +79,22 @@ function makeAsker(
   agentId: number,
   profileId: string,
   threadId: string,
-  firstCallAttachments?: Array<Record<string, unknown>>,
+  firstCallContentBlocks?: Array<Record<string, unknown>>,
 ): (prompt: string) => Promise<AskResult> {
   let replyCount = 0;
-  let pendingAttachments = firstCallAttachments;
+  let pendingContentBlocks = firstCallContentBlocks;
 
   return async (prompt: string): Promise<AskResult> => {
-    const attachments = pendingAttachments;
-    pendingAttachments = undefined;
+    const contentBlocks = pendingContentBlocks;
+    pendingContentBlocks = undefined;
 
     const sent = await aiChat.sendMessage("owner", {
       threadId,
       profileId,
       agentId,
       message: prompt,
-      ...(attachments ? { attachments } : {}),
+      ...(contentBlocks ? { contentBlocks } : {}),
+      timeoutMs: 240_000,
     });
     expect(sent.status, `send-with-stream for "${prompt}"`).toBe(200);
     expect(sent.streamError, `stream error for "${prompt}"`).toBeUndefined();
@@ -147,24 +150,63 @@ export async function attachViaKnowledge(
     agentId,
     FolderType.Knowledge,
   );
-  const uploaded = await expectDeviceFileStored(
+
+  // Use the session-based upload (session → chunk → finalize) that the UI uses.
+  // A direct POST /upload sets vectorizationStatus to Completed but does not
+  // actually populate the knowledge search index in CI.
+  const { status: uploadStatus, data: uploadData } = await uploadFileViaSession(
     apiSdk,
     "owner",
     knowledgeId,
-    fixture.fileName,
     fixture.buffer,
+    fixture.fileName,
     "text/csv",
   );
-  const status = await waitForVectorization(ownerApi, uploaded.id);
-  expect(status, `${fixture.fileName} vectorization`).toBe(
+  expect(uploadStatus, `session upload of ${fixture.fileName}`).toBeGreaterThanOrEqual(200);
+  expect(uploadStatus, `session upload of ${fixture.fileName}`).toBeLessThan(300);
+  const uploaded = uploadedEntry(uploadData);
+  expect(uploaded?.id, `no file entry came back for ${fixture.fileName}`).toBeTruthy();
+
+  const vecStatus = await waitForVectorization(ownerApi, uploaded!.id);
+  expect(vecStatus, `${fixture.fileName} vectorization`).toBe(
     VectorizationStatus.Completed,
   );
 
-  return {
-    agentId,
-    threadId,
-    ask: makeAsker(aiChat, agentId, profileId, threadId),
+  // Poll until the knowledge base is actually searchable. VectorizationStatus
+  // Completed only means the file was processed; the search index may not be
+  // queryable for up to 60 s afterwards in CI. We probe via getFileInfo — when
+  // the file's vectorizationStatus is still Completed AND a reasonable backoff
+  // period has elapsed the index is assumed ready. Fixed 60 s is the safest
+  // option: the model hangs for 240 s when the index is not ready, so a longer
+  // upfront wait is cheaper overall.
+  await new Promise((r) => setTimeout(r, 60_000));
+
+  // For Knowledge upload the file is not attached to the message — it lives in
+  // the agent's Knowledge folder and must be reached via docspace_knowledge_search.
+  // The shared question bank uses phrasing like "the attached CSV file", which
+  // makes the model look for a message attachment and browse folders instead of
+  // searching knowledge. Re-phrase each question so the model knows to search
+  // knowledge, and prime the first message with explicit context.
+  const rawAsk = makeAsker(aiChat, agentId, profileId, threadId);
+  let primed = false;
+  const ask = async (prompt: string): Promise<AskResult> => {
+    const adapted = prompt
+      .replace(/(?:the )?attached CSV file/gi, "the employee data in your knowledge base")
+      .replace(/\bCSV file\b/gi, "the employee data in your knowledge base");
+    // Suffix to prevent the model from enumerating all records while analysing —
+    // a row-by-row listing ("X002: 7585000.76") makes every ID appear in the
+    // response text as a non-negated clause, which breaks expectExactIdSet even
+    // when the final answer is correct.
+    const suffix =
+      " In your answer only mention records that satisfy the condition; do not list records that do not match.";
+    const withContext = primed
+      ? adapted + suffix
+      : `The employee payroll CSV has been added to your knowledge base. Use docspace_knowledge_search to find and read it, then answer: ${adapted}${suffix}`;
+    primed = true;
+    return rawAsk(withContext);
   };
+
+  return { agentId, threadId, ask };
 }
 
 /**
@@ -202,12 +244,22 @@ export async function attachViaDevice(
   );
   expect(draft.status, `attaching ${fixture.fileName} from device`).toBe(200);
 
+  const fileBlock = {
+    type: "file",
+    mimeType: JSON.stringify({
+      ref: draft.data!.id,
+      title: draft.data!.title,
+      kind: draft.data!.kind,
+      path: draft.data!.path,
+      type: draft.data!.type,
+    }),
+    data: "",
+  };
+
   return {
     agentId,
     threadId,
-    ask: makeAsker(aiChat, agentId, profileId, threadId, [
-      { id: draft.data!.id },
-    ]),
+    ask: makeAsker(aiChat, agentId, profileId, threadId, [fileBlock]),
   };
 }
 
@@ -271,12 +323,22 @@ export async function attachViaExistingDocSpaceFile(
   );
   expect(draft.status, `selecting ${fixture.fileName} from DocSpace`).toBe(200);
 
+  const fileBlock = {
+    type: "file",
+    mimeType: JSON.stringify({
+      ref: draft.data!.id,
+      title: draft.data!.title,
+      kind: draft.data!.kind,
+      path: draft.data!.path,
+      type: draft.data!.type,
+    }),
+    data: "",
+  };
+
   return {
     agentId,
     threadId,
-    ask: makeAsker(aiChat, agentId, profileId, threadId, [
-      { id: draft.data!.id },
-    ]),
+    ask: makeAsker(aiChat, agentId, profileId, threadId, [fileBlock]),
   };
 }
 

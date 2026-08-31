@@ -21,7 +21,9 @@ import { expect } from "@playwright/test";
 
 /** Every decimal number in the text, tolerant of "$", thousands commas and "USD". */
 export function extractAmounts(text: string): number[] {
-  const cleaned = text.replace(/\$/g, "").replace(/,/g, "");
+  // Normalise typographic minus signs (U+2212 −, U+2013 –) to ASCII hyphen so
+  // the regex below matches negative numbers regardless of how the model typed them.
+  const cleaned = text.replace(/\$/g, "").replace(/,/g, "").replace(/[−–]/g, "-");
   return Array.from(cleaned.matchAll(/-?\d+(?:\.\d+)?/g), (match) =>
     Number(match[0]),
   );
@@ -40,11 +42,27 @@ export function splitClauses(text: string): string[] {
 }
 
 const NEGATION_RE =
-  /\b(not|isn['’]?t|doesn['’]?t|didn['’]?t|wasn['’]?t|weren['’]?t|aren['’]?t|hasn['’]?t|haven['’]?t|won['’]?t|can['’]?t|cannot|never|no longer|without|excluded?|instead of|rather than|other than|none|neither|nor)\b|n['’]t\b/i;
+  /\b(not|isn[‘’]?t|doesn[‘’]?t|didn[‘’]?t|wasn[‘’]?t|weren[‘’]?t|aren[‘’]?t|hasn[‘’]?t|haven[‘’]?t|won[‘’]?t|can[‘’]?t|cannot|never|no longer|without|excluded?|instead of|rather than|other than|none|neither|nor)\b|n[‘’]t\b/i;
 
 /** Whether a clause negates or excludes rather than positively asserts. */
 export function isNegatedClause(clause: string): boolean {
   return NEGATION_RE.test(clause);
+}
+
+/**
+ * Returns the last double-newline-separated paragraph that contains at least
+ * one match for `pattern`. Falls back to the full text when none match
+ * (shouldn't happen for well-formed model output, but avoids silent breakage).
+ */
+function extractLastBlockWithIds(text: string, pattern: RegExp): string {
+  // Use a fresh RegExp so we don't advance the caller's lastIndex.
+  const probe = new RegExp(pattern.source, pattern.flags);
+  const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    probe.lastIndex = 0;
+    if (probe.test(blocks[i])) return blocks[i];
+  }
+  return text;
 }
 
 /**
@@ -143,20 +161,30 @@ export function expectMatchesAny(
  *
  * `idPattern` should be a non-global RegExp matching one id, e.g. /\bX\d{3}\b/i
  * — the "g" flag is added internally to walk every match per clause.
+ *
+ * `lastBlockOnly` (default false): when true, only the last double-newline-
+ * separated paragraph of `text` is scanned for IDs. Use this when the model
+ * shows a row-by-row analysis (listing every ID with its value) before giving
+ * a concise final answer — the analysis enumerates all IDs in non-negated
+ * clauses, which would otherwise make every ID look like a positive claim.
+ * Errors still show the full text so failures are debuggable.
  */
 export function expectExactIdSet(
   text: string,
   idPattern: RegExp,
   expectedIds: string[],
   label = "id set",
+  { lastBlockOnly = false }: { lastBlockOnly?: boolean } = {},
 ): void {
   const globalPattern = new RegExp(
     idPattern.source,
     idPattern.flags.includes("g") ? idPattern.flags : `${idPattern.flags}g`,
   );
 
+  const textToScan = lastBlockOnly ? extractLastBlockWithIds(text, globalPattern) : text;
+
   const positive = new Set<string>();
-  for (const clause of splitClauses(text)) {
+  for (const clause of splitClauses(textToScan)) {
     if (isNegatedClause(clause)) continue;
     for (const match of clause.matchAll(globalPattern)) {
       positive.add(match[0].toUpperCase());

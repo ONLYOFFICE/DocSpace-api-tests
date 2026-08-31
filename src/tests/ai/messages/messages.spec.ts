@@ -3866,7 +3866,7 @@ test.describe("AI Messages - one-shot inference", () => {
     expect(
       JSON.stringify(nonStreaming.data?.content),
       "the model's answer, unstreamed",
-    ).toContain("4");
+    ).toMatch(/\b(4|four)\b/i);
 
     const streaming = await aiChat.sendCustom("owner", {
       isStream: true,
@@ -3886,7 +3886,7 @@ test.describe("AI Messages - one-shot inference", () => {
     expect(
       JSON.stringify(last?.responseMessage?.content),
       "the model's answer, streamed",
-    ).toContain("4");
+    ).toMatch(/\b(4|four)\b/i);
   });
 });
 

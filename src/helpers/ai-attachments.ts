@@ -140,8 +140,9 @@ export class AiAttachments extends AiHttp {
     method: "get" | "post" | "put" | "delete",
     path: string,
     body?: unknown,
+    options?: { timeoutMs?: number },
   ) {
-    return this.call<T>(role, method, path, body);
+    return this.call<T>(role, method, path, body, options);
   }
 
   // ------------------------------------------------------------------- writes

@@ -5927,6 +5927,27 @@ async function fileIdsIn(api: RoleApi, folderId: number): Promise<Set<number>> {
 }
 
 /**
+ * Like fileIdsIn but polls until two consecutive snapshots are identical —
+ * guards against folders still being populated by async server-side init
+ * (e.g. DocSpace sample files written to My Documents on first login).
+ */
+async function stableFileIds(
+  api: RoleApi,
+  folderId: number,
+  { intervalMs = 3000, maxWaitMs = 30000 }: { intervalMs?: number; maxWaitMs?: number } = {},
+): Promise<Set<number>> {
+  const deadline = Date.now() + maxWaitMs;
+  let prev = await fileIdsIn(api, folderId);
+  for (;;) {
+    await new Promise((r) => setTimeout(r, intervalMs));
+    const curr = await fileIdsIn(api, folderId);
+    if (curr.size === prev.size && [...curr].every((id) => prev.has(id))) return curr;
+    if (Date.now() > deadline) return curr;
+    prev = curr;
+  }
+}
+
+/**
  * Waits for a file that was not in `known` to turn up in the folder.
  *
  * Matched on ids rather than on a count or on a name: the picture's file name
@@ -6229,7 +6250,7 @@ test.describe("AI Chat - image generation", () => {
     const myDocsId = myDocs.response!.current!.id!;
 
     const storedBefore = await fileIdsIn(ownerApi, resultStorageId);
-    const myDocsBefore = await fileIdsIn(ownerApi, myDocsId);
+    const myDocsBefore = await stableFileIds(ownerApi, myDocsId);
 
     const attempt = await requestPicture(
       aiChat,
@@ -6296,7 +6317,7 @@ test.describe("AI Chat - image generation", () => {
     const myDocsId = myDocs.response!.current!.id!;
 
     const roomBefore = await fileIdsIn(ownerApi, roomId);
-    const myDocsBefore = await fileIdsIn(ownerApi, myDocsId);
+    const myDocsBefore = await stableFileIds(ownerApi, myDocsId);
 
     const attempt = await requestPicture(
       aiChat,
