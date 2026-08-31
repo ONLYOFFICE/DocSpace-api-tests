@@ -3255,65 +3255,64 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
 });
 
 test.describe("File version access - access control", () => {
-  test.fail(
-    "BUG 80683: GET /files/file/:id/openedit?version= - Viewer in room cannot open a specific file version",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80683: GET /files/file/:id/openedit?version= - Viewer in room cannot open a specific file version", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      // Step 1: Owner creates a Custom room
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Version Access Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    // Step 1: Owner creates a Custom room
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Version Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      // Step 2: Owner creates a file in the room
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: {
-          title: "Autotest Version Access File.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    // Step 2: Owner creates a file in the room
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Version Access File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      // Step 3: Create a user and invite to the room as Viewer (FileShare.Read)
-      const { data: memberData, userData } = await apiSdk.addMember(
-        "owner",
-        "User",
-      );
-      const viewerId = memberData.response!.id!;
+    // Step 3: Create a user and invite to the room as Viewer (FileShare.Read)
+    const { data: memberData, userData } = await apiSdk.addMember(
+      "owner",
+      "User",
+    );
+    const viewerId = memberData.response!.id!;
 
-      const { status: securityStatus } = await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: viewerId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
-      expect(securityStatus).toBe(200);
+    const { status: securityStatus } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: viewerId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    expect(securityStatus).toBe(200);
 
-      // Step 4: Authenticate the viewer
-      const viewerApi = await apiSdk.authenticateMember(userData, "User");
+    // Step 4: Authenticate the viewer
+    const viewerApi = await apiSdk.authenticateMember(userData, "User");
 
-      // Step 5: Viewer opens the file without version - should succeed
-      const { status: currentStatus } = await viewerApi.files.openEditFile({
-        fileId,
-        view: true,
-      });
-      expect(currentStatus).toBe(200);
+    // Step 5: Viewer opens the file without version - should succeed
+    const { status: currentStatus } = await viewerApi.files.openEditFile({
+      fileId,
+      view: true,
+    });
+    expect(currentStatus).toBe(200);
 
-      // Step 6: Viewer opens the file with version=1 - should be denied
-      // Bug: server returns 200 and serves the version content to Viewer
-      const { status: versionStatus } = await viewerApi.files.openEditFile({
-        fileId,
-        version: 1,
-        view: true,
-      });
-      expect(versionStatus).toBe(403);
-    },
-  );
+    // Step 6: Viewer opens the file with version=1 - should be denied
+    // Bug: server returns 200 and serves the version content to Viewer
+    const { status: versionStatus } = await viewerApi.files.openEditFile({
+      fileId,
+      version: 1,
+      view: true,
+    });
+    expect(versionStatus).toBe(403);
+  });
 });
 
 test.describe("GET /files/file/:fileId/edit/history permissions", () => {

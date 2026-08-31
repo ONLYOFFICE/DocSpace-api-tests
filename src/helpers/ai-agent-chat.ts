@@ -496,6 +496,12 @@ export class AiAgentChat extends AiHttp {
       /** Attachment drafts carried by the user message. */
       attachments?: Array<Record<string, unknown>>;
       /**
+       * File content blocks to embed in the message content array before the
+       * text block. Each block uses the format the UI produces:
+       * { type: "file", mimeType: JSON.stringify({ ref, title, kind, path, type }), data: "" }
+       */
+      contentBlocks?: Array<Record<string, unknown>>;
+      /**
        * Caps the wait on the stream. Needed for the requests that never
        * terminate; the frames received before the cap are lost, so the
        * assertions then have to read the thread back.
@@ -523,7 +529,10 @@ export class AiAgentChat extends AiHttp {
         ...(Object.keys(actionArgs).length > 0 ? { actionArgs } : {}),
         userMessage: {
           role: "user",
-          content: [{ type: "text", text: body.message }],
+          content: [
+            ...(body.contentBlocks ?? []),
+            { type: "text", text: body.message },
+          ],
           ...(body.attachments ? { attachments: body.attachments } : {}),
         },
       },
@@ -1118,7 +1127,10 @@ export class AiAgentChat extends AiHttp {
   static messageText(message: AiThreadMessage): string {
     return typeof message.content === "string"
       ? message.content
-      : message.content.map((block) => block.text ?? "").join("\n");
+      : message.content
+          .filter((block) => block.type === "text")
+          .map((block) => block.text ?? "")
+          .join("\n");
   }
 
   /** `undefined` on a reply the model finished normally. */

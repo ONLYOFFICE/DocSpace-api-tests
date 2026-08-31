@@ -355,16 +355,6 @@ test.describe("POST /files/thirdparty - Nextcloud credential validation", () => 
   test("BUG 83399: POST /files/thirdparty - Wrong password right after a correct connection to the same host returns 200, not 403", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 83399: the WebDAV client does not isolate connections to a host by " +
-        "credentials - it caches the previous request's authenticated session " +
-        "for longer than it should instead of opening a fresh one for the new " +
-        "login/password. Connecting a correct Nextcloud account, then " +
-        "connecting the same host with a wrong password, can return 200 " +
-        "(piggybacking on the still-cached correct session) instead of 403.",
-    );
-
     const ownerApi = apiSdk.forRole("owner");
 
     await connectNextcloud(apiSdk, "owner", "Autotest Session Reuse Correct");
