@@ -476,76 +476,72 @@ test.describe("PUT /api/2.0/files/fileops/bulkdownload - Permissions", () => {
     expect(operation.url).toContain("filehandler.ashx?action=bulk");
   });
 
-  // BUG 81822: PUT /api/2.0/files/fileops/bulkdownload returns 404 instead of 403 when user has no room access
-  test.fail(
-    "BUG 81822: PUT /api/2.0/files/fileops/bulkdownload - User without room membership cannot download file from room returns 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81822: PUT /api/2.0/files/fileops/bulkdownload - User without room membership cannot download file from room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest BulkDownload No Access Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest BulkDownload No Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: {
-          title: "Autotest BulkDownload No Access File.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload No Access File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
 
-      const { status } = await userApi.operations.bulkDownload({
-        downloadRequestDto: { fileIds: [fileId] },
-      });
+    const { status } = await userApi.operations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId] },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
-  // BUG 81823: PUT /api/2.0/files/fileops/bulkdownload returns 404 instead of 401 for unauthenticated user
-  test.fail(
-    "BUG 81823: PUT /api/2.0/files/fileops/bulkdownload - Unauthenticated user cannot bulk download returns 401",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+  test("BUG 81823: PUT /api/2.0/files/fileops/bulkdownload - Unauthenticated user cannot bulk download returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest BulkDownload Anon File.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest BulkDownload Anon File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const anonConfig = new Configuration({
-        basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
-        baseOptions: {
-          headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
-        },
-      });
-      const anonOperations = new OperationsApi(
-        anonConfig,
-        undefined,
-        apiSdk.createAxiosInstance() as any,
-      );
+    const anonConfig = new Configuration({
+      basePath: `${apiSdk.tokenStore.portalBaseUrl}`,
+      baseOptions: {
+        headers: { Origin: `http://${apiSdk.tokenStore.newTenantDomain}` },
+      },
+    });
+    const anonOperations = new OperationsApi(
+      anonConfig,
+      undefined,
+      apiSdk.createAxiosInstance() as any,
+    );
 
-      const { status } = await anonOperations.bulkDownload({
-        downloadRequestDto: { fileIds: [fileId] },
-      });
+    const { status } = await anonOperations.bulkDownload({
+      downloadRequestDto: { fileIds: [fileId] },
+    });
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 });
 
 test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Permissions", () => {
@@ -1514,97 +1510,85 @@ test.describe("GET /api/2.0/files/fileops/checkdestfolder - checkMoveOrCopyDestF
     },
   );
 
-  // BUG 82104: checkMoveOrCopyDestFolder returns AllAllowed for user without dest access instead of 403
-  test.fail(
-    "BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - User without" +
-      " access to destination room returns 403",
-    async ({ apiSdk }) => {
-      // Catches: user without dest access gets AllAllowed instead of 403;
-      // checkMoveOrCopyBatchItems correctly returns 403 in the same scenario,
-      // but checkMoveOrCopyDestFolder does not check user access to the destination room
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - User without access to destination room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
 
-      const { data: myDocsData } = await userApi.folders.getMyFolder();
-      const userMyDocsFolderId = myDocsData.response!.current!.id!;
+    const { data: myDocsData } = await userApi.folders.getMyFolder();
+    const userMyDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await userApi.files.createFile({
-        folderId: userMyDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest CheckDestFolder Perm NoAccess File.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await userApi.files.createFile({
+      folderId: userMyDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckDestFolder Perm NoAccess File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckDestFolder Perm NoAccess Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckDestFolder Perm NoAccess Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
 
-      const { status } = await userApi.operations.checkMoveOrCopyDestFolder({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-          deleteAfter: true,
-        },
-      });
+    const { status } = await userApi.operations.checkMoveOrCopyDestFolder({
+      inDto: {
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+        deleteAfter: true,
+      },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
-  // BUG 82104: checkMoveOrCopyDestFolder returns 200 AllAllowed for guest without dest access instead of 403
-  test.fail(
-    "BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - Guest without" +
-      " access to destination room gets 403",
-    async ({ apiSdk }) => {
-      // Catches: guest without dest access gets AllAllowed instead of 403;
-      // same root cause as User without access - checkMoveOrCopyDestFolder does not check
-      // user access to the destination room
-      const ownerApi = apiSdk.forRole("owner");
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "Guest",
-      );
+  test("BUG 82104: GET /api/2.0/files/fileops/checkdestfolder - Guest without access to destination room returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
 
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const myDocsFolderId = myDocsData.response!.current!.id!;
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: myDocsFolderId,
-        createFileJsonElement: {
-          title: "Autotest CheckDestFolder Perm Guest File.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: myDocsFolderId,
+      createFileJsonElement: {
+        title: "Autotest CheckDestFolder Perm Guest File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckDestFolder Perm Guest Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const destFolderId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckDestFolder Perm Guest Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const destFolderId = roomData.response!.id!;
 
-      const { status } = await guestApi.operations.checkMoveOrCopyDestFolder({
-        inDto: {
-          fileIds: [fileId],
-          destFolderId,
-          conflictResolveType: FileConflictResolveType.Skip,
-        },
-      });
+    const { status } = await guestApi.operations.checkMoveOrCopyDestFolder({
+      inDto: {
+        fileIds: [fileId],
+        destFolderId,
+        conflictResolveType: FileConflictResolveType.Skip,
+      },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems - Permissions", () => {

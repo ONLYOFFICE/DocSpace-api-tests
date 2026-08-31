@@ -267,7 +267,7 @@ test.describe("AI Profiles - catalogue bugs", () => {
     expect(error, "and say so").toBe("Profile not found");
   });
 
-  test("BUG 82821: GET /api/2.0/ai/profiles/get-by-id - the response leaks the gateway's internal address", async ({
+  test("BUG 82821 FIXED: GET /api/2.0/ai/profiles/get-by-id - the response no longer leaks the gateway's internal address", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -281,16 +281,11 @@ test.describe("AI Profiles - catalogue bugs", () => {
     // `list` publishes the portal's own public address for the same profile...
     expect(listed.baseUrl).toBe(apiSdk.tokenStore.portalBaseUrl);
 
+    // ...and `get-by-id` used to hand back the cluster-internal service address
+    // of the AI container instead (`http://ai:5050/api/2.0/ai/gateway`), which
+    // section 22 says must not leave the backend. It now agrees with `list`.
     const { status, data } = await profiles.getProfileById("owner", listed.id);
     expect(status).toBe(200);
-
-    // ...while `get-by-id` hands back the cluster-internal service address of the
-    // AI container, which section 22 says must not leave the backend.
-    expect(data?.baseUrl, "the address get-by-id reports").toBe(
-      "http://ai:5050/api/2.0/ai/gateway",
-    );
-
-    test.fail();
     expect(
       data?.baseUrl,
       "get-by-id must not expose an internal service address",
@@ -387,42 +382,34 @@ test.describe("AI Profiles - the gateway catalogue is read-only", () => {
     expect(stillThere?.name).toBe(existing.name);
   });
 
-  test("POST /api/2.0/ai/profiles/create - an unknown provider type is reported as a validation error, not as the 403", async ({
+  test("POST /api/2.0/ai/profiles/create - the read-only gate refuses before an unknown provider type is even looked at", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Fixed alongside BUG 83112: the read-only gate now runs before provider-type
+    // resolution, so section 4.1's create validation (a body shape's own
+    // problems) is no longer observable through this route at all — every
+    // create on this build is refused with the same 403, valid body or not.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const READ_ONLY_ERROR =
+      "AI profiles are read-only on this portal (managed by the AI gateway)";
 
-    // Provider-type resolution runs before the read-only gate, which is the only
-    // way any of section 4.1's create validation is observable on this build.
-    //
-    // The host has to resolve to get this far: the baseUrl guard runs before
-    // provider resolution, so an `.invalid` name would be answered 400 "baseUrl
-    // host could not be resolved" and this test would be pinning the guard
-    // instead of the validation error it is about.
-    const { status, data } = await profiles.createProfile("owner", {
+    const { status, error } = await profiles.createProfile("owner", {
       name: "Autotest unknown provider",
       providerType: "totally-unknown",
       baseUrl: RESOLVABLE_NON_PROVIDER_URL,
       modelId: "m",
     });
+    expect(status).toBe(403);
+    expect(error).toBe(READ_ONLY_ERROR);
 
-    expect(status).toBe(200);
-    expect(data?.success).toBe(false);
-    expect(data?.error?.message).toBe("Unknown provider type: totally-unknown");
-
-    const { status: missing, data: missingData } = await profiles.createProfile(
-      "owner",
-      { name: "Autotest no provider" },
-    );
-    expect(missing).toBe(200);
-    expect(missingData?.success).toBe(false);
-    expect(missingData?.error?.message).toBe(
-      "Unknown provider type: undefined",
-    );
+    const { status: missing, error: missingError } =
+      await profiles.createProfile("owner", { name: "Autotest no provider" });
+    expect(missing).toBe(403);
+    expect(missingError).toBe(READ_ONLY_ERROR);
   });
 
   test("DELETE /api/2.0/ai/profiles/delete - the id is the whole body", async ({
@@ -585,62 +572,59 @@ test.describe("AI Profiles - the built-in provider types", () => {
     );
   });
 
-  test("POST /api/2.0/ai/profiles/create - a provider named the way section 4 spells it is not an identifier", async ({
+  test("POST /api/2.0/ai/profiles/create - the read-only gate refuses before section 4's human-readable provider names could be told apart from real identifiers", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Was a negative control: reaching the provider probe had to mean "this
+    // name resolved", so section 4's human-readable names (Google is `genai`,
+    // LM Studio is `lm-studio`) not binding was visible as "Unknown provider
+    // type" instead of a probe attempt. Fixed alongside BUG 83112, the
+    // read-only gate now refuses before provider-type resolution runs at all,
+    // so this distinction is no longer observable through this route — every
+    // one of these names gets the same 403 a real identifier would.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
 
-    // Negative control for the test above: reaching the provider probe has to
-    // mean "this name resolved", not "every name gets that far". Google is
-    // `genai` and LM Studio is `lm-studio`, so the human-readable names of
-    // section 4 must NOT bind.
     for (const providerType of NON_IDENTIFIERS) {
-      const { status, data } = await profiles.createProfile(
+      const { status, error } = await profiles.createProfile(
         "owner",
         probedProfile(providerType),
       );
-
-      expect(status, `${providerType} is not a provider identifier`).toBe(200);
-      expect(data?.success).toBe(false);
-      expect(data?.error?.message).toBe(
-        `Unknown provider type: ${providerType}`,
+      expect(status, providerType).toBe(403);
+      expect(error, providerType).toBe(
+        "AI profiles are read-only on this portal (managed by the AI gateway)",
       );
     }
   });
 
-  test("BUG 83112: POST /api/2.0/ai/profiles/create - the provider is dialled before the read-only gate refuses the request", async ({
+  test("BUG 83112 FIXED: POST /api/2.0/ai/profiles/create - the read-only gate refuses the request before the provider is dialled", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Used to dial the provider before the read-only gate ran: lm-studio
+    // reported its probe failure by quoting example.com's own page back,
+    // content the portal could only have fetched from the caller-supplied
+    // host — on a route that cannot create a profile under any circumstances.
+    // The gate now refuses up front, the same as any other create.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
 
-    // The tell is that the portal hands back CONTENT it could only have fetched
-    // from the caller's host: lm-studio reports the probe failure by quoting the
-    // upstream reply, and the reply is example.com's own page. A body that
-    // contains "Example Domain" cannot have been produced locally — the portal
-    // made the request itself, on a route that cannot create a profile under any
-    // circumstances.
-    //
-    // This replaces the old "Failed to connect" tell, which was measured on an
-    // `.invalid` host and is no longer reachable: the baseUrl guard now refuses an
-    // unresolvable host with a 400 before the provider is dialled at all. Egress to
-    // a resolvable public host is not guarded, so the bug itself is unchanged.
     const dialled = await profiles.createProfile(
       "owner",
       probedProfile("lm-studio"),
     );
-    expect(dialled.data?.success).toBe(false);
     expect(
-      dialled.data?.error?.message,
-      "the portal fetched the caller's host and quoted the reply back",
-    ).toContain("Example Domain");
+      dialled.status,
+      "the read-only gate refuses before the provider is dialled",
+    ).toBe(403);
+    expect(dialled.error).toBe(
+      "AI profiles are read-only on this portal (managed by the AI gateway)",
+    );
 
     // Positive control that the gate does exist for this exact body shape: swap
     // the caller's host for one that answers the probe and the same call is
@@ -655,12 +639,6 @@ test.describe("AI Profiles - the built-in provider types", () => {
     expect(gated.status, "a reachable provider hits the read-only gate").toBe(
       403,
     );
-
-    test.fail();
-    expect(
-      dialled.status,
-      "the read-only gate must refuse before the provider is dialled",
-    ).toBe(403);
   });
 
   test("BUG 83114: POST /api/2.0/ai/profiles/create - the `external` provider type answers 500", async ({
@@ -1262,11 +1240,6 @@ test.describe("AI Profiles - which field the model picker blames", () => {
     expect(noBaseUrl.status, "a request with no baseUrl").toBe(400);
     expect(noProviderType.status, "a request with no providerType").toBe(400);
 
-    test.fail();
-    // Measured: both answer "providerType and baseUrl required". So the form is
-    // told that two of its inputs are wrong when one of them was filled in
-    // correctly, and it cannot tell which one to highlight. `create` shows the
-    // shape this route is missing — a single `{field, message}` pair.
     expect(
       noBaseUrl.error,
       "a missing baseUrl is reported without blaming providerType",
@@ -1277,37 +1250,24 @@ test.describe("AI Profiles - which field the model picker blames", () => {
     ).not.toContain("baseUrl");
   });
 
-  test("BUG 83117: POST /api/2.0/ai/profiles/list-provider-models - an unknown provider type is answered with 502 instead of a validation error", async ({
+  test("BUG 83117 FIXED: POST /api/2.0/ai/profiles/list-provider-models - an unknown provider type is a validation error, not a 502", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Used to answer 502 "Failed to list provider models" — a gateway error for
+    // a name that is not a provider at all, with nothing in the response
+    // pointing at the provider selector, so a typo there was indistinguishable
+    // from an outage.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
-
-    // The control: on `create` the very same name is caught by provider
-    // resolution and named back to the caller, so the backend can tell an unknown
-    // provider type from an unreachable one.
-    const created = await profiles.createProfile(
-      "owner",
-      probedProfile("not-a-provider"),
-    );
-    expect(created.status, "create resolves the provider type first").toBe(200);
-    expect(created.data?.error?.message).toBe(
-      "Unknown provider type: not-a-provider",
-    );
 
     const { status, error } = await profiles.listProviderModels("owner", {
       providerType: "not-a-provider",
       baseUrl: "https://api.deepseek.com",
       apiKey: config.DEEPSEEK_API_KEY,
     });
-
-    test.fail();
-    // Measured: 502 "Failed to list provider models" — a gateway error for a name
-    // that is not a provider at all. Nothing in the response points at the
-    // provider selector, so a typo there is indistinguishable from an outage.
     expect(status, "an unknown provider type is a client error").toBe(400);
     expect(error, "and the response names what was not understood").toContain(
       "Unknown provider type",
@@ -1403,10 +1363,6 @@ test.describe("AI Profiles - local providers need no key", () => {
       baseUrl: LOCAL_SERVER_URL,
     });
 
-    test.fail();
-    // Measured: 200 `[]`. A form that gets that shows "no models" for a server
-    // that is not running, and the answer is indistinguishable from a running
-    // server with an empty catalogue — the case the `onlyoffice` test above pins.
     expect(status, "an unreachable gpt4all server is reported as such").toBe(
       502,
     );
@@ -1481,9 +1437,6 @@ test.describe("AI Profiles - the transport is not checked against the host", () 
       ).toEqual([]);
     }
 
-    test.fail();
-    // Measured: the anthropic transport drops `name` entirely, leaving the picker
-    // with nothing to write in the row next to the capability icons.
     expect(
       byTransport[AiBuiltinProviderType.Anthropic]
         .filter((model) => !model.name)

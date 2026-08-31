@@ -295,19 +295,22 @@ const MEMBER_OPS: MemberOp[] = [
   {
     // Not `serverType: "docspace"`: the built-in tools were hidden on
     // 2026-08-18 and a write naming them is accepted and dropped, which would
-    // make the read-back below fail for the roles that ARE allowed. Any other
-    // string is stored — see the server-types block in mcp.spec.ts.
+    // make the read-back below fail for the roles that ARE allowed. And not an
+    // invented name either — `serverType` used to be an open vocabulary but is
+    // now validated against a fixed list (see "the server type used to be an
+    // open vocabulary" in mcp.spec.ts, BUG XXXXX); this test is about role
+    // permissions, not that list, so it uses one of the valid values.
     label: "PUT /api/2.0/ai/tools/set-disabled",
     run: (tools, role, agentId) =>
       tools.setDisabledTools(role, {
-        serverType: "autotest-permission-server",
+        serverType: "web-search",
         toolNames: ["calculate"],
         agentId,
       }),
     expectAllowed: async ({ data }, tools, role, agentId) => {
       expect((data as McpMutationResult)?.success).toBe(true);
       const { data: disabled } = await tools.isToolDisabled(role, {
-        serverType: "autotest-permission-server",
+        serverType: "web-search",
         toolName: "calculate",
         agentId,
       });
@@ -683,19 +686,14 @@ test.describe("MCP - Custom server validation", () => {
     expect(Object.keys(data)).toContain("portal-server");
   });
 
-  test("BUG 82975: POST|PUT|DELETE /api/2.0/ai/tools/*-custom-server - an unknown agent id writes into the portal scope", async ({
+  test("BUG 82975 FIXED: POST|PUT|DELETE /api/2.0/ai/tools/*-custom-server - an unknown agent id is refused, not folded into the portal scope", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The reads above fall back to the portal scope, and the writes now follow
-    // them there: `add` and `replace-all` used to answer a hard 404 and leave the
-    // portal scope alone, and instead they land in it — `replace-all` replacing
-    // everything the portal had. `remove` has always validated nothing and
-    // reported success for an entity that does not exist.
-    //
-    // Same defect as the room-scoped write in mcp.spec.ts: any entityId the
-    // tools routes cannot resolve to an agent is silently treated as "no scope"
-    // rather than refused.
+    // Used to answer 200/404-mixed and let `add`/`replace-all` land in the
+    // portal scope for an entityId that resolves to nothing — `replace-all`
+    // replacing everything the portal had. All three writes now refuse an
+    // unknown agent id outright with 404, and the portal scope is left alone.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -719,17 +717,19 @@ test.describe("MCP - Custom server validation", () => {
       agentId: 999999999,
     });
 
+    for (const [label, result] of [
+      ["add", added],
+      ["replace-all", replaced],
+      ["remove", removed],
+    ] as const) {
+      expect(result.status, `${label} against an unknown agent id`).toBe(404);
+      expect(result.error, label).toContain('Entity "999999999" not found');
+    }
+
     const { data: portal } = await aiTools.listCustomServers("owner");
-
-    expect(removed.data?.success).toBe(true);
-    expect(removed.status).toBe(200);
-
-    test.fail();
     expect(portal, "the portal scope is neither written nor emptied").toEqual({
       "portal-server": SERVER_CONFIG,
     });
-    expect(added.status).toBe(404);
-    expect(replaced.status).toBe(404);
   });
 
   test("GET /api/2.0/ai/tools/get-custom-server - an unregistered name answers 200 with null", async ({

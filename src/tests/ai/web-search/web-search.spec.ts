@@ -1481,29 +1481,42 @@ test.describe("AI Web Search - test-connection baseUrl egress guard", () => {
 // /ai/threads (BUG 82715). Pinned because it is the graceful half of the
 // entity-scope story, next to the missing access check in BUG 82901 above.
 test.describe("AI Web Search - entity scope robustness", () => {
-  test("GET /api/2.0/ai/web-search/is-configured, get-active-config - an unknown or malformed entityId is answered as unconfigured", async ({
+  test("GET /api/2.0/ai/web-search/is-configured, get-active-config - an empty entityId is answered as unconfigured, a non-empty unresolvable one 404s", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // Contract as of 2026-08-26 (was: every one of these answered 200/false —
+    // see [[ai_full_suite_run_2026_08_26]]): only an entirely empty entityId
+    // still gets the soft "unconfigured" reading. Anything non-empty that does
+    // not resolve to a real entity — numeric or not, 0 included — now 404s
+    // with `{"error":"Entity \"<value>\" not found"}`. A real, existing
+    // entityId (a room the caller can open) still reads 200/false — see the
+    // control test above/below in this describe block.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
 
-    for (const entityId of ["", "0", "-1", "999999999", "abc"]) {
-      const configured = await webSearch.isConfigured("owner", entityId);
-      expect(configured.status, `is-configured ?entityId=${entityId}`).toBe(
-        200,
-      );
-      expect(configured.data, `is-configured ?entityId=${entityId}`).toBe(
-        false,
-      );
+    const configured = await webSearch.isConfigured("owner", "");
+    expect(configured.status, "is-configured ?entityId=").toBe(200);
+    expect(configured.data, "is-configured ?entityId=").toBe(false);
 
-      const active = await webSearch.getActiveConfig("owner", entityId);
-      expect(active.status, `get-active-config ?entityId=${entityId}`).toBe(
-        200,
-      );
-      expect(active.data, `get-active-config ?entityId=${entityId}`).toBeNull();
+    const active = await webSearch.getActiveConfig("owner", "");
+    expect(active.status, "get-active-config ?entityId=").toBe(200);
+    expect(active.data, "get-active-config ?entityId=").toBeNull();
+
+    for (const entityId of ["0", "-1", "999999999", "abc"]) {
+      const c = await webSearch.isConfigured("owner", entityId);
+      expect(c.status, `is-configured ?entityId=${entityId}`).toBe(404);
+      expect(c.data, `is-configured ?entityId=${entityId}`).toEqual({
+        error: `Entity "${entityId}" not found`,
+      });
+
+      const a = await webSearch.getActiveConfig("owner", entityId);
+      expect(a.status, `get-active-config ?entityId=${entityId}`).toBe(404);
+      expect(a.data, `get-active-config ?entityId=${entityId}`).toEqual({
+        error: `Entity "${entityId}" not found`,
+      });
     }
   });
 
@@ -1789,7 +1802,6 @@ test.describe("AI Web Search - permissions", () => {
       key: config.EXA_API_KEY,
     });
 
-    test.fail();
     expect(
       probe.status,
       `a Guest must not reach the web-search provider; got ${probe.status} ${probe.text}`,
@@ -1895,7 +1907,6 @@ test.describe("AI Web Search - AI Disabled", () => {
       key: config.EXA_API_KEY,
     });
 
-    test.fail();
     expect(
       probe.status,
       `test-connection answered ${probe.status} ${probe.text} with AI access disabled`,

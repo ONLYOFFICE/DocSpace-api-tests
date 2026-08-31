@@ -143,31 +143,30 @@ test.describe("GET /files/file/:fileId - Get file info permissions", () => {
     expect(status).toBe(403);
   });
 
-  test.fail(
-    "BUG 80752: GET /files/file/:fileId - Unauthenticated user gets 403 instead of 401",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Unauthenticated File Info",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 80752: GET /files/file/:fileId - Unauthenticated user returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Unauthenticated File Info",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileCreated } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest Unauthenticated File Info" },
-      });
-      const fileId = fileCreated.response!.id!;
+    const { data: fileCreated } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Unauthenticated File Info" },
+    });
+    const fileId = fileCreated.response!.id!;
 
-      const { status } = await apiSdk
-        .forAnonymous()
-        .files.getFileInfo({ fileId });
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.getFileInfo({ fileId });
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 });
 
 test.describe("PUT /files/file/:fileId - Update file permissions", () => {
@@ -466,34 +465,33 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
     expect((data as any).error.message).toBe("Access denied");
   });
 
-  test.fail(
-    "BUG 80752: PUT /files/file/:fileId - Unauthenticated user gets 403 instead of 401",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Room For Unauthenticated Update File",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 80752: PUT /files/file/:fileId - Unauthenticated user returns 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room For Unauthenticated Update File",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: created } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: {
-          title: "Autotest Unauthenticated Update File",
-        },
-      });
-      const fileId = created.response!.id!;
+    const { data: created } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest Unauthenticated Update File",
+      },
+    });
+    const fileId = created.response!.id!;
 
-      const { status } = await apiSdk.forAnonymous().files.updateFile({
-        fileId,
-        updateFile: { title: "Autotest Anon Renamed" },
-      });
+    const { status } = await apiSdk.forAnonymous().files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest Anon Renamed" },
+    });
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 });
 
 test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
@@ -2513,7 +2511,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
     expect(data.response!.sharedLink!.shareLink).toBeTruthy();
   });
 
-  test("BUG 81571: GET /files/file/:id/link - Unauthenticated user gets 403", async ({
+  test("BUG 81571: GET /files/file/:id/link - Unauthenticated user returns 401", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -2527,7 +2525,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
       .forAnonymous()
       .files.getFilePrimaryExternalLink({ id: fileId });
 
-    expect(status).toBe(403);
+    expect(status).toBe(401);
   });
 
   // BUG 81572: user without access should get 403 but server returns 200 with count:0
@@ -4352,39 +4350,37 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 81414: POST /files/file/referencedata - User without room access returns 200 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81414: POST /files/file/referencedata - User without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest RefData No Access Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest RefData No Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest RefData No Access File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest RefData No Access File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: openData } = await ownerApi.files.openEditFile({ fileId });
-      const fileKey = openData.response!.document!.referenceData!.fileKey!;
-      const instanceId =
-        openData.response!.document!.referenceData!.instanceId!;
+    const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+    const fileKey = openData.response!.document!.referenceData!.fileKey!;
+    const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
-      await apiSdk.addAuthenticatedMember("owner", "User");
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
-      const { status } = await apiSdk.forRole("user").files.getReferenceData({
-        getReferenceDataDtoInteger: { fileKey, instanceId },
-      });
+    const { status } = await apiSdk.forRole("user").files.getReferenceData({
+      getReferenceDataDtoInteger: { fileKey, instanceId },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   test("POST /files/file/referencedata - Guest with room Read access returns 200 with canEditRoom false", async ({
     apiSdk,
@@ -4428,41 +4424,39 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
     expect(data.response!.referenceData!.canEditRoom).toBe(false);
   });
 
-  test.fail(
-    "BUG 81414: POST /files/file/referencedata - Guest without room access returns 200 instead of 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81414: POST /files/file/referencedata - Guest without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest RefData Guest No Access Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest RefData Guest No Access Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: {
-          title: "Autotest RefData Guest No Access File",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest RefData Guest No Access File",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: openData } = await ownerApi.files.openEditFile({ fileId });
-      const fileKey = openData.response!.document!.referenceData!.fileKey!;
-      const instanceId =
-        openData.response!.document!.referenceData!.instanceId!;
+    const { data: openData } = await ownerApi.files.openEditFile({ fileId });
+    const fileKey = openData.response!.document!.referenceData!.fileKey!;
+    const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { status } = await apiSdk.forRole("guest").files.getReferenceData({
-        getReferenceDataDtoInteger: { fileKey, instanceId },
-      });
+    const { status } = await apiSdk.forRole("guest").files.getReferenceData({
+      getReferenceDataDtoInteger: { fileKey, instanceId },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("GET /files/file/:fileId/log - Get file history permissions", () => {
@@ -6830,20 +6824,18 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
     return { ownerApi, roomId, formId };
   }
 
-  // BUG 81441: POST /files/masterform/:fileId/checkfillformdraft returns 403 instead of 401 for unauthenticated requests
-  test.fail(
-    "BUG 81441: POST /files/masterform/:fileId/checkfillformdraft - Unauthenticated returns 401",
-    async ({ apiSdk }) => {
-      const { formId } = await setupForm(apiSdk);
+  test("BUG 81441: POST /files/masterform/:fileId/checkfillformdraft - Unauthenticated returns 401", async ({
+    apiSdk,
+  }) => {
+    const { formId } = await setupForm(apiSdk);
 
-      const { status } = await apiSdk.forAnonymous().files.checkFillFormDraft({
-        fileId: formId,
-        checkFillFormDraft: { version: 1 },
-      });
+    const { status } = await apiSdk.forAnonymous().files.checkFillFormDraft({
+      fileId: formId,
+      checkFillFormDraft: { version: 1 },
+    });
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 
   // Catches: if user without room access can read form drafts they have no access to
   test("POST /files/masterform/:fileId/checkfillformdraft - User without room access returns 403", async ({
