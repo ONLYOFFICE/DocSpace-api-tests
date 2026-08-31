@@ -59,22 +59,21 @@ test.describe("POST /files/@my/file", () => {
   });
 
   // Bug 80324: enableExternalExt: true returns 403 with NullReferenceException
-  test(
-    "BUG 80324: POST /files/@my/file - Title with .md extension and enableExternalExt keeps original extension",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data, status } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: {
-          title: "Autotest Document.md",
-          enableExternalExt: false,
-        },
-      });
+  test("BUG 80324: POST /files/@my/file - Title with .md extension and enableExternalExt keeps original extension", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data, status } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Document.md",
+        enableExternalExt: false,
+      },
+    });
 
-      expect(status).toBe(200);
-      expect(data.response!.title).toBe("Autotest Document.md");
-      expect(data.response!.id!).toBeGreaterThan(0);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe("Autotest Document.md");
+    expect(data.response!.id!).toBeGreaterThan(0);
+  });
 });
 
 test.describe("POST /files/:folderId/file", () => {

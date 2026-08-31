@@ -23,7 +23,10 @@ import { expect } from "@playwright/test";
 export function extractAmounts(text: string): number[] {
   // Normalise typographic minus signs (U+2212 −, U+2013 –) to ASCII hyphen so
   // the regex below matches negative numbers regardless of how the model typed them.
-  const cleaned = text.replace(/\$/g, "").replace(/,/g, "").replace(/[−–]/g, "-");
+  const cleaned = text
+    .replace(/\$/g, "")
+    .replace(/,/g, "")
+    .replace(/[−–]/g, "-");
   return Array.from(cleaned.matchAll(/-?\d+(?:\.\d+)?/g), (match) =>
     Number(match[0]),
   );
@@ -57,7 +60,10 @@ export function isNegatedClause(clause: string): boolean {
 function extractLastBlockWithIds(text: string, pattern: RegExp): string {
   // Use a fresh RegExp so we don't advance the caller's lastIndex.
   const probe = new RegExp(pattern.source, pattern.flags);
-  const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  const blocks = text
+    .split(/\n\s*\n/)
+    .map((b) => b.trim())
+    .filter(Boolean);
   for (let i = blocks.length - 1; i >= 0; i--) {
     probe.lastIndex = 0;
     if (probe.test(blocks[i])) return blocks[i];
@@ -181,7 +187,9 @@ export function expectExactIdSet(
     idPattern.flags.includes("g") ? idPattern.flags : `${idPattern.flags}g`,
   );
 
-  const textToScan = lastBlockOnly ? extractLastBlockWithIds(text, globalPattern) : text;
+  const textToScan = lastBlockOnly
+    ? extractLastBlockWithIds(text, globalPattern)
+    : text;
 
   const positive = new Set<string>();
   for (const clause of splitClauses(textToScan)) {

@@ -162,10 +162,18 @@ export async function attachViaKnowledge(
     fixture.fileName,
     "text/csv",
   );
-  expect(uploadStatus, `session upload of ${fixture.fileName}`).toBeGreaterThanOrEqual(200);
-  expect(uploadStatus, `session upload of ${fixture.fileName}`).toBeLessThan(300);
+  expect(
+    uploadStatus,
+    `session upload of ${fixture.fileName}`,
+  ).toBeGreaterThanOrEqual(200);
+  expect(uploadStatus, `session upload of ${fixture.fileName}`).toBeLessThan(
+    300,
+  );
   const uploaded = uploadedEntry(uploadData);
-  expect(uploaded?.id, `no file entry came back for ${fixture.fileName}`).toBeTruthy();
+  expect(
+    uploaded?.id,
+    `no file entry came back for ${fixture.fileName}`,
+  ).toBeTruthy();
 
   const vecStatus = await waitForVectorization(ownerApi, uploaded!.id);
   expect(vecStatus, `${fixture.fileName} vectorization`).toBe(
@@ -191,7 +199,10 @@ export async function attachViaKnowledge(
   let primed = false;
   const ask = async (prompt: string): Promise<AskResult> => {
     const adapted = prompt
-      .replace(/(?:the )?attached CSV file/gi, "the employee data in your knowledge base")
+      .replace(
+        /(?:the )?attached CSV file/gi,
+        "the employee data in your knowledge base",
+      )
       .replace(/\bCSV file\b/gi, "the employee data in your knowledge base");
     // Suffix to prevent the model from enumerating all records while analysing —
     // a row-by-row listing ("X002: 7585000.76") makes every ID appear in the

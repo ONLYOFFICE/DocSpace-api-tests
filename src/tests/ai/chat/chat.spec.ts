@@ -5934,14 +5934,18 @@ async function fileIdsIn(api: RoleApi, folderId: number): Promise<Set<number>> {
 async function stableFileIds(
   api: RoleApi,
   folderId: number,
-  { intervalMs = 3000, maxWaitMs = 30000 }: { intervalMs?: number; maxWaitMs?: number } = {},
+  {
+    intervalMs = 3000,
+    maxWaitMs = 30000,
+  }: { intervalMs?: number; maxWaitMs?: number } = {},
 ): Promise<Set<number>> {
   const deadline = Date.now() + maxWaitMs;
   let prev = await fileIdsIn(api, folderId);
   for (;;) {
     await new Promise((r) => setTimeout(r, intervalMs));
     const curr = await fileIdsIn(api, folderId);
-    if (curr.size === prev.size && [...curr].every((id) => prev.has(id))) return curr;
+    if (curr.size === prev.size && [...curr].every((id) => prev.has(id)))
+      return curr;
     if (Date.now() > deadline) return curr;
     prev = curr;
   }
