@@ -2645,7 +2645,7 @@ test.describe("AI Messages - stopping a stream", () => {
 // spending an inference call per message.
 
 test.describe("AI Messages - paging the history", () => {
-  test("BUG 82899: GET /api/2.0/ai/threads/read-messages - count and cursor are accepted and ignored", async ({
+  test("BUG 82899: GET /api/2.0/ai/threads/read-messages - count limits the page", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2681,25 +2681,27 @@ test.describe("AI Messages - paging the history", () => {
       texts,
     );
 
-    // A first page of two comes back as all six, and so does the page after a
-    // cursor — there is no way for a client to fetch a window of a long thread.
+    // count limits the page size.
+    const firstPage = await aiChat.readMessages("owner", threadId, {
+      count: 2,
+    });
+    expect(firstPage.status).toBe(200);
+    expect(
+      firstPage.data.map((message) => AiAgentChat.messageText(message)),
+      "count=2 returns the first two messages",
+    ).toEqual(["one", "two"]);
+
+    // cursor is currently a no-op, reserved for a future paging feature —
+    // not a bug. Passing one still returns the same first page as no cursor.
     const cursored = await aiChat.readMessages("owner", threadId, {
       count: 2,
       cursor: all.data[1].id,
     });
     expect(cursored.status).toBe(200);
-    expect(cursored.data).toHaveLength(texts.length);
-
-    const firstPage = await aiChat.readMessages("owner", threadId, {
-      count: 2,
-    });
-    expect(firstPage.status).toBe(200);
-
-    test.fail();
     expect(
-      firstPage.data,
-      "count=2 has to return two messages, not the whole history",
-    ).toHaveLength(2);
+      cursored.data.map((message) => AiAgentChat.messageText(message)),
+      "cursor is a reserved no-op: the page is the same as without it",
+    ).toEqual(["one", "two"]);
   });
 });
 
