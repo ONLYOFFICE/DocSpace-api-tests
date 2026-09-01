@@ -810,270 +810,23 @@ test.describe("AI Attachments - save-file", () => {
   });
 });
 
-test.describe("AI Attachments - save-image", () => {
-  // The narrowest possible reproduction of the outage that currently takes down
-  // every other image test in this suite, so the cause is stated once instead of
-  // being re-diagnosed from twelve unrelated red assertions.
-  //
-  // Started 2026-08-17 around 15:00 — an owner image draft was still created
-  // successfully at ~14:37 — and still reproducing on 2026-08-20, so it is a
-  // regression rather than a blip. `save-file` in the same controller answers
-  // 200 in the same portal, which is the control below: the request pipeline,
-  // the auth and the draft store all work, and only the image route is down.
-  //
-  // Blast radius, all failing on this and nothing else: the whole "save-image"
-  // and "save-images-many" contract (12 tests across attachments.spec.ts,
-  // attachments.permission.spec.ts and attachments.ai-disabled.spec.ts) plus
-  // every picture case of BUG 82758, BUG 82773 and BUG 82894, which now die in
-  // setup instead of reporting on their own defect. Those are deliberately left
-  // red: an image half of BUG 82773 that cannot run must not be reported as an
-  // expected failure of BUG 82773.
-  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - a valid image draft is stored, not answered with 500", async ({
-    apiSdk,
-  }) => {
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
-    // The control: the sibling route in the same controller, on the same portal,
-    // with the same auth. If this one ever breaks too the failure below stops
-    // being about images and the test has to be re-read.
-    const path = String(
-      await attachments.backingFileId("owner", "Autotest control.docx", "x"),
-    );
-    const file = await attachments.saveFile("owner", {
-      input: { path, content: "", type: FileType.Document },
-    });
-    expect(file.status, "save-file, the control, still answers").toBe(200);
-
-    const { status } = await attachments.saveImage("owner", {
-      input: { name: "autotest.png", base64: PNG_1X1, title: "Autotest PNG" },
-    });
-
-    test.fail();
-    expect(status).toBe(200);
-  });
-
-  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - Owner saves an image draft and reads it back", async ({
-    apiSdk,
-  }) => {
-    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
-    test.fail();
-
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
-    const { status, data } = await attachments.saveImage("owner", {
-      input: { name: "autotest.png", base64: PNG_1X1, title: "Autotest PNG" },
-    });
-
-    expect(status).toBe(200);
-    expectDraftShape(data, "image");
-    expect(data?.title).toBe("Autotest PNG");
-    expect(data?.base64).toBe(PNG_1X1);
-    // The file-only fields stay absent on an image.
-    expect(data?.content).toBeUndefined();
-    expect(data?.type).toBeUndefined();
-
-    const stored = await attachments.expectStored("owner", data!.id!);
-    expect(stored.kind).toBe("image");
-    // The heavy payload comes back in full on every read — there is no
-    // metadata-only mode on this route.
-    expect(stored.base64).toBe(PNG_1X1);
-  });
-
-  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - title falls back to name, and name is required", async ({
-    apiSdk,
-  }) => {
-    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
-    test.fail();
-
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
-    const named = await attachments.saveImage("owner", {
-      input: { name: "fallback.png", base64: PNG_1X1 },
-    });
-    expect(named.status).toBe(200);
-    expect(named.data?.title).toBe("fallback.png");
-
-    // A payload with neither used to be stored with no title at all.
-    const untitled = await attachments.saveImage("owner", {
-      input: { base64: PNG_1X1 },
-    });
-    expect(untitled.status).toBe(400);
-    expect(untitled.error).toBe(
-      "input.name is required and must be a non-empty string",
-    );
-  });
-
-  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - a large base64 payload is accepted and an oversized one is 413", async ({
-    apiSdk,
-  }) => {
-    // Same request-body limit as save-file, applied to the data URL. Worth its own
-    // test because a real screenshot pasted into the composer is base64, and base64
-    // is a third larger than the bytes it encodes — so this ceiling is reached at
-    // roughly a 90 KB image.
-    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
-    test.fail();
-
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    const large = `data:image/png;base64,${"A".repeat(LARGE_CONTENT_BYTES)}`;
-
-    const accepted = await attachments.saveImage("owner", {
-      input: { name: "large.png", base64: large },
-    });
-    expect(accepted.status).toBe(200);
-    expect(accepted.data?.base64).toHaveLength(large.length);
-
-    const oversized = await attachments.saveImage("owner", {
-      input: {
-        name: "oversized.png",
-        base64: `data:image/png;base64,${"A".repeat(OVERSIZED_CONTENT_BYTES)}`,
-      },
-    });
-    expect(oversized.status).toBe(413);
-  });
-
-  test("BUG 82751: POST /api/2.0/ai/attachments/save-image - an image draft with no payload at all is refused", async ({
-    apiSdk,
-  }) => {
-    // Blocked by BUG 83289 (open 2026-08-20, now presenting as a bare Express
-    // 404 "Not Found" instead of the original 500 — the route itself answers
-    // as unregistered): save-image is unreachable for everyone.
-    test.fail();
-
-    // `{ input: {} }` and even `{ input: "some string" }` used to create a
-    // record: an image attachment with neither a name nor any image data.
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
-    const empty = await attachments.saveImage("owner", { input: {} });
-    const asString = await attachments.saveImageRaw("owner", {
-      input: "not-an-object",
-    });
-
-    expect([empty.status, asString.status]).toEqual([400, 400]);
-    expect(empty.error).toBe(
-      "input.name is required and must be a non-empty string",
-    );
-  });
-
-  test("BUG 82752: POST /api/2.0/ai/attachments/save-image - base64 is stored without any validation", async ({
-    apiSdk,
-  }) => {
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    const payloads: Array<[string, string]> = [
-      ["no data-URL prefix", "iVBORw0KGgo="],
-      ["prefix only, no data", "data:image/png;base64,"],
-      ["not base64 at all", "data:image/png;base64,!!!not-base64!!!"],
-      ["a text/plain data URL", "data:text/plain;base64,aGVsbG8="],
-      ["a PDF data URL", "data:application/pdf;base64,JVBERi0="],
-      [
-        "an SVG with an event handler",
-        "data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+",
-      ],
-    ];
-
-    const statuses: number[] = [];
-    for (const [label, base64] of payloads) {
-      const { status, data } = await attachments.saveImage("owner", {
-        input: { name: "payload.png", base64 },
-      });
-      statuses.push(status);
-      if (status === 200) {
-        expect(data?.base64, label).toBe(base64);
-      }
-    }
-
-    test.fail();
-    expect(statuses).toEqual(payloads.map(() => 400));
-  });
-
-  test("BUG 82753: POST /api/2.0/ai/attachments/save-image - a malformed body is a 400", async ({
-    apiSdk,
-  }) => {
-    // Blocked by BUG 83289 (open 2026-08-20, now presenting as a bare Express
-    // 404 "Not Found" instead of the original 500): save-image is
-    // unreachable for everyone.
-    test.fail();
-
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    const bodies: unknown[] = [undefined, {}, { input: null }];
-
-    // Every one of these used to be a 500.
-    const statuses: number[] = [];
-    for (const body of bodies) {
-      statuses.push((await attachments.saveImageRaw("owner", body)).status);
-    }
-
-    expect(statuses).toEqual(bodies.map(() => 400));
-  });
-
-  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - an image draft comes back without a source either", async ({
-    apiSdk,
-  }) => {
-    // `source` matters most on images, since a generated one is exactly what the
-    // "tool" provenance is for — and it is dropped here too.
-    //
-    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
-    test.fail();
-
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
-    const { status, data } = await attachments.saveImage("owner", {
-      input: { name: "autotest.png", base64: PNG_1X1, source: "tool" },
-    });
-
-    expect(status).toBe(200);
-    expect(data?.kind).toBe("image");
-    expect(data?.base64).toBe(PNG_1X1);
-    expect(data?.source).toBeUndefined();
-
-    const stored = await attachments.expectStored("owner", data!.id!, "image");
-    expect(stored.source).toBeUndefined();
-  });
-
-  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - png, jpeg, gif and webp are all stored and read back byte for byte", async ({
-    apiSdk,
-  }) => {
-    // The formats a user can paste or drop into the composer. Every other test on
-    // this route uses the same 1x1 PNG data URL, which proves the route works and
-    // says nothing about the formats the feature promises — so this one sends real
-    // bytes of each and checks the payload survives the round trip unchanged.
-    //
-    // What it deliberately does NOT assert is a server-side format rule. There is
-    // none: save-image stores whatever base64 it is handed (BUG 82752 above), so
-    // "only images can be dropped" lives in the composer. The value here is the
-    // positive half — a picture a user really can attach comes back intact.
-    //
-    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
-    test.fail();
-
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    const images: Array<[string, string, Buffer]> = [
-      // Multi-pixel, not the 1x1 the rest of the suite uses: a payload with real
-      // length would show a server that truncates or re-encodes.
-      ["png", "image/png", createPng(16, 16)],
-      ["jpeg", "image/jpeg", createJpegBuffer()],
-      ["gif", "image/gif", createGifBuffer()],
-      ["webp", "image/webp", createWebpBuffer()],
-    ];
-
-    for (const [label, mime, bytes] of images) {
-      const base64 = `data:${mime};base64,${bytes.toString("base64")}`;
-      const name = `autotest.${label}`;
-
-      const { status, data } = await attachments.saveImage("owner", {
-        input: { name, base64 },
-      });
-
-      expect(status, `saving a ${label}`).toBe(200);
-      expectDraftShape(data, "image");
-      expect(data?.title, `title of the ${label}`).toBe(name);
-      expect(data?.base64, `payload of the ${label} on the save`).toBe(base64);
-
-      const stored = await attachments.expectStored("owner", data!.id!, label);
-      expect(stored.kind, `kind of the stored ${label}`).toBe("image");
-      expect(stored.base64, `payload of the stored ${label}`).toBe(base64);
-    }
-  });
-});
+// `POST /api/2.0/ai/attachments/save-image` and `save-images-many` are gone
+// for good, not just down: first measured as a 500 outage on 2026-08-17
+// (BUG 83289), later a bare Express 404 (route unregistered), and the
+// developer has since confirmed both were deliberately removed — the route
+// was for the AI plugin inside the editors and never ended up used there.
+// Attaching an image to a chat now goes through the same real-file path as
+// any other document: upload it (`POST /files/{folderId}/upload`, the way
+// `expectDeviceFileStored` does) and reference it by id through
+// `save-file`/`save-files-many`, which recognises a picture and answers
+// `kind: "image"` with the exact bytes back — verified live 2026-08-28.
+// There is nothing left to test about a route that will never come back, so
+// the describe that used to live here (its own request-body validation,
+// oversized-payload handling, the format sweep, etc.) was removed rather
+// than kept red. What's still worth pinning — a picture really does arrive
+// intact through the mechanism that replaced it — lives in the
+// "attaching a stored file by id" describe below, extended to sweep
+// png/jpeg/gif/webp instead of just png.
 
 test.describe("AI Attachments - batch saves", () => {
   test("POST /api/2.0/ai/attachments/save-files-many - saves a batch in order with unique ids", async ({
@@ -1118,31 +871,6 @@ test.describe("AI Attachments - batch saves", () => {
     expect(new Set(data!.map((item) => item?.id)).size).toBe(inputs.length);
     for (const item of data!) {
       expectDraftShape(item, "file");
-    }
-  });
-
-  test("BUG 83289: POST /api/2.0/ai/attachments/save-images-many - saves a batch in order with unique ids", async ({
-    apiSdk,
-  }) => {
-    // BUG 83289 (open 2026-08-20): save-images-many answers 500 for everyone.
-    test.fail();
-
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    const inputs = [
-      { name: "one.png", base64: PNG_1X1 },
-      { name: "two.png", base64: PNG_1X1 },
-    ];
-
-    const { status, data } = await attachments.saveImagesMany("owner", {
-      inputs,
-    });
-
-    expect(status).toBe(200);
-    expect(data).toHaveLength(inputs.length);
-    expect(data!.map((item) => item?.title)).toEqual(["one.png", "two.png"]);
-    expect(new Set(data!.map((item) => item?.id)).size).toBe(inputs.length);
-    for (const item of data!) {
-      expectDraftShape(item, "image");
     }
   });
 
@@ -1284,27 +1012,6 @@ test.describe("AI Attachments - batch saves", () => {
     }
 
     expect(statuses).toEqual(values.map(() => 400));
-  });
-
-  test("BUG 82755: POST /api/2.0/ai/attachments/save-images-many - an element with no payload is refused", async ({
-    apiSdk,
-  }) => {
-    // Blocked by BUG 83289 (open 2026-08-20, now presenting as a bare Express
-    // 404 "Not Found" instead of the original 500): save-images-many is
-    // unreachable for everyone.
-    test.fail();
-
-    // The empty element used to become a record of its own.
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
-    const { status, error } = await attachments.saveImagesMany("owner", {
-      inputs: [{ name: "ok.png", base64: PNG_1X1 }, {}],
-    });
-
-    expect(status).toBe(400);
-    expect(error).toBe(
-      "inputs[1]: input.name is required and must be a non-empty string",
-    );
   });
 });
 
@@ -1980,12 +1687,9 @@ test.describe("AI Attachments - delete", () => {
     expect(data?.success).toBe(true);
   });
 
-  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete - Owner deletes an image draft with a bare JSON string literal body", async ({
+  test("DELETE /api/2.0/ai/attachments/delete - Owner deletes an image draft with a bare JSON string literal body", async ({
     apiSdk,
   }) => {
-    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
-    test.fail();
-
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const id = await attachments.saveImageId("owner", {
       name: "delete.png",
@@ -2056,7 +1760,7 @@ test.describe("AI Attachments - delete", () => {
     );
   });
 
-  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not stop the real ones being deleted", async ({
+  test("DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not stop the real ones being deleted", async ({
     apiSdk,
   }) => {
     // This is the atomicity question for delete-many, and the one form of it that
@@ -2066,10 +1770,6 @@ test.describe("AI Attachments - delete", () => {
     // The repeated call is what makes the *absence* observable at all (a single
     // delete is intermittent, see "intermittent reads and deletes"); it is not
     // standing in for the contract of one call, which the test above covers.
-    //
-    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone.
-    test.fail();
-
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const fileId = await attachments.saveFileId("owner", {
       title: "Autotest batch-delete.docx",
@@ -2096,7 +1796,7 @@ test.describe("AI Attachments - delete", () => {
     await attachments.expectAbsent("owner", imageId, "deleted image draft");
   });
 
-  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete - removing one draft out of a composer's set leaves the others alone", async ({
+  test("DELETE /api/2.0/ai/attachments/delete - removing one draft out of a composer's set leaves the others alone", async ({
     apiSdk,
   }) => {
     // What the ✕ on one preview does. The tests above delete a lone draft or the
@@ -2108,11 +1808,6 @@ test.describe("AI Attachments - delete", () => {
     // a different question, and a failing one, pinned in "reads and deletes take
     // effect at once" — repeating it here is what keeps that known flake out of
     // this test's subject, which is the four survivors.
-    //
-    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone, and
-    // stageComposerDrafts below makes image drafts.
-    test.fail();
-
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const drafts = await stageComposerDrafts(attachments, {
       files: 3,
@@ -2762,7 +2457,7 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     );
   });
 
-  test("BUG 83289: POST /api/2.0/ai/ai/send-with-stream - a picture sent to a model without vision is accepted with no warning at all", async ({
+  test("POST /api/2.0/ai/ai/send-with-stream - a picture sent to a model without vision is accepted with no warning at all", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2783,11 +2478,6 @@ test.describe("AI Attachments - sending a message with an attachment", () => {
     // every model is blind (BUG 82773) and writing that in would freeze the bug
     // into the contract; once the bug is fixed, this test's subject — that
     // nothing refuses or warns — is unchanged and still measured.
-    //
-    // Blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
-    // everyone, so the picture below cannot be staged at all.
-    test.fail();
-
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -3044,7 +2734,7 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     expect(sniffed.status, "ZIP magic bytes under a .txt name").toBe(400);
   });
 
-  test("BUG 83289: POST /api/2.0/ai/threads/append-user-message - a message at the cap carries all five files and all five images", async ({
+  test("POST /api/2.0/ai/threads/append-user-message - a message at the cap carries all five files and all five images", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3053,11 +2743,6 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     // "this route accepts any attachments list, a legal one included". Ten is
     // stored verbatim and in order, so the list is not truncated, reordered or
     // split by kind on the way in.
-    //
-    // Blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
-    // everyone, and the five images below cannot be staged.
-    test.fail();
-
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -3281,7 +2966,7 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     }
   });
 
-  test("BUG 83289: POST /api/2.0/ai/threads/append-user-message - a draft staged in one thread stays readable and can still be sent from another", async ({
+  test("POST /api/2.0/ai/threads/append-user-message - a draft staged in one thread stays readable and can still be sent from another", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3293,11 +2978,6 @@ test.describe("AI Attachments - client-side rules on the server", () => {
     //
     // Not a TTL claim: this says nothing about whether a sweeper eventually
     // collects an abandoned draft, only that the switch does not.
-    //
-    // Blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
-    // everyone, and stageComposerDrafts below makes an image draft.
-    test.fail();
-
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -3993,64 +3673,79 @@ test.describe("AI Attachments - attaching a stored file by id", () => {
     }
   });
 
-  test("POST /api/2.0/ai/attachments/save-file - a picture attached by id comes back as an image draft carrying the file's bytes", async ({
+  test("POST /api/2.0/ai/attachments/save-file - a picture attached by id comes back as an image draft carrying the file's bytes, in every format the composer accepts", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // `.png` appears in the format sweep above as a status and nothing more: it
-    // answers 200, and no test said what that 200 contains. It matters, because
-    // a picture chosen from DocSpace is the same product feature as a picture
-    // dropped into the composer — one arrives as base64 through save-image, the
-    // other by id through this route — and both have to end in an attachment
-    // that carries the picture rather than an empty document.
+    // The route is cleverer here than anywhere else in this file: it
+    // recognises the image, switches `kind` to "image" on its own and hands
+    // back the file's bytes as a data URL, byte for byte. That is not in
+    // tension with "a .docx saved as FileType.Image stays a file" in the
+    // save-file describe — `kind` follows the file behind `path`, never the
+    // `type` a client sends.
     //
-    // They do end in the same place, and the route is cleverer here than
-    // anywhere else in this file: it recognises the image, switches `kind` to
-    // "image" on its own and hands back the file's bytes as a data URL, byte for
-    // byte. That is not in tension with "a .docx saved as FileType.Image stays a
-    // file" in the save-file describe — `kind` follows the file behind `path`,
-    // never the `type` a client sends.
+    // Sweeps the formats a user can paste or drop into the composer — save-image
+    // (which used to own this sweep) is gone by design, this route is the only
+    // way left to attach a picture, so it has to carry the same promise for all
+    // four, not just .png. Multi-pixel, not a 1x1 stub: a payload with real
+    // length would show a server that truncates or re-encodes.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
     const { data: myFolder } = await ownerApi.folders.getMyFolder({});
-    const name = `autotest-picture-${apiSdk.faker.generateString(6)}.png`;
-    const bytes = createPng(16, 16);
-    const stored = await expectDeviceFileStored(
-      apiSdk,
-      "owner",
-      myFolder.response!.current!.id!,
-      name,
-      bytes,
-      "image/png",
-    );
-    const expectedBase64 = `data:image/png;base64,${bytes.toString("base64")}`;
+    const folderId = myFolder.response!.current!.id!;
 
-    const { status, data } = await attachDocSpaceFile(
-      attachments,
-      "owner",
-      stored.id,
-      name,
-    );
-    expect(status).toBe(200);
-    expect(data?.title).toBe(name);
-    expect(data?.path).toBe(`${stored.id}/${name}`);
-    expect(data?.kind, "the endpoint does not decide the kind here").toBe(
-      "image",
-    );
-    // Not re-encoded and not re-compressed: the same bytes that were uploaded,
-    // which is what makes this attachment interchangeable with one built by
-    // save-image from the same picture.
-    expect(data?.base64).toBe(expectedBase64);
-    expect(
-      data?.content,
-      "a picture carries no extracted text",
-    ).toBeUndefined();
+    const images: Array<[string, string, Buffer]> = [
+      ["png", "image/png", createPng(16, 16)],
+      ["jpeg", "image/jpeg", createJpegBuffer()],
+      ["gif", "image/gif", createGifBuffer()],
+      ["webp", "image/webp", createWebpBuffer()],
+    ];
 
-    const draft = await attachments.expectStored("owner", data!.id!, "picture");
-    expect(draft.kind).toBe("image");
-    expect(draft.base64).toBe(expectedBase64);
+    for (const [label, mime, bytes] of images) {
+      const name = `autotest-picture-${apiSdk.faker.generateString(6)}.${label}`;
+      const stored = await expectDeviceFileStored(
+        apiSdk,
+        "owner",
+        folderId,
+        name,
+        bytes,
+        mime,
+      );
+      const expectedBase64 = `data:${mime};base64,${bytes.toString("base64")}`;
+
+      const { status, data } = await attachDocSpaceFile(
+        attachments,
+        "owner",
+        stored.id,
+        name,
+      );
+      expect(status, `attaching a .${label}`).toBe(200);
+      expect(data?.title, `title of the ${label}`).toBe(name);
+      expect(data?.path).toBe(`${stored.id}/${name}`);
+      expect(
+        data?.kind,
+        `the endpoint does not decide the kind here (${label})`,
+      ).toBe("image");
+      // Not re-encoded and not re-compressed: the same bytes uploaded.
+      expect(data?.base64, `payload of the ${label} on the attach`).toBe(
+        expectedBase64,
+      );
+      expect(
+        data?.content,
+        `a picture carries no extracted text (${label})`,
+      ).toBeUndefined();
+
+      const draft = await attachments.expectStored(
+        "owner",
+        data!.id!,
+        `${label} picture`,
+      );
+      expect(draft.kind, `kind of the stored ${label}`).toBe("image");
+      expect(draft.base64, `payload of the stored ${label}`).toBe(
+        expectedBase64,
+      );
+    }
   });
 
   test("POST /api/2.0/ai/attachments/save-file - a stored file the portal cannot read as text is refused", async ({
