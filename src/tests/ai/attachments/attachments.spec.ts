@@ -1742,7 +1742,7 @@ test.describe("AI Attachments - delete", () => {
     );
   });
 
-  test("DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not stop the real ones being deleted", async ({
+  test("BUG 83289: DELETE /api/2.0/ai/attachments/delete-many - an unknown id in the batch does not stop the real ones being deleted", async ({
     apiSdk,
   }) => {
     // This is the atomicity question for delete-many, and the one form of it that
