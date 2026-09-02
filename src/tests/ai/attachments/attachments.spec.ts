@@ -810,24 +810,6 @@ test.describe("AI Attachments - save-file", () => {
   });
 });
 
-// `POST /api/2.0/ai/attachments/save-image` and `save-images-many` are gone
-// for good, not just down: first measured as a 500 outage on 2026-08-17
-// (BUG 83289), later a bare Express 404 (route unregistered), and the
-// developer has since confirmed both were deliberately removed — the route
-// was for the AI plugin inside the editors and never ended up used there.
-// Attaching an image to a chat now goes through the same real-file path as
-// any other document: upload it (`POST /files/{folderId}/upload`, the way
-// `expectDeviceFileStored` does) and reference it by id through
-// `save-file`/`save-files-many`, which recognises a picture and answers
-// `kind: "image"` with the exact bytes back — verified live 2026-08-28.
-// There is nothing left to test about a route that will never come back, so
-// the describe that used to live here (its own request-body validation,
-// oversized-payload handling, the format sweep, etc.) was removed rather
-// than kept red. What's still worth pinning — a picture really does arrive
-// intact through the mechanism that replaced it — lives in the
-// "attaching a stored file by id" describe below, extended to sweep
-// png/jpeg/gif/webp instead of just png.
-
 test.describe("AI Attachments - batch saves", () => {
   test("POST /api/2.0/ai/attachments/save-files-many - saves a batch in order with unique ids", async ({
     apiSdk,
