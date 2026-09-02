@@ -1333,7 +1333,7 @@ test.describe("AI Threads - listing", () => {
     expect(data.map((thread) => thread.threadId)).toEqual([keeper]);
   });
 
-  test("BUG 82825: GET /api/2.0/ai/threads/list - count, cursor and query are accepted and ignored", async ({
+  test("BUG 82825: GET /api/2.0/ai/threads/list - count, cursor and query are honored", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1359,35 +1359,33 @@ test.describe("AI Threads - listing", () => {
     const all = await aiChat.listThreads("owner", agentId);
     expect(all.data).toHaveLength(3);
 
-    // Paging: a count of 1 still returns everything, so a client cannot page and
-    // a portal with thousands of threads has no way to ask for fewer.
+    // Paging: count limits the page size.
     const paged = await aiChat.listThreads("owner", agentId, { count: 1 });
     expect(paged.status).toBe(200);
-    expect(paged.data, "count=1 returns the whole list").toHaveLength(3);
+    expect(paged.data, "count=1 returns a single thread").toHaveLength(1);
 
     const cursored = await aiChat.listThreads("owner", agentId, {
       count: 2,
       cursor: "1",
     });
-    expect(cursored.data).toHaveLength(3);
+    expect(cursored.data, "count=2 returns two threads").toHaveLength(2);
 
-    // Search: a query that matches one title returns all three, and a query that
-    // matches nothing returns all three as well — the filter is not applied, so
-    // the sidebar search of 8.2 has to be done client-side.
+    // Search: query filters by title.
     const matching = await aiChat.listThreads("owner", agentId, {
       query: "Alpha",
     });
-    expect(matching.data).toHaveLength(3);
+    expect(
+      matching.data.map((thread) => thread.title),
+      "a query matching one title returns only that thread",
+    ).toEqual(["Alpha thread"]);
 
     const notMatching = await aiChat.listThreads("owner", agentId, {
       query: "nothing-matches-this",
     });
     expect(notMatching.status).toBe(200);
-
-    test.fail();
     expect(
       notMatching.data,
-      "a query matching no title must return no threads",
+      "a query matching no title returns no threads",
     ).toEqual([]);
   });
 });
