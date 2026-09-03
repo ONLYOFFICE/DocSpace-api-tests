@@ -52,8 +52,10 @@ test.describe("GET /files/rooms/covers - access control", () => {
     expect(status).toBe(403);
   });
 
+  // In the UI, this request is what the room-group creation dialog depends on -
+  // its 403 for Guest is why guests can't create a room group there.
   test.fail(
-    "BUG XXXXX: GET /files/rooms/covers - Guest with room access still cannot get covers list when creating a room group",
+    "BUG XXXXX: GET /files/rooms/covers - Guest with room access still gets 403 instead of 200",
     async ({ apiSdk }) => {
       const owner = apiSdk.forRole("owner");
 
