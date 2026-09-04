@@ -5112,18 +5112,19 @@ test.describe("AI Chat - the model of an agent room", () => {
     ).toBe(stored);
   });
 
-  test("BUG 83160: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is answered in an agent too", async ({
+  test("BUG 83160 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is refused in an agent too", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // The room half of this is in "the model of one thread": an id the backend
-    // cannot resolve is dropped in silence, the question is answered by whatever
-    // model was picked instead, and the client is told nothing. Same defect,
-    // same number — repeated here because the consequence is not the same. In a
-    // room the user can see the picker is pointing at a model that has gone away
-    // and choose another; in an agent there is nothing to look at and nothing to
-    // change, so every turn of every conversation in it silently runs on a model
-    // neither the author nor the user chose.
+    // cannot resolve used to be dropped in silence, the question answered by
+    // whatever model was picked instead, and the client told nothing. Same
+    // defect, same number — repeated here because the consequence was not the
+    // same. In a room the user can see the picker is pointing at a model that
+    // has gone away and choose another; in an agent there is nothing to look at
+    // and nothing to change, so every turn of every conversation in it would
+    // silently run on a model neither the author nor the user chose. Now
+    // refused outright, matching the room-scope fix above.
     //
     // Reachable through a plain client, too: an agent built on a profile that is
     // later deleted leaves exactly this id in the composer's hands.
@@ -5157,30 +5158,27 @@ test.describe("AI Chat - the model of an agent room", () => {
       timeoutMs: STREAM_CAP_MS,
     });
 
+    // Fix-agnostic: a 4xx, or an `error` frame inside the 200 the way a model
+    // failure is reported. Only silent success fails this.
+    expect(
+      bad.status !== 200 || bad.streamError !== undefined,
+      "a model choice the backend cannot resolve is reported, not dropped",
+    ).toBe(true);
+
     // The thread was not corrupted — it neither took the unresolvable id nor
-    // lost the agent's model. Asserted before the report, so a fix cannot land
-    // on a suite that has stopped checking this.
+    // lost the agent's model.
     expect(
       (await aiChat.getThread("owner", threadId)).data?.profileId,
       "the thread stays on the agent's model",
     ).toBe(first.id);
 
-    // The reply is only read while the send is accepted: a fix that refuses it
-    // leaves nothing to wait for, and this has to report an unexpected pass
-    // rather than time out here.
+    // The reply is only read while the send is accepted: a refusal leaves
+    // nothing to wait for.
     if (bad.status === 200 && bad.streamError === undefined) {
       expectHealthyAssistantReply(
         await aiChat.waitForAssistantReply("owner", threadId),
       );
     }
-
-    // Fix-agnostic: a 4xx, or an `error` frame inside the 200 the way a model
-    // failure is reported. Only today's silent success fails.
-    test.fail();
-    expect(
-      bad.status !== 200 || bad.streamError !== undefined,
-      "a model choice the backend cannot resolve is reported, not dropped",
-    ).toBe(true);
   });
 
   test("GET /api/2.0/ai/profiles/list - the catalogue is served whole inside an agent, for a member as well", async ({
@@ -6019,10 +6017,11 @@ test.describe("AI Chat - image generation", () => {
 
     // …which is the engine's own: no client offered it, and the tools API does
     // not advertise it — nor anything else, the catalogue publishes nothing at
-    // all now (see the system tools block in mcp.spec.ts).
+    // all now (an empty `{groups: {}, errors: {}}` wrapper — see the system
+    // tools block in mcp.spec.ts).
     const system = await aiTools.listSystemTools("owner");
     expect(
-      Object.values(system.data ?? {}).flatMap((tools) =>
+      Object.values(system.data?.groups ?? {}).flatMap((tools) =>
         (tools ?? []).map((tool) => tool.name),
       ),
       "generate_image is server-side, not an advertised DocSpace tool",
@@ -7200,15 +7199,16 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
 });
 
 test.describe("AI Chat - a failure the chat cannot show", () => {
-  test('BUG 83045: POST /api/2.0/ai/ai/send-with-stream - a profileId the backend cannot parse answers a bare "stream error"', async ({
+  test("BUG 83045 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId the backend cannot parse is refused with 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Every failure above arrives with a code. This one does not: a `profileId`
-    // that is not a GUID gets HTTP 200 whose entire body is
-    // `{"type":"error","message":"stream error"}` — no code, no field name, and
-    // nothing stored in the thread, so the chat has neither an answer nor a
-    // failure to render and nothing to look a translation up by.
+    // Every other failure in this describe arrives with a code. This one used
+    // not to: a `profileId` that is not a GUID got HTTP 200 whose entire body
+    // was `{"type":"error","message":"stream error"}` — no code, no field name,
+    // and nothing stored in the thread, so the chat had neither an answer nor a
+    // failure to render and nothing to look a translation up by. Now refused
+    // outright with a plain 400, matching the rest of this surface.
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -7246,10 +7246,17 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
       timeoutMs: STREAM_CAP_MS,
     });
 
-    // Nothing was stored: the question is gone with the answer.
+    // A request the backend cannot even parse is reported as a malformed
+    // request, the way the rest of this surface answers 400 with a message —
+    // not the old bare, untranslatable `{"type":"error","message":"stream error"}`.
+    expect(
+      { status: bad.status, streamError: bad.streamError },
+      "a request the backend cannot run says what was wrong with it",
+    ).toEqual({ status: 400, streamError: undefined });
+
+    // The refusal never touched the thread: still just the control turn.
     const afterBad = await aiChat.readMessages("owner", threadId);
     expect(afterBad.status).toBe(200);
-    test.fail();
     expect(AiAgentChat.userMessages(afterBad.data)).toHaveLength(1);
     expect(AiAgentChat.assistantMessages(afterBad.data)).toHaveLength(1);
     expect(AiAgentChat.assistantStatus(afterBad.data)?.error).toBeUndefined();
@@ -7265,16 +7272,6 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
       await aiChat.waitForAssistantReplies("owner", threadId, 2, 120000),
       2,
     );
-
-    // What is missing is the report. A request the backend cannot even parse is
-    // a malformed request, which is what the rest of this surface answers 400
-    // with a message to; `{"type":"error","message":"stream error"}` is neither
-    // showable nor translatable.
-
-    expect(
-      { status: bad.status, streamError: bad.streamError },
-      "a request the backend cannot run says what was wrong with it",
-    ).toEqual({ status: 400, streamError: undefined });
   });
 
   test("POST /api/2.0/ai/ai/send-with-stream - a message past the request size limit is refused without touching the thread", async ({

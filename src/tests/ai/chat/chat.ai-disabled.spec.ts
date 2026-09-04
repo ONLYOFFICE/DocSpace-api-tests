@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
-import { AiTools } from "@/src/helpers/ai-tools";
+import { AiTools, EMPTY_TOOL_CATALOGUE } from "@/src/helpers/ai-tools";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
   LOW_BALANCE_THRESHOLD,
@@ -414,7 +414,7 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
     // 200, not a list of tools.
     const systemTools = await tools.listSystemTools("owner");
     expect(systemTools.status).toBe(200);
-    expect(systemTools.data).toEqual({});
+    expect(systemTools.data).toEqual(EMPTY_TOOL_CATALOGUE);
 
     const addedServer = await tools.addCustomServer("owner", {
       name: "autotest-unpaid-server",
