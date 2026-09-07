@@ -43,20 +43,17 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner updates TFA settings", () =>
     expect(typeof data.response).toBe("boolean");
   });
 
-  // Docs: PUT /settings/tfaapp returns 405 "SMS settings are not available"
-  // when no SMS provider is configured. Live API returns 403 instead.
-  test.fail(
-    "BUG 82970: PUT /api/2.0/settings/tfaapp - should return 405 when no SMS provider is configured, but API returns 403",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.Sms },
-        });
+  test("BUG 82970: PUT /api/2.0/settings/tfaapp - returns 405 when no SMS provider is configured", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: { type: TfaRequestsDtoType.Sms },
+      });
 
-      expect(status).toBe(405);
-    },
-  );
+    expect(status).toBe(405);
+  });
 });
 
 test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values", () => {
@@ -462,20 +459,17 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - Owner updates TFA settings
   // DocSpace-e2e-tests project instead (Security > Two-Factor Authentication
   // tests), not here.
 
-  // Docs: 405 "SMS settings are not available" when no SMS provider is
-  // configured. Live API returns 403 instead.
-  test.fail(
-    "BUG 82974: PUT /api/2.0/settings/tfaappwithlink - should return 405 when no SMS provider is configured, but API returns 403",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .tfaSettings.updateTfaSettingsLink({
-          tfaRequestsDto: { type: TfaRequestsDtoType.Sms },
-        });
+  test("BUG 82974: PUT /api/2.0/settings/tfaappwithlink - returns 405 when no SMS provider is configured", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettingsLink({
+        tfaRequestsDto: { type: TfaRequestsDtoType.Sms },
+      });
 
-      expect(status).toBe(405);
-    },
-  );
+    expect(status).toBe(405);
+  });
 });
 
 test.describe("POST /api/2.0/settings/tfaapp/validate - Owner validates a TFA code", () => {
@@ -535,30 +529,25 @@ test.describe("GET+PUT /api/2.0/settings/tfaappcodes|tfaappnewcodes - Owner mana
     expect(data.response!.length).toBeGreaterThan(0);
   });
 
-  // Docs: 405 "TFA application settings are not available" when TFA App is
-  // disabled. Live API returns 403 instead.
-  test.fail(
-    "BUG 82976: GET /api/2.0/settings/tfaappcodes - should return 405 while TFA App is disabled, but API returns 403",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .tfaSettings.getTfaAppCodes();
+  test("BUG 82976: GET /api/2.0/settings/tfaappcodes - returns 405 while TFA App is disabled", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.getTfaAppCodes();
 
-      expect(status).toBe(405);
-    },
-  );
+    expect(status).toBe(405);
+  });
 
-  // Same doc/behavior mismatch as above.
-  test.fail(
-    "BUG 82978: PUT /api/2.0/settings/tfaappnewcodes - should return 405 while TFA App is disabled, but API returns 403",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .tfaSettings.updateTfaAppCodes();
+  test("BUG 82978: PUT /api/2.0/settings/tfaappnewcodes - returns 405 while TFA App is disabled", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaAppCodes();
 
-      expect(status).toBe(405);
-    },
-  );
+    expect(status).toBe(405);
+  });
 
   test("PUT /api/2.0/settings/tfaappnewcodes - Owner regenerates backup codes", async ({
     apiSdk,
@@ -794,21 +783,18 @@ test.describe("GET+PUT /api/2.0/settings/tfaappcodes|tfaappnewcodes, GET /api/2.
 });
 
 test.describe("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks another user's TFA app", () => {
-  // Docs: 405 "TFA application settings are not available" when TFA App is
-  // disabled. Live API returns 403 instead.
-  test.fail(
-    "BUG 82983: PUT /api/2.0/settings/tfaappnewapp - should return 405 while TFA App is disabled, but API returns 403",
-    async ({ apiSdk }) => {
-      const created = await apiSdk.addMember("owner", "User");
-      const userId = created.data.response!.id!;
+  test("BUG 82983: PUT /api/2.0/settings/tfaappnewapp - returns 405 while TFA App is disabled", async ({
+    apiSdk,
+  }) => {
+    const created = await apiSdk.addMember("owner", "User");
+    const userId = created.data.response!.id!;
 
-      const { status } = await apiSdk
-        .forRole("owner")
-        .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: userId } });
+    const { status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: userId } });
 
-      expect(status).toBe(405);
-    },
-  );
+    expect(status).toBe(405);
+  });
 
   test("PUT /api/2.0/settings/tfaappnewapp - a malformed id is rejected with a validation error", async ({
     apiSdk,

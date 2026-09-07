@@ -172,62 +172,51 @@ test.describe("GET /api/2.0/settings/security/security - Get web items security 
     ]);
   });
 
-  // BUG 83192/83193: this endpoint returns full user profiles (id, displayName,
-  // avatar, profileUrl - which embeds the user's email in a search query)
-  // for anyone listed in a web item's `subjects`, to ANY authenticated
-  // caller including Guest and plain User. People API's own
-  // getProfileByUserId denies both roles 403 "Access denied" for the same
-  // lookup (see profiles.permissions.spec.ts) - a non-privileged member can
-  // see a portal member's PII here that People itself explicitly refuses to
-  // show them, just by knowing (or omitting) a webItemId that has that
-  // member as a subject.
-  test.fail(
-    "BUG 83192: GET /api/2.0/settings/security/security - Guest sees another user's profile info here, which the People API itself blocks for Guest",
-    async ({ apiSdk }) => {
-      const id = crypto.randomUUID();
-      const { data: target } = await apiSdk.addMember("owner", "User");
-      const targetId = target.response!.id!;
+  test("BUG 83192: GET /api/2.0/settings/security/security - Guest does not see another user's profile info that the People API blocks for Guest", async ({
+    apiSdk,
+  }) => {
+    const id = crypto.randomUUID();
+    const { data: target } = await apiSdk.addMember("owner", "User");
+    const targetId = target.response!.id!;
 
-      await apiSdk.forRole("owner").security.setWebItemSecurity({
-        webItemSecurityRequestsDto: { id, enabled: true, subjects: [targetId] },
-      });
+    await apiSdk.forRole("owner").security.setWebItemSecurity({
+      webItemSecurityRequestsDto: { id, enabled: true, subjects: [targetId] },
+    });
 
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "Guest",
-      );
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
 
-      const { data: securityView } =
-        await guestApi.security.getWebItemSettingsSecurityInfo({ ids: [id] });
-      const leakedUserIds = securityView.response?.[0].users?.map((u) => u.id);
+    const { data: securityView } =
+      await guestApi.security.getWebItemSettingsSecurityInfo({ ids: [id] });
+    const leakedUserIds = securityView.response?.[0].users?.map((u) => u.id);
 
-      expect(leakedUserIds).not.toContain(targetId);
-    },
-  );
+    expect(leakedUserIds).not.toContain(targetId);
+  });
 
-  test.fail(
-    "BUG 83193: GET /api/2.0/settings/security/security - User sees another user's profile info here, which the People API itself blocks for User",
-    async ({ apiSdk }) => {
-      const id = crypto.randomUUID();
-      const { data: target } = await apiSdk.addMember("owner", "User");
-      const targetId = target.response!.id!;
+  test("BUG 83193: GET /api/2.0/settings/security/security - User does not see another user's profile info that the People API blocks for User", async ({
+    apiSdk,
+  }) => {
+    const id = crypto.randomUUID();
+    const { data: target } = await apiSdk.addMember("owner", "User");
+    const targetId = target.response!.id!;
 
-      await apiSdk.forRole("owner").security.setWebItemSecurity({
-        webItemSecurityRequestsDto: { id, enabled: true, subjects: [targetId] },
-      });
+    await apiSdk.forRole("owner").security.setWebItemSecurity({
+      webItemSecurityRequestsDto: { id, enabled: true, subjects: [targetId] },
+    });
 
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
 
-      const { data: securityView } =
-        await userApi.security.getWebItemSettingsSecurityInfo({ ids: [id] });
-      const leakedUserIds = securityView.response?.[0].users?.map((u) => u.id);
+    const { data: securityView } =
+      await userApi.security.getWebItemSettingsSecurityInfo({ ids: [id] });
+    const leakedUserIds = securityView.response?.[0].users?.map((u) => u.id);
 
-      expect(leakedUserIds).not.toContain(targetId);
-    },
-  );
+    expect(leakedUserIds).not.toContain(targetId);
+  });
 });
 
 test.describe("GET /api/2.0/settings/security/{id} - Get a single web item's availability", () => {
@@ -326,52 +315,42 @@ test.describe("PUT /api/2.0/settings/security/access - Bulk-set access to web it
   });
 });
 
-// A malformed (non-GUID) id crashes these three endpoints with an unhandled
-// 500 (System.FormatException: "Unrecognized Guid format") instead of a
-// clean 400 - confirmed live and reproducible. getWebItemSecurityInfo is NOT
-// affected: its id is bound as a typed Guid route parameter, so ASP.NET's
-// own model binding rejects a malformed id with 404 before the controller
-// method ever runs - the other three take the id as a plain string and only
-// parse it manually inside WebItemSecurity.GetSecurityInfoAsync, uncaught.
-test.describe("Malformed web-item ids crash instead of returning a validation error", () => {
-  test.fail(
-    "BUG 83186: GET /api/2.0/settings/security/security - a malformed id should return 400, not crash with 500",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .security.getWebItemSettingsSecurityInfo({ ids: ["not-a-guid"] });
+test.describe("Malformed web-item ids return a validation error", () => {
+  test("BUG 83186: GET /api/2.0/settings/security/security - a malformed id returns 400", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .security.getWebItemSettingsSecurityInfo({ ids: ["not-a-guid"] });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 83187: PUT /api/2.0/settings/security/security - a malformed id should return 400, not crash with 500",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .security.setWebItemSecurity({
-          webItemSecurityRequestsDto: { id: "not-a-guid", enabled: false },
-        });
+  test("BUG 83187: PUT /api/2.0/settings/security/security - a malformed id returns 400", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .security.setWebItemSecurity({
+        webItemSecurityRequestsDto: { id: "not-a-guid", enabled: false },
+      });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 83190: PUT /api/2.0/settings/security/access - a malformed id should return 400, not crash with 500",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .security.setAccessToWebItems({
-          webItemsSecurityRequestsDto: {
-            items: [{ key: "not-a-guid", value: true }],
-          },
-        });
+  test("BUG 83190: PUT /api/2.0/settings/security/access - a malformed id returns 400", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .security.setAccessToWebItems({
+        webItemsSecurityRequestsDto: {
+          items: [{ key: "not-a-guid", value: true }],
+        },
+      });
 
-      expect(status).toBe(400);
-    },
-  );
+    expect(status).toBe(400);
+  });
 });
 
 const PRODUCT_ID_ALL = "00000000-0000-0000-0000-000000000000";
