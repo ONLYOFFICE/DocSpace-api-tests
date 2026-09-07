@@ -1479,6 +1479,65 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info - rol
   });
 });
 
+test.describe("GET /api/2.0/files/folder/{id}/share - Get folder security info - access control", () => {
+  test("BUG 79219: GET /api/2.0/files/folder/{id}/share - Guest with room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Security Info Perm Guest Access",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: guestData, api: guestApi } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: guestId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+
+    const { status } = await guestApi.sharing.getFolderSecurityInfo({
+      id: roomId,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("BUG 79219: GET /api/2.0/files/folder/{id}/share - Guest without room access returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder Security Info Perm Guest No Access",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { status } = await guestApi.sharing.getFolderSecurityInfo({
+      id: roomId,
+    });
+
+    expect(status).toBe(403);
+  });
+});
+
 test.describe("GET /api/2.0/files/file/{id}/share - Get file security info - security", () => {
   test("GET /api/2.0/files/file/{id}/share - User cannot read security info of another user's private file (IDOR) returns 403", async ({
     apiSdk,

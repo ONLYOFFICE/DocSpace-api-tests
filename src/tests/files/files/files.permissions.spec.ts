@@ -4239,6 +4239,43 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
 
     expect(status).toBe(403);
   });
+
+  test("BUG 78027: GET /files/file/:fileId/restoreversion is rejected, not silently restoring (CSRF)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Restore CSRF GET" },
+    });
+    const fileId = fileData.response!.id!;
+
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { lastVersion: 2 },
+    });
+
+    const { data: before } = await ownerApi.files.getEditHistory({ fileId });
+    const countBefore = before.response!.length;
+
+    const { tokenStore, request } = apiSdk;
+    const res = await request.fetch(
+      `${tokenStore.portalBaseUrl}/api/2.0/files/file/${fileId}/restoreversion?version=1&doc=`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${tokenStore.getToken("owner")}`,
+          Origin: `http://${tokenStore.newTenantDomain}`,
+        },
+      },
+    );
+
+    expect(res.status()).not.toBe(200);
+
+    // side-effect check: the version restore must not have gone through
+    const { data: after } = await ownerApi.files.getEditHistory({ fileId });
+    expect(after.response!.length).toBe(countBefore);
+  });
 });
 
 test.describe("POST /files/file/referencedata - Get reference data permissions", () => {

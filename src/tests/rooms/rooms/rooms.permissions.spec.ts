@@ -2247,6 +2247,77 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
   });
 });
 
+test.describe("GET /files/rooms/:id/share - Get room security info - PII", () => {
+  test("BUG 78012: User does not see another member's department, only their own", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerId = ownerProfile.response!.id!;
+
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Room Share Department Leak",
+        roomType: RoomType.PublicRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: adminData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const adminId = adminData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    await ownerApi.groupApi.addGroup({
+      groupRequestDto: {
+        groupName: apiSdk.faker.generateString(10),
+        groupManager: ownerId,
+        members: [adminId],
+      },
+    });
+
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: adminId, access: FileShare.ContentCreator },
+          { id: userId, access: FileShare.ContentCreator },
+        ],
+        notify: false,
+      },
+    });
+
+    // sanity check: a privileged role (not a plain User) does see the
+    // department of a member who belongs to a group.
+    const { data: asAdmin } = await apiSdk
+      .forRole("docSpaceAdmin")
+      .rooms.getRoomSecurityInfo({ id: roomId });
+    expect(asAdmin.response).toContainEqual(
+      expect.objectContaining({
+        sharedToUser: expect.objectContaining({ id: adminId }),
+      }),
+    );
+    const adminEntryAsAdmin = asAdmin.response!.find(
+      (s) => s.sharedToUser?.id === adminId,
+    );
+    expect(adminEntryAsAdmin!.sharedToUser!.department).toBeTruthy();
+
+    // a plain User must not see it for anyone else's entry.
+    const { data: asUser } = await userApi.rooms.getRoomSecurityInfo({
+      id: roomId,
+    });
+    const adminEntryAsUser = asUser.response!.find(
+      (s) => s.sharedToUser?.id === adminId,
+    );
+    expect(adminEntryAsUser!.sharedToUser!.department).toBeFalsy();
+  });
+});
+
 for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
   test.describe(`DELETE /files/tags - ${userType} invited to room cannot delete a tag`, () => {
     for (const { label, access } of roomAccesses) {
