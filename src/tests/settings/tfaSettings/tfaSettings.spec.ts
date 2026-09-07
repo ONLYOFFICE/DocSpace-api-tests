@@ -120,43 +120,21 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values",
     ).toBeTruthy();
   });
 
-  // BUG 82994: a malformed trustedIps entry is accepted with no format
-  // validation (200) and stored as-is. Every subsequent login attempt by any
-  // user on the portal then crashes with 500 (System.FormatException) when
-  // TfaEnabledForUserAsync tries to parse it as an IP. Confirmed: strings with
-  // no IP shape at all (e.g. "not-an-ip") crash it; a numeric-but-out-of-range
-  // string ("999.999.999.999") does not. Also confirmed via the web UI login
-  // form - same crash, same unhandled exception message shown to the user.
-  //
-  // This test's portal can't be cleaned up afterwards: resetTfaAfterTest's own
-  // recovery login hits the exact same crash, since the bad trustedIps entry
-  // is still there. That's the bug demonstrating itself, not a regression.
-  test.fail(
-    "BUG 82994: a malformed trustedIps entry should be rejected or ignored, not crash every subsequent login with 500",
-    async ({ apiSdk }) => {
-      const enable = await apiSdk
-        .forRole("owner")
-        .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: {
-            type: TfaRequestsDtoType.App,
-            trustedIps: ["not-an-ip"],
-          },
-        });
-      expect(enable.status).toBe(200);
+  test("BUG 82994: PUT /api/2.0/settings/tfaapp - a malformed trustedIps entry is rejected with a validation error", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.updateTfaSettings({
+        tfaRequestsDto: {
+          type: TfaRequestsDtoType.App,
+          trustedIps: ["not-an-ip"],
+        },
+      });
 
-      const { status } = await apiSdk
-        .forRole("owner")
-        .authentication.authenticateMe({
-          authRequestsDto: {
-            userName: config.DOCSPACE_OWNER_EMAIL,
-            password: config.DOCSPACE_OWNER_PASSWORD,
-            session: true,
-          },
-        });
-
-      expect(status).toBe(200);
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.["TrustedIps"]).toBeTruthy();
+  });
 });
 
 test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for the selected account only", () => {
