@@ -205,7 +205,7 @@ test.describe("AI Chat - AI Disabled", () => {
     });
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - returns 403 when AI access is disabled", async ({
+  test("POST /api/2.0/ai/ai/send-with-stream - returns 403 when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -220,10 +220,11 @@ test.describe("AI Chat - AI Disabled", () => {
     // response contract; the assertions below still establish that nothing
     // reached the model or the thread before the status is checked.
     //
-    // Re-broken: measured now as 400 `"unknown profileId: <id>"`, not 403
-    // "Forbidden" — a profileId that resolved fine while AI was on is reported
-    // unknown once AI is switched off, as if profile resolution runs before
-    // (and instead of) the AI-switch gate.
+    // Was briefly re-broken (unfiled): measured as 400 `"unknown profileId:
+    // <id>"`, not 403 "Forbidden" — a profileId that resolved fine while AI
+    // was on was reported unknown once AI was switched off, as if profile
+    // resolution ran before (and instead of) the AI-switch gate. Confirmed
+    // fixed 2026-09-07 (5/5 standalone repeats, correct 403 every time).
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -250,7 +251,6 @@ test.describe("AI Chat - AI Disabled", () => {
     expect(AiAgentChat.messageText(messages[0])).toBe(REAL_MESSAGE);
     expect(AiAgentChat.assistantMessages(messages)).toHaveLength(0);
 
-    test.fail();
     expect(status).toBe(403);
     expect(error).toBe("Forbidden");
     expect(streamError, "the refusal is the status, not a stream frame").toBe(

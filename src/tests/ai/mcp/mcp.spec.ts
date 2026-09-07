@@ -665,7 +665,6 @@ test.describe("MCP - Allow-always for tool approval", () => {
       agentId,
     });
 
-    test.fail();
     expect(
       otherType.data,
       "a host tool's pre-approval must not cover the DocSpace tool of that name",
