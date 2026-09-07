@@ -52,6 +52,38 @@ test.describe("GET /files/rooms/covers - access control", () => {
     expect(status).toBe(403);
   });
 
+  // In the UI, this request is what the room-group creation dialog depends on -
+  // its 403 for Guest is why guests can't create a room group there.
+  test.fail(
+    "BUG 83679: GET /files/rooms/covers - Guest with room access still gets 403 instead of 200",
+    async ({ apiSdk }) => {
+      const owner = apiSdk.forRole("owner");
+
+      const { data: roomData } = await owner.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Guest Group Covers Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const { api: guestApi, data: guestData } =
+        await apiSdk.addAuthenticatedMember("owner", "Guest");
+      const guestId = guestData.response!.id!;
+
+      await owner.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: guestId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+
+      const { status } = await guestApi.rooms.getRoomCovers();
+      expect(status).toBe(200);
+    },
+  );
+
   test("GET /files/rooms/covers - Unauthenticated user cannot get covers list", async ({
     apiSdk,
   }) => {
