@@ -66,7 +66,7 @@ import { AiHttp, AgentRole } from "./ai-http";
 //
 // Names are the map keys and carry most of the sharp edges. `_` is banned
 // anywhere in a name ("reserved for tool-token format" — the engine addresses a
-// tool as `server_tool`, e.g. `docspace_generate_docx`). The duplicate check is
+// tool as `server_tool`, e.g. `onlyoffice_generate_docx`). The duplicate check is
 // case-insensitive while the key keeps its original casing, names are not trimmed
 // and not Unicode-normalised, and 128 characters is the cap. A dot that is only
 // part of a name is fine (`.a`, `a.`, `a.b`), as are `%2F`, `#`, `?`, `%`, a
