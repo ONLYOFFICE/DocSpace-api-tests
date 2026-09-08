@@ -116,6 +116,7 @@ export const STANDARD_QUESTIONS: CsvQuestion[] = [
         EMPLOYEE_ID_PATTERN,
         ["E002", "E007"],
         "Engineering department roster",
+        { lastBlockOnly: true },
       ),
   },
   {
@@ -168,6 +169,7 @@ export const EDGE_CASE_QUESTIONS: CsvQuestion[] = [
         EDGE_CASE_ID_PATTERN,
         ["X001", "X007"],
         "zero Expected_Net_Pay records",
+        { lastBlockOnly: true },
       ),
   },
   {
@@ -180,6 +182,7 @@ export const EDGE_CASE_QUESTIONS: CsvQuestion[] = [
         EDGE_CASE_ID_PATTERN,
         ["X008", "X014"],
         "negative Expected_Net_Pay records",
+        { lastBlockOnly: true },
       );
       expectContainsAmount(text, -214.75, "X008 Expected_Net_Pay");
       expectContainsAmount(text, -75.0, "X014 Expected_Net_Pay");

@@ -1,11 +1,20 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
+import type { ApiSDK } from "@/src/services/api-sdk";
+
+async function startTrialAndWait(apiSdk: ApiSDK) {
+  await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+  await expect(async () => {
+    const { status } = await apiSdk.forRole("owner").docsCloud.getTenantQuota();
+    expect(status).toBe(200);
+  }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
+}
 
 test.describe("POST /api/2.0/settings/docscloud/tenant/quota/report", () => {
   test("POST /api/2.0/settings/docscloud/tenant/quota/report - Owner creates tenant quota report", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -26,7 +35,7 @@ test.describe("POST /api/2.0/settings/docscloud/tenant/quota/report", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
@@ -48,7 +57,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/quota/report", () => {
   test("GET /api/2.0/settings/docscloud/tenant/quota/report - Owner gets completed quota report", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
     await apiSdk.forRole("owner").docsCloud.createTenantQuotaReport();
 
     let task: any;
@@ -74,7 +83,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/quota/report", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
     await apiSdk.forRole("docSpaceAdmin").docsCloud.createTenantQuotaReport();
 
     let task: any;
@@ -98,7 +107,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/config", () => {
   test("GET /api/2.0/settings/docscloud/tenant/config - Owner gets tenant config", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -120,7 +129,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/config", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
@@ -140,7 +149,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/info", () => {
   test("GET /api/2.0/settings/docscloud/tenant/info - Owner gets tenant info", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -164,7 +173,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/info", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
@@ -189,7 +198,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/quota", () => {
   test("GET /api/2.0/settings/docscloud/tenant/quota - Owner gets tenant quota", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -205,7 +214,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/quota", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
@@ -235,7 +244,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/usage", () => {
   test("GET /api/2.0/settings/docscloud/tenant/usage - Owner gets tenant usage", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -251,7 +260,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant/usage", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
@@ -268,7 +277,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config", () => {
   test("PUT /api/2.0/settings/docscloud/tenant/config - Owner updates tenant config", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const secret = apiSdk.faker.generateString(16);
     const header = apiSdk.faker.generateString(16);
@@ -299,7 +308,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const secret = apiSdk.faker.generateString(16);
     const header = apiSdk.faker.generateString(16);
@@ -441,7 +450,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
   test("BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - tenantName is not validated for length", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -460,7 +469,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
   test("BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - security.secret is not validated for length", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -479,7 +488,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
   test("BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - security.header is not validated for length", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -498,7 +507,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
   test("BUG 83327: PUT /api/2.0/settings/docscloud/tenant/config - ipFilter.rules[].address is not validated for length", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -525,7 +534,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - server.fileSizeLi
   test("BUG 83326: PUT /api/2.0/settings/docscloud/tenant/config - returns 500 instead of 400 when server.fileSizeLimit is too large", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { status } = await apiSdk
       .forRole("owner")
@@ -543,7 +552,7 @@ test.describe("DELETE /api/2.0/settings/docscloud/tenant/quota/report", () => {
   test("DELETE /api/2.0/settings/docscloud/tenant/quota/report - Owner terminates tenant quota report", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
     await apiSdk.forRole("owner").docsCloud.createTenantQuotaReport();
 
     const { status } = await apiSdk
@@ -557,7 +566,7 @@ test.describe("DELETE /api/2.0/settings/docscloud/tenant/quota/report", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
     await apiSdk.forRole("docSpaceAdmin").docsCloud.createTenantQuotaReport();
 
     const { status } = await apiSdk
@@ -611,7 +620,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant", () => {
   test("GET /api/2.0/settings/docscloud/tenant - Owner gets DocsCloud tenant", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
@@ -633,7 +642,7 @@ test.describe("GET /api/2.0/settings/docscloud/tenant", () => {
     apiSdk,
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
@@ -676,7 +685,18 @@ test.describe("POST /api/2.0/settings/docscloud/trial", () => {
   test("POST /api/2.0/settings/docscloud/trial - returns 400 when DocsCloud trial is already active", async ({
     apiSdk,
   }) => {
-    await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+    const { status: firstStatus } = await apiSdk
+      .forRole("owner")
+      .docsCloud.startDocsCloudTrial();
+    expect(firstStatus).toBe(200);
+
+    await expect(async () => {
+      const { data: tenantData, status: tenantStatus } = await apiSdk
+        .forRole("owner")
+        .docsCloud.getTenantQuota();
+      expect(tenantStatus).toBe(200);
+      expect((tenantData as any).response).toBeTruthy();
+    }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
 
     const { data, status } = await apiSdk
       .forRole("owner")

@@ -12,7 +12,7 @@ import {
   expectHealthyAssistantReply,
   inviteToAgent,
 } from "@/src/helpers/ai-agent-chat";
-import { AiTools } from "@/src/helpers/ai-tools";
+import { AiTools, EMPTY_TOOL_CATALOGUE } from "@/src/helpers/ai-tools";
 import {
   agentStorageFolderId,
   downloadFile,
@@ -74,11 +74,11 @@ test.describe("MCP - System tools catalogue", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    // The route answers 200 with an empty object in every scope. That is
-    // deliberate as of 2026-08-18 — the built-in tools were hidden on purpose,
-    // and until then the unscoped read returned 20+ `docspace` entries while
-    // the scoped one was already `{}` (the old BUG 82991 asymmetry, now gone
-    // because both ends are empty).
+    // The route answers 200 with an empty `{groups: {}, errors: {}}` wrapper in
+    // every scope. That is deliberate as of 2026-08-18 — the built-in tools
+    // were hidden on purpose, and until then the unscoped read returned 20+
+    // `docspace` entries while the scoped one was already empty (the old BUG
+    // 82991 asymmetry, now gone because both ends are empty).
     //
     // The consequence is worth pinning rather than deleting: there is no other
     // listing route (`list-tools`, `list-all-tools`, `list-custom-tools`,
@@ -98,11 +98,11 @@ test.describe("MCP - System tools catalogue", () => {
 
     const unscoped = await aiTools.listSystemTools("owner");
     expect(unscoped.status).toBe(200);
-    expect(unscoped.data).toEqual({});
+    expect(unscoped.data).toEqual(EMPTY_TOOL_CATALOGUE);
 
     const scoped = await aiTools.listSystemTools("owner", agentId);
     expect(scoped.status).toBe(200);
-    expect(scoped.data).toEqual({});
+    expect(scoped.data).toEqual(EMPTY_TOOL_CATALOGUE);
   });
 });
 
@@ -471,7 +471,7 @@ test.describe("MCP - Allow-always for tool approval", () => {
       agentId,
     });
 
-    expect(after).toContain("delete_file");
+    expect(after).toContain("docspace_delete_file");
     expect(isAllowed).toBe(true);
   });
 
@@ -645,10 +645,12 @@ test.describe("MCP - Allow-always for tool approval", () => {
     });
     expect(sameType.data, "the type it was written under").toBe(true);
 
-    // What the store keeps is a bare tool name — no server type anywhere in it,
-    // which is where the two tools stop being distinguishable.
+    // The read-back list now prefixes each entry with its server type
+    // (`host_delete_file`, not the bare `delete_file`), so the two tools are at
+    // least distinguishable in the list itself. What is-allow-always answers for
+    // OTHER server types below is the real question this test is about.
     const list = await aiTools.getAllowAlways("owner", agentId);
-    expect(list.data ?? []).toContain("delete_file");
+    expect(list.data ?? []).toContain("host_delete_file");
 
     const otherType = await aiTools.isAllowAlways("owner", {
       serverType: "docspace",
@@ -663,7 +665,6 @@ test.describe("MCP - Allow-always for tool approval", () => {
       agentId,
     });
 
-    test.fail();
     expect(
       otherType.data,
       "a host tool's pre-approval must not cover the DocSpace tool of that name",
@@ -1820,7 +1821,9 @@ test.describe("MCP - whose always-allow decision it is", () => {
 
     const membersView = await aiTools.getAllowAlways("user", agentId);
     expect(membersView.status).toBe(200);
-    expect(membersView.data ?? []).toContain(MEMBERS_PRE_APPROVED);
+    expect(membersView.data ?? []).toContain(
+      `docspace_${MEMBERS_PRE_APPROVED}`,
+    );
     const membersReadOfOwners = await aiTools.isAllowAlways("user", {
       serverType: "docspace",
       toolName: OWNERS_PRE_APPROVED,
@@ -1832,7 +1835,7 @@ test.describe("MCP - whose always-allow decision it is", () => {
 
     const ownersView = await aiTools.getAllowAlways("owner", agentId);
     expect(ownersView.status).toBe(200);
-    expect(ownersView.data ?? []).toContain(OWNERS_PRE_APPROVED);
+    expect(ownersView.data ?? []).toContain(`docspace_${OWNERS_PRE_APPROVED}`);
     const ownersReadOfMembers = await aiTools.isAllowAlways("owner", {
       serverType: "docspace",
       toolName: MEMBERS_PRE_APPROVED,
@@ -1843,12 +1846,16 @@ test.describe("MCP - whose always-allow decision it is", () => {
       membersReadOfOwners.data,
       "the owner's pre-approval must not answer for the member",
     ).toBe(false);
-    expect(membersView.data ?? []).not.toContain(OWNERS_PRE_APPROVED);
+    expect(membersView.data ?? []).not.toContain(
+      `docspace_${OWNERS_PRE_APPROVED}`,
+    );
     expect(
       ownersReadOfMembers.data,
       "a User must not be able to pre-approve a tool for the owner",
     ).toBe(false);
-    expect(ownersView.data ?? []).not.toContain(MEMBERS_PRE_APPROVED);
+    expect(ownersView.data ?? []).not.toContain(
+      `docspace_${MEMBERS_PRE_APPROVED}`,
+    );
   });
 });
 
@@ -2805,7 +2812,7 @@ test.describe("MCP - server types", () => {
     // see the system tools block at the top of this file).
     const system = await aiTools.listSystemTools("owner");
     expect(system.status).toBe(200);
-    expect(system.data).toEqual({});
+    expect(system.data).toEqual(EMPTY_TOOL_CATALOGUE);
   });
 });
 
@@ -3998,7 +4005,6 @@ test.describe("MCP - a registered server and the conversation", () => {
       .map((call) => call.toolName ?? "");
     const reply = AiAgentChat.assistantText(messages);
 
-    test.fail();
     expect(
       calledTools.length > 0 || !reply.includes(NO_TOOL_SENTINEL),
       `the agent was offered no tool from its registered server: it called [${calledTools.join(", ") || "nothing"}] and answered "${reply.slice(0, 120)}"`,
@@ -4773,15 +4779,25 @@ test.describe("MCP - the editor's toolset and the chat's", () => {
 
     const diagnostics = `called [${asked.calledTools.join(", ")}]; the model answered "${asked.reply.slice(0, 200)}"; frames were ${asked.frames.join(", ")}`;
 
+    // The built-in auto-resolves without pausing; the client shadow pauses for
+    // approval (`tool-call-pending`). If `docspace_generate_docx` appears in
+    // calledTools AND the stream paused, it is the client's version — still
+    // displacement. It is only the built-in that answers when there is no pause.
+    const calledAsBuiltIn =
+      asked.calledTools.includes(BUILT_IN_DOC_TOOL_TOKEN) &&
+      !asked.frames.includes("tool-call-pending");
     expect(
-      asked.calledTools,
+      calledAsBuiltIn,
       `the engine's own generator answered anyway: ${diagnostics}`,
-    ).not.toContain(BUILT_IN_DOC_TOOL_TOKEN);
+    ).toBe(false);
 
     // Named rather than left implicit, so that "no built-in call" cannot be
     // satisfied by the model wandering off into an editor tool or into prose of
-    // its own: the turn has to end in one of the two measured shapes.
-    const shadowCalled = asked.calledTools.includes(BUILT_IN_DOC_TOOL);
+    // its own: the turn has to end in one of the three measured shapes.
+    const shadowCalled =
+      asked.calledTools.includes(BUILT_IN_DOC_TOOL) ||
+      (asked.calledTools.includes(BUILT_IN_DOC_TOOL_TOKEN) &&
+        asked.frames.includes("tool-call-pending"));
     const reportedMissing = asked.reply.includes(NO_TOOL_SENTINEL);
     expect(
       shadowCalled || reportedMissing,
@@ -4855,14 +4871,14 @@ test.describe("MCP - a registered server in the tool list", () => {
     const catalogue = await aiTools.listSystemTools("owner");
     expect(catalogue.status).toBe(200);
 
-    const listed = Object.entries(catalogue.data ?? {}).flatMap(
+    const listed = Object.entries(catalogue.data?.groups ?? {}).flatMap(
       ([serverType, tools]) =>
         (tools ?? []).map((tool) => `${serverType}_${tool.name ?? ""}`),
     );
 
     expect(
       listed,
-      `the catalogue published only [${Object.keys(catalogue.data ?? {}).join(", ")}]`,
+      `the catalogue published only [${Object.keys(catalogue.data?.groups ?? {}).join(", ")}]`,
     ).toContain(`${serverName}_${CALCULATOR_TOOL}`);
   });
 });

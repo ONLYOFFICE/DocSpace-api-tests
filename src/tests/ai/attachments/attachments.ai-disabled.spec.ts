@@ -51,8 +51,6 @@ import {
 // before its failing assertion — never the `test.fail(title, fn)` form, which
 // would also swallow a broken setup.
 
-const PNG_1X1 =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
 const MISSING_ID = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
 /**
@@ -265,63 +263,34 @@ test.describe("AI Attachments - AI access disabled", () => {
     expect(error).toBe("Forbidden");
   });
 
-  test("BUG 83289: POST /api/2.0/ai/attachments/save-image - an image draft can still be created when AI access is disabled", async ({
+  // A `save-image` test used to live here, pinning that it ignores the AI
+  // switch (unlike `save-file`, gated above). The route is gone by design —
+  // dev-confirmed, it was for the AI plugin inside the editors and never
+  // ended up used there — so there is no image half of that asymmetry left
+  // to measure; an image attachment now goes through `save-file` on a real
+  // uploaded file, same as any other document, and is gated the same way.
+
+  test("POST /api/2.0/ai/attachments/save-files-many - the batch route is gated the same way as the single one", async ({
     apiSdk,
   }) => {
-    // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone, which
-    // this test's premise depends on. Remove once fixed.
-    test.fail();
-
     const ownerApi = apiSdk.forRole("owner");
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
-    const off = await setPortalAiAccess(ownerApi, false);
-    expect(off.enabled).toBe(false);
-
-    const { status, data } = await attachments.saveImage("owner", {
-      input: { name: "off.png", base64: PNG_1X1 },
-    });
-
-    expect(status).toBe(200);
-    const stored = await attachments.expectStored(
-      "owner",
-      data!.id!,
-      "an image draft created with AI off",
-    );
-    expect(stored.base64).toBe(PNG_1X1);
-  });
-
-  test("BUG 83289: POST /api/2.0/ai/attachments/save-files-many, save-images-many - only the file batch is gated when AI access is disabled", async ({
-    apiSdk,
-  }) => {
-    // BUG 83289 (open 2026-08-20): save-images-many answers 500 for everyone,
-    // which this test's premise depends on. Remove once fixed.
-    test.fail();
-
-    const ownerApi = apiSdk.forRole("owner");
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-
-    const off = await setPortalAiAccess(ownerApi, false);
-    expect(off.enabled).toBe(false);
 
     const path = String(
       await attachments.backingFileId("owner", "off-batch.docx", "x"),
     );
+
+    const off = await setPortalAiAccess(ownerApi, false);
+    expect(off.enabled).toBe(false);
+
     const files = await attachments.saveFilesMany("owner", {
       inputs: [
         { path, title: "off-batch.docx", content: "", type: FileType.Document },
       ],
     });
-    const images = await attachments.saveImagesMany("owner", {
-      inputs: [{ name: "off-batch.png", base64: PNG_1X1 }],
-    });
 
-    // The two batch routes part ways under the switch: the file one is gated and
-    // the image one is not. `save-file` and `save-image` are both still open (the
-    // tests above), so this is not "batches are gated" either — it is one route.
-    expect([files.status, images.status]).toEqual([403, 200]);
+    expect(files.status).toBe(403);
     expect(files.error).toBe("Forbidden");
-    expect(images.data).toHaveLength(1);
   });
 
   test("BUG 82759: POST /api/2.0/ai/attachments/get - answers one status for one portal state", async ({

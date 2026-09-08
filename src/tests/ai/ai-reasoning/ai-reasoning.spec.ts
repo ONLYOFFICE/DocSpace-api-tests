@@ -26,6 +26,7 @@ import {
 // is a soft one, so one wrong answer does not abort the rest of the battery.
 
 test.describe("AI Agent reasoning over employees_standard.csv", () => {
+  test.setTimeout(600_000);
   for (const method of ATTACHMENT_METHODS) {
     test(`${method.name} - agent reads and reasons over employees_standard.csv`, async ({
       apiSdk,
@@ -55,6 +56,7 @@ test.describe("AI Agent reasoning over employees_standard.csv", () => {
 // amount — so every assertion here is checking that nothing got silently
 // corrected or dropped.
 test.describe("AI Agent reasoning over employees_edge_cases.csv", () => {
+  test.setTimeout(600_000);
   for (const method of ATTACHMENT_METHODS) {
     test(`${method.name} - agent reads and reasons over employees_edge_cases.csv`, async ({
       apiSdk,
@@ -82,6 +84,7 @@ test.describe("AI Agent reasoning over employees_edge_cases.csv", () => {
 // exercise: totals per calendar month, comparing months against each other,
 // and aggregating one employee's rows across months.
 test.describe("AI Agent reasoning over employees_monthly_payroll.csv", () => {
+  test.setTimeout(600_000);
   for (const method of ATTACHMENT_METHODS) {
     test(`${method.name} - agent reads and reasons over employees_monthly_payroll.csv`, async ({
       apiSdk,

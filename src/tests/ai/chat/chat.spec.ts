@@ -1333,7 +1333,7 @@ test.describe("AI Threads - listing", () => {
     expect(data.map((thread) => thread.threadId)).toEqual([keeper]);
   });
 
-  test("BUG 82825: GET /api/2.0/ai/threads/list - count, cursor and query are accepted and ignored", async ({
+  test("BUG 82825: GET /api/2.0/ai/threads/list - count, cursor and query are honored", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1359,35 +1359,33 @@ test.describe("AI Threads - listing", () => {
     const all = await aiChat.listThreads("owner", agentId);
     expect(all.data).toHaveLength(3);
 
-    // Paging: a count of 1 still returns everything, so a client cannot page and
-    // a portal with thousands of threads has no way to ask for fewer.
+    // Paging: count limits the page size.
     const paged = await aiChat.listThreads("owner", agentId, { count: 1 });
     expect(paged.status).toBe(200);
-    expect(paged.data, "count=1 returns the whole list").toHaveLength(3);
+    expect(paged.data, "count=1 returns a single thread").toHaveLength(1);
 
     const cursored = await aiChat.listThreads("owner", agentId, {
       count: 2,
       cursor: "1",
     });
-    expect(cursored.data).toHaveLength(3);
+    expect(cursored.data, "count=2 returns two threads").toHaveLength(2);
 
-    // Search: a query that matches one title returns all three, and a query that
-    // matches nothing returns all three as well — the filter is not applied, so
-    // the sidebar search of 8.2 has to be done client-side.
+    // Search: query filters by title.
     const matching = await aiChat.listThreads("owner", agentId, {
       query: "Alpha",
     });
-    expect(matching.data).toHaveLength(3);
+    expect(
+      matching.data.map((thread) => thread.title),
+      "a query matching one title returns only that thread",
+    ).toEqual(["Alpha thread"]);
 
     const notMatching = await aiChat.listThreads("owner", agentId, {
       query: "nothing-matches-this",
     });
     expect(notMatching.status).toBe(200);
-
-    test.fail();
     expect(
       notMatching.data,
-      "a query matching no title must return no threads",
+      "a query matching no title returns no threads",
     ).toEqual([]);
   });
 });
@@ -5114,18 +5112,19 @@ test.describe("AI Chat - the model of an agent room", () => {
     ).toBe(stored);
   });
 
-  test("BUG 83160: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is answered in an agent too", async ({
+  test("BUG 83160 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId that names no model is refused in an agent too", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // The room half of this is in "the model of one thread": an id the backend
-    // cannot resolve is dropped in silence, the question is answered by whatever
-    // model was picked instead, and the client is told nothing. Same defect,
-    // same number — repeated here because the consequence is not the same. In a
-    // room the user can see the picker is pointing at a model that has gone away
-    // and choose another; in an agent there is nothing to look at and nothing to
-    // change, so every turn of every conversation in it silently runs on a model
-    // neither the author nor the user chose.
+    // cannot resolve used to be dropped in silence, the question answered by
+    // whatever model was picked instead, and the client told nothing. Same
+    // defect, same number — repeated here because the consequence was not the
+    // same. In a room the user can see the picker is pointing at a model that
+    // has gone away and choose another; in an agent there is nothing to look at
+    // and nothing to change, so every turn of every conversation in it would
+    // silently run on a model neither the author nor the user chose. Now
+    // refused outright, matching the room-scope fix above.
     //
     // Reachable through a plain client, too: an agent built on a profile that is
     // later deleted leaves exactly this id in the composer's hands.
@@ -5159,30 +5158,27 @@ test.describe("AI Chat - the model of an agent room", () => {
       timeoutMs: STREAM_CAP_MS,
     });
 
+    // Fix-agnostic: a 4xx, or an `error` frame inside the 200 the way a model
+    // failure is reported. Only silent success fails this.
+    expect(
+      bad.status !== 200 || bad.streamError !== undefined,
+      "a model choice the backend cannot resolve is reported, not dropped",
+    ).toBe(true);
+
     // The thread was not corrupted — it neither took the unresolvable id nor
-    // lost the agent's model. Asserted before the report, so a fix cannot land
-    // on a suite that has stopped checking this.
+    // lost the agent's model.
     expect(
       (await aiChat.getThread("owner", threadId)).data?.profileId,
       "the thread stays on the agent's model",
     ).toBe(first.id);
 
-    // The reply is only read while the send is accepted: a fix that refuses it
-    // leaves nothing to wait for, and this has to report an unexpected pass
-    // rather than time out here.
+    // The reply is only read while the send is accepted: a refusal leaves
+    // nothing to wait for.
     if (bad.status === 200 && bad.streamError === undefined) {
       expectHealthyAssistantReply(
         await aiChat.waitForAssistantReply("owner", threadId),
       );
     }
-
-    // Fix-agnostic: a 4xx, or an `error` frame inside the 200 the way a model
-    // failure is reported. Only today's silent success fails.
-    test.fail();
-    expect(
-      bad.status !== 200 || bad.streamError !== undefined,
-      "a model choice the backend cannot resolve is reported, not dropped",
-    ).toBe(true);
   });
 
   test("GET /api/2.0/ai/profiles/list - the catalogue is served whole inside an agent, for a member as well", async ({
@@ -5927,6 +5923,31 @@ async function fileIdsIn(api: RoleApi, folderId: number): Promise<Set<number>> {
 }
 
 /**
+ * Like fileIdsIn but polls until two consecutive snapshots are identical —
+ * guards against folders still being populated by async server-side init
+ * (e.g. DocSpace sample files written to My Documents on first login).
+ */
+async function stableFileIds(
+  api: RoleApi,
+  folderId: number,
+  {
+    intervalMs = 3000,
+    maxWaitMs = 30000,
+  }: { intervalMs?: number; maxWaitMs?: number } = {},
+): Promise<Set<number>> {
+  const deadline = Date.now() + maxWaitMs;
+  let prev = await fileIdsIn(api, folderId);
+  for (;;) {
+    await new Promise((r) => setTimeout(r, intervalMs));
+    const curr = await fileIdsIn(api, folderId);
+    if (curr.size === prev.size && [...curr].every((id) => prev.has(id)))
+      return curr;
+    if (Date.now() > deadline) return curr;
+    prev = curr;
+  }
+}
+
+/**
  * Waits for a file that was not in `known` to turn up in the folder.
  *
  * Matched on ids rather than on a count or on a name: the picture's file name
@@ -5996,10 +6017,11 @@ test.describe("AI Chat - image generation", () => {
 
     // …which is the engine's own: no client offered it, and the tools API does
     // not advertise it — nor anything else, the catalogue publishes nothing at
-    // all now (see the system tools block in mcp.spec.ts).
+    // all now (an empty `{groups: {}, errors: {}}` wrapper — see the system
+    // tools block in mcp.spec.ts).
     const system = await aiTools.listSystemTools("owner");
     expect(
-      Object.values(system.data ?? {}).flatMap((tools) =>
+      Object.values(system.data?.groups ?? {}).flatMap((tools) =>
         (tools ?? []).map((tool) => tool.name),
       ),
       "generate_image is server-side, not an advertised DocSpace tool",
@@ -6229,7 +6251,7 @@ test.describe("AI Chat - image generation", () => {
     const myDocsId = myDocs.response!.current!.id!;
 
     const storedBefore = await fileIdsIn(ownerApi, resultStorageId);
-    const myDocsBefore = await fileIdsIn(ownerApi, myDocsId);
+    const myDocsBefore = await stableFileIds(ownerApi, myDocsId);
 
     const attempt = await requestPicture(
       aiChat,
@@ -6296,7 +6318,7 @@ test.describe("AI Chat - image generation", () => {
     const myDocsId = myDocs.response!.current!.id!;
 
     const roomBefore = await fileIdsIn(ownerApi, roomId);
-    const myDocsBefore = await fileIdsIn(ownerApi, myDocsId);
+    const myDocsBefore = await stableFileIds(ownerApi, myDocsId);
 
     const attempt = await requestPicture(
       aiChat,
@@ -7177,15 +7199,16 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
 });
 
 test.describe("AI Chat - a failure the chat cannot show", () => {
-  test('BUG 83045: POST /api/2.0/ai/ai/send-with-stream - a profileId the backend cannot parse answers a bare "stream error"', async ({
+  test("BUG 83045 FIXED: POST /api/2.0/ai/ai/send-with-stream - a profileId the backend cannot parse is refused with 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Every failure above arrives with a code. This one does not: a `profileId`
-    // that is not a GUID gets HTTP 200 whose entire body is
-    // `{"type":"error","message":"stream error"}` — no code, no field name, and
-    // nothing stored in the thread, so the chat has neither an answer nor a
-    // failure to render and nothing to look a translation up by.
+    // Every other failure in this describe arrives with a code. This one used
+    // not to: a `profileId` that is not a GUID got HTTP 200 whose entire body
+    // was `{"type":"error","message":"stream error"}` — no code, no field name,
+    // and nothing stored in the thread, so the chat had neither an answer nor a
+    // failure to render and nothing to look a translation up by. Now refused
+    // outright with a plain 400, matching the rest of this surface.
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -7223,10 +7246,17 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
       timeoutMs: STREAM_CAP_MS,
     });
 
-    // Nothing was stored: the question is gone with the answer.
+    // A request the backend cannot even parse is reported as a malformed
+    // request, the way the rest of this surface answers 400 with a message —
+    // not the old bare, untranslatable `{"type":"error","message":"stream error"}`.
+    expect(
+      { status: bad.status, streamError: bad.streamError },
+      "a request the backend cannot run says what was wrong with it",
+    ).toEqual({ status: 400, streamError: undefined });
+
+    // The refusal never touched the thread: still just the control turn.
     const afterBad = await aiChat.readMessages("owner", threadId);
     expect(afterBad.status).toBe(200);
-    test.fail();
     expect(AiAgentChat.userMessages(afterBad.data)).toHaveLength(1);
     expect(AiAgentChat.assistantMessages(afterBad.data)).toHaveLength(1);
     expect(AiAgentChat.assistantStatus(afterBad.data)?.error).toBeUndefined();
@@ -7242,16 +7272,6 @@ test.describe("AI Chat - a failure the chat cannot show", () => {
       await aiChat.waitForAssistantReplies("owner", threadId, 2, 120000),
       2,
     );
-
-    // What is missing is the report. A request the backend cannot even parse is
-    // a malformed request, which is what the rest of this surface answers 400
-    // with a message to; `{"type":"error","message":"stream error"}` is neither
-    // showable nor translatable.
-
-    expect(
-      { status: bad.status, streamError: bad.streamError },
-      "a request the backend cannot run says what was wrong with it",
-    ).toEqual({ status: 400, streamError: undefined });
   });
 
   test("POST /api/2.0/ai/ai/send-with-stream - a message past the request size limit is refused without touching the thread", async ({

@@ -163,39 +163,43 @@ export class PaymentApi {
       Accept: "application/json",
     };
 
-    const tariffResponse = await this.apiContext.get(
-      `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/tariff`,
-      { headers, params: { refresh: true }, timeout: 120_000 },
-    );
-    if (!tariffResponse.ok()) {
-      const body = await tariffResponse.text();
-      let message = "Unknown error";
-      try {
-        message = JSON.parse(body).message || body;
-      } catch {
-        message = body;
+    const fetchWithRetry = async (url: string, label: string) => {
+      const delays = [5000, 15000, 30000];
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        const response = await this.apiContext.get(url, {
+          headers,
+          params: { refresh: true },
+          timeout: 120_000,
+        });
+        if (response.ok()) return response;
+        const body = await response.text();
+        if (attempt < delays.length) {
+          await new Promise((r) => setTimeout(r, delays[attempt]));
+          continue;
+        }
+        let message = "Unknown error";
+        try {
+          message = JSON.parse(body).message || body;
+        } catch {
+          message = body;
+        }
+        throw new Error(`Failed to refresh ${label}: ${message}`);
       }
-      throw new Error(`Failed to refresh tariff info: ${message}`);
-    }
+    };
 
-    const quotaResponse = await this.apiContext.get(
-      `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/payment/quota`,
-      { headers, params: { refresh: true }, timeout: 120_000 },
+    const tariffResponse = await fetchWithRetry(
+      `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/tariff`,
+      "tariff info",
     );
-    if (!quotaResponse.ok()) {
-      const body = await quotaResponse.text();
-      let message = "Unknown error";
-      try {
-        message = JSON.parse(body).message || body;
-      } catch {
-        message = body;
-      }
-      throw new Error(`Failed to refresh quota info: ${message}`);
-    }
+
+    const quotaResponse = await fetchWithRetry(
+      `${this.portalSetupApi.portalBaseUrl}/api/2.0/portal/payment/quota`,
+      "quota info",
+    );
 
     return {
-      tariff: await tariffResponse.json(),
-      quota: await quotaResponse.json(),
+      tariff: await tariffResponse!.json(),
+      quota: await quotaResponse!.json(),
     };
   }
 

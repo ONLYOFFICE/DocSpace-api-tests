@@ -233,26 +233,12 @@ test.describe("AI Attachments - who may create a draft", () => {
     expect(status, "a Guest may not attach a file they can read").toBe(403);
   });
 
-  for (const { type, role } of MEMBER_TYPES) {
-    test(`BUG 83289: POST /api/2.0/ai/attachments/save-image - ${role} saves an image draft`, async ({
-      apiSdk,
-    }) => {
-      // BUG 83289 (open 2026-08-20): save-image answers 500 for everyone,
-      // which this test's premise depends on. Remove once fixed.
-      test.fail();
-
-      const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-      await apiSdk.addAuthenticatedMember("owner", type);
-
-      const { status, data } = await attachments.saveImage(role, {
-        input: { name: `${role}.png`, base64: PNG_1X1 },
-      });
-
-      expect(status).toBe(200);
-      expect(data?.id).toBeTruthy();
-      await attachments.expectStored(role, data!.id!, `${role}'s own draft`);
-    });
-  }
+  // A per-role sweep of `save-image` used to live here. The route is gone by
+  // design (the developer confirmed it — it was for the AI plugin inside the
+  // editors and never ended up used there; a chat attachment now goes through
+  // `save-file`/`save-files-many` on a real uploaded file, same as any other
+  // document), so there is nothing left to sweep per role. The equivalent
+  // per-role coverage for `save-file` already exists above in this describe.
 });
 
 test.describe("AI Attachments - anonymous access", () => {
@@ -279,18 +265,10 @@ test.describe("AI Attachments - anonymous access", () => {
           inputs: [{ title: "anon.docx", content: "x" }],
         }),
       ],
-      [
-        "save-image",
-        attachments.saveImage("anonymous", {
-          input: { name: "anon.png", base64: PNG_1X1 },
-        }),
-      ],
-      [
-        "save-images-many",
-        attachments.saveImagesMany("anonymous", {
-          inputs: [{ name: "anon.png", base64: PNG_1X1 }],
-        }),
-      ],
+      // save-image / save-images-many dropped from this sweep — they're gone
+      // by design (dev-confirmed), so every caller gets a bare 404, not the
+      // 401 this sweep is measuring; a dead route says nothing about
+      // anonymous access specifically.
       ["get", attachments.get("anonymous", ownerDraft)],
       ["get-many", attachments.getMany("anonymous", [ownerDraft])],
       [
@@ -597,28 +575,24 @@ test.describe("AI Attachments - cross-user access", () => {
     expect(status, "linking into a thread the caller cannot read").toBe(403);
   });
 
-  test("BUG 82758: POST /api/2.0/ai/attachments/get - a User reads another user's image draft including its payload", async ({
+  test("POST /api/2.0/ai/attachments/get - a User cannot read another user's image draft either", async ({
     apiSdk,
   }) => {
-    // The part of the leak that is still open, and the axis is the KIND of draft,
-    // not the route: the scoping that closed the tests above covers file drafts
-    // only, and an image draft still resolves for another user on `get` AND on
-    // `get-many`. Both are asked here for that reason — measuring only `get`
-    // would leave "maybe the single-id route was simply forgotten" open, and it is
-    // not that.
+    // BUG 82758 was that an image draft leaked cross-user on `get` AND
+    // `get-many` while the equivalent file-draft leak was already closed —
+    // the axis was the KIND of draft, not the route. That distinction is
+    // moot now: `save-image` is gone by design, so every image draft
+    // (`saveImageId` below) is built the same way a file draft is — upload a
+    // real file, then `save-file` with its id — and inherits the isolation
+    // that closed the file-draft leak. Confirmed live 2026-08-28, 4/4 clean
+    // runs, no leak on either route. Kept as its own test (not folded into
+    // the file-draft ones above) because "does an image-kind record get the
+    // same isolation" is still worth pinning on its own, even though the
+    // mechanism producing it changed.
     //
-    // The leaked field is the base64 payload rather than extracted text, and the
-    // read is intermittent: a single call comes back null often enough that
-    // without `findAttachment*`'s polling this test would flap green.
-    //
-    // BUG 83289 (still open 2026-08-20, first measured 2026-08-17, owner
-    // included, `save-file` unaffected): `save-image` answers 500 for
-    // everyone, so the setup below has no draft to make. Marked failing here,
-    // before setup, so that outage is an expected failure rather than a bare
-    // setup error; the dynamic test.fail() further down stays for when
-    // save-image works again but the leak itself has not been fixed yet.
-    test.fail();
-
+    // The read is intermittent regardless of outcome: a single call comes back
+    // null often enough that without `findAttachment*`'s polling this test
+    // would flap on the positive control too.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const ownerDraft = await attachments.saveImageId("owner", {
       name: "owner-private.png",
@@ -650,7 +624,6 @@ test.describe("AI Attachments - cross-user access", () => {
       expect(leaked.base64, "the leaked image payload").toBe(PNG_1X1);
     }
 
-    test.fail();
     expect(
       { get: leaked, getMany: leakedViaMany },
       "another user's image draft must not be readable through either route",

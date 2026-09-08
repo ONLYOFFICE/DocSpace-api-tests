@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
-import { AiTools } from "@/src/helpers/ai-tools";
+import { AiTools, EMPTY_TOOL_CATALOGUE } from "@/src/helpers/ai-tools";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
   configureAiToolsAsUnpaid,
@@ -91,9 +91,10 @@ test.describe("MCP - AI Disabled", () => {
     paymentsApi,
   }) => {
     // Deliberately pinned: the built-in tool catalogue is the one tools route
-    // the portal AI switch does not gate. What it returns is an empty catalogue
-    // either way (the tools were hidden on 2026-08-18), so the subject is the
-    // 200 — every neighbouring route in this file answers 403 with AI off.
+    // the portal AI switch does not gate. What it returns is an empty wrapper
+    // (`{groups: {}, errors: {}}`) either way (the tools were hidden on
+    // 2026-08-18), so the subject is the 200 — every neighbouring route in this
+    // file answers 403 with AI off.
     const { ownerApi, aiTools } = await mcpSetup(apiSdk, paymentsApi);
 
     const before = await aiTools.listSystemTools("owner");
@@ -104,7 +105,7 @@ test.describe("MCP - AI Disabled", () => {
     const { data, status } = await aiTools.listSystemTools("owner");
 
     expect(status).toBe(200);
-    expect(data).toEqual({});
+    expect(data).toEqual(EMPTY_TOOL_CATALOGUE);
   });
 
   test("GET /api/2.0/ai/tools/list-custom-servers - returns 403 when AI access is disabled", async ({
@@ -369,7 +370,7 @@ test.describe("MCP - AI Disabled", () => {
     });
     const before = await aiTools.getAllowAlways("owner", agentId);
     expect(before.status).toBe(200);
-    expect(before.data).toContain("delete_file");
+    expect(before.data).toContain("docspace_delete_file");
 
     await turnAiOff(ownerApi);
 
@@ -405,7 +406,7 @@ test.describe("MCP - AI Disabled", () => {
 
     await turnAiOn(ownerApi);
     const { data: after } = await aiTools.getAllowAlways("owner", agentId);
-    expect(after).toContain("delete_file");
+    expect(after).toContain("docspace_delete_file");
 
     expect(error).toBe("Forbidden");
     expect(status).toBe(403);
@@ -475,7 +476,7 @@ test.describe("MCP - AI Tools wallet service not paid for", () => {
       // the wallet reading here is the 200, not the contents.
       const { status, data } = await aiTools.listSystemTools("owner");
       expect(status).toBe(200);
-      expect(data).toEqual({});
+      expect(data).toEqual(EMPTY_TOOL_CATALOGUE);
     });
 
     await test.step("POST add-custom-server", async () => {

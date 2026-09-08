@@ -3,7 +3,11 @@ import { test } from "@/src/fixtures";
 import { FileShare } from "@onlyoffice/docspace-api-sdk";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { AiAgentChat, AgentRole } from "@/src/helpers/ai-agent-chat";
-import { AiTools, McpMutationResult } from "@/src/helpers/ai-tools";
+import {
+  AiTools,
+  McpMutationResult,
+  EMPTY_TOOL_CATALOGUE,
+} from "@/src/helpers/ai-tools";
 import { ATTACKER_HOST } from "@/src/helpers/ssrf-payloads";
 import { ApiSDK, UserType } from "@/src/services/api-sdk";
 import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
@@ -409,8 +413,9 @@ test.describe("MCP - Tool state permissions", () => {
     }) => {
       // Open to every role, a Guest included — the route is not membership- or
       // admin-gated, which is the point here. It hands back an empty catalogue
-      // since the tools were hidden on 2026-08-18, so the role matrix is about
-      // who gets a 200 rather than about who sees what.
+      // wrapper (`{groups: {}, errors: {}}`) since the tools were hidden on
+      // 2026-08-18, so the role matrix is about who gets a 200 rather than
+      // about who sees what.
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -420,7 +425,7 @@ test.describe("MCP - Tool state permissions", () => {
       const { data, status } = await aiTools.listSystemTools(role);
 
       expect(status).toBe(200);
-      expect(data).toEqual({});
+      expect(data).toEqual(EMPTY_TOOL_CATALOGUE);
     });
   }
 
@@ -434,8 +439,9 @@ test.describe("MCP - Tool state permissions", () => {
     // session on the same agent. A Guest invited as a Viewer is not a member of this
     // surface, and the pair of calls below is what says so.
     //
-    // Status-only on the catalogue: it has been empty for everyone since the tools
-    // were hidden on 2026-08-18, so there is nothing yet to compare between roles.
+    // Status-only on the catalogue: it has been empty (as the `{groups: {},
+    // errors: {}}` wrapper) for everyone since the tools were hidden on
+    // 2026-08-18, so there is nothing yet to compare between roles.
     const { aiTools, agentId } = await agentWithMember(
       apiSdk,
       paymentsApi,
@@ -451,7 +457,7 @@ test.describe("MCP - Tool state permissions", () => {
     const { status, data } = await aiTools.listSystemTools("guest");
 
     expect(status).toBe(200);
-    expect(data).toEqual({});
+    expect(data).toEqual(EMPTY_TOOL_CATALOGUE);
   });
 });
 
