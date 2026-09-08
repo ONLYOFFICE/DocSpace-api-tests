@@ -98,23 +98,25 @@ test.describe("PUT /api/2.0/files/thirdparty - Change third-party settings acces
     );
   });
 
-  // BUG 82302: PUT /api/2.0/files/thirdparty - Deleted user token remains valid, returns 200 instead of 401
-  test.fail(
-    "BUG 82302: PUT /api/2.0/files/thirdparty - Deleted DocSpaceAdmin cannot change third-party access",
-    async ({ apiSdk }) => {
-      const { api: adminApi, data: adminData } =
-        await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-      const adminId = adminData.response!.id!;
+  test("BUG 82302: PUT /api/2.0/files/thirdparty - Deleted DocSpaceAdmin cannot change third-party access", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi, data: adminData } =
+      await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminId = adminData.response!.id!;
 
-      await apiSdk.forRole("owner").profiles.deleteMember({ userid: adminId });
+    await apiSdk.forRole("owner").userStatus.updateUserStatus({
+      status: EmployeeStatus.Terminated,
+      updateMembersRequestDto: { userIds: [adminId], resendAll: false },
+    });
+    await apiSdk.forRole("owner").profiles.deleteMember({ userid: adminId });
 
-      const { status } = await adminApi.filesSettings.changeAccessToThirdparty({
-        settingsRequestDto: { set: true },
-      });
+    const { status } = await adminApi.filesSettings.changeAccessToThirdparty({
+      settingsRequestDto: { set: true },
+    });
 
-      expect(status).toBe(401);
-    },
-  );
+    expect(status).toBe(401);
+  });
 
   test("PUT /api/2.0/files/thirdparty - Terminated DocSpaceAdmin cannot change third-party access", async ({
     apiSdk,
