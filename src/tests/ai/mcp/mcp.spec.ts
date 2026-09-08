@@ -4094,10 +4094,10 @@ test.describe("MCP - a registered server and the conversation", () => {
 // asked to create a room it answers "I do not have a create_room tool". Asked
 // what it can call, it answers:
 //
-//   docspace_generate_docx, docspace_generate_presentation,
-//   docspace_generate_form, generate_image
+//   onlyoffice_generate_docx, onlyoffice_generate_presentation,
+//   onlyoffice_generate_form, generate_image
 //
-// so `docspace_generate_docx` is the one tool that is both really offered and
+// so `onlyoffice_generate_docx` is the one tool that is both really offered and
 // really named after a `serverType`/`toolName` pair — the `server_tool` token
 // the engine builds from them. Whether the catalogue route should publish these
 // is BUG 82991's business, not this block's.
@@ -4107,7 +4107,7 @@ test.describe("MCP - a registered server and the conversation", () => {
 // apart from "the tool ran and never came back".
 
 /** What the model sees, and what set-disabled's two fields spell out together. */
-const BUILT_IN_DOC_TOOL_TOKEN = `docspace_${BUILT_IN_DOC_TOOL}`;
+const BUILT_IN_DOC_TOOL_TOKEN = `onlyoffice_${BUILT_IN_DOC_TOOL}`;
 
 // The last clause is a safety rail rather than part of the question. Since the
 // REST family started being offered in the agent scope too (BUG 83172, the
@@ -4115,7 +4115,7 @@ const BUILT_IN_DOC_TOOL_TOKEN = `docspace_${BUILT_IN_DOC_TOOL}`;
 // request can make the model pick `upload_file` — which executes against a portal
 // that is not this one, so a run of these tests would create a file in a
 // stranger's My Documents. Steering it to the generator does not weaken what the
-// tests below assert: they are about whether `docspace_generate_docx` is offered
+// tests below assert: they are about whether `onlyoffice_generate_docx` is offered
 // and called at all.
 const ASK_FOR_DOCX =
   "Generate a .docx document titled ProbeDoc containing the single sentence 'hello probe'. " +
@@ -4213,7 +4213,7 @@ test.describe("MCP - disabling a tool the model really has", () => {
     //
     // Both spellings are written, in both scopes, so "nothing happened" does
     // not rest on guessing which name the engine would have matched — the bare
-    // `generate_docx` and the full `docspace_generate_docx` token the model
+    // `generate_docx` and the full `onlyoffice_generate_docx` token the model
     // sees, in the agent scope and portal-wide.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -4600,7 +4600,7 @@ test.describe("MCP - the per-request tool switch", () => {
 // while probing for the opposite: `actionArgs.tools` has no field for switching a
 // built-in off — `set-disabled` under `serverType: "docspace"` is dropped rather
 // than stored ("MCP - disabling a tool the model really has") — but an entry that
-// REUSES the built-in's name displaces it. The engine's `docspace_generate_docx`
+// REUSES the built-in's name displaces it. The engine's `onlyoffice_generate_docx`
 // then never runs, so a swap is implementable; what the model does instead is not
 // deterministic, and the test states both shapes rather than one run's.
 //
@@ -4747,7 +4747,7 @@ test.describe("MCP - the editor's toolset and the chat's", () => {
     // and a request for a document — with two entries added that carry the
     // built-in generator's own name under both spellings. That is the whole
     // difference between the two tests, and it is enough: the engine's
-    // `docspace_generate_docx` is never the tool that answers.
+    // `onlyoffice_generate_docx` is never the tool that answers.
     //
     // The positive control is therefore the test above rather than a turn of its
     // own, and it is kept separate deliberately: a day when the built-in stops
@@ -4780,7 +4780,7 @@ test.describe("MCP - the editor's toolset and the chat's", () => {
     const diagnostics = `called [${asked.calledTools.join(", ")}]; the model answered "${asked.reply.slice(0, 200)}"; frames were ${asked.frames.join(", ")}`;
 
     // The built-in auto-resolves without pausing; the client shadow pauses for
-    // approval (`tool-call-pending`). If `docspace_generate_docx` appears in
+    // approval (`tool-call-pending`). If `onlyoffice_generate_docx` appears in
     // calledTools AND the stream paused, it is the client's version — still
     // displacement. It is only the built-in that answers when there is no pause.
     const calledAsBuiltIn =
@@ -4889,14 +4889,17 @@ test.describe("MCP - a registered server in the tool list", () => {
 // client offers and answers itself.
 //
 // Measured on 2026-08-14 with gemini-3.5-flash, and the toolset turned out to be
-// two families with nothing in common but the word "docspace":
+// two families with nothing in common but a shared prefix:
 //
-//   * in-process generators, addressed with a `docspace_` prefix —
-//     `docspace_generate_docx`, `_generate_presentation`, `_generate_form`,
-//     `docspace_knowledge_search`, plus `generate_image`. These work. The stream
-//     pauses on `tool-call-pending` with `serverExecuted: true`, and the engine
-//     runs the call itself once approve-tool-call arrives — so the approval
-//     carries NO `result` of the client's own, unlike a host tool's.
+//   * in-process generators, addressed with a prefix — originally `docspace_`,
+//     renamed to `onlyoffice_` some time before 2026-09-07 (confirmed by asking
+//     the model to list its own tool names and cross-checking `list-system-tools`;
+//     `docspace_knowledge_search`'s prefix was not re-checked, so it is left as
+//     measured) — `onlyoffice_generate_docx`, `_generate_presentation`,
+//     `_generate_form`, `docspace_knowledge_search`, plus `generate_image`. These
+//     work. The stream pauses on `tool-call-pending` with `serverExecuted: true`,
+//     and the engine runs the call itself once approve-tool-call arrives — so the
+//     approval carries NO `result` of the client's own, unlike a host tool's.
 //   * the 23 REST tools of `list-system-tools` — `get_my_folder`,
 //     `get_rooms_folder`, `create_folder`, `upload_file`, … — addressed with no
 //     prefix at all. Every one of them makes an outbound HTTPS call, and every
@@ -4942,8 +4945,8 @@ const ASK_FOR_MY_FOLDER =
  */
 const GENERATOR_TOOL_NAMES = [
   BUILT_IN_DOC_TOOL_TOKEN,
-  "docspace_generate_presentation",
-  "docspace_generate_form",
+  "onlyoffice_generate_presentation",
+  "onlyoffice_generate_form",
   "docspace_knowledge_search",
   "generate_image",
 ];
@@ -5112,7 +5115,7 @@ const GENERATORS: GeneratorSpec[] = [
   },
   {
     label: "a presentation",
-    toolName: "docspace_generate_presentation",
+    toolName: "onlyoffice_generate_presentation",
     ask:
       "Generate a presentation titled ProbeDeck with three slides about the water cycle. " +
       "Use only your built-in presentation generator — do not call any DocSpace file, folder, room or people API tool. " +
@@ -5126,7 +5129,7 @@ const GENERATORS: GeneratorSpec[] = [
   },
   {
     label: "a form",
-    toolName: "docspace_generate_form",
+    toolName: "onlyoffice_generate_form",
     ask:
       "Generate a fillable form titled ProbeForm with a field for a full name and a field for an email address. " +
       "Use only your built-in form generator — do not call any DocSpace file, folder, room or people API tool. " +
@@ -5449,7 +5452,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    // Fixed on 2026-08-20. `docspace_generate_presentation` used to produce
+    // Fixed on 2026-08-20. `onlyoffice_generate_presentation` used to produce
     // `ProbeDeck.docx`, which the Word editor opens — a container with no slides
     // to hold, and no way for the user to get a deck out of it.
     test.setTimeout(300000);
@@ -5486,7 +5489,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   }) => {
     // Fixed on 2026-08-20 (was BUG 83233, confirmed across 2 of 3 repeat
     // runs — the third failed earlier on unrelated model flakiness, see the
-    // block comment above). `docspace_generate_form` used to produce
+    // block comment above). `onlyoffice_generate_form` used to produce
     // `ProbeForm.docx` with `isForm: false`, so the editor opened it for
     // editing and no one could fill it in. It now writes a PDF with
     // `isForm: true`.
@@ -5742,7 +5745,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
 
     // Persisted where the settings screen reads it, or the checkbox was
     // decoration. Both spellings are accepted answers: the model is offered
-    // `docspace_generate_docx` and the pair the setting is keyed on is
+    // `onlyoffice_generate_docx` and the pair the setting is keyed on is
     // (`docspace`, `generate_docx`).
     const stored = await aiTools.getAllowAlways("owner", agentId);
     expect(stored.status).toBe(200);
@@ -5939,7 +5942,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     const roomId = room.response!.id!;
 
     const formGenerator = GENERATORS.find(
-      (generator) => generator.toolName === "docspace_generate_form",
+      (generator) => generator.toolName === "onlyoffice_generate_form",
     )!;
 
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
