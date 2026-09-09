@@ -74,7 +74,8 @@ test.describe("MCP - System tools catalogue", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    // The route answers 200 with an empty `{groups: {}, errors: {}}` wrapper in
+    // The route answers 200 with an empty `{groups: {}, errors: {}, system: []}`
+    // wrapper in
     // every scope. That is deliberate as of 2026-08-18 — the built-in tools
     // were hidden on purpose, and until then the unscoped read returned 20+
     // `docspace` entries while the scoped one was already empty (the old BUG
