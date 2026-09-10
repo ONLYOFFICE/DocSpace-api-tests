@@ -6017,7 +6017,8 @@ test.describe("AI Chat - image generation", () => {
 
     // …which is the engine's own: no client offered it, and the tools API does
     // not advertise it — nor anything else, the catalogue publishes nothing at
-    // all now (an empty `{groups: {}, errors: {}}` wrapper — see the system
+    // all now (an empty `{groups: {}, errors: {}, system: []}` wrapper — see the
+    // system
     // tools block in mcp.spec.ts).
     const system = await aiTools.listSystemTools("owner");
     expect(
