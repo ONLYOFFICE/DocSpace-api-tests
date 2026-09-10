@@ -5,7 +5,7 @@ import { AiHttp, AgentRole } from "./ai-http";
 // name, scoped either to one agent (`entityId`) or portal-wide (no `entityId`),
 // and individual tools are enabled/disabled per server type.
 //
-//   GET    /ai/tools/list-system-tools      { groups: { docspace: [ {name, description, inputSchema} ] }, errors: {} }
+//   GET    /ai/tools/list-system-tools      { groups: { docspace: [ {name, description, inputSchema} ] }, errors: {}, system: [] }
 //   GET    /ai/tools/list-custom-servers[?entityId=]   map of name -> config
 //   GET    /ai/tools/get-custom-server?name=[&entityId=]
 //   POST   /ai/tools/add-custom-server      { name, config, entityId? }
@@ -98,15 +98,18 @@ export type McpServerMap = Record<string, Record<string, unknown>>;
 export type McpToolCatalogue = {
   groups: Record<string, McpToolDto[]>;
   errors: Record<string, unknown>;
+  system: McpToolDto[];
 };
 
 /**
  * The catalogue has been intentionally empty since 2026-08-18; this is the
- * shape both the unscoped and entityId-scoped reads answer with.
+ * shape both the unscoped and entityId-scoped reads answer with. A `system`
+ * array (also empty) joined `groups`/`errors` on 2026-09-09.
  */
 export const EMPTY_TOOL_CATALOGUE: McpToolCatalogue = {
   groups: {},
   errors: {},
+  system: [],
 };
 
 export class AiTools extends AiHttp {
@@ -139,12 +142,12 @@ export class AiTools extends AiHttp {
   }
 
   /**
-   * The built-in tool catalogue. Answers a wrapper `{ groups, errors }` rather
-   * than a bare `serverType -> tools` map. `agentId` maps to the `entityId` the
-   * SDK declares as REQUIRED on this route — and passing it answers the same
-   * empty wrapper (`{groups: {}, errors: {}}`) instead of a populated catalogue,
-   * so the SDK's own signature cannot list anything. See the scoped-catalogue
-   * bug in mcp/mcp.spec.ts.
+   * The built-in tool catalogue. Answers a wrapper `{ groups, errors, system }`
+   * rather than a bare `serverType -> tools` map. `agentId` maps to the
+   * `entityId` the SDK declares as REQUIRED on this route — and passing it
+   * answers the same empty wrapper (`EMPTY_TOOL_CATALOGUE`) instead of a
+   * populated catalogue, so the SDK's own signature cannot list anything. See
+   * the scoped-catalogue bug in mcp/mcp.spec.ts.
    */
   listSystemTools(role: AgentRole, agentId?: number | string) {
     return this.call<McpToolCatalogue>(
