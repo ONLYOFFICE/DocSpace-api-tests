@@ -66,7 +66,7 @@ import { AiHttp, AgentRole } from "./ai-http";
 //
 // Names are the map keys and carry most of the sharp edges. `_` is banned
 // anywhere in a name ("reserved for tool-token format" — the engine addresses a
-// tool as `server_tool`, e.g. `docspace_generate_docx`). The duplicate check is
+// tool as `server_tool`, e.g. `onlyoffice_generate_docx`). The duplicate check is
 // case-insensitive while the key keeps its original casing, names are not trimmed
 // and not Unicode-normalised, and 128 characters is the cap. A dot that is only
 // part of a name is fine (`.a`, `a.`, `a.b`), as are `%2F`, `#`, `?`, `%`, a
@@ -98,15 +98,20 @@ export type McpServerMap = Record<string, Record<string, unknown>>;
 export type McpToolCatalogue = {
   groups: Record<string, McpToolDto[]>;
   errors: Record<string, unknown>;
+  system: McpToolDto[];
 };
 
 /**
  * The catalogue has been intentionally empty since 2026-08-18; this is the
- * shape both the unscoped and entityId-scoped reads answer with.
+ * shape both the unscoped and entityId-scoped reads answer with. The wrapper
+ * grew a third key, `system`, which arrives empty as well — including with AI
+ * access disabled, so it is part of the shape rather than of the gateway's
+ * answer.
  */
 export const EMPTY_TOOL_CATALOGUE: McpToolCatalogue = {
   groups: {},
   errors: {},
+  system: [],
 };
 
 export class AiTools extends AiHttp {
@@ -139,10 +144,12 @@ export class AiTools extends AiHttp {
   }
 
   /**
-   * The built-in tool catalogue. Answers a wrapper `{ groups, errors }` rather
+   * The built-in tool catalogue. Answers a wrapper `{ groups, errors, system }`
+   * rather
    * than a bare `serverType -> tools` map. `agentId` maps to the `entityId` the
    * SDK declares as REQUIRED on this route — and passing it answers the same
-   * empty wrapper (`{groups: {}, errors: {}}`) instead of a populated catalogue,
+   * empty wrapper (`{groups: {}, errors: {}, system: []}`) instead of a populated
+   * catalogue,
    * so the SDK's own signature cannot list anything. See the scoped-catalogue
    * bug in mcp/mcp.spec.ts.
    */

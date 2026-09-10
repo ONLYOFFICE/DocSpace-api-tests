@@ -413,7 +413,7 @@ test.describe("MCP - Tool state permissions", () => {
     }) => {
       // Open to every role, a Guest included — the route is not membership- or
       // admin-gated, which is the point here. It hands back an empty catalogue
-      // wrapper (`{groups: {}, errors: {}}`) since the tools were hidden on
+      // wrapper (`{groups: {}, errors: {}, system: []}`) since the tools were hidden on
       // 2026-08-18, so the role matrix is about who gets a 200 rather than
       // about who sees what.
       const ownerApi = apiSdk.forRole("owner");
@@ -440,7 +440,7 @@ test.describe("MCP - Tool state permissions", () => {
     // surface, and the pair of calls below is what says so.
     //
     // Status-only on the catalogue: it has been empty (as the `{groups: {},
-    // errors: {}}` wrapper) for everyone since the tools were hidden on
+    // errors: {}, system: []}` wrapper) for everyone since the tools were hidden on
     // 2026-08-18, so there is nothing yet to compare between roles.
     const { aiTools, agentId } = await agentWithMember(
       apiSdk,

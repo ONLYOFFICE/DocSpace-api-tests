@@ -92,7 +92,7 @@ test.describe("MCP - AI Disabled", () => {
   }) => {
     // Deliberately pinned: the built-in tool catalogue is the one tools route
     // the portal AI switch does not gate. What it returns is an empty wrapper
-    // (`{groups: {}, errors: {}}`) either way (the tools were hidden on
+    // (`{groups: {}, errors: {}, system: []}`) either way (the tools were hidden on
     // 2026-08-18), so the subject is the 200 — every neighbouring route in this
     // file answers 403 with AI off.
     const { ownerApi, aiTools } = await mcpSetup(apiSdk, paymentsApi);
