@@ -17678,7 +17678,7 @@ test.describe("PUT /files/fileops/duplicate", () => {
   });
 
   test.fail(
-    "BUG XXXXX: PUT /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room with a file, file is not copied",
+    "BUG 83820: PUT /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room with a file, file is not copied",
     async ({ apiSdk }) => {
       const { api: adminApi } = await apiSdk.addAuthenticatedMember(
         "owner",
