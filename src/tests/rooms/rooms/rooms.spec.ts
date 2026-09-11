@@ -17669,6 +17669,62 @@ test.describe("PUT /files/fileops/duplicate", () => {
       ).toBe(true);
     });
   });
+
+  test.fail(
+    "BUG 83820: PUT /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room with a file, file is not copied",
+    async ({ apiSdk }) => {
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data: roomData } = await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Admin Room With File For Owner Duplicate",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await adminApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Admin Room File" },
+      });
+
+      const ownerApi = apiSdk.forRole("owner");
+
+      await test.step("PUT /files/fileops/duplicate", async () => {
+        const { status } = await ownerApi.operations.duplicateBatchItems({
+          duplicateRequestDto: {
+            folderIds: [roomId as any],
+          },
+        });
+        expect(status).toBe(200);
+      });
+
+      await test.step("GET /files/fileops", async () => {
+        const op = await waitForOperation(ownerApi.operations);
+        expect(op.finished).toBe(true);
+        expect(op.error).toBe("");
+      });
+
+      await test.step("duplicated room contains the file", async () => {
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const duplicate = data.response!.folders!.find(
+          (f) =>
+            f.title?.includes(
+              "Autotest Admin Room With File For Owner Duplicate",
+            ) && (f as any).id !== roomId,
+        );
+        expect(duplicate).toBeDefined();
+
+        const { data: info } = await ownerApi.folders.getFolderInfo({
+          folderId: (duplicate as any).id,
+        });
+        expect(info.response!.filesCount).toBe(1);
+      });
+    },
+  );
 });
 
 test.describe("PUT /files/fileops/delete - Room deletion with open file", () => {
