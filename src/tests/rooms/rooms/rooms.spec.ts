@@ -14329,40 +14329,33 @@ test.describe("API rooms methods", () => {
       expect(status).toBe(404);
     });
 
-    // Starting an index export on an archived room should be forbidden (403,
-    // consistent with reorder and other write operations on archived rooms),
-    // but the API currently accepts it and returns 200. Marked test.fail until
-    // fixed; when the API starts rejecting it the test reports an unexpected
-    // pass, signaling test.fail can be removed.
-    test.fail(
-      "BUG 82369: POST /files/rooms/:id/indexexport - archived room should be forbidden (403), but API returns 200",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Index Export Archived Start",
-            roomType: RoomType.VirtualDataRoom,
-            indexing: true,
-          },
-        });
-        const roomId = roomData.response!.id!;
+    test("BUG 82369: POST /files/rooms/:id/indexexport - archived room should be forbidden (403), but API returns 200", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Archived Start",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        await ownerApi.rooms.archiveRoom({
-          id: roomId,
-          archiveRoomRequest: { deleteAfter: false },
-        });
-        await waitForOperation(ownerApi.operations);
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
 
-        const { status } = await ownerApi.rooms.startRoomIndexExport({
-          id: roomId,
-        });
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomId,
+      });
 
-        // Clean up the export the buggy 200 actually started before asserting.
-        await ownerApi.rooms.terminateRoomIndexExport().catch(() => {});
+      await ownerApi.rooms.terminateRoomIndexExport().catch(() => {});
 
-        expect(status).toBe(403);
-      },
-    );
+      expect(status).toBe(403);
+    });
 
     // === terminateRoomIndexExport (DELETE) as the target endpoint ===
     // The endpoint takes no id and no body: it cancels the *current user's*

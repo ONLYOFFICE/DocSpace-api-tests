@@ -1635,65 +1635,62 @@ test.describe("GET /files/recent - the Forms section", () => {
     };
   }
 
-  test.fail(
-    "BUG 82873: GET /files/recent - searchArea=Forms must not return a file from a Rooms-section room",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { formFileId, docxId } = await seedRecent(apiSdk);
+  test("BUG 82873: GET /files/recent - searchArea=Forms must not return a file from a Rooms-section room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { formFileId, docxId } = await seedRecent(apiSdk);
 
-      const { data, status } = await ownerApi.folders.getRecentFolder({
-        searchArea: SearchArea.Forms,
-      });
+    const { data, status } = await ownerApi.folders.getRecentFolder({
+      searchArea: SearchArea.Forms,
+    });
 
-      expect(status).toBe(200);
-      const ids = ((data.response!.files ?? []) as { id: number }[]).map(
-        (f) => f.id,
-      );
-      // the form is expected here
-      expect(ids).toContain(formFileId);
-      // the file from the Custom room is not - searchArea is currently ignored
-      expect(ids).not.toContain(docxId);
-    },
-  );
+    expect(status).toBe(200);
+    const ids = ((data.response!.files ?? []) as { id: number }[]).map(
+      (f) => f.id,
+    );
+    // the form is expected here
+    expect(ids).toContain(formFileId);
+    // the file from the Custom room is not - searchArea is currently ignored
+    expect(ids).not.toContain(docxId);
+  });
 
-  test.fail(
-    "BUG 82873: GET /files/recent - searchArea=Active must not return a file from a form filling room",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { formFileId, docxId } = await seedRecent(apiSdk);
+  test("BUG 82873: GET /files/recent - searchArea=Active must not return a file from a form filling room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { formFileId, docxId } = await seedRecent(apiSdk);
 
-      const { data, status } = await ownerApi.folders.getRecentFolder({
-        searchArea: SearchArea.Active,
-      });
+    const { data, status } = await ownerApi.folders.getRecentFolder({
+      searchArea: SearchArea.Active,
+    });
 
-      expect(status).toBe(200);
-      const ids = ((data.response!.files ?? []) as { id: number }[]).map(
-        (f) => f.id,
-      );
-      expect(ids).toContain(docxId);
-      expect(ids).not.toContain(formFileId);
-    },
-  );
+    expect(status).toBe(200);
+    const ids = ((data.response!.files ?? []) as { id: number }[]).map(
+      (f) => f.id,
+    );
+    expect(ids).toContain(docxId);
+    expect(ids).not.toContain(formFileId);
+  });
 
-  test.fail(
-    "BUG 82873: GET /files/recent - searchArea=Forms search must not match a Rooms-section file",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { docxId } = await seedRecent(apiSdk);
+  test("BUG 82873: GET /files/recent - searchArea=Forms search must not match a Rooms-section file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { docxId } = await seedRecent(apiSdk);
 
-      const { data, status } = await ownerApi.folders.getRecentFolder({
-        searchArea: SearchArea.Forms,
-        filterValue: "recent-in-custom",
-      });
+    const { data, status } = await ownerApi.folders.getRecentFolder({
+      searchArea: SearchArea.Forms,
+      filterValue: "recent-in-custom",
+    });
 
-      expect(status).toBe(200);
-      const ids = ((data.response!.files ?? []) as { id: number }[]).map(
-        (f) => f.id,
-      );
-      expect(ids).not.toContain(docxId);
-      expect(data.response!.total).toBe(0);
-    },
-  );
+    expect(status).toBe(200);
+    const ids = ((data.response!.files ?? []) as { id: number }[]).map(
+      (f) => f.id,
+    );
+    expect(ids).not.toContain(docxId);
+    expect(data.response!.total).toBe(0);
+  });
 
   test.fail(
     "BUG 82874: GET /files/recent - total must count the whole selection, not the current page",
@@ -1943,31 +1940,30 @@ test.describe("Favorites and form filling rooms", () => {
     expect(search.response!.total).toBe(1);
   });
 
-  test.fail(
-    "BUG 82875: GET /files/@favorites - count together with startIndex returns an empty page",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { aForm, zForm } = await seedFavorites(apiSdk);
+  test("BUG 82875: GET /files/@favorites - count together with startIndex returns an empty page", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { aForm, zForm } = await seedFavorites(apiSdk);
 
-      // premise: both rooms are favorited and orderable
-      const { data: asc } = await ownerApi.folders.getFavoritesFolder({
-        sortBy: "AZ",
-        sortOrder: SortOrder.Ascending,
-      });
-      expect(folderIds(asc)).toEqual([aForm, zForm]);
+    // premise: both rooms are favorited and orderable
+    const { data: asc } = await ownerApi.folders.getFavoritesFolder({
+      sortBy: "AZ",
+      sortOrder: SortOrder.Ascending,
+    });
+    expect(folderIds(asc)).toEqual([aForm, zForm]);
 
-      const { data: page, status } = await ownerApi.folders.getFavoritesFolder({
-        sortBy: "AZ",
-        sortOrder: SortOrder.Ascending,
-        count: 1,
-        startIndex: 1,
-      });
+    const { data: page, status } = await ownerApi.folders.getFavoritesFolder({
+      sortBy: "AZ",
+      sortOrder: SortOrder.Ascending,
+      count: 1,
+      startIndex: 1,
+    });
 
-      expect(status).toBe(200);
-      // the second page comes back empty with count 0
-      expect(folderIds(page)).toEqual([zForm]);
-    },
-  );
+    expect(status).toBe(200);
+    // the second page comes back empty with count 0
+    expect(folderIds(page)).toEqual([zForm]);
+  });
 
   test.fail(
     "BUG 82877: GET /files/@favorites - total must count the whole selection, not the current page",
@@ -2859,51 +2855,48 @@ test.describe("Room templates and form templates are separate collections", () =
       expect(folderIds(forms)).toContain(newRoomId);
     });
 
-    // A form template stores its tags (createRoomTemplate copies whatever is
-    // passed in `tags`), but creating a room from it drops them.
-    test.fail(
-      "BUG 82878: POST /files/rooms/fromtemplate - A form template's tags are not applied to the new room",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const formRoomId = await createRoomOfType(
-          apiSdk,
-          "owner",
-          "Tagged Form Source",
-          RoomType.FillingFormsRoom,
-        );
+    test("BUG 82878: POST /files/rooms/fromtemplate - A form template's tags are not applied to the new room", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const formRoomId = await createRoomOfType(
+        apiSdk,
+        "owner",
+        "Tagged Form Source",
+        RoomType.FillingFormsRoom,
+      );
 
-        const { status: tagStatus } = await ownerApi.rooms.createRoomTemplate({
-          roomTemplateDto: {
-            roomId: formRoomId,
-            title: "Tagged Form Template",
-            tags: ["FormTemplateTag"],
-          },
-        });
-        expect(tagStatus).toBe(200);
-        const formTemplateId = await waitForRoomTemplate(ownerApi.rooms);
+      const { status: tagStatus } = await ownerApi.rooms.createRoomTemplate({
+        roomTemplateDto: {
+          roomId: formRoomId,
+          title: "Tagged Form Template",
+          tags: ["FormTemplateTag"],
+        },
+      });
+      expect(tagStatus).toBe(200);
+      const formTemplateId = await waitForRoomTemplate(ownerApi.rooms);
 
-        // premise: the template really does hold the tag
-        const { data: template } = await ownerApi.rooms.getRoomInfo({
-          id: formTemplateId,
-        });
-        expect(template.response!.tags).toContain("FormTemplateTag");
+      // premise: the template really does hold the tag
+      const { data: template } = await ownerApi.rooms.getRoomInfo({
+        id: formTemplateId,
+      });
+      expect(template.response!.tags).toContain("FormTemplateTag");
 
-        await ownerApi.rooms.createRoomFromTemplate({
-          createRoomFromTemplateDto: {
-            templateId: formTemplateId,
-            title: "Room From Tagged Form Template",
-          },
-        });
-        const newRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
+      await ownerApi.rooms.createRoomFromTemplate({
+        createRoomFromTemplateDto: {
+          templateId: formTemplateId,
+          title: "Room From Tagged Form Template",
+        },
+      });
+      const newRoomId = await waitForRoomFromTemplate(ownerApi.rooms);
 
-        const { data: info } = await ownerApi.rooms.getRoomInfo({
-          id: newRoomId,
-        });
-        // the room is created with the right type but an empty tag list
-        expect(info.response!.roomType).toBe(RoomType.FillingFormsRoom);
-        expect(info.response!.tags).toContain("FormTemplateTag");
-      },
-    );
+      const { data: info } = await ownerApi.rooms.getRoomInfo({
+        id: newRoomId,
+      });
+      // the room is created with the right type but an empty tag list
+      expect(info.response!.roomType).toBe(RoomType.FillingFormsRoom);
+      expect(info.response!.tags).toContain("FormTemplateTag");
+    });
 
     test("POST /files/rooms/fromtemplate - A deleted form template no longer produces a room", async ({
       apiSdk,
