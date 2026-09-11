@@ -18,40 +18,44 @@ test.describe("PUT /people/self/delete - Send instructions to delete profile", (
 
     await test.step("DocSpace admin sends deletion instructions", async () => {
       await apiSdk.authenticateMember(docSpaceAdminData, "DocSpaceAdmin");
-      const { data } = await apiSdk
+      const { data, status } = await apiSdk
         .forRole("docSpaceAdmin")
         .userData.sendInstructionsToDelete();
 
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response).toContain(docSpaceAdminData.email);
     });
 
     await test.step("Room admin sends deletion instructions", async () => {
       await apiSdk.authenticateMember(roomAdminData, "RoomAdmin");
-      const { data } = await apiSdk
+      const { data, status } = await apiSdk
         .forRole("roomAdmin")
         .userData.sendInstructionsToDelete();
 
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response).toContain(roomAdminData.email);
     });
 
     await test.step("User sends deletion instructions", async () => {
       await apiSdk.authenticateMember(userData, "User");
-      const { data } = await apiSdk
+      const { data, status } = await apiSdk
         .forRole("user")
         .userData.sendInstructionsToDelete();
 
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response).toContain(userData.email);
     });
 
     await test.step("Guest sends deletion instructions", async () => {
       await apiSdk.authenticateMember(guestData, "Guest");
-      const { data } = await apiSdk
+      const { data, status } = await apiSdk
         .forRole("guest")
         .userData.sendInstructionsToDelete();
 
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response).toContain(guestData.email);
     });
@@ -79,8 +83,9 @@ test.describe("GET /people/reassign/necessary - Check data for reassignment need
       },
     });
 
-    const { data } = await ownerApi.userData.necessaryReassign();
+    const { data, status } = await ownerApi.userData.necessaryReassign();
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
@@ -106,8 +111,10 @@ test.describe("GET /people/reassign/necessary - Check data for reassignment need
       },
     });
 
-    const { data } = await docSpaceAdminApi.userData.necessaryReassign();
+    const { data, status } =
+      await docSpaceAdminApi.userData.necessaryReassign();
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response).toBe(true);
   });
@@ -162,12 +169,13 @@ test.describe("POST /people/reassign/start - Start data reassignment", () => {
     });
 
     // Owner starts reassignment from deactivated RoomAdmin to Owner
-    const { data } = await ownerApi.userData.startReassign({
+    const { data, status } = await ownerApi.userData.startReassign({
       startReassignRequestDto: {
         fromUserId: roomAdminId,
         toUserId: ownerId,
       },
     });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBe(false);
     expect(data.response?.percentage).toBeGreaterThanOrEqual(0);
@@ -225,13 +233,14 @@ test.describe("POST /people/reassign/start - Start data reassignment", () => {
     );
 
     // DocSpaceAdmin starts reassignment from deactivated RoomAdmin to himself
-    const { data } = await docSpaceAdminApi.userData.startReassign({
+    const { data, status } = await docSpaceAdminApi.userData.startReassign({
       startReassignRequestDto: {
         fromUserId: roomAdminId,
         toUserId: docSpaceAdminId,
       },
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBe(false);
     expect(data.response?.percentage).toBeGreaterThanOrEqual(0);
@@ -294,13 +303,15 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
     let data: Awaited<
       ReturnType<typeof ownerApi.userData.getReassignProgress>
     >["data"];
+    let status: number | undefined;
     await expect(async () => {
-      ({ data } = await ownerApi.userData.getReassignProgress({
+      ({ data, status } = await ownerApi.userData.getReassignProgress({
         userid: roomAdminId,
       }));
       expect(data.response?.status).toBe(2);
     }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
+    expect(status).toBe(200);
     expect(data!.statusCode).toBe(200);
     expect(data!.response?.isCompleted).toBeDefined();
     expect(data!.response?.percentage).toBeDefined();
@@ -372,13 +383,15 @@ test.describe("GET /people/reassign/progress - Check reassignment progress", () 
     let data: Awaited<
       ReturnType<typeof docSpaceAdminApi.userData.getReassignProgress>
     >["data"];
+    let status: number | undefined;
     await expect(async () => {
-      ({ data } = await docSpaceAdminApi.userData.getReassignProgress({
+      ({ data, status } = await docSpaceAdminApi.userData.getReassignProgress({
         userid: roomAdminId,
       }));
       expect(data.response?.status).toBe(2);
     }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
 
+    expect(status).toBe(200);
     expect(data!.statusCode).toBe(200);
     expect(data!.response?.isCompleted).toBeDefined();
     expect(data!.response?.percentage).toBeGreaterThanOrEqual(0);
@@ -438,12 +451,13 @@ test.describe("PUT /people/reassign/terminate - Terminate data reassignment", ()
     });
 
     // Terminate reassignment
-    const { data } = await ownerApi.userData.terminateReassign({
+    const { data, status } = await ownerApi.userData.terminateReassign({
       terminateRequestDto: {
         userId: roomAdminId,
       },
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBe(true);
     expect(data.response?.percentage).toBeGreaterThanOrEqual(0);
@@ -513,12 +527,13 @@ test.describe("PUT /people/reassign/terminate - Terminate data reassignment", ()
     });
 
     // DocSpaceAdmin terminates reassignment
-    const { data } = await docSpaceAdminApi.userData.terminateReassign({
+    const { data, status } = await docSpaceAdminApi.userData.terminateReassign({
       terminateRequestDto: {
         userId: roomAdminId,
       },
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBe(true);
     expect(data.response?.percentage).toBeGreaterThanOrEqual(0);
@@ -582,11 +597,12 @@ test.describe("POST /people/remove/start - Start data removal", () => {
 
       // Start data removal for the deactivated admin
       await test.step("start data removal", async () => {
-        const { data } = await ownerApi.userData.startRemove({
+        const { data, status } = await ownerApi.userData.startRemove({
           terminateRequestDto: {
             userId: adminId,
           },
         });
+        expect(status).toBe(200);
         expect(data.statusCode).toBe(200);
         expect(data.response?.status).toBe(1);
       });
@@ -672,11 +688,12 @@ test.describe("POST /people/remove/start - Start data removal", () => {
 
       // Start data removal for the deactivated RoomAdmin
       await test.step("start data removal", async () => {
-        const { data } = await ownerApi.userData.startRemove({
+        const { data, status } = await ownerApi.userData.startRemove({
           terminateRequestDto: {
             userId: roomAdminId,
           },
         });
+        expect(status).toBe(200);
         expect(data.statusCode).toBe(200);
         expect(data.response?.status).toBe(1);
       });
@@ -749,12 +766,13 @@ test.describe("POST /people/remove/start - Start data removal", () => {
     });
 
     // Start data removal
-    const { data } = await ownerApi.userData.startRemove({
+    const { data, status } = await ownerApi.userData.startRemove({
       terminateRequestDto: {
         userId: roomAdminId,
       },
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBe(false);
     expect(data.response?.percentage).toBeGreaterThanOrEqual(0);
@@ -813,12 +831,13 @@ test.describe("POST /people/remove/start - Start data removal", () => {
     );
 
     // DocSpaceAdmin starts data removal
-    const { data } = await docSpaceAdminApi.userData.startRemove({
+    const { data, status } = await docSpaceAdminApi.userData.startRemove({
       terminateRequestDto: {
         userId: roomAdminId,
       },
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBe(false);
     expect(data.response?.percentage).toBeGreaterThanOrEqual(0);
@@ -875,9 +894,10 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
     });
 
     // Check progress
-    const { data } = await ownerApi.userData.getRemoveProgress({
+    const { data, status } = await ownerApi.userData.getRemoveProgress({
       userid: roomAdminId,
     });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBeDefined();
     expect(data.response?.error).toBe("");
@@ -940,10 +960,11 @@ test.describe("GET /people/remove/progress - Check data removal progress", () =>
     });
 
     // DocSpaceAdmin checks progress
-    const { data } = await docSpaceAdminApi.userData.getRemoveProgress({
+    const { data, status } = await docSpaceAdminApi.userData.getRemoveProgress({
       userid: roomAdminId,
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response?.isCompleted).toBeDefined();
     expect(data.response?.error).toBe("");

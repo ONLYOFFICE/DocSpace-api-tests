@@ -16,13 +16,14 @@ test.describe("PUT /people/userquota - access control", () => {
       await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
     const roomAdminId = roomAdminData.response!.id!;
 
-    const { data } = await roomAdminApi.peopleQuota.updateUserQuota({
+    const { data, status } = await roomAdminApi.peopleQuota.updateUserQuota({
       updateMembersQuotaRequestDto: {
         userIds: [roomAdminId],
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -51,13 +52,14 @@ test.describe("PUT /people/userquota - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.peopleQuota.updateUserQuota({
+    const { data, status } = await roomAdminApi.peopleQuota.updateUserQuota({
       updateMembersQuotaRequestDto: {
         userIds: [ownerId, docSpaceAdminId, userId],
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -89,13 +91,14 @@ test.describe("PUT /people/userquota - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.peopleQuota.updateUserQuota({
+    const { data, status } = await userApi.peopleQuota.updateUserQuota({
       updateMembersQuotaRequestDto: {
         userIds: [ownerId, docSpaceAdminId, roomAdminId],
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -130,13 +133,14 @@ test.describe("PUT /people/userquota - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.peopleQuota.updateUserQuota({
+    const { data, status } = await guestApi.peopleQuota.updateUserQuota({
       updateMembersQuotaRequestDto: {
         userIds: [ownerId, docSpaceAdminId, roomAdminId, userId],
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -192,10 +196,11 @@ test.describe("PUT /people/resetquota - access control", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.peopleQuota.resetUsersQuota({
+    const { data, status } = await roomAdminApi.peopleQuota.resetUsersQuota({
       updateMembersQuotaRequestDto: { userIds: [roomAdminId] },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -231,12 +236,13 @@ test.describe("PUT /people/resetquota - access control", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.peopleQuota.resetUsersQuota({
+    const { data, status } = await roomAdminApi.peopleQuota.resetUsersQuota({
       updateMembersQuotaRequestDto: {
         userIds: [ownerId, docSpaceAdminId, userId],
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -276,12 +282,13 @@ test.describe("PUT /people/resetquota - access control", () => {
       "User",
     );
 
-    const { data } = await userApi.peopleQuota.resetUsersQuota({
+    const { data, status } = await userApi.peopleQuota.resetUsersQuota({
       updateMembersQuotaRequestDto: {
         userIds: [ownerId, docSpaceAdminId, roomAdminId],
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -324,12 +331,13 @@ test.describe("PUT /people/resetquota - access control", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.peopleQuota.resetUsersQuota({
+    const { data, status } = await guestApi.peopleQuota.resetUsersQuota({
       updateMembersQuotaRequestDto: {
         userIds: [ownerId, docSpaceAdminId, roomAdminId, userId],
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -379,12 +387,13 @@ test.describe("PUT /people/resetquota - access control", () => {
 
     const OVER_SIZE_BYTES = 999999999999999; // exceeds total storage
 
-    const { data } = await ownerApi.peopleQuota.updateUserQuota({
+    const { data, status } = await ownerApi.peopleQuota.updateUserQuota({
       updateMembersQuotaRequestDto: {
         userIds: [docspaceAdminId],
         quota: OVER_SIZE_BYTES,
       },
     });
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
     expect((data as any).error.message).toBe(
       "Failed to set quota per user. The entered value is greater than the total storage.",

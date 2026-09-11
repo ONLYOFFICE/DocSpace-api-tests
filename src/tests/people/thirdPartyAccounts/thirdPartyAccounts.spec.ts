@@ -14,10 +14,11 @@ test.describe("GET /people/thirdparty/providers - Get third-party auth providers
   test("GET /people/thirdparty/providers - Owner gets third-party auth providers", async ({
     apiSdk,
   }) => {
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("owner")
       .thirdPartyAccounts.getThirdPartyAuthProviders();
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
 
     const response = data.response as any[];
@@ -34,10 +35,11 @@ test.describe("GET /people/thirdparty/providers - Get third-party auth providers
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .thirdPartyAccounts.getThirdPartyAuthProviders();
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
 
     const response = data.response as any[];
@@ -54,10 +56,11 @@ test.describe("GET /people/thirdparty/providers - Get third-party auth providers
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .thirdPartyAccounts.getThirdPartyAuthProviders();
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
 
     const response = data.response as any[];
@@ -74,10 +77,11 @@ test.describe("GET /people/thirdparty/providers - Get third-party auth providers
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("user")
       .thirdPartyAccounts.getThirdPartyAuthProviders();
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
 
     const response = data.response as any[];
@@ -94,10 +98,11 @@ test.describe("GET /people/thirdparty/providers - Get third-party auth providers
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("guest")
       .thirdPartyAccounts.getThirdPartyAuthProviders();
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
 
     const response = data.response as any[];

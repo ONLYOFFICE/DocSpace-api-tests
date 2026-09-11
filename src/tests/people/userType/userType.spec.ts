@@ -12,29 +12,36 @@ test.describe("PUT /people/type/:type - Change user type", () => {
     const guestId = guestData.response!.id!;
 
     // Guest -> User
-    const { data: toUserData } = await ownerApi.userType.updateUserType({
-      type: EmployeeType.User,
-      updateMembersRequestDto: { userIds: [guestId] },
-    });
+    const { data: toUserData, status } = await ownerApi.userType.updateUserType(
+      {
+        type: EmployeeType.User,
+        updateMembersRequestDto: { userIds: [guestId] },
+      },
+    );
 
+    expect(status).toBe(200);
     expect(toUserData.statusCode).toBe(200);
     expect(toUserData.response![0].isCollaborator).toBe(true);
 
     // User -> Room Admin
-    const { data: toRoomAdminData } = await ownerApi.userType.updateUserType({
-      type: EmployeeType.RoomAdmin,
-      updateMembersRequestDto: { userIds: [guestId] },
-    });
+    const { data: toRoomAdminData, status: toRoomAdminDataStatus } =
+      await ownerApi.userType.updateUserType({
+        type: EmployeeType.RoomAdmin,
+        updateMembersRequestDto: { userIds: [guestId] },
+      });
 
+    expect(toRoomAdminDataStatus).toBe(200);
     expect(toRoomAdminData.statusCode).toBe(200);
     expect(toRoomAdminData.response![0].isRoomAdmin).toBe(true);
 
     // Room Admin -> DocSpace Admin
-    const { data: toAdminData } = await ownerApi.userType.updateUserType({
-      type: EmployeeType.DocSpaceAdmin,
-      updateMembersRequestDto: { userIds: [guestId] },
-    });
+    const { data: toAdminData, status: toAdminDataStatus } =
+      await ownerApi.userType.updateUserType({
+        type: EmployeeType.DocSpaceAdmin,
+        updateMembersRequestDto: { userIds: [guestId] },
+      });
 
+    expect(toAdminDataStatus).toBe(200);
     expect(toAdminData.statusCode).toBe(200);
     expect(toAdminData.response![0].isAdmin).toBe(true);
   });
@@ -51,20 +58,25 @@ test.describe("PUT /people/type/:type - Change user type", () => {
     const guestId = guestData.response!.id!;
 
     // Guest -> User
-    const { data: toUserData } = await adminApi.userType.updateUserType({
-      type: EmployeeType.User,
-      updateMembersRequestDto: { userIds: [guestId] },
-    });
+    const { data: toUserData, status } = await adminApi.userType.updateUserType(
+      {
+        type: EmployeeType.User,
+        updateMembersRequestDto: { userIds: [guestId] },
+      },
+    );
 
+    expect(status).toBe(200);
     expect(toUserData.statusCode).toBe(200);
     expect(toUserData.response![0].isCollaborator).toBe(true);
 
     // User -> Room Admin
-    const { data: toRoomAdminData } = await adminApi.userType.updateUserType({
-      type: EmployeeType.RoomAdmin,
-      updateMembersRequestDto: { userIds: [guestId] },
-    });
+    const { data: toRoomAdminData, status: toRoomAdminDataStatus } =
+      await adminApi.userType.updateUserType({
+        type: EmployeeType.RoomAdmin,
+        updateMembersRequestDto: { userIds: [guestId] },
+      });
 
+    expect(toRoomAdminDataStatus).toBe(200);
     expect(toRoomAdminData.statusCode).toBe(200);
     expect(toRoomAdminData.response![0].isRoomAdmin).toBe(true);
   });
@@ -81,32 +93,38 @@ test.describe("PUT /people/type/:type - Change user type", () => {
     const adminId = adminData.response!.id!;
 
     // DocSpace Admin -> Room Admin
-    const { data: toRoomAdminData } = await ownerApi.userType.updateUserType({
-      type: EmployeeType.RoomAdmin,
-      updateMembersRequestDto: { userIds: [adminId] },
-    });
+    const { data: toRoomAdminData, status } =
+      await ownerApi.userType.updateUserType({
+        type: EmployeeType.RoomAdmin,
+        updateMembersRequestDto: { userIds: [adminId] },
+      });
 
+    expect(status).toBe(200);
     expect(toRoomAdminData.statusCode).toBe(200);
     expect(toRoomAdminData.response![0].isRoomAdmin).toBe(true);
 
     // Room Admin -> User
-    const { data: toUserData } = await ownerApi.userType.startUserTypeUpdate({
-      startUpdateUserTypeDto: {
-        type: EmployeeType.User,
-        userId: adminId,
-      },
-    });
+    const { data: toUserData, status: toUserDataStatus } =
+      await ownerApi.userType.startUserTypeUpdate({
+        startUpdateUserTypeDto: {
+          type: EmployeeType.User,
+          userId: adminId,
+        },
+      });
 
+    expect(toUserDataStatus).toBe(200);
     expect(toUserData.statusCode).toBe(200);
 
     // User -> Guest
-    const { data: toGuestData } = await ownerApi.userType.startUserTypeUpdate({
-      startUpdateUserTypeDto: {
-        type: EmployeeType.Guest,
-        userId: adminId,
-      },
-    });
+    const { data: toGuestData, status: toGuestDataStatus } =
+      await ownerApi.userType.startUserTypeUpdate({
+        startUpdateUserTypeDto: {
+          type: EmployeeType.Guest,
+          userId: adminId,
+        },
+      });
 
+    expect(toGuestDataStatus).toBe(200);
     expect(toGuestData.statusCode).toBe(200);
   });
 
@@ -125,23 +143,27 @@ test.describe("PUT /people/type/:type - Change user type", () => {
     );
 
     // Room Admin -> User
-    const { data: toUserData } = await adminApi.userType.startUserTypeUpdate({
-      startUpdateUserTypeDto: {
-        type: EmployeeType.User,
-        userId: roomAdminId,
-      },
-    });
+    const { data: toUserData, status } =
+      await adminApi.userType.startUserTypeUpdate({
+        startUpdateUserTypeDto: {
+          type: EmployeeType.User,
+          userId: roomAdminId,
+        },
+      });
 
+    expect(status).toBe(200);
     expect(toUserData.statusCode).toBe(200);
 
     // User -> Guest
-    const { data: toGuestData } = await adminApi.userType.startUserTypeUpdate({
-      startUpdateUserTypeDto: {
-        type: EmployeeType.Guest,
-        userId: roomAdminId,
-      },
-    });
+    const { data: toGuestData, status: toGuestDataStatus } =
+      await adminApi.userType.startUserTypeUpdate({
+        startUpdateUserTypeDto: {
+          type: EmployeeType.Guest,
+          userId: roomAdminId,
+        },
+      });
 
+    expect(toGuestDataStatus).toBe(200);
     expect(toGuestData.statusCode).toBe(200);
   });
 });
@@ -168,18 +190,22 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
     // Poll progress until completed
     let isCompleted = false;
     let progressData: any;
+    let progressStatus: number | undefined;
 
     while (!isCompleted) {
-      const { data } = await ownerApi.userType.getUserTypeUpdateProgress({
-        userid: adminId,
-      });
+      const { data, status } =
+        await ownerApi.userType.getUserTypeUpdateProgress({
+          userid: adminId,
+        });
       progressData = data;
+      progressStatus = status;
       isCompleted = (data as any).response?.isCompleted === true;
 
       if (!isCompleted) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
+    expect(progressStatus).toBe(200);
     expect(progressData.statusCode).toBe(200);
     expect(progressData.response.isCompleted).toBe(true);
     expect(progressData.response.percentage).toBe(100);
@@ -209,12 +235,15 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
     // Poll progress until completed
     let isCompleted = false;
     let progressData: any;
+    let progressStatus: number | undefined;
 
     while (!isCompleted) {
-      const { data } = await adminApi.userType.getUserTypeUpdateProgress({
-        userid: roomAdminId,
-      });
+      const { data, status } =
+        await adminApi.userType.getUserTypeUpdateProgress({
+          userid: roomAdminId,
+        });
       progressData = data;
+      progressStatus = status;
       isCompleted = (data as any).response?.isCompleted === true;
 
       if (!isCompleted) {
@@ -222,6 +251,7 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
       }
     }
 
+    expect(progressStatus).toBe(200);
     expect(progressData.statusCode).toBe(200);
     expect(progressData.response.isCompleted).toBe(true);
     expect(progressData.response.percentage).toBe(100);
@@ -253,10 +283,11 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
     });
 
     // Terminate the process
-    const { data: terminateData } =
+    const { data: terminateData, status } =
       await ownerApi.userType.terminateUserTypeUpdate({
         terminateRequestDto: { userId: adminId },
       });
+    expect(status).toBe(200);
     expect(terminateData.statusCode).toBe(200);
     expect((terminateData as any).response.isCompleted).toBe(true);
     expect((terminateData as any).response.error).toBe("");
@@ -291,10 +322,11 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
     });
 
     // DocSpace admin terminates the process
-    const { data: terminateData } =
+    const { data: terminateData, status } =
       await adminApi.userType.terminateUserTypeUpdate({
         terminateRequestDto: { userId: userId },
       });
+    expect(status).toBe(200);
     expect(terminateData.statusCode).toBe(200);
     expect((terminateData as any).response.isCompleted).toBe(true);
     expect((terminateData as any).response.error).toBe("");
@@ -334,10 +366,11 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
     });
 
     // DocSpace admin terminates the process
-    const { data: terminateData } =
+    const { data: terminateData, status } =
       await adminApi.userType.terminateUserTypeUpdate({
         terminateRequestDto: { userId: roomAdminId },
       });
+    expect(status).toBe(200);
     expect(terminateData.statusCode).toBe(200);
     expect((terminateData as any).response.isCompleted).toBe(true);
     expect((terminateData as any).response.error).toBe("");

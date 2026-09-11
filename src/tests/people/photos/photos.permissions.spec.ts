@@ -27,32 +27,48 @@ test.describe("POST /people/:userid/photo - Permissions", () => {
     const image = createTestImageBuffer();
 
     await test.step("Owner uploads avatar to DocSpaceAdmin", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto("owner", adminId, image);
+      const { data, status } = await apiSdk.uploadMemberPhoto(
+        "owner",
+        adminId,
+        image,
+      );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("Owner uploads avatar to RoomAdmin", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "owner",
         roomAdminId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("Owner uploads avatar to User", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto("owner", userId, image);
+      const { data, status } = await apiSdk.uploadMemberPhoto(
+        "owner",
+        userId,
+        image,
+      );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("Owner uploads avatar to Guest", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto("owner", guestId, image);
+      const { data, status } = await apiSdk.uploadMemberPhoto(
+        "owner",
+        guestId,
+        image,
+      );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
@@ -84,44 +100,48 @@ test.describe("POST /people/:userid/photo - Permissions", () => {
     const image = createTestImageBuffer();
 
     await test.step("DocSpace admin uploads avatar to Owner", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "docSpaceAdmin",
         ownerId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("DocSpace admin uploads avatar to RoomAdmin", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "docSpaceAdmin",
         roomAdminId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("DocSpace admin uploads avatar to User", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "docSpaceAdmin",
         userId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("DocSpace admin uploads avatar to Guest", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "docSpaceAdmin",
         guestId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
@@ -153,44 +173,48 @@ test.describe("POST /people/:userid/photo - Permissions", () => {
     const image = createTestImageBuffer();
 
     await test.step("Room admin uploads avatar to Owner", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "roomAdmin",
         ownerId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("Room admin uploads avatar to DocSpaceAdmin", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "roomAdmin",
         adminId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("Room admin uploads avatar to User", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "roomAdmin",
         userId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("Room admin uploads avatar to Guest", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "roomAdmin",
         guestId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
@@ -225,32 +249,48 @@ test.describe("POST /people/:userid/photo - Permissions", () => {
     const image = createTestImageBuffer();
 
     await test.step("User uploads avatar to Owner", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto("user", ownerId, image);
+      const { data, status } = await apiSdk.uploadMemberPhoto(
+        "user",
+        ownerId,
+        image,
+      );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("User uploads avatar to DocSpaceAdmin", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto("user", adminId, image);
+      const { data, status } = await apiSdk.uploadMemberPhoto(
+        "user",
+        adminId,
+        image,
+      );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("User uploads avatar to RoomAdmin", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "user",
         roomAdminId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("User uploads avatar to Guest", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto("user", guestId, image);
+      const { data, status } = await apiSdk.uploadMemberPhoto(
+        "user",
+        guestId,
+        image,
+      );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
@@ -285,32 +325,48 @@ test.describe("POST /people/:userid/photo - Permissions", () => {
     const image = createTestImageBuffer();
 
     await test.step("Guest uploads avatar to Owner", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto("guest", ownerId, image);
+      const { data, status } = await apiSdk.uploadMemberPhoto(
+        "guest",
+        ownerId,
+        image,
+      );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("Guest uploads avatar to DocSpaceAdmin", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto("guest", adminId, image);
+      const { data, status } = await apiSdk.uploadMemberPhoto(
+        "guest",
+        adminId,
+        image,
+      );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("Guest uploads avatar to RoomAdmin", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto(
+      const { data, status } = await apiSdk.uploadMemberPhoto(
         "guest",
         roomAdminId,
         image,
       );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");
     });
 
     await test.step("Guest uploads avatar to User", async () => {
-      const { data } = await apiSdk.uploadMemberPhoto("guest", userId, image);
+      const { data, status } = await apiSdk.uploadMemberPhoto(
+        "guest",
+        userId,
+        image,
+      );
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.response?.success).toBe(false);
       expect(data.response?.message).toBe("Security error.");

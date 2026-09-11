@@ -40,11 +40,12 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
     });
     const fileId = fileData.response!.id!;
 
-    const { data } =
+    const { data, status } =
       await ownerApi.peopleSearch.getAccountsEntriesWithFilesShared({
         id: fileId,
         filterValue: userName,
       });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -94,11 +95,12 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
     });
     const fileId = fileData.response!.id!;
 
-    const { data } =
+    const { data, status } =
       await adminApi.peopleSearch.getAccountsEntriesWithFilesShared({
         id: fileId,
         filterValue: userName,
       });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -148,11 +150,12 @@ test.describe("GET /accounts/file/:id/search - Search accounts for file sharing"
     });
     const fileId = fileData.response!.id!;
 
-    const { data } =
+    const { data, status } =
       await roomAdminApi.peopleSearch.getAccountsEntriesWithFilesShared({
         id: fileId,
         filterValue: userName,
       });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -194,10 +197,12 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data } = await ownerApi.peopleSearch.getUsersWithFilesShared({
-      id: fileId,
-      filterValue: userName,
-    });
+    const { data, status } =
+      await ownerApi.peopleSearch.getUsersWithFilesShared({
+        id: fileId,
+        filterValue: userName,
+      });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -240,10 +245,12 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data } = await adminApi.peopleSearch.getUsersWithFilesShared({
-      id: fileId,
-      filterValue: userName,
-    });
+    const { data, status } =
+      await adminApi.peopleSearch.getUsersWithFilesShared({
+        id: fileId,
+        filterValue: userName,
+      });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -293,10 +300,12 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data } = await roomAdminApi.peopleSearch.getUsersWithFilesShared({
-      id: fileId,
-      filterValue: userName,
-    });
+    const { data, status } =
+      await roomAdminApi.peopleSearch.getUsersWithFilesShared({
+        id: fileId,
+        filterValue: userName,
+      });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -349,10 +358,13 @@ test.describe("GET /people/file/:id - Search users for file sharing", () => {
     });
     const fileId = fileData.response!.id!;
 
-    const { data } = await userApi.peopleSearch.getUsersWithFilesShared({
-      id: fileId,
-      filterValue: userName,
-    });
+    const { data, status } = await userApi.peopleSearch.getUsersWithFilesShared(
+      {
+        id: fileId,
+        filterValue: userName,
+      },
+    );
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -395,11 +407,12 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
     const folderId = folderData.response!.id!;
 
     await expect(async () => {
-      const { data } =
+      const { data, status } =
         await ownerApi.peopleSearch.getAccountsEntriesWithFoldersShared({
           id: folderId,
           filterValue: userName,
         });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
       expect((data.response as any[])[0].id).toBe(userId);
@@ -450,11 +463,12 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
     });
     const folderId = folderData.response!.id!;
 
-    const { data } =
+    const { data, status } =
       await adminApi.peopleSearch.getAccountsEntriesWithFoldersShared({
         id: folderId,
         filterValue: userName,
       });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -504,11 +518,12 @@ test.describe("GET /accounts/folder/:id/search - Search accounts for folder shar
     });
     const folderId = folderData.response!.id!;
 
-    const { data } =
+    const { data, status } =
       await roomAdminApi.peopleSearch.getAccountsEntriesWithFoldersShared({
         id: folderId,
         filterValue: userName,
       });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -550,11 +565,13 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     });
     const folderId = folderData.response!.id!;
 
-    const { data } = await ownerApi.peopleSearch.getUsersWithFoldersShared({
-      id: folderId,
-      filterValue: userName,
-    });
+    const { data, status } =
+      await ownerApi.peopleSearch.getUsersWithFoldersShared({
+        id: folderId,
+        filterValue: userName,
+      });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -597,10 +614,12 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     });
     const folderId = folderData.response!.id!;
 
-    const { data } = await adminApi.peopleSearch.getUsersWithFoldersShared({
-      id: folderId,
-      filterValue: userName,
-    });
+    const { data, status } =
+      await adminApi.peopleSearch.getUsersWithFoldersShared({
+        id: folderId,
+        filterValue: userName,
+      });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -650,10 +669,12 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     });
     const folderId = folderData.response!.id!;
 
-    const { data } = await roomAdminApi.peopleSearch.getUsersWithFoldersShared({
-      id: folderId,
-      filterValue: userName,
-    });
+    const { data, status } =
+      await roomAdminApi.peopleSearch.getUsersWithFoldersShared({
+        id: folderId,
+        filterValue: userName,
+      });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -706,10 +727,12 @@ test.describe("GET /people/folder/:id - Search users for folder sharing", () => 
     });
     const folderId = folderData.response!.id!;
 
-    const { data } = await userApi.peopleSearch.getUsersWithFoldersShared({
-      id: folderId,
-      filterValue: userName,
-    });
+    const { data, status } =
+      await userApi.peopleSearch.getUsersWithFoldersShared({
+        id: folderId,
+        filterValue: userName,
+      });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -743,11 +766,12 @@ test.describe("GET /accounts/room/:id/search - Search accounts for room sharing"
       },
     });
 
-    const { data } =
+    const { data, status } =
       await ownerApi.peopleSearch.getAccountsEntriesWithRoomsShared({
         id: roomId,
         filterValue: userName,
       });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -789,11 +813,12 @@ test.describe("GET /accounts/room/:id/search - Search accounts for room sharing"
       },
     });
 
-    const { data } =
+    const { data, status } =
       await adminApi.peopleSearch.getAccountsEntriesWithRoomsShared({
         id: roomId,
         filterValue: userName,
       });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -835,11 +860,12 @@ test.describe("GET /accounts/room/:id/search - Search accounts for room sharing"
       },
     });
 
-    const { data } =
+    const { data, status } =
       await roomAdminApi.peopleSearch.getAccountsEntriesWithRoomsShared({
         id: roomId,
         filterValue: userName,
       });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -873,10 +899,13 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
       },
     });
 
-    const { data } = await ownerApi.peopleSearch.getUsersWithRoomShared({
-      id: roomId,
-      filterValue: userName,
-    });
+    const { data, status } = await ownerApi.peopleSearch.getUsersWithRoomShared(
+      {
+        id: roomId,
+        filterValue: userName,
+      },
+    );
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -911,10 +940,13 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
       },
     });
 
-    const { data } = await adminApi.peopleSearch.getUsersWithRoomShared({
-      id: roomId,
-      filterValue: userName,
-    });
+    const { data, status } = await adminApi.peopleSearch.getUsersWithRoomShared(
+      {
+        id: roomId,
+        filterValue: userName,
+      },
+    );
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -956,10 +988,12 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
       },
     });
 
-    const { data } = await roomAdminApi.peopleSearch.getUsersWithRoomShared({
-      id: roomId,
-      filterValue: userName,
-    });
+    const { data, status } =
+      await roomAdminApi.peopleSearch.getUsersWithRoomShared({
+        id: roomId,
+        filterValue: userName,
+      });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -1004,10 +1038,11 @@ test.describe("GET /people/room/:id - Search users for room sharing", () => {
       },
     });
 
-    const { data } = await userApi.peopleSearch.getUsersWithRoomShared({
+    const { data, status } = await userApi.peopleSearch.getUsersWithRoomShared({
       id: roomId,
       filterValue: userName,
     });
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.count).toBe(1);
     expect((data.response as any[])[0].id).toBe(userId);
@@ -1044,9 +1079,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     const guestName = guestData.response!.displayName!;
 
     await test.step("Owner searches DocSpaceAdmin by email", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({
+      const { data, status } = await ownerApi.peopleSearch.getSearch({
         query: adminEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === adminEmail),
@@ -1054,9 +1090,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches DocSpaceAdmin by name", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({
+      const { data, status } = await ownerApi.peopleSearch.getSearch({
         query: adminName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === adminName),
@@ -1064,9 +1101,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches RoomAdmin by email", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({
+      const { data, status } = await ownerApi.peopleSearch.getSearch({
         query: roomAdminEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
@@ -1074,9 +1112,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches RoomAdmin by name", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({
+      const { data, status } = await ownerApi.peopleSearch.getSearch({
         query: roomAdminName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1086,9 +1125,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches User by email", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({
+      const { data, status } = await ownerApi.peopleSearch.getSearch({
         query: userEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === userEmail),
@@ -1096,9 +1136,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches User by name", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({
+      const { data, status } = await ownerApi.peopleSearch.getSearch({
         query: userName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === userName),
@@ -1106,9 +1147,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches Guest by email", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({
+      const { data, status } = await ownerApi.peopleSearch.getSearch({
         query: guestEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === guestEmail),
@@ -1116,9 +1158,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("Owner searches Guest by name", async () => {
-      const { data } = await ownerApi.peopleSearch.getSearch({
+      const { data, status } = await ownerApi.peopleSearch.getSearch({
         query: guestName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === guestName),
@@ -1154,9 +1197,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
     await test.step("DocSpace admin searches Owner by email", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({
+      const { data, status } = await adminApi.peopleSearch.getSearch({
         query: ownerEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === ownerEmail),
@@ -1164,9 +1208,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches Owner by name", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({
+      const { data, status } = await adminApi.peopleSearch.getSearch({
         query: ownerName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === ownerName),
@@ -1174,9 +1219,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches RoomAdmin by email", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({
+      const { data, status } = await adminApi.peopleSearch.getSearch({
         query: roomAdminEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
@@ -1184,9 +1230,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches RoomAdmin by name", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({
+      const { data, status } = await adminApi.peopleSearch.getSearch({
         query: roomAdminName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1196,9 +1243,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches User by email", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({
+      const { data, status } = await adminApi.peopleSearch.getSearch({
         query: userEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === userEmail),
@@ -1206,9 +1254,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches User by name", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({
+      const { data, status } = await adminApi.peopleSearch.getSearch({
         query: userName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === userName),
@@ -1216,9 +1265,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches Guest by email", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({
+      const { data, status } = await adminApi.peopleSearch.getSearch({
         query: guestEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === guestEmail),
@@ -1226,9 +1276,10 @@ test.describe("GET /accounts/search - Search accounts", () => {
     });
 
     await test.step("DocSpace admin searches Guest by name", async () => {
-      const { data } = await adminApi.peopleSearch.getSearch({
+      const { data, status } = await adminApi.peopleSearch.getSearch({
         query: guestName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === guestName),
@@ -1266,9 +1317,10 @@ test.describe("GET /people/search - Search users by query", () => {
     const guestName = guestData.response!.displayName!;
 
     await test.step("Owner searches DocSpaceAdmin by email", async () => {
-      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await ownerApi.peopleSearch.searchUsersByQuery({
         query: adminEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === adminEmail),
@@ -1276,9 +1328,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches DocSpaceAdmin by name", async () => {
-      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await ownerApi.peopleSearch.searchUsersByQuery({
         query: adminName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === adminName),
@@ -1286,9 +1339,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches RoomAdmin by email", async () => {
-      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await ownerApi.peopleSearch.searchUsersByQuery({
         query: roomAdminEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
@@ -1296,9 +1350,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches RoomAdmin by name", async () => {
-      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await ownerApi.peopleSearch.searchUsersByQuery({
         query: roomAdminName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1308,9 +1363,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches User by email", async () => {
-      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await ownerApi.peopleSearch.searchUsersByQuery({
         query: userEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === userEmail),
@@ -1318,9 +1374,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches User by name", async () => {
-      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await ownerApi.peopleSearch.searchUsersByQuery({
         query: userName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === userName),
@@ -1328,9 +1385,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches Guest by email", async () => {
-      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await ownerApi.peopleSearch.searchUsersByQuery({
         query: guestEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === guestEmail),
@@ -1338,9 +1396,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("Owner searches Guest by name", async () => {
-      const { data } = await ownerApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await ownerApi.peopleSearch.searchUsersByQuery({
         query: guestName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === guestName),
@@ -1376,9 +1435,10 @@ test.describe("GET /people/search - Search users by query", () => {
     const guestName = guestData.response!.displayName!;
 
     await test.step("DocSpace admin searches Owner by email", async () => {
-      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await adminApi.peopleSearch.searchUsersByQuery({
         query: ownerEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === ownerEmail),
@@ -1386,9 +1446,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches Owner by name", async () => {
-      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await adminApi.peopleSearch.searchUsersByQuery({
         query: ownerName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === ownerName),
@@ -1396,9 +1457,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches RoomAdmin by email", async () => {
-      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await adminApi.peopleSearch.searchUsersByQuery({
         query: roomAdminEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === roomAdminEmail),
@@ -1406,9 +1468,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches RoomAdmin by name", async () => {
-      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await adminApi.peopleSearch.searchUsersByQuery({
         query: roomAdminName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some(
@@ -1418,9 +1481,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches User by email", async () => {
-      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await adminApi.peopleSearch.searchUsersByQuery({
         query: userEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === userEmail),
@@ -1428,9 +1492,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches User by name", async () => {
-      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await adminApi.peopleSearch.searchUsersByQuery({
         query: userName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === userName),
@@ -1438,9 +1503,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches Guest by email", async () => {
-      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await adminApi.peopleSearch.searchUsersByQuery({
         query: guestEmail,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.email === guestEmail),
@@ -1448,9 +1514,10 @@ test.describe("GET /people/search - Search users by query", () => {
     });
 
     await test.step("DocSpace admin searches Guest by name", async () => {
-      const { data } = await adminApi.peopleSearch.searchUsersByQuery({
+      const { data, status } = await adminApi.peopleSearch.searchUsersByQuery({
         query: guestName,
       });
+      expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(
         (data.response as any[]).some((u: any) => u.displayName === guestName),

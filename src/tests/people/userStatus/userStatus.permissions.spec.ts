@@ -43,11 +43,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.userStatus.updateUserStatus({
+    const { data, status } = await adminApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });
@@ -68,11 +69,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.userStatus.updateUserStatus({
+    const { data, status } = await adminApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });
@@ -101,11 +103,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.userStatus.updateUserStatus({
+    const { data, status } = await roomAdminApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -139,11 +142,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.userStatus.updateUserStatus({
+    const { data, status } = await roomAdminApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Active,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -166,11 +170,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.userStatus.updateUserStatus({
+    const { data, status } = await roomAdminApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -193,11 +198,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.userStatus.updateUserStatus({
+    const { data, status } = await roomAdminApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -218,11 +224,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.userStatus.updateUserStatus({
+    const { data, status } = await roomAdminApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });
@@ -243,11 +250,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.userStatus.updateUserStatus({
+    const { data, status } = await userApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });
@@ -270,11 +278,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.userStatus.updateUserStatus({
+    const { data, status } = await userApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -297,11 +306,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.userStatus.updateUserStatus({
+    const { data, status } = await userApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -321,11 +331,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.userStatus.updateUserStatus({
+    const { data, status } = await userApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -346,11 +357,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.userStatus.updateUserStatus({
+    const { data, status } = await guestApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });
@@ -373,11 +385,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.userStatus.updateUserStatus({
+    const { data, status } = await guestApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -400,11 +413,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.userStatus.updateUserStatus({
+    const { data, status } = await guestApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -424,11 +438,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.userStatus.updateUserStatus({
+    const { data, status } = await guestApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -465,11 +480,12 @@ test.describe("PUT /people/status/:status - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.userStatus.updateUserStatus({
+    const { data, status } = await userApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Active,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -487,10 +503,11 @@ test.describe("GET /people/status/:status - access control", () => {
     );
     await apiSdk.addMember("owner", "Guest");
 
-    const { data } = await userApi.userStatus.getByStatus({
+    const { data, status } = await userApi.userStatus.getByStatus({
       status: EmployeeStatus.Active,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -529,10 +546,11 @@ test.describe("GET /people/status/:status - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.userStatus.getByStatus({
+    const { data, status } = await userApi.userStatus.getByStatus({
       status: EmployeeStatus.Terminated,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -569,11 +587,12 @@ test.describe("GET /people/status/:status - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.userStatus.updateUserStatus({
+    const { data, status } = await guestApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Active,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -612,10 +631,11 @@ test.describe("GET /people/status/:status - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.userStatus.getByStatus({
+    const { data, status } = await guestApi.userStatus.getByStatus({
       status: EmployeeStatus.Terminated,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
