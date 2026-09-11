@@ -420,21 +420,100 @@ export class AiAttachments extends AiHttp {
     return data.id;
   }
 
+  /**
+   * `POST /api/2.0/ai/attachments/save-image` is dead by design — confirmed
+   * by the developer: image attachment now goes through the same real-file
+   * path as any other document (`save-file` with `path` = a DocSpace file
+   * id), not a dedicated base64-direct store. `save-image` was for the AI
+   * plugin in the editors and never ended up used there either. Verified
+   * live 2026-08-28: `save-file`/`save-files-many` with `path` pointing at a
+   * real uploaded image answers `kind: "image"` and the exact base64 back,
+   * byte for byte — the same shape `save-image` used to hand back directly.
+   * A raw base64 payload with no backing file (the old UX) now 500s.
+   *
+   * So this uploads `input.base64` as a real file first (mirroring
+   * `backingFileId` above, but with the right bytes/mime type instead of
+   * text) and then attaches it the normal way — every caller keeps working
+   * unchanged, since only the mechanism moved, not the (role, input,
+   * entityId) -> id contract.
+   */
   async saveImageId(
     role: AgentRole,
     input: ImageInput,
     entityId?: string,
   ): Promise<string> {
-    const { status, data, error } = await this.saveImage(role, {
-      input,
+    const name = typeof input.name === "string" ? input.name : "autotest.png";
+    const raw = typeof input.base64 === "string" ? input.base64 : "";
+    const comma = raw.indexOf(",");
+    const mimeMatch = /^data:([^;,]+)/.exec(raw);
+
+    const fileId = await this.backingImageFileId(
+      role,
+      name,
+      Buffer.from(comma >= 0 ? raw.slice(comma + 1) : raw, "base64"),
+      mimeMatch?.[1] ?? "image/png",
+    );
+
+    const { status, data, error } = await this.saveFile(role, {
+      input: {
+        path: String(fileId),
+        title: typeof input.title === "string" ? input.title : name,
+        content: "",
+        type: FileType.Document,
+      },
       ...(entityId === undefined ? {} : { entityId }),
     });
     if (status !== 200 || !data?.id) {
       throw new Error(
-        `save-image failed for ${JSON.stringify(input)}: ${status} ${error ?? "(no id)"}`,
+        `save-image (via save-file on a real upload) failed for ${JSON.stringify(input)}: ${status} ${error ?? "(no id)"}`,
       );
     }
     return data.id;
+  }
+
+  private readonly backingImageFiles = new Map<string, number>();
+
+  /** Same idea as `backingFileId`, for real image bytes instead of text. */
+  private async backingImageFileId(
+    role: AgentRole,
+    name: string,
+    bytes: Buffer,
+    mimeType: string,
+  ): Promise<number> {
+    const cacheKey = `${role} ${name} ${bytes.length} ${mimeType}`;
+    const cached = this.backingImageFiles.get(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const headers: Record<string, string> = {
+      Origin: `http://${this.tokenStore.newTenantDomain}`,
+    };
+    if (role !== "anonymous") {
+      headers.Authorization = `Bearer ${this.tokenStore.getToken(role)}`;
+    }
+
+    const response = await this.request.post(
+      `${this.tokenStore.portalBaseUrl}/api/2.0/files/@my/upload`,
+      {
+        headers,
+        multipart: { file: { name, mimeType, buffer: bytes } },
+      },
+    );
+    const body = (await response.json()) as {
+      response?: Array<{ id?: number }> | { id?: number };
+    };
+    const entry = Array.isArray(body.response)
+      ? body.response[0]
+      : body.response;
+    if (response.status() !== 200 || entry?.id === undefined) {
+      throw new Error(
+        `uploading the backing image ${name} failed: ${response.status()}`,
+      );
+    }
+
+    this.backingImageFiles.set(cacheKey, entry.id);
+    return entry.id;
   }
 
   // ----------------------------------------------------------- polling reads

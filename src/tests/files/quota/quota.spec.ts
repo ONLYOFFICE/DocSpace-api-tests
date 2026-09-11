@@ -134,31 +134,30 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     expect((data.response as any)[0].quotaLimit).toBe(0);
   });
 
-  // BUG 82293: PUT /api/2.0/files/rooms/roomquota - Returns 200 instead of 403 when room quota feature is disabled
-  test.fail(
-    "BUG 82293: PUT /api/2.0/files/rooms/roomquota - Owner cannot set quota when room quota feature is disabled",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
+  test("BUG 82293: PUT /api/2.0/files/rooms/roomquota - Owner cannot set quota when room quota feature is disabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
 
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Quota Room Feature Disabled",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Quota Room Feature Disabled",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { status } = await ownerApi.roomQuota.updateRoomsQuota({
-        updateRoomsQuotaRequestDtoInteger: {
-          roomIds: [roomId] as any,
-          quota: QUOTA_MINIMAL_BYTES,
-        },
-      });
+    const { status } = await ownerApi.roomQuota.updateRoomsQuota({
+      updateRoomsQuotaRequestDtoInteger: {
+        roomIds: [roomId] as any,
+        quota: QUOTA_MINIMAL_BYTES,
+      },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   test("PUT /api/2.0/files/rooms/roomquota - Owner sets quota for an archived room", async ({
     apiSdk,
@@ -561,30 +560,29 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     expect((data.response as any[]).length).toBe(0);
   });
 
-  // BUG 82293: PUT /api/2.0/files/rooms/resetquota - Returns 200 instead of 403 when room quota feature is disabled
-  test.fail(
-    "BUG 82293: PUT /api/2.0/files/rooms/resetquota - Owner cannot reset quota when room quota feature is disabled",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
+  test("BUG 82293: PUT /api/2.0/files/rooms/resetquota - Owner cannot reset quota when room quota feature is disabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
 
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Reset Quota Room Feature Disabled",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Reset Quota Room Feature Disabled",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { status } = await ownerApi.roomQuota.resetRoomQuota({
-        updateRoomsRoomIdsRequestDtoInteger: {
-          roomIds: [roomId] as any,
-        },
-      });
+    const { status } = await ownerApi.roomQuota.resetRoomQuota({
+      updateRoomsRoomIdsRequestDtoInteger: {
+        roomIds: [roomId] as any,
+      },
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   test("PUT /api/2.0/files/rooms/resetquota - Owner resets quota for an archived room", async ({
     apiSdk,

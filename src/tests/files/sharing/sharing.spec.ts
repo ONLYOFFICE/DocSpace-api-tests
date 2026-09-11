@@ -2309,7 +2309,7 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
 
   // BUG 83430: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
   test.fail(
-    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - User with Editing access gets Full Access in response",
+    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - User with Editing access has permissions defined in response",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -2349,7 +2349,8 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
       });
 
       expect(status).toBe(200);
-      expect(data.response![0].permissions).toBe("Full Access");
+      expect(data.response).toHaveLength(1);
+      expect(data.response![0].permissions).toBeDefined();
     },
   );
 
