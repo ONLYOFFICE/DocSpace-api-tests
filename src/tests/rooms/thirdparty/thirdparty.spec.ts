@@ -585,12 +585,6 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
   test("BUG 83301: PUT /files/rooms/thirdparty/{id} - An internal folder id 500s instead of returning 400/404", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 83301: createRoomThirdParty throws System.NullReferenceException (500) " +
-        "when given a plain internal folder id instead of a 'sbox-*' third-party selector",
-    );
-
     const { data: myDocs } = await apiSdk
       .forRole("owner")
       .folders.getMyFolder();
@@ -612,14 +606,6 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
   test("BUG 83301: PUT /files/rooms/thirdparty/{id} - A well-formed but non-existent sbox-* id 500s instead of returning 404", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 83301: createRoomThirdParty 500s (System.InvalidOperationException: " +
-        "'Sequence contains no elements') for an id that matches the 'sbox-<n>' " +
-        "selector pattern but doesn't correspond to any connected provider, " +
-        "instead of the clean 404 a completely unrecognized id gets",
-    );
-
     const { status } = await apiSdk
       .forRole("owner")
       .rooms.createRoomThirdParty({
@@ -858,7 +844,7 @@ test.describe("saveThirdParty with providerId - updating an existing connection"
     expect(account.customer_title).toBe("Autotest Rename After");
   });
 
-  test("POST /files/thirdparty - Non-existent providerId returns a controlled 403, not 500", async ({
+  test("POST /files/thirdparty - Non-existent providerId returns a controlled 404, not 500", async ({
     apiSdk,
   }) => {
     const { status } = await apiSdk
@@ -874,7 +860,7 @@ test.describe("saveThirdParty with providerId - updating an existing connection"
         },
       });
 
-    expect(status).toBe(403);
+    expect(status).toBe(404);
   });
 });
 
