@@ -3,18 +3,22 @@ import { test } from "@/src/fixtures/index";
 import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
-// SKIPPED (2026-08-14, re-verified 2026-08-19): the Private Rooms feature is
-// postponed to the next release and is being temporarily removed from the
-// current one, so the whole PrivacyroomApi surface is unavailable on a release
-// portal. The tests are parked rather than deleted because the feature is
-// coming back.
+// SKIPPED (2026-08-14, re-verified 2026-08-19): the Private Rooms feature was
+// postponed to the next release and temporarily removed, so the whole
+// PrivacyroomApi surface was unavailable on a release portal. The tests are
+// parked rather than deleted because the feature is expected back.
 //
-// When it returns: drop the .skip on the describe below and re-verify the
-// contract documented here against the live portal — the endpoints may come
-// back changed, and the open bugs referenced in the test.fail annotations
-// (82544 / 82545 / 82546 / 82551 / 82552 / 82553 / 82554 / 82800 / 82802 /
-// 82804) may or may not still reproduce. BUG 82524 (a Guest cannot create
-// encryption keys) is closed as by-design and is no longer treated as a bug.
+// Spot-check on 2026-09-14: the endpoints answer real requests again (not
+// 404/skipped) on the test portal, and replaceKey now validates its input —
+// a missing/empty publicKey is rejected with 400 instead of silently
+// overwriting/erasing, which fixes BUG 82804 (a follow-through of BUG 82802)
+// and several of the BUG 82802/82800/82545 test.fail cases too. This was only
+// a single-test spot-check, not a full sweep — before dropping the .skip on
+// the describe below, re-run the whole file and re-verify each open bug
+// referenced in the test.fail annotations (82544 / 82546 / 82551 / 82552 /
+// 82553 / 82554 / 82800 / 82802) individually, since the contract may have
+// changed further. BUG 82524 (a Guest cannot create encryption keys) is
+// closed as by-design and is no longer treated as a bug.
 
 /**
  * Functional tests for the PrivacyroomApi — per-user encryption key management
@@ -1203,18 +1207,16 @@ test.describe.skip("API privacyroom methods", () => {
       expect(info.data.response!.private).toBe(true);
     });
 
-    test("GET /api/2.0/privacyroom/{roomId}/access - A wiped key must not be reported as room access", async ({
+    test("GET /api/2.0/privacyroom/{roomId}/access - A rejected empty-body replaceKey must not wipe room access", async ({
       apiSdk,
     }) => {
-      // Follow-through on the destructive replaceKey bug: after an empty-body PUT
-      // erases the key material the row still exists, so the endpoint answers 200
-      // with an entry that carries NO publicKey — the caller is told it has
-      // access to a room it can no longer decrypt. Deleting the key outright is
-      // reported honestly (403, see the test above); wiping it is not.
-      test.fail(
-        true,
-        "BUG 82804: after replaceKey erases the key material, getUserKeysForRoom returns 200 with a key entry that has no publicKey/privateKeyEnc",
-      );
+      // BUG 82804 was a follow-through on BUG 82802: an empty-body replaceKey
+      // used to erase the stored key material while leaving the row in place, so
+      // this endpoint answered 200 with an entry that had NO publicKey — the
+      // caller was told it had access to a room it could no longer decrypt.
+      // replaceKey now validates its input and rejects an empty DTO with 400
+      // instead of silently erasing (see BUG 82802 test above), so the key
+      // material — and this endpoint's report of it — stays intact.
       const owner = apiSdk.forRole("owner");
       await owner.privacyroom.setKeys({
         encryptionKeyRequestDto: {
@@ -1231,9 +1233,12 @@ test.describe.skip("API privacyroom methods", () => {
       });
       const roomId = room.response!.id! as number;
 
-      await owner.privacyroom.replaceKey({ encryptionKeyRequestDto: {} });
+      const replace = await owner.privacyroom.replaceKey({ encryptionKeyRequestDto: {} });
+      expect(replace.status).toBe(400);
 
-      const { data } = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      const { data, status } = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      expect(status).toBe(200);
+      expect(data.response!.length).toBeGreaterThan(0);
       // Whatever the endpoint reports, it must never present a key entry without
       // key material.
       for (const key of data.response ?? []) {
