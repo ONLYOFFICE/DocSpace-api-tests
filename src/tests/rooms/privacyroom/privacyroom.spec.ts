@@ -1233,10 +1233,14 @@ test.describe.skip("API privacyroom methods", () => {
       });
       const roomId = room.response!.id! as number;
 
-      const replace = await owner.privacyroom.replaceKey({ encryptionKeyRequestDto: {} });
+      const replace = await owner.privacyroom.replaceKey({
+        encryptionKeyRequestDto: {},
+      });
       expect(replace.status).toBe(400);
 
-      const { data, status } = await owner.privacyroom.getUserKeysForRoom({ roomId });
+      const { data, status } = await owner.privacyroom.getUserKeysForRoom({
+        roomId,
+      });
       expect(status).toBe(200);
       expect(data.response!.length).toBeGreaterThan(0);
       // Whatever the endpoint reports, it must never present a key entry without
