@@ -5,7 +5,7 @@ import { AiHttp, AgentRole } from "./ai-http";
 // name, scoped either to one agent (`entityId`) or portal-wide (no `entityId`),
 // and individual tools are enabled/disabled per server type.
 //
-//   GET    /ai/tools/list-system-tools      { groups: { docspace: [ {name, description, inputSchema} ] }, errors: {} }
+//   GET    /ai/tools/list-system-tools      { groups: { docspace: [ {name, description, inputSchema} ] }, errors: {}, system: [] }
 //   GET    /ai/tools/list-custom-servers[?entityId=]   map of name -> config
 //   GET    /ai/tools/get-custom-server?name=[&entityId=]
 //   POST   /ai/tools/add-custom-server      { name, config, entityId? }

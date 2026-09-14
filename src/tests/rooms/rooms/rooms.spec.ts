@@ -14329,40 +14329,33 @@ test.describe("API rooms methods", () => {
       expect(status).toBe(404);
     });
 
-    // Starting an index export on an archived room should be forbidden (403,
-    // consistent with reorder and other write operations on archived rooms),
-    // but the API currently accepts it and returns 200. Marked test.fail until
-    // fixed; when the API starts rejecting it the test reports an unexpected
-    // pass, signaling test.fail can be removed.
-    test.fail(
-      "BUG 82369: POST /files/rooms/:id/indexexport - archived room should be forbidden (403), but API returns 200",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { data: roomData } = await ownerApi.rooms.createRoom({
-          createRoomRequestDto: {
-            title: "Autotest Index Export Archived Start",
-            roomType: RoomType.VirtualDataRoom,
-            indexing: true,
-          },
-        });
-        const roomId = roomData.response!.id!;
+    test("BUG 82369: POST /files/rooms/:id/indexexport - archived room should be forbidden (403), but API returns 200", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Index Export Archived Start",
+          roomType: RoomType.VirtualDataRoom,
+          indexing: true,
+        },
+      });
+      const roomId = roomData.response!.id!;
 
-        await ownerApi.rooms.archiveRoom({
-          id: roomId,
-          archiveRoomRequest: { deleteAfter: false },
-        });
-        await waitForOperation(ownerApi.operations);
+      await ownerApi.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await waitForOperation(ownerApi.operations);
 
-        const { status } = await ownerApi.rooms.startRoomIndexExport({
-          id: roomId,
-        });
+      const { status } = await ownerApi.rooms.startRoomIndexExport({
+        id: roomId,
+      });
 
-        // Clean up the export the buggy 200 actually started before asserting.
-        await ownerApi.rooms.terminateRoomIndexExport().catch(() => {});
+      await ownerApi.rooms.terminateRoomIndexExport().catch(() => {});
 
-        expect(status).toBe(403);
-      },
-    );
+      expect(status).toBe(403);
+    });
 
     // === terminateRoomIndexExport (DELETE) as the target endpoint ===
     // The endpoint takes no id and no body: it cancels the *current user's*
@@ -17676,6 +17669,62 @@ test.describe("PUT /files/fileops/duplicate", () => {
       ).toBe(true);
     });
   });
+
+  test.fail(
+    "BUG 83820: PUT /files/fileops/duplicate - Owner duplicates DocSpaceAdmin's room with a file, file is not copied",
+    async ({ apiSdk }) => {
+      const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+
+      const { data: roomData } = await adminApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Admin Room With File For Owner Duplicate",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      await adminApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Admin Room File" },
+      });
+
+      const ownerApi = apiSdk.forRole("owner");
+
+      await test.step("PUT /files/fileops/duplicate", async () => {
+        const { status } = await ownerApi.operations.duplicateBatchItems({
+          duplicateRequestDto: {
+            folderIds: [roomId as any],
+          },
+        });
+        expect(status).toBe(200);
+      });
+
+      await test.step("GET /files/fileops", async () => {
+        const op = await waitForOperation(ownerApi.operations);
+        expect(op.finished).toBe(true);
+        expect(op.error).toBe("");
+      });
+
+      await test.step("duplicated room contains the file", async () => {
+        const { data } = await ownerApi.rooms.getRoomsFolder({});
+        const duplicate = data.response!.folders!.find(
+          (f) =>
+            f.title?.includes(
+              "Autotest Admin Room With File For Owner Duplicate",
+            ) && (f as any).id !== roomId,
+        );
+        expect(duplicate).toBeDefined();
+
+        const { data: info } = await ownerApi.folders.getFolderInfo({
+          folderId: (duplicate as any).id,
+        });
+        expect(info.response!.filesCount).toBe(1);
+      });
+    },
+  );
 });
 
 test.describe("PUT /files/fileops/delete - Room deletion with open file", () => {
