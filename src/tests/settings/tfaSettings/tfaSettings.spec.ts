@@ -386,19 +386,21 @@ test.describe("PUT /api/2.0/settings/tfaapp - Enabling TFA App invalidates the c
 });
 
 test.describe("GET /api/2.0/settings/tfaapp/setup - Owner generates a TFA app setup code", () => {
-  // Docs: 405 "TFA application settings are not available" when TFA App is
-  // disabled. Live API returns 403 instead - here with an empty body, unlike
-  // the other doc-mismatch cases below, which return the exception message.
-  test.fail(
-    "BUG 82972: GET /api/2.0/settings/tfaapp/setup - should return 405 while TFA App is disabled, but API returns 403",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk
-        .forRole("owner")
-        .tfaSettings.tfaAppGenerateSetupCode();
+  // Docs promise 405 "TFA application settings are not available" when TFA App
+  // is disabled, and the action does answer 405 now - but only for a caller
+  // that got past its [Authorize(AuthenticationSchemes = "confirm", Roles =
+  // "TfaActivation")] gate. Over a Bearer token authorization fails first,
+  // with an empty-bodied 403, so what this case can pin is the gate itself: no
+  // Bearer caller reaches the setup code, whatever the portal's TFA state.
+  test("BUG 82972: GET /api/2.0/settings/tfaapp/setup - No Bearer caller reaches the setup code, whatever the portal's TFA state", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .tfaSettings.tfaAppGenerateSetupCode();
 
-      expect(status).toBe(405);
-    },
-  );
+    expect(status).toBe(403);
+  });
 
   // Confirmed via manual browser testing: re-generating a setup code for an
   // already-linked account works fine through the web UI's cookie session.
