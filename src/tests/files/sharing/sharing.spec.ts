@@ -2257,190 +2257,182 @@ test.describe("POST /api/2.0/files/file/{fileId}/sendeditornotify - Send editor 
     expect(data.statusCode).toBe(200);
   });
 
-  // BUG 83430: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
-  test.fail(
-    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - Response contains user name and permissions for mentioned user",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - Response contains user name and permissions for mentioned user", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Notify Room Response Fields",
-          roomType: RoomType.EditingRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Notify Room Response Fields",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest Notify File.docx" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Notify File.docx" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: userData } = await apiSdk.addMember("owner", "User");
-      const userId = userData.response!.id!;
-      const userEmail = userData.response!.email!;
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+    const userEmail = userData.response!.email!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Editing }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-      const { data, status } = await ownerApi.sharing.sendEditorNotify({
-        fileId,
-        mentionMessageWrapper: {
-          actionLink: { action: { data: "test-action", type: "comment" } },
-          emails: [userEmail],
-          message: "test",
-        },
-      });
+    const { data, status } = await ownerApi.sharing.sendEditorNotify({
+      fileId,
+      mentionMessageWrapper: {
+        actionLink: { action: { data: "test-action", type: "comment" } },
+        emails: [userEmail],
+        message: "test",
+      },
+    });
 
-      expect(status).toBe(200);
-      expect(data.response).toHaveLength(1);
-      const entry = data.response![0];
-      expect(entry.user).toBeDefined();
-      expect(entry.permissions).toBeDefined();
-      expect(entry.isLink).toBe(false);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(1);
+    const entry = data.response![0];
+    expect(entry.user).toBeDefined();
+    expect(entry.permissions).toBeDefined();
+    expect(entry.isLink).toBe(false);
+  });
 
-  // BUG 83430: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
-  test.fail(
-    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - User with Editing access has permissions defined in response",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - User with Editing access has permissions defined in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Notify Room Editing",
-          roomType: RoomType.EditingRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Notify Room Editing",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest Notify File.docx" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Notify File.docx" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: userData } = await apiSdk.addMember("owner", "User");
-      const userId = userData.response!.id!;
-      const userEmail = userData.response!.email!;
+    const { data: userData } = await apiSdk.addMember("owner", "User");
+    const userId = userData.response!.id!;
+    const userEmail = userData.response!.email!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Editing }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-      const { data, status } = await ownerApi.sharing.sendEditorNotify({
-        fileId,
-        mentionMessageWrapper: {
-          actionLink: { action: { data: "test-action", type: "comment" } },
-          emails: [userEmail],
-          message: "test",
-        },
-      });
+    const { data, status } = await ownerApi.sharing.sendEditorNotify({
+      fileId,
+      mentionMessageWrapper: {
+        actionLink: { action: { data: "test-action", type: "comment" } },
+        emails: [userEmail],
+        message: "test",
+      },
+    });
 
-      expect(status).toBe(200);
-      expect(data.response).toHaveLength(1);
-      expect(data.response![0].permissions).toBeDefined();
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(1);
+    expect(data.response![0].permissions).toBeDefined();
+  });
 
-  // BUG 83430: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
-  test.fail(
-    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - User without room access gets Deny Access in response",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - User without room access gets Deny Access in response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Notify Room Deny",
-          roomType: RoomType.EditingRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Notify Room Deny",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest Notify File.docx" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Notify File.docx" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: outsiderData } = await apiSdk.addMember("owner", "User");
-      const outsiderEmail = outsiderData.response!.email!;
+    const { data: outsiderData } = await apiSdk.addMember("owner", "User");
+    const outsiderEmail = outsiderData.response!.email!;
 
-      const { data, status } = await ownerApi.sharing.sendEditorNotify({
-        fileId,
-        mentionMessageWrapper: {
-          actionLink: { action: { data: "test-action", type: "comment" } },
-          emails: [outsiderEmail],
-          message: "test",
-        },
-      });
+    const { data, status } = await ownerApi.sharing.sendEditorNotify({
+      fileId,
+      mentionMessageWrapper: {
+        actionLink: { action: { data: "test-action", type: "comment" } },
+        emails: [outsiderEmail],
+        message: "test",
+      },
+    });
 
-      expect(status).toBe(200);
-      expect(data.response).toHaveLength(1);
-      expect(data.response![0].permissions).toBe("Deny Access");
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(1);
+    expect(data.response![0].permissions).toBe("Deny Access");
+  });
 
-  // BUG 83430: sendEditorNotify returns 200 but response body contains no AceShortWrapper data
-  test.fail(
-    "BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - Multiple emails returns entry per mentioned user",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 83430: POST /api/2.0/files/file/{fileId}/sendeditornotify - Multiple emails returns entry per mentioned user", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Notify Room Multi",
-          roomType: RoomType.EditingRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Notify Room Multi",
+        roomType: RoomType.EditingRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: { title: "Autotest Notify File.docx" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Notify File.docx" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
-      const ownerEmail = ownerProfile.response!.email!;
+    const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
+    const ownerEmail = ownerProfile.response!.email!;
 
-      const { data: user1Data } = await apiSdk.addMember("owner", "User");
-      const user1Id = user1Data.response!.id!;
-      const user1Email = user1Data.response!.email!;
+    const { data: user1Data } = await apiSdk.addMember("owner", "User");
+    const user1Id = user1Data.response!.id!;
+    const user1Email = user1Data.response!.email!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: user1Id, access: FileShare.Editing }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: user1Id, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-      const { data, status } = await ownerApi.sharing.sendEditorNotify({
-        fileId,
-        mentionMessageWrapper: {
-          actionLink: { action: { data: "test-action", type: "comment" } },
-          emails: [ownerEmail, user1Email],
-          message: "test",
-        },
-      });
+    const { data, status } = await ownerApi.sharing.sendEditorNotify({
+      fileId,
+      mentionMessageWrapper: {
+        actionLink: { action: { data: "test-action", type: "comment" } },
+        emails: [ownerEmail, user1Email],
+        message: "test",
+      },
+    });
 
-      expect(status).toBe(200);
-      expect(data.response).toHaveLength(2);
-      expect(data.count).toBe(2);
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response).toHaveLength(2);
+    expect(data.count).toBe(2);
+  });
 
   test("POST /api/2.0/files/file/{fileId}/sendeditornotify - Empty emails array returns 200", async ({
     apiSdk,

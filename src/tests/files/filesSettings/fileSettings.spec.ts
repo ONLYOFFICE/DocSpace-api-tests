@@ -3185,52 +3185,45 @@ test.describe("POST /api/2.0/files/settings/defaulttemplate - Upload default tem
     },
   );
 
-  // BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading file with extension mismatching fileExtension parameter is accepted instead of rejected
-  test.fail(
-    "BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .pdf file as .docx" +
-      " template returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const file = new File([new Uint8Array(100)], "template.pdf", {
-        type: "application/pdf",
-      });
-      const { status } = await ownerApi.filesSettings.uploadDefaultTemplate({
-        fileExtension: ".docx",
-        file,
-      });
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .pdf file as .docx template returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const file = new File([new Uint8Array(100)], "template.pdf", {
+      type: "application/pdf",
+    });
+    const { status } = await ownerApi.filesSettings.uploadDefaultTemplate({
+      fileExtension: ".docx",
+      file,
+    });
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .docx file as .xlsx" +
-      " template returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const file = new File([new Uint8Array(100)], "template.docx", {
-        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      });
-      const { status } = await ownerApi.filesSettings.uploadDefaultTemplate({
-        fileExtension: ".xlsx",
-        file,
-      });
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .docx file as .xlsx template returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const file = new File([new Uint8Array(100)], "template.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    const { status } = await ownerApi.filesSettings.uploadDefaultTemplate({
+      fileExtension: ".xlsx",
+      file,
+    });
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .xlsx file as .pptx" +
-      " template returns 400",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const file = new File([new Uint8Array(100)], "template.xlsx", {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const { status } = await ownerApi.filesSettings.uploadDefaultTemplate({
-        fileExtension: ".pptx",
-        file,
-      });
-      expect(status).toBe(400);
-    },
-  );
+  test("BUG 79975: POST /api/2.0/files/settings/defaulttemplate - Uploading .xlsx file as .pptx template returns 400", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const file = new File([new Uint8Array(100)], "template.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const { status } = await ownerApi.filesSettings.uploadDefaultTemplate({
+      fileExtension: ".pptx",
+      file,
+    });
+    expect(status).toBe(400);
+  });
 });
