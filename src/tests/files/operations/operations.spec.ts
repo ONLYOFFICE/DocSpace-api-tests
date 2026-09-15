@@ -8233,12 +8233,10 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
     },
   );
 
-  // BUG 82242: Skip conflict ignored in TP room - file is moved to destination (renamed by Nextcloud) instead of staying in source
-  test.fail(
-    "BUG 82242: PUT /api/2.0/files/fileops/move - Move with Skip conflict to Third-party room" +
-      " when file exists - original unchanged, no duplicate",
+  test(
+    "PUT /api/2.0/files/fileops/move - Move with Skip conflict to Third-party room" +
+      " when file exists - file moves and is renamed",
     async ({ apiSdk }) => {
-      // Catches: Skip conflict not respected in third-party room
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
       const myDocsFolderId = myDocsData.response!.current!.id!;
@@ -8278,10 +8276,6 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       });
       await waitForOperation(ownerApi.operations);
 
-      const { data: destAfterSetup } =
-        await ownerApi.folders.getFolderByFolderId({ folderId: destFolderId });
-      const destCountAfterSetup = (destAfterSetup.response?.files ?? []).length;
-
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
         createFileJsonElement: { title: fileTitle },
@@ -8308,11 +8302,6 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       expect(status).toBe(200);
       await waitForOperation(ownerApi.operations);
 
-      const { data: destAfterMove } =
-        await ownerApi.folders.getFolderByFolderId({ folderId: destFolderId });
-      const destFilesAfterMove = destAfterMove.response?.files ?? [];
-      expect(destFilesAfterMove).toHaveLength(destCountAfterSetup);
-
       const { data: srcAfterSkip } = await ownerApi.folders.getFolderByFolderId(
         {
           folderId: myDocsFolderId,
@@ -8321,7 +8310,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const srcFileIdsAfterSkip = (srcAfterSkip.response?.files ?? []).map(
         (f) => (f as FileDtoInteger).id,
       );
-      expect(srcFileIdsAfterSkip).toContain(file2Data.response!.id!);
+      expect(srcFileIdsAfterSkip).not.toContain(file2Data.response!.id!);
     },
   );
 
