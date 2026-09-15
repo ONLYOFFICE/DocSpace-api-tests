@@ -86,6 +86,8 @@ export class PaymentApi {
           customerEmail: config.DOCSPACE_OWNER_EMAIL,
           quantity,
         },
+        // The payments backend is slow from CI; the context default (30 s) is not enough.
+        timeout: 120_000,
       },
     );
 
@@ -125,6 +127,9 @@ export class PaymentApi {
           sum: String(sum),
           currency,
         },
+        // Not retried on purpose: a top-up is not idempotent, a late-but-successful
+        // first attempt would be credited twice and break balance assertions.
+        timeout: 120_000,
       },
     );
 
