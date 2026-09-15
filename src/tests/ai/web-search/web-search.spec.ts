@@ -1547,8 +1547,9 @@ test.describe("AI Web Search - entity scope robustness", () => {
 // the provider comes from the add-on. So the expected behaviour of these two is a
 // deterministic refusal, not a save — 403, the way `clear` refuses the same
 // billing-owned state and the way `/ai/profiles` CRUD refuses on a gateway
-// portal. Both tests below are `test.fail` on that 403; neither asks for a
-// working save any more.
+// portal. The add-on-owns-the-provider case below now gets that 403 (BUG 82812
+// fixed there); the other three below still don't — see each test for the
+// current (not-403) status.
 test.describe("AI Web Search - configure crashes instead of refusing", () => {
   test("BUG 82812: PUT /api/2.0/ai/web-search/configure - every body returns 500 and nothing is stored", async ({
     apiSdk,
@@ -1631,7 +1632,6 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
       "onlyoffice",
     );
 
-    test.fail();
     expect(
       attempt.status,
       `configure answered ${attempt.status} ${attempt.text}`,

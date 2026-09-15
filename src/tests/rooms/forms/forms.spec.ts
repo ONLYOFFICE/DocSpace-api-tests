@@ -1965,24 +1965,22 @@ test.describe("Favorites and form filling rooms", () => {
     expect(folderIds(page)).toEqual([zForm]);
   });
 
-  test.fail(
-    "BUG 82877: GET /files/@favorites - total must count the whole selection, not the current page",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await seedFavorites(apiSdk);
+  test("BUG 82877: GET /files/@favorites - total must count the whole selection, not the current page", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await seedFavorites(apiSdk);
 
-      const { data: all } = await ownerApi.folders.getFavoritesFolder({});
-      expect(all.response!.total).toBe(2);
+    const { data: all } = await ownerApi.folders.getFavoritesFolder({});
+    expect(all.response!.total).toBe(2);
 
-      const { data: page, status } = await ownerApi.folders.getFavoritesFolder({
-        count: 1,
-      });
-      expect(status).toBe(200);
-      expect(page.response!.count).toBe(1);
-      // total currently collapses to the page size
-      expect(page.response!.total).toBe(2);
-    },
-  );
+    const { data: page, status } = await ownerApi.folders.getFavoritesFolder({
+      count: 1,
+    });
+    expect(status).toBe(200);
+    expect(page.response!.count).toBe(1);
+    expect(page.response!.total).toBe(2);
+  });
 
   test("GET /files/@favorites - Archiving a favorited form filling room keeps it in Favorites under the Archive root", async ({
     apiSdk,
