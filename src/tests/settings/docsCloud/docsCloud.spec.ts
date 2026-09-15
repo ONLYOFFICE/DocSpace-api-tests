@@ -2,12 +2,18 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import type { ApiSDK } from "@/src/services/api-sdk";
 
+// Starting a trial only enqueues tenant provisioning; the tenant endpoints answer
+// 500/404 until it finishes. Provisioning routinely takes more than 15 s in CI.
 async function startTrialAndWait(apiSdk: ApiSDK) {
-  await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+  const ownerApi = apiSdk.forRole("owner");
+  const { data, status } = await ownerApi.docsCloud.startDocsCloudTrial();
+  expect(status, `startDocsCloudTrial: ${JSON.stringify(data)}`).toBe(200);
+
   await expect(async () => {
-    const { status } = await apiSdk.forRole("owner").docsCloud.getTenantQuota();
-    expect(status).toBe(200);
-  }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
+    const quota = await ownerApi.docsCloud.getTenantQuota();
+    expect(quota.status).toBe(200);
+    expect(quota.data.response).toBeTruthy();
+  }).toPass({ intervals: [1000, 2000, 3000, 5000], timeout: 60000 });
 }
 
 test.describe("POST /api/2.0/settings/docscloud/tenant/quota/report", () => {
@@ -685,18 +691,7 @@ test.describe("POST /api/2.0/settings/docscloud/trial", () => {
   test("POST /api/2.0/settings/docscloud/trial - returns 400 when DocsCloud trial is already active", async ({
     apiSdk,
   }) => {
-    const { status: firstStatus } = await apiSdk
-      .forRole("owner")
-      .docsCloud.startDocsCloudTrial();
-    expect(firstStatus).toBe(200);
-
-    await expect(async () => {
-      const { data: tenantData, status: tenantStatus } = await apiSdk
-        .forRole("owner")
-        .docsCloud.getTenantQuota();
-      expect(tenantStatus).toBe(200);
-      expect((tenantData as any).response).toBeTruthy();
-    }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")
