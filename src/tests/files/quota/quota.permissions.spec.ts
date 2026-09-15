@@ -63,13 +63,14 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota - access c
       "DocSpaceAdmin",
     );
 
-    const { data } = await adminApi.roomQuota.updateRoomsQuota({
+    const { data, status } = await adminApi.roomQuota.updateRoomsQuota({
       updateRoomsQuotaRequestDtoInteger: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -94,13 +95,14 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota - access c
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.roomQuota.updateRoomsQuota({
+    const { data, status } = await roomAdminApi.roomQuota.updateRoomsQuota({
       updateRoomsQuotaRequestDtoInteger: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -125,13 +127,14 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota - access c
       "User",
     );
 
-    const { data } = await userApi.roomQuota.updateRoomsQuota({
+    const { data, status } = await userApi.roomQuota.updateRoomsQuota({
       updateRoomsQuotaRequestDtoInteger: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 });
@@ -198,12 +201,13 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
       "DocSpaceAdmin",
     );
 
-    const { data } = await adminApi.roomQuota.resetRoomQuota({
+    const { data, status } = await adminApi.roomQuota.resetRoomQuota({
       updateRoomsRoomIdsRequestDtoInteger: {
         roomIds: [roomId] as any,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -235,12 +239,13 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.roomQuota.resetRoomQuota({
+    const { data, status } = await roomAdminApi.roomQuota.resetRoomQuota({
       updateRoomsRoomIdsRequestDtoInteger: {
         roomIds: [roomId] as any,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -272,12 +277,13 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
       "User",
     );
 
-    const { data } = await userApi.roomQuota.resetRoomQuota({
+    const { data, status } = await userApi.roomQuota.resetRoomQuota({
       updateRoomsRoomIdsRequestDtoInteger: {
         roomIds: [roomId] as any,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 });

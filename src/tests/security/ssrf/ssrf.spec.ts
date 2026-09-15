@@ -103,40 +103,36 @@ test.describe("GET /filehandler.ashx - fileuri parameter must not trigger outbou
 // with re-validation at connect time to prevent DNS-rebinding.
 
 test.describe("POST /api/2.0/files/thirdparty - WebDAV provider URL must be validated before outbound PROPFIND", () => {
-  test("POST /api/2.0/files/thirdparty - should reject WebDAV provider with loopback URL", async ({
-    apiSdk,
-  }) => {
-    test.fail(
-      true,
-      "BUG 82560: WebDAV provider creation allows SSRF — server performs PROPFIND to arbitrary URL without validation",
-    );
+  test.fail(
+    "BUG 82560: WebDAV provider creation allows SSRF — server performs PROPFIND to arbitrary URL without validation",
+    async ({ apiSdk }) => {
+      const baseUrl = apiSdk.tokenStore.portalBaseUrl;
+      const ownerToken = apiSdk.tokenStore.getToken("owner");
 
-    const baseUrl = apiSdk.tokenStore.portalBaseUrl;
-    const ownerToken = apiSdk.tokenStore.getToken("owner");
-
-    await apiSdk.request.put(`${baseUrl}/api/2.0/files/thirdparty`, {
-      data: { set: true },
-      headers: {
-        Authorization: `Bearer ${ownerToken}`,
-        Origin: `https://${apiSdk.tokenStore.newTenantDomain}`,
-      },
-    });
-
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .thirdPartyIntegration.saveThirdParty({
-        thirdPartyRequestDto: {
-          url: "http://127.0.0.1:9999/webdav-canary",
-          login: "ssrf-test",
-          password: "ssrf-test",
-          providerKey: "WebDav",
-          customerTitle: "ssrf-webdav-loopback",
+      await apiSdk.request.put(`${baseUrl}/api/2.0/files/thirdparty`, {
+        data: { set: true },
+        headers: {
+          Authorization: `Bearer ${ownerToken}`,
+          Origin: `https://${apiSdk.tokenStore.newTenantDomain}`,
         },
       });
 
-    expect(status).toBe(400);
-    expect((data as any).providerId).toBeUndefined();
-  });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .thirdPartyIntegration.saveThirdParty({
+          thirdPartyRequestDto: {
+            url: "http://127.0.0.1:9999/webdav-canary",
+            login: "ssrf-test",
+            password: "ssrf-test",
+            providerKey: "WebDav",
+            customerTitle: "ssrf-webdav-loopback",
+          },
+        });
+
+      expect(status, JSON.stringify(data)).toBe(400);
+      expect((data as any).providerId).toBeUndefined();
+    },
+  );
 
   test("POST /api/2.0/files/thirdparty - should reject WebDAV provider with link-local URL (169.254.x.x)", async ({
     apiSdk,

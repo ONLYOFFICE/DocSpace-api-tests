@@ -61,13 +61,14 @@ test.describe("POST /files/rooms - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.rooms.createRoom({
+    const { data, status } = await guestApi.rooms.createRoom({
       createRoomRequestDto: {
         title: "Autotest Room",
         roomType: RoomType.CustomRoom,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain(
       "You don't have enough permission to create",
@@ -227,13 +228,14 @@ test.describe("PUT /files/rooms/:id - access control", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.rooms.updateRoom({
+    const { data, status } = await adminApi.rooms.updateRoom({
       id: roomId,
       updateRoomRequest: {
         title: "Updated Room",
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -251,13 +253,14 @@ test.describe("PUT /files/rooms/:id - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.rooms.updateRoom({
+    const { data, status } = await userApi.rooms.updateRoom({
       id: roomId,
       updateRoomRequest: {
         title: "Updated by User",
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -274,13 +277,14 @@ test.describe("PUT /files/rooms/:id - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.rooms.updateRoom({
+    const { data, status } = await guestApi.rooms.updateRoom({
       id: roomId,
       updateRoomRequest: {
         title: "Updated by Guest",
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain(
       "You don't have permission to edit the room",
@@ -655,13 +659,15 @@ test.describe("PUT /files/rooms/:id/archive - access control", () => {
     const roomId = roomData.response!.id!;
 
     // DocSpaceAdmin creates a file inside the room
-    const { data: fileData } = await adminApi.files.createFile({
-      folderId: roomId,
-      createFileJsonElement: {
-        title: "DocSpaceAdmin Document",
-      },
-    });
+    const { data: fileData, status: fileDataStatus } =
+      await adminApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: {
+          title: "DocSpaceAdmin Document",
+        },
+      });
 
+    expect(fileDataStatus).toBe(200);
     expect(fileData.statusCode).toBe(200);
     expect(fileData.response!.id!).toBeGreaterThan(0);
 
@@ -794,11 +800,12 @@ test.describe("PUT /files/rooms/:id/archive - access control", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data } = await ownerApi.rooms.archiveRoom({
+    const { data, status } = await ownerApi.rooms.archiveRoom({
       id: 999999999,
       archiveRoomRequest: { deleteAfter: false },
     });
 
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -821,11 +828,12 @@ test.describe("PUT /files/rooms/:id/archive - access control", () => {
     const deleteOp = await waitForOperation(ownerApi.operations);
     expect(deleteOp.finished).toBe(true);
 
-    const { data } = await ownerApi.rooms.archiveRoom({
+    const { data, status } = await ownerApi.rooms.archiveRoom({
       id: roomId,
       archiveRoomRequest: { deleteAfter: false },
     });
 
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -1215,10 +1223,12 @@ test.describe("GET /files/rooms/:id/link - access control", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.rooms.getRoomsPrimaryExternalLink({
-      id: roomData.response!.id!,
-    });
+    const { data, status } =
+      await roomAdminApi.rooms.getRoomsPrimaryExternalLink({
+        id: roomData.response!.id!,
+      });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -1288,10 +1298,11 @@ test.describe("GET /files/rooms/:id/link - access control", () => {
       },
     });
 
-    const { data } = await userApi.rooms.getRoomsPrimaryExternalLink({
+    const { data, status } = await userApi.rooms.getRoomsPrimaryExternalLink({
       id: roomId,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -1309,10 +1320,11 @@ test.describe("GET /files/rooms/:id/link - access control", () => {
       "User",
     );
 
-    const { data } = await userApi.rooms.getRoomsPrimaryExternalLink({
+    const { data, status } = await userApi.rooms.getRoomsPrimaryExternalLink({
       id: roomData.response!.id!,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -1330,10 +1342,11 @@ test.describe("GET /files/rooms/:id/link - access control", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.rooms.getRoomsPrimaryExternalLink({
+    const { data, status } = await guestApi.rooms.getRoomsPrimaryExternalLink({
       id: roomData.response!.id!,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -1387,10 +1400,11 @@ test.describe("POST /files/tags - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.rooms.createRoomTag({
+    const { data, status } = await userApi.rooms.createRoomTag({
       createTagRequestDto: { name: "Autotest Tag" },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });
@@ -1400,10 +1414,11 @@ test.describe("POST /files/tags - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.rooms.createRoomTag({
+    const { data, status } = await guestApi.rooms.createRoomTag({
       createTagRequestDto: { name: "Autotest Tag" },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });
@@ -1961,7 +1976,7 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.rooms.setRoomSecurity({
+    const { data, status } = await adminApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
         invitations: [{ id: userId, access: FileShare.Editing }],
@@ -1969,6 +1984,7 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -1986,7 +2002,7 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       await apiSdk.addAuthenticatedMember("owner", "User");
     const userId = memberData.response!.id!;
 
-    const { data } = await userApi.rooms.setRoomSecurity({
+    const { data, status } = await userApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
         invitations: [{ id: userId, access: FileShare.Editing }],
@@ -1994,6 +2010,7 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -2011,7 +2028,7 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       await apiSdk.addAuthenticatedMember("owner", "Guest");
     const userId = memberData.response!.id!;
 
-    const { data } = await guestApi.rooms.setRoomSecurity({
+    const { data, status } = await guestApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
         invitations: [{ id: userId, access: FileShare.Editing }],
@@ -2019,6 +2036,7 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain(
       "You don't have enough permission to view the folder content",
@@ -2169,7 +2187,7 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       },
     });
 
-    const { data } = await managerApi.rooms.setRoomSecurity({
+    const { data, status } = await managerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
         invitations: [{ id: targetId, access: FileShare.Read }],
@@ -2177,6 +2195,7 @@ test.describe("PUT /files/rooms/:id/share - access control", () => {
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -2546,11 +2565,12 @@ test.describe("PUT /files/rooms/:id/tags - access control", () => {
       "User",
     );
 
-    const { data } = await userApi.rooms.addRoomTags({
+    const { data, status } = await userApi.rooms.addRoomTags({
       id: roomId,
       batchTagsRequestDto: { names: ["Autotest User Outside Tag"] },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -2575,11 +2595,12 @@ test.describe("PUT /files/rooms/:id/tags - access control", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.rooms.addRoomTags({
+    const { data, status } = await guestApi.rooms.addRoomTags({
       id: roomId,
       batchTagsRequestDto: { names: ["Autotest Guest Outside Tag"] },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -2891,7 +2912,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
       "DocSpaceAdmin",
     );
     const templateTitle = "Admin No-Access Template";
-    const { data } = await adminApi.rooms.createRoomTemplate({
+    const { data, status } = await adminApi.rooms.createRoomTemplate({
       roomTemplateDto: {
         roomId: roomData.response!.id!,
         title: templateTitle,
@@ -2905,6 +2926,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
       (f) => (f as any).title as string,
     );
     expect(titles).not.toContain(templateTitle);
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -2924,7 +2946,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
       "User",
     );
     const templateTitle = "User No-Access Template";
-    const { data } = await userApi.rooms.createRoomTemplate({
+    const { data, status } = await userApi.rooms.createRoomTemplate({
       roomTemplateDto: {
         roomId: roomData.response!.id!,
         title: templateTitle,
@@ -2938,6 +2960,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
       (f) => (f as any).title as string,
     );
     expect(titles).not.toContain(templateTitle);
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -2955,7 +2978,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
       "Guest",
     );
     const templateTitle = "Guest Template";
-    const { data } = await guestApi.rooms.createRoomTemplate({
+    const { data, status } = await guestApi.rooms.createRoomTemplate({
       roomTemplateDto: {
         roomId: roomData.response!.id!,
         title: templateTitle,
@@ -2969,6 +2992,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
       (f) => (f as any).title as string,
     );
     expect(titles).not.toContain(templateTitle);
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -3048,7 +3072,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
       });
 
       const templateTitle = `User ${label} Template`;
-      const { data } = await userApi.rooms.createRoomTemplate({
+      const { data, status } = await userApi.rooms.createRoomTemplate({
         roomTemplateDto: { roomId, title: templateTitle },
       });
 
@@ -3059,6 +3083,7 @@ test.describe("POST /files/roomtemplate - access control", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain(templateTitle);
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
   }
@@ -3206,9 +3231,10 @@ test.describe("GET /files/roomtemplate/{id}/public - access control", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.rooms.getPublicSettings({
+    const { data, status } = await adminApi.rooms.getPublicSettings({
       id: templateId,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -3226,9 +3252,10 @@ test.describe("GET /files/roomtemplate/{id}/public - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.rooms.getPublicSettings({
+    const { data, status } = await roomAdminApi.rooms.getPublicSettings({
       id: templateId,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -3265,7 +3292,10 @@ test.describe("GET /files/roomtemplate/{id}/public - access control", () => {
       );
 
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-      const { data } = await api.rooms.getPublicSettings({ id: templateId });
+      const { data, status } = await api.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -3280,7 +3310,10 @@ test.describe("GET /files/roomtemplate/{id}/public - access control", () => {
       );
 
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-      const { data } = await api.rooms.getPublicSettings({ id: templateId });
+      const { data, status } = await api.rooms.getPublicSettings({
+        id: templateId,
+      });
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
   }
@@ -3369,7 +3402,7 @@ test.describe("PUT /files/roomtemplate/public - access control", () => {
       );
 
       const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-      const { data } = await api.rooms.setPublicSettings({
+      const { data, status } = await api.rooms.setPublicSettings({
         setPublicDto: { id: templateId, public: true },
       });
 
@@ -3377,6 +3410,7 @@ test.describe("PUT /files/roomtemplate/public - access control", () => {
         id: templateId,
       });
       expect(flag.response).toBe(false);
+      expect(status).toBe(403);
       expect((data as any).statusCode).toBe(403);
     });
   }
@@ -3394,7 +3428,7 @@ test.describe("PUT /files/roomtemplate/public - access control", () => {
       "Autotest SetPublic OwnerOnAdmin",
     );
 
-    const { data } = await ownerApi.rooms.setPublicSettings({
+    const { data, status } = await ownerApi.rooms.setPublicSettings({
       setPublicDto: { id: templateId, public: true },
     });
 
@@ -3402,6 +3436,7 @@ test.describe("PUT /files/roomtemplate/public - access control", () => {
       id: templateId,
     });
     expect(flag.response).toBe(false);
+    expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
   });
 
@@ -3436,7 +3471,7 @@ test.describe("PUT /files/roomtemplate/public - access control", () => {
     });
     const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-    const { data } = await userApi.rooms.setPublicSettings({
+    const { data, status } = await userApi.rooms.setPublicSettings({
       setPublicDto: { id: templateId, public: true },
     });
 
@@ -3444,6 +3479,7 @@ test.describe("PUT /files/roomtemplate/public - access control", () => {
       id: templateId,
     });
     expect(flag.response).toBe(false);
+    expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
   });
 
@@ -3544,7 +3580,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.rooms.createRoomFromTemplate({
+    const { data, status } = await userApi.rooms.createRoomFromTemplate({
       createRoomFromTemplateDto: { templateId, title: "User Room" },
     });
 
@@ -3553,6 +3589,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
       (f) => (f as any).title as string,
     );
     expect(titles).not.toContain("User Room");
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -3581,7 +3618,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.rooms.createRoomFromTemplate({
+    const { data, status } = await guestApi.rooms.createRoomFromTemplate({
       createRoomFromTemplateDto: { templateId, title: "Guest Room" },
     });
 
@@ -3590,6 +3627,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
       (f) => (f as any).title as string,
     );
     expect(titles).not.toContain("Guest Room");
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -3615,7 +3653,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.rooms.createRoomFromTemplate({
+    const { data, status } = await adminApi.rooms.createRoomFromTemplate({
       createRoomFromTemplateDto: { templateId, title: "Should Fail" },
     });
 
@@ -3624,6 +3662,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
       (f) => (f as any).title as string,
     );
     expect(titles).not.toContain("Should Fail");
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -3658,7 +3697,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
     });
     const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-    const { data } = await userApi.rooms.createRoomFromTemplate({
+    const { data, status } = await userApi.rooms.createRoomFromTemplate({
       createRoomFromTemplateDto: { templateId, title: "Should Fail" },
     });
 
@@ -3667,6 +3706,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
       (f) => (f as any).title as string,
     );
     expect(titles).not.toContain("Should Fail");
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -3696,7 +3736,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.rooms.createRoomFromTemplate({
+    const { data, status } = await userApi.rooms.createRoomFromTemplate({
       createRoomFromTemplateDto: {
         templateId,
         title: "User Room TmplOnly",
@@ -3708,6 +3748,7 @@ test.describe("POST /files/rooms/fromtemplate - access control", () => {
       (f) => (f as any).title as string,
     );
     expect(titles).not.toContain("User Room TmplOnly");
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -3856,11 +3897,12 @@ test.describe("DELETE /files/rooms/:id/tags - access control", () => {
       "User",
     );
 
-    const { data } = await userApi.rooms.deleteRoomTags({
+    const { data, status } = await userApi.rooms.deleteRoomTags({
       id: roomId,
       batchTagsRequestDto: { names: ["Autotest User Outside Detach Tag"] },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -3887,11 +3929,12 @@ test.describe("DELETE /files/rooms/:id/tags - access control", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.rooms.deleteRoomTags({
+    const { data, status } = await guestApi.rooms.deleteRoomTags({
       id: roomId,
       batchTagsRequestDto: { names: ["Autotest Guest Outside Detach Tag"] },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -4073,8 +4116,9 @@ test.describe("GET /files/rooms/:id - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.rooms.getRoomInfo({ id: roomId });
+    const { data, status } = await userApi.rooms.getRoomInfo({ id: roomId });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -4092,8 +4136,9 @@ test.describe("GET /files/rooms/:id - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.rooms.getRoomInfo({ id: roomId });
+    const { data, status } = await guestApi.rooms.getRoomInfo({ id: roomId });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -4895,11 +4940,12 @@ test.describe("PUT /files/rooms/:id/links - access control", () => {
       "DocSpaceAdmin",
     );
 
-    const { data } = await adminApi.rooms.setRoomLink({
+    const { data, status } = await adminApi.rooms.setRoomLink({
       id: roomData.response!.id!,
       roomLinkRequest: externalLink,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -4917,11 +4963,12 @@ test.describe("PUT /files/rooms/:id/links - access control", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.rooms.setRoomLink({
+    const { data, status } = await roomAdminApi.rooms.setRoomLink({
       id: roomData.response!.id!,
       roomLinkRequest: externalLink,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -4991,11 +5038,12 @@ test.describe("PUT /files/rooms/:id/links - access control", () => {
       },
     });
 
-    const { data } = await userApi.rooms.setRoomLink({
+    const { data, status } = await userApi.rooms.setRoomLink({
       id: roomId,
       roomLinkRequest: externalLink,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -5013,11 +5061,12 @@ test.describe("PUT /files/rooms/:id/links - access control", () => {
       "User",
     );
 
-    const { data } = await userApi.rooms.setRoomLink({
+    const { data, status } = await userApi.rooms.setRoomLink({
       id: roomData.response!.id!,
       roomLinkRequest: externalLink,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 
@@ -5035,11 +5084,12 @@ test.describe("PUT /files/rooms/:id/links - access control", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.rooms.setRoomLink({
+    const { data, status } = await guestApi.rooms.setRoomLink({
       id: roomData.response!.id!,
       roomLinkRequest: externalLink,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
   });
 

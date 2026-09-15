@@ -40,13 +40,14 @@ test.describe("POST /group/:id/members - Replace group members", () => {
     });
 
     // DocSpace admin tries to replace group members with a disabled user
-    const { data } = await adminApi.groupApi.setMembersTo({
+    const { data, status } = await adminApi.groupApi.setMembersTo({
       id: groupId,
       membersRequest: { members: [disabledUserId] },
     });
 
     // Expected: error because disabled users cannot be added to a group
     // Actual: all existing members are removed and the group becomes empty
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
 
     // Original active member should still be in the group after the failed request
