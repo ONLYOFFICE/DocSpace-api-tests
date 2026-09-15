@@ -3071,7 +3071,7 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     rights.forEach((r) => expect(validFileShareValues).toContain(r));
   });
 
-  test("BUG 79905: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 400", async ({
+  test("BUG 82641: PUT /api/2.0/files/settings/dafaultaccessrights - Invalid FileShare value returns 400", async ({
     apiSdk,
   }) => {
     const { status } = await apiSdk
