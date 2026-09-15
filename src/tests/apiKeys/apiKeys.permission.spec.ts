@@ -3,25 +3,24 @@ import { test } from "@/src/fixtures";
 import { faker } from "@faker-js/faker";
 
 test.describe("POST /api/2.0/keys - permissions", () => {
-  test.fail(
-    "BUG 81236: POST /api/2.0/keys - Guest cannot create an API key",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+  test("BUG 81236: POST /api/2.0/keys - Guest cannot create an API key", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .apiKeys.createApiKey({
-          createApiKeyRequestDto: {
-            name: "test key",
-          },
-        });
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: {
+          name: "test key",
+        },
+      });
 
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe(
-        "This operation unavailable for user with guest role",
-      );
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe(
+      "This operation unavailable for user with guest role",
+    );
+  });
 
   test("POST /api/2.0/keys - Anonymous cannot create an API key", async ({
     apiSdk,
@@ -84,24 +83,21 @@ test.describe("POST /api/2.0/keys - permissions", () => {
     );
   });
 
-  test.fail(
-    "BUG 81237: POST /api/2.0/keys - Owner cannot create an API key with empty permissions array",
-    async ({ apiSdk }) => {
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .apiKeys.createApiKey({
-          createApiKeyRequestDto: {
-            name: "test key",
-            permissions: [],
-          },
-        });
+  test("BUG 81237: POST /api/2.0/keys - Owner cannot create an API key with empty permissions array", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .apiKeys.createApiKey({
+        createApiKeyRequestDto: {
+          name: "test key",
+          permissions: [],
+        },
+      });
 
-      expect(status).toBe(400);
-      expect((data.response as any)?.error?.message).toBe(
-        "Permissions are not valid.",
-      );
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any)?.error?.message).toBe("Permissions are not valid.");
+  });
 
   test("POST /api/2.0/keys - Owner cannot create an API key with name longer than 30 characters", async ({
     apiSdk,
@@ -142,19 +138,18 @@ test.describe("GET /api/2.0/keys/permissions - permissions", () => {
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 81611: GET /api/2.0/keys/permissions - Guest cannot get all permissions",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+  test("BUG 81611: GET /api/2.0/keys/permissions - Guest cannot get all permissions", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .apiKeys.getAllPermissions();
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .apiKeys.getAllPermissions();
 
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe("Access denied.");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 });
 
 test.describe("GET /api/2.0/keys - permissions", () => {
@@ -166,23 +161,20 @@ test.describe("GET /api/2.0/keys - permissions", () => {
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 81615: GET /api/2.0/keys - Guest cannot get API keys",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+  test("BUG 81615: GET /api/2.0/keys - Guest cannot get API keys", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      await apiSdk.forRole("owner").apiKeys.createApiKey({
-        createApiKeyRequestDto: { name: faker.lorem.words(3) },
-      });
+    await apiSdk.forRole("owner").apiKeys.createApiKey({
+      createApiKeyRequestDto: { name: faker.lorem.words(3) },
+    });
 
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .apiKeys.getApiKeys();
+    const { data, status } = await apiSdk.forRole("guest").apiKeys.getApiKeys();
 
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe("Access denied.");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 });
 
 test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
@@ -209,56 +201,51 @@ test.describe("PUT /api/2.0/keys/{keyId} - permissions", () => {
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 81616: PUT /api/2.0/keys/{keyId} - RoomAdmin cannot update Owner's API key",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+  test("BUG 81616: PUT /api/2.0/keys/{keyId} - RoomAdmin cannot update Owner's API key", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-      const { data, status } = await apiSdk
-        .forRole("roomAdmin")
-        .apiKeys.updateApiKey({
-          keyId,
-          updateApiKeyRequest: { name: faker.lorem.words(3) },
-        });
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .apiKeys.updateApiKey({
+        keyId,
+        updateApiKeyRequest: { name: faker.lorem.words(3) },
+      });
 
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe("Access denied.");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81616: PUT /api/2.0/keys/{keyId} - User cannot update Owner's API key",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "User");
+  test("BUG 81616: PUT /api/2.0/keys/{keyId} - User cannot update Owner's API key", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
-      const { data, status } = await apiSdk
-        .forRole("user")
-        .apiKeys.updateApiKey({
-          keyId,
-          updateApiKeyRequest: { name: faker.lorem.words(3) },
-        });
+    const { data, status } = await apiSdk.forRole("user").apiKeys.updateApiKey({
+      keyId,
+      updateApiKeyRequest: { name: faker.lorem.words(3) },
+    });
 
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe("Access denied.");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81616: PUT /api/2.0/keys/{keyId} - Guest cannot update Owner's API key",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+  test("BUG 81616: PUT /api/2.0/keys/{keyId} - Guest cannot update Owner's API key", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .apiKeys.updateApiKey({
-          keyId,
-          updateApiKeyRequest: { name: faker.lorem.words(3) },
-        });
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .apiKeys.updateApiKey({
+        keyId,
+        updateApiKeyRequest: { name: faker.lorem.words(3) },
+      });
 
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe("Access denied.");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 });
 
 test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
@@ -284,101 +271,114 @@ test.describe("DELETE /api/2.0/keys/{keyId} - permissions", () => {
     expect(status).toBe(401);
   });
 
-  test.fail(
-    "BUG 81609: DELETE /api/2.0/keys/{keyId} - RoomAdmin cannot delete Owner's API key",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+  test("BUG 81609: DELETE /api/2.0/keys/{keyId} - RoomAdmin cannot delete Owner's API key", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-      const { data, status } = await apiSdk
-        .forRole("roomAdmin")
-        .apiKeys.deleteApiKey({ keyId });
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .apiKeys.deleteApiKey({ keyId });
 
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe("Access denied.");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81609: DELETE /api/2.0/keys/{keyId} - User cannot delete Owner's API key",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "User");
+  test("BUG 81609: DELETE /api/2.0/keys/{keyId} - User cannot delete Owner's API key", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "User");
 
-      const { data, status } = await apiSdk
-        .forRole("user")
-        .apiKeys.deleteApiKey({ keyId });
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .apiKeys.deleteApiKey({ keyId });
 
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe("Access denied.");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 
-  test.fail(
-    "BUG 81609: DELETE /api/2.0/keys/{keyId} - Guest cannot delete Owner's API key",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+  test("BUG 81609: DELETE /api/2.0/keys/{keyId} - Guest cannot delete Owner's API key", async ({
+    apiSdk,
+  }) => {
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-      const { data, status } = await apiSdk
-        .forRole("guest")
-        .apiKeys.deleteApiKey({ keyId });
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .apiKeys.deleteApiKey({ keyId });
 
-      expect(status).toBe(403);
-      expect((data.response as any)?.error?.message).toBe("Access denied.");
-    },
-  );
+    expect(status).toBe(403);
+    expect((data as any)?.error?.message).toBe("Access denied");
+  });
 });
 
-// Stored HTML injection in API key name — confirmed via email:
-// Key names containing HTML tags are stored as-is and rendered unescaped
-// in expiry notification emails, enabling phishing links, CSS injection,
-// and tracking pixels. All payloads fit within the 30-char name limit.
-// Fix: HTML-escape the name field before storing or before including it
-// in email templates.
-test.describe("POST /api/2.0/keys - HTML injection in name (security)", () => {
-  test.fail(
-    "BUG 82910: POST /api/2.0/keys - Phishing link in name is stored unescaped",
-    async ({ apiSdk }) => {
-      const payload = "<a href=//evil.com>LINK</a>"; // 26 chars
+// HTML in API key name (BUG 82910). Per the developer's resolution the name is
+// NOT sanitized or rejected by the API — it is stored and returned verbatim;
+// the fix HTML-encodes it only when rendering the "Your API key is expired"
+// email. The email half is not observable here (the suite has no mailbox) and
+// stays a manual check. What the API contract guarantees is checked below:
+// the raw name round-trips unchanged through POST and GET. All payloads fit
+// within the 30-char name limit.
+test.describe("POST /api/2.0/keys - HTML in name is stored verbatim (escaped only in email)", () => {
+  test("POST /api/2.0/keys - Phishing link in name is stored verbatim", async ({
+    apiSdk,
+  }) => {
+    const payload = "<a href=//evil.com>LINK</a>"; // 26 chars
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: payload, expiresInDays: 1 },
-        });
+    const { data, status } = await ownerApi.apiKeys.createApiKey({
+      createApiKeyRequestDto: { name: payload, expiresInDays: 1 },
+    });
 
-      expect(status).toBe(200);
-      expect(data.response?.name).not.toContain("<");
-    },
-  );
+    expect(status).toBe(200);
+    expect(data.response?.name).toBe(payload);
 
-  test.fail(
-    "BUG 82910: POST /api/2.0/keys - CSS injection in name is stored unescaped",
-    async ({ apiSdk }) => {
-      const payload = "<b style=color:red>TEST</b>"; // 27 chars
+    const { data: keys, status: keysStatus } =
+      await ownerApi.apiKeys.getApiKeys();
+    expect(keysStatus).toBe(200);
+    expect(keys.response!.find((k) => k.id === data.response!.id)?.name).toBe(
+      payload,
+    );
+  });
 
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: payload, expiresInDays: 1 },
-        });
+  test("POST /api/2.0/keys - CSS injection in name is stored verbatim", async ({
+    apiSdk,
+  }) => {
+    const payload = "<b style=color:red>TEST</b>"; // 27 chars
+    const ownerApi = apiSdk.forRole("owner");
 
-      expect(status).toBe(200);
-      expect(data.response?.name).not.toContain("<");
-    },
-  );
+    const { data, status } = await ownerApi.apiKeys.createApiKey({
+      createApiKeyRequestDto: { name: payload, expiresInDays: 1 },
+    });
 
-  test.fail(
-    "BUG 82910: POST /api/2.0/keys - Tracking pixel in name is stored unescaped",
-    async ({ apiSdk }) => {
-      const payload = "<img src=//1.2.3.4>"; // 19 chars
+    expect(status).toBe(200);
+    expect(data.response?.name).toBe(payload);
 
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .apiKeys.createApiKey({
-          createApiKeyRequestDto: { name: payload, expiresInDays: 1 },
-        });
+    const { data: keys, status: keysStatus } =
+      await ownerApi.apiKeys.getApiKeys();
+    expect(keysStatus).toBe(200);
+    expect(keys.response!.find((k) => k.id === data.response!.id)?.name).toBe(
+      payload,
+    );
+  });
 
-      expect(status).toBe(200);
-      expect(data.response?.name).not.toContain("<");
-    },
-  );
+  test("POST /api/2.0/keys - Tracking pixel in name is stored verbatim", async ({
+    apiSdk,
+  }) => {
+    const payload = "<img src=//1.2.3.4>"; // 19 chars
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.apiKeys.createApiKey({
+      createApiKeyRequestDto: { name: payload, expiresInDays: 1 },
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.name).toBe(payload);
+
+    const { data: keys, status: keysStatus } =
+      await ownerApi.apiKeys.getApiKeys();
+    expect(keysStatus).toBe(200);
+    expect(keys.response!.find((k) => k.id === data.response!.id)?.name).toBe(
+      payload,
+    );
+  });
 });

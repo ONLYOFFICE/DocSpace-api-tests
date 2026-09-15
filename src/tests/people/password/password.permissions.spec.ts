@@ -14,10 +14,11 @@ test.describe("POST /people/password - access control", () => {
       "DocSpaceAdmin",
     );
 
-    const { data } = await adminApi.password.sendUserPassword({
+    const { data, status } = await adminApi.password.sendUserPassword({
       emailMemberRequestDto: { email: ownerEmail },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -31,10 +32,11 @@ test.describe("POST /people/password - access control", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.password.sendUserPassword({
+    const { data, status } = await roomAdminApi.password.sendUserPassword({
       emailMemberRequestDto: { email: ownerEmail },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -48,10 +50,11 @@ test.describe("POST /people/password - access control", () => {
       "User",
     );
 
-    const { data } = await userApi.password.sendUserPassword({
+    const { data, status } = await userApi.password.sendUserPassword({
       emailMemberRequestDto: { email: ownerEmail },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -65,10 +68,11 @@ test.describe("POST /people/password - access control", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.password.sendUserPassword({
+    const { data, status } = await guestApi.password.sendUserPassword({
       emailMemberRequestDto: { email: ownerEmail },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -86,10 +90,11 @@ test.describe("POST /people/password - access control", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.password.sendUserPassword({
+    const { data, status } = await adminApi.password.sendUserPassword({
       emailMemberRequestDto: { email },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -107,10 +112,11 @@ test.describe("POST /people/password - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.password.sendUserPassword({
+    const { data, status } = await roomAdminApi.password.sendUserPassword({
       emailMemberRequestDto: { email },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -125,10 +131,11 @@ test.describe("POST /people/password - access control", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.password.sendUserPassword({
+    const { data, status } = await userApi.password.sendUserPassword({
       emailMemberRequestDto: { email },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -143,10 +150,11 @@ test.describe("POST /people/password - access control", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.password.sendUserPassword({
+    const { data, status } = await guestApi.password.sendUserPassword({
       emailMemberRequestDto: { email },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -161,10 +169,11 @@ test.describe("POST /people/password - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.password.sendUserPassword({
+    const { data, status } = await roomAdminApi.password.sendUserPassword({
       emailMemberRequestDto: { email },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
@@ -179,10 +188,11 @@ test.describe("POST /people/password - access control", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.password.sendUserPassword({
+    const { data, status } = await roomAdminApi.password.sendUserPassword({
       emailMemberRequestDto: { email },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });

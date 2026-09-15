@@ -6873,16 +6873,10 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
     },
   );
 
-  test.fail(
+  test(
     "BUG 83509: PUT /api/2.0/files/fileops/markasread - Marking Files section" +
       " root as read does not clear Rooms section news",
     async ({ apiSdk }) => {
-      // markAsRead has no rootFolderType/section parameter, so it marks the
-      // unified "new" flag read regardless of which section triggered it.
-      // The UI calls markasread with the Files section root folder id, but
-      // that also clears news for an unrelated room the same user owns —
-      // violating the expectation that each root section tracks new items
-      // independently (same root cause pattern as BUG 82588 for emptytrash).
       const ownerApi = apiSdk.forRole("owner");
       const { api: userApi, data: userData } =
         await apiSdk.addAuthenticatedMember("owner", "User");

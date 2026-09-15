@@ -878,11 +878,12 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: {} as any,
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -898,11 +899,12 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: { tmpFile: "" },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -918,11 +920,12 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: { tmpFile: null as unknown as string },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -938,11 +941,12 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: { tmpFile: 123 as unknown as string },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -958,11 +962,12 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: { tmpFile: { path: "fake.png" } as unknown as string },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -978,11 +983,12 @@ test.describe("POST /files/rooms/:id/logo - tmpFile validation", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: { tmpFile: ["fake.png"] as unknown as string },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 });
@@ -1065,7 +1071,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       createTestImageBuffer(),
     );
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: {
         tmpFile: uploadResult.data.response.data as string,
@@ -1076,6 +1082,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -1095,7 +1102,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       createTestImageBuffer(),
     );
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: {
         tmpFile: uploadResult.data.response.data as string,
@@ -1106,6 +1113,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -1125,7 +1133,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       createTestImageBuffer(),
     );
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: {
         tmpFile: uploadResult.data.response.data as string,
@@ -1136,6 +1144,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -1155,7 +1164,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       createTestImageBuffer(),
     );
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: {
         tmpFile: uploadResult.data.response.data as string,
@@ -1166,6 +1175,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -1185,7 +1195,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       createTestImageBuffer(),
     );
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: {
         tmpFile: uploadResult.data.response.data as string,
@@ -1196,6 +1206,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -1215,7 +1226,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       createTestImageBuffer(),
     );
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: {
         tmpFile: uploadResult.data.response.data as string,
@@ -1226,6 +1237,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -1245,7 +1257,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       createTestImageBuffer(),
     );
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: {
         tmpFile: uploadResult.data.response.data as string,
@@ -1256,6 +1268,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -1275,7 +1288,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
         createTestImageBuffer(),
       );
 
-      const { data } = await ownerApi.rooms.createRoomLogo({
+      const { data, status } = await ownerApi.rooms.createRoomLogo({
         id: roomId,
         logoRequest: {
           tmpFile: uploadResult.data.response.data as string,
@@ -1286,6 +1299,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
         },
       });
 
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     },
   );
@@ -1306,7 +1320,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       createTestImageBuffer(),
     );
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: {
         tmpFile: uploadResult.data.response.data as string,
@@ -1317,6 +1331,7 @@ test.describe("POST /files/rooms/:id/logo - Crop parameters validation", () => {
       },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -1627,8 +1642,11 @@ test.describe("DELETE /files/rooms/:id/logo - Delete room logo", () => {
       },
     });
 
-    const { data } = await ownerApi.rooms.deleteRoomLogo({ id: roomId });
+    const { data, status } = await ownerApi.rooms.deleteRoomLogo({
+      id: roomId,
+    });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBeDefined();
     expect(data.response!.logo).toBeDefined();

@@ -14,10 +14,11 @@ test.describe("DELETE /people/guests - Permissions", () => {
       updateMembersRequestDto: { userIds: [guestId] },
     });
 
-    const { data } = await apiSdk.forRole("owner").guests.deleteGuests({
+    const { data, status } = await apiSdk.forRole("owner").guests.deleteGuests({
       updateMembersRequestDto: { userIds: [guestId] },
     });
 
+    expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -35,10 +36,11 @@ test.describe("DELETE /people/guests - Permissions", () => {
 
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .guests.deleteGuests({ updateMembersRequestDto: { userIds: [guestId] } });
 
+    expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -60,10 +62,13 @@ test.describe("DELETE /people/guests - Permissions", () => {
     );
     await apiSdk.authenticateMember(roomAdminData, "RoomAdmin");
 
-    const { data } = await apiSdk.forRole("roomAdmin").guests.deleteGuests({
-      updateMembersRequestDto: { userIds: [guestId] },
-    });
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .guests.deleteGuests({
+        updateMembersRequestDto: { userIds: [guestId] },
+      });
 
+    expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -80,10 +85,13 @@ test.describe("DELETE /people/guests - Permissions", () => {
     );
     await apiSdk.authenticateMember(roomAdminData, "RoomAdmin");
 
-    const { data } = await apiSdk.forRole("roomAdmin").guests.deleteGuests({
-      updateMembersRequestDto: { userIds: [guestId] },
-    });
+    const { data, status } = await apiSdk
+      .forRole("roomAdmin")
+      .guests.deleteGuests({
+        updateMembersRequestDto: { userIds: [guestId] },
+      });
 
+    expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -102,10 +110,11 @@ test.describe("DELETE /people/guests - Permissions", () => {
     const { userData: userData } = await apiSdk.addMember("owner", "User");
     await apiSdk.authenticateMember(userData, "User");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("user")
       .guests.deleteGuests({ updateMembersRequestDto: { userIds: [guestId] } });
 
+    expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -127,10 +136,11 @@ test.describe("DELETE /people/guests - Permissions", () => {
     );
     await apiSdk.authenticateMember(guestAttackerData, "Guest");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("guest")
       .guests.deleteGuests({ updateMembersRequestDto: { userIds: [guestId] } });
 
+    expect(status).toBe(403);
     expect((data as any).statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });

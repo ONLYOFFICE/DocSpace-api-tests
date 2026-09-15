@@ -44,11 +44,12 @@ test.describe("PUT /people/status/:status - Change user status", () => {
       resendAll: false,
     };
 
-    const { data } = await ownerApi.userStatus.updateUserStatus({
+    const { data, status } = await ownerApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     const guestInfo = data.response![0];
     expect(guestInfo.id).toBe(guestId);
@@ -104,11 +105,12 @@ test.describe("PUT /people/status/:status - Change user status", () => {
       updateMembersRequestDto: requestData,
     });
 
-    const { data } = await ownerApi.userStatus.updateUserStatus({
+    const { data, status } = await ownerApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Active,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     const guestInfo = data.response![0];
     expect(guestInfo.id).toBe(guestId);
@@ -155,11 +157,12 @@ test.describe("PUT /people/status/:status - Change user status", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.userStatus.updateUserStatus({
+    const { data, status } = await adminApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Terminated,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response![0].isVisitor).toBe(true);
     expect(data.response![0].status).toBe(EmployeeStatus.Terminated);
@@ -199,11 +202,12 @@ test.describe("PUT /people/status/:status - Change user status", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.userStatus.updateUserStatus({
+    const { data, status } = await adminApi.userStatus.updateUserStatus({
       status: EmployeeStatus.Active,
       updateMembersRequestDto: requestData,
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response![0].isCollaborator).toBe(true);
     expect(data.response![0].status).toBe(EmployeeStatus.Active);
@@ -634,11 +638,12 @@ test.describe("GET /people/status/:status - Get profiles by status", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.userStatus.getByStatus({
+    const { data, status } = await roomAdminApi.userStatus.getByStatus({
       status: EmployeeStatus.Terminated,
     });
     const responseData = data as Record<string, unknown>;
 
+    expect(status).toBe(200);
     expect(responseData.statusCode).toBe(200);
     expect(responseData.count).toBe(0);
     expect(responseData.total).toBe(0);

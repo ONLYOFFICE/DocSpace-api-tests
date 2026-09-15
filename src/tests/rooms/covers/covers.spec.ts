@@ -174,11 +174,12 @@ test.describe("PUT /files/rooms/:id/cover - Change room cover", () => {
     });
     const roomId = roomData.response!.id!;
 
-    const { data } = await ownerApi.rooms.changeRoomCover({
+    const { data, status } = await ownerApi.rooms.changeRoomCover({
       id: roomId,
       coverRequestDto: { color: "1A2B3C", cover: coverId },
     });
 
+    expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.title).toBeDefined();
     expect(data.response!.logo).toBeDefined();
