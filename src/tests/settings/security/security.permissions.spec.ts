@@ -21,7 +21,7 @@ test.describe("PUT /settings/security/administrator - access control", () => {
       "DocSpaceAdmin",
     );
 
-    const { data } = await admin1Api.security.setProductAdministrator({
+    const { data, status } = await admin1Api.security.setProductAdministrator({
       securityRequestsDto: {
         productId: PRODUCT_ID_ALL,
         userId: admin2Id,
@@ -29,6 +29,7 @@ test.describe("PUT /settings/security/administrator - access control", () => {
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });
@@ -51,7 +52,7 @@ test.describe("PUT /settings/security/administrator - access control", () => {
     );
 
     // DocSpace admin tries to promote Room admin to administrator — only Owner can do this
-    const { data } = await adminApi.security.setProductAdministrator({
+    const { data, status } = await adminApi.security.setProductAdministrator({
       securityRequestsDto: {
         productId: PRODUCT_ID_ALL,
         userId: roomAdminId,
@@ -59,6 +60,7 @@ test.describe("PUT /settings/security/administrator - access control", () => {
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message as string).toContain("Access denied");
   });

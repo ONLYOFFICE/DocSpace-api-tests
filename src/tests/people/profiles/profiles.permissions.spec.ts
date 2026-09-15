@@ -71,12 +71,13 @@ test.describe("API profiling tests for access rights", () => {
       "DocSpaceAdmin",
     );
 
-    const { data } = await adminApi.profiles.addMember({
+    const { data, status } = await adminApi.profiles.addMember({
       memberRequestDto: {
         ...apiSdk.faker.generateUser(),
         type: EmployeeType.DocSpaceAdmin,
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -87,9 +88,10 @@ test.describe("API profiling tests for access rights", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.profiles.addMember({
+    const { data, status } = await roomAdminApi.profiles.addMember({
       memberRequestDto: apiSdk.faker.generateUser() as any,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -100,9 +102,10 @@ test.describe("API profiling tests for access rights", () => {
       "User",
     );
 
-    const { data } = await userApi.profiles.addMember({
+    const { data, status } = await userApi.profiles.addMember({
       memberRequestDto: apiSdk.faker.generateUser() as any,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -128,7 +131,8 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.profiles.getAllProfiles();
+    const { data, status } = await userApi.profiles.getAllProfiles();
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -141,7 +145,8 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.profiles.getAllProfiles();
+    const { data, status } = await guestApi.profiles.getAllProfiles();
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -158,11 +163,12 @@ test.describe("API profiling tests for access rights", () => {
     const ownerApi = apiSdk.forRole("owner");
     const email = faker.internet.email();
 
-    const { data } = await ownerApi.profiles.inviteUsers({
+    const { data, status } = await ownerApi.profiles.inviteUsers({
       inviteUsersRequestDto: {
         invitations: [{ type: EmployeeType.Guest, email }],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -176,11 +182,12 @@ test.describe("API profiling tests for access rights", () => {
     );
     const email = faker.internet.email();
 
-    const { data } = await adminApi.profiles.inviteUsers({
+    const { data, status } = await adminApi.profiles.inviteUsers({
       inviteUsersRequestDto: {
         invitations: [{ type: EmployeeType.Guest, email }],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -192,11 +199,12 @@ test.describe("API profiling tests for access rights", () => {
     );
     const email = faker.internet.email();
 
-    const { data } = await roomAdminApi.profiles.inviteUsers({
+    const { data, status } = await roomAdminApi.profiles.inviteUsers({
       inviteUsersRequestDto: {
         invitations: [{ type: EmployeeType.Guest, email }],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -208,11 +216,12 @@ test.describe("API profiling tests for access rights", () => {
     );
     const email = faker.internet.email();
 
-    const { data } = await userApi.profiles.inviteUsers({
+    const { data, status } = await userApi.profiles.inviteUsers({
       inviteUsersRequestDto: {
         invitations: [{ type: EmployeeType.Guest, email }],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -224,11 +233,12 @@ test.describe("API profiling tests for access rights", () => {
     );
     const email = faker.internet.email();
 
-    const { data } = await guestApi.profiles.inviteUsers({
+    const { data, status } = await guestApi.profiles.inviteUsers({
       inviteUsersRequestDto: {
         invitations: [{ type: EmployeeType.Guest, email }],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -242,11 +252,12 @@ test.describe("API profiling tests for access rights", () => {
     );
     const email = faker.internet.email();
 
-    const { data } = await adminApi.profiles.inviteUsers({
+    const { data, status } = await adminApi.profiles.inviteUsers({
       inviteUsersRequestDto: {
         invitations: [{ type: EmployeeType.DocSpaceAdmin, email }],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -260,11 +271,12 @@ test.describe("API profiling tests for access rights", () => {
     );
     const email = faker.internet.email();
 
-    const { data } = await roomAdminApi.profiles.inviteUsers({
+    const { data, status } = await roomAdminApi.profiles.inviteUsers({
       inviteUsersRequestDto: {
         invitations: [{ type: EmployeeType.RoomAdmin, email }],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -276,11 +288,12 @@ test.describe("API profiling tests for access rights", () => {
     );
     const email = faker.internet.email();
 
-    const { data } = await userApi.profiles.inviteUsers({
+    const { data, status } = await userApi.profiles.inviteUsers({
       inviteUsersRequestDto: {
         invitations: [{ type: EmployeeType.User, email }],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -340,12 +353,13 @@ test.describe("API profiling tests for access rights", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.profiles.resendUserInvites({
+    const { data, status } = await guestApi.profiles.resendUserInvites({
       updateMembersRequestDto: {
         userIds: [invitedUser.id as string],
         resendAll: false,
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -373,9 +387,10 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.profiles.resendUserInvites({
+    const { data, status } = await userApi.profiles.resendUserInvites({
       updateMembersRequestDto: userData,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -399,7 +414,10 @@ test.describe("API profiling tests for access rights", () => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: userData } = await apiSdk.addMember("owner", "Guest");
     const userId = userData.response!.id!;
-    const { data } = await ownerApi.profiles.deleteMember({ userid: userId });
+    const { data, status } = await ownerApi.profiles.deleteMember({
+      userid: userId,
+    });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("The user is not suspended"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -411,11 +429,12 @@ test.describe("API profiling tests for access rights", () => {
     const { data: userData } = await apiSdk.addMember("owner", "User");
     const userId = userData.response!.id!;
 
-    const { data } = await ownerApi.profiles.removeUsers({
+    const { data, status } = await ownerApi.profiles.removeUsers({
       updateMembersRequestDto: {
         userIds: [userId],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Users are not suspended"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -430,7 +449,10 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data } = await adminApi.profiles.deleteMember({ userid: userId });
+    const { data, status } = await adminApi.profiles.deleteMember({
+      userid: userId,
+    });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("The user is not suspended"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -445,11 +467,12 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.profiles.removeUsers({
+    const { data, status } = await roomAdminApi.profiles.removeUsers({
       updateMembersRequestDto: {
         userIds: [userId],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -464,11 +487,12 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.profiles.removeUsers({
+    const { data, status } = await userApi.profiles.removeUsers({
       updateMembersRequestDto: {
         userIds: [userId],
       },
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -500,9 +524,10 @@ test.describe("API profiling tests for access rights", () => {
       "DocSpaceAdmin",
     );
 
-    const { data } = await adminApi.profiles.deleteMember({
+    const { data, status } = await adminApi.profiles.deleteMember({
       userid: userIdToDelete,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -539,9 +564,10 @@ test.describe("API profiling tests for access rights", () => {
       userIds: [userIdToDelete],
     };
 
-    const { data } = await roomAdminApi.profiles.removeUsers({
+    const { data, status } = await roomAdminApi.profiles.removeUsers({
       updateMembersRequestDto: userDataDeleteUser,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -575,9 +601,10 @@ test.describe("API profiling tests for access rights", () => {
       userIds: [userIdToDelete],
     };
 
-    const { data } = await userApi.profiles.removeUsers({
+    const { data, status } = await userApi.profiles.removeUsers({
       updateMembersRequestDto: userDataDeleteUser,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -611,9 +638,10 @@ test.describe("API profiling tests for access rights", () => {
       userIds: [userIdToDelete],
     };
 
-    const { data } = await roomAdminApi.profiles.removeUsers({
+    const { data, status } = await roomAdminApi.profiles.removeUsers({
       updateMembersRequestDto: userDataDeleteUser,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -635,7 +663,10 @@ test.describe("API profiling tests for access rights", () => {
       updateMembersRequestDto: userDataChangeStatus,
     });
     await ownerApi.profiles.deleteMember({ userid: userId });
-    const { data } = await ownerApi.profiles.deleteMember({ userid: userId });
+    const { data, status } = await ownerApi.profiles.deleteMember({
+      userid: userId,
+    });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
     expect((data as any).error.message).toContain(
       "The user could not be found",
@@ -697,9 +728,10 @@ test.describe("API profiling tests for access rights", () => {
       updateMembersRequestDto: userDataDeleteUser,
     });
 
-    const { data } = await ownerApi.profiles.getProfileByUserId({
+    const { data, status } = await ownerApi.profiles.getProfileByUserId({
       userid: userId,
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
     expect((data as any).error.message).toContain(
       // TODO(sdk): error field not typed in SDK response wrappers
@@ -739,9 +771,10 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.profiles.getProfileByUserId({
+    const { data, status } = await userApi.profiles.getProfileByUserId({
       userid: userId,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -765,9 +798,10 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.profiles.getProfileByUserId({
+    const { data, status } = await guestApi.profiles.getProfileByUserId({
       userid: userId,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -819,10 +853,11 @@ test.describe("API profiling tests for access rights", () => {
       firstName: faker.person.firstName(),
       lastName: faker.person.lastName(),
     };
-    const { data } = await ownerApi.profiles.updateMember({
+    const { data, status } = await ownerApi.profiles.updateMember({
       userid: userId,
       updateMemberRequestDto: updateData,
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
     expect((data as any).error.message).toContain(
       // TODO(sdk): error field not typed in SDK response wrappers
@@ -846,10 +881,11 @@ test.describe("API profiling tests for access rights", () => {
       firstName: faker.person.firstName(),
       lastName: faker.person.lastName(),
     };
-    const { data } = await adminApi.profiles.updateMember({
+    const { data, status } = await adminApi.profiles.updateMember({
       userid: userId,
       updateMemberRequestDto: userData,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -870,10 +906,11 @@ test.describe("API profiling tests for access rights", () => {
       firstName: faker.person.firstName(),
       lastName: faker.person.lastName(),
     };
-    const { data } = await roomAdminApi.profiles.updateMember({
+    const { data, status } = await roomAdminApi.profiles.updateMember({
       userid: userId,
       updateMemberRequestDto: userData,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -894,10 +931,11 @@ test.describe("API profiling tests for access rights", () => {
       firstName: faker.person.firstName(),
       lastName: faker.person.lastName(),
     };
-    const { data } = await userApi.profiles.updateMember({
+    const { data, status } = await userApi.profiles.updateMember({
       userid: userId,
       updateMemberRequestDto: userData,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -918,10 +956,11 @@ test.describe("API profiling tests for access rights", () => {
       firstName: faker.person.firstName(),
       lastName: faker.person.lastName(),
     };
-    const { data } = await guestApi.profiles.updateMember({
+    const { data, status } = await guestApi.profiles.updateMember({
       userid: userId,
       updateMemberRequestDto: userData,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -939,10 +978,11 @@ test.describe("API profiling tests for access rights", () => {
       lastName: faker.person.lastName(),
     };
 
-    const { data } = await ownerApi.profiles.updateMember({
+    const { data, status } = await ownerApi.profiles.updateMember({
       userid: userId,
       updateMemberRequestDto: userData,
     });
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
     expect((data as any).error.message).toContain(
       // TODO(sdk): error field not typed in SDK response wrappers
@@ -1058,9 +1098,10 @@ test.describe("API profiling tests for access rights", () => {
     await ownerApi.profiles.removeUsers({
       updateMembersRequestDto: userDataDeleteUser,
     });
-    const { data } = await ownerApi.profiles.getProfileByEmail({
+    const { data, status } = await ownerApi.profiles.getProfileByEmail({
       email: docSpaceEmail,
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
     expect((data as any).error.message).toContain(
       "The user could not be found",
@@ -1080,9 +1121,10 @@ test.describe("API profiling tests for access rights", () => {
       "User",
     );
 
-    const { data } = await userApi.profiles.getProfileByEmail({
+    const { data, status } = await userApi.profiles.getProfileByEmail({
       email: roomAdminEmail,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1101,9 +1143,10 @@ test.describe("API profiling tests for access rights", () => {
       "Guest",
     );
 
-    const { data } = await guestApi.profiles.getProfileByEmail({
+    const { data, status } = await guestApi.profiles.getProfileByEmail({
       email: roomAdminEmail,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1128,9 +1171,10 @@ test.describe("API profiling tests for access rights", () => {
       userIds: [docSpaceAdminId, roomAdminId],
       resendAll: false,
     };
-    const { data } = await ownerApi.profiles.removeUsers({
+    const { data, status } = await ownerApi.profiles.removeUsers({
       updateMembersRequestDto: usersRequestData,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Users are not suspended"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1158,9 +1202,10 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data } = await roomAdminApi.profiles.removeUsers({
+    const { data, status } = await roomAdminApi.profiles.removeUsers({
       updateMembersRequestDto: usersRequestData,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1188,9 +1233,10 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "User",
     );
-    const { data } = await userApi.profiles.removeUsers({
+    const { data, status } = await userApi.profiles.removeUsers({
       updateMembersRequestDto: usersRequestData,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1218,9 +1264,10 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "Guest",
     );
-    const { data } = await guestApi.profiles.removeUsers({
+    const { data, status } = await guestApi.profiles.removeUsers({
       updateMembersRequestDto: usersRequestData,
     });
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toContain("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1264,43 +1311,47 @@ test.describe("API profiling tests for access rights", () => {
     const { data: guestData } = await apiSdk.addMember("owner", "Guest");
     const guestId = guestData.response!.id!;
 
-    const { data: docSpaceAdminResponse } =
+    const { data: docSpaceAdminResponse, status } =
       await ownerApi.profiles.updateMemberCulture({
         userid: docSpaceAdminId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(status).toBe(403);
     expect(docSpaceAdminResponse.statusCode).toBe(403);
     expect((docSpaceAdminResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: roomAdminResponse } =
+    const { data: roomAdminResponse, status: roomAdminResponseStatus } =
       await ownerApi.profiles.updateMemberCulture({
         userid: roomAdminId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(roomAdminResponseStatus).toBe(403);
     expect(roomAdminResponse.statusCode).toBe(403);
     expect((roomAdminResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: userResponse } = await ownerApi.profiles.updateMemberCulture({
-      userid: userId,
-      culture: {
-        cultureName: "es",
-      },
-    });
+    const { data: userResponse, status: userResponseStatus } =
+      await ownerApi.profiles.updateMemberCulture({
+        userid: userId,
+        culture: {
+          cultureName: "es",
+        },
+      });
+    expect(userResponseStatus).toBe(403);
     expect(userResponse.statusCode).toBe(403);
     expect((userResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: guestResponse } = await ownerApi.profiles.updateMemberCulture(
-      {
+    const { data: guestResponse, status: guestResponseStatus } =
+      await ownerApi.profiles.updateMemberCulture({
         userid: guestId,
         culture: {
           cultureName: "es",
         },
-      },
-    );
+      });
+    expect(guestResponseStatus).toBe(403);
     expect(guestResponse.statusCode).toBe(403);
     expect((guestResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1328,44 +1379,47 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "DocSpaceAdmin",
     );
-    const { data: ownerResponse } = await adminApi.profiles.updateMemberCulture(
-      {
+    const { data: ownerResponse, status } =
+      await adminApi.profiles.updateMemberCulture({
         userid: ownerId,
         culture: {
           cultureName: "es",
         },
-      },
-    );
+      });
+    expect(status).toBe(403);
     expect(ownerResponse.statusCode).toBe(403);
     expect((ownerResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: roomAdminResponse } =
+    const { data: roomAdminResponse, status: roomAdminResponseStatus } =
       await adminApi.profiles.updateMemberCulture({
         userid: roomAdminId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(roomAdminResponseStatus).toBe(403);
     expect(roomAdminResponse.statusCode).toBe(403);
     expect((roomAdminResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: userResponse } = await adminApi.profiles.updateMemberCulture({
-      userid: userId,
-      culture: {
-        cultureName: "es",
-      },
-    });
+    const { data: userResponse, status: userResponseStatus } =
+      await adminApi.profiles.updateMemberCulture({
+        userid: userId,
+        culture: {
+          cultureName: "es",
+        },
+      });
+    expect(userResponseStatus).toBe(403);
     expect(userResponse.statusCode).toBe(403);
     expect((userResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: guestResponse } = await ownerApi.profiles.updateMemberCulture(
-      {
+    const { data: guestResponse, status: guestResponseStatus } =
+      await ownerApi.profiles.updateMemberCulture({
         userid: guestId,
         culture: {
           cultureName: "es",
         },
-      },
-    );
+      });
+    expect(guestResponseStatus).toBe(403);
     expect(guestResponse.statusCode).toBe(403);
     expect((guestResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1393,44 +1447,47 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "RoomAdmin",
     );
-    const { data: ownerResponse } =
+    const { data: ownerResponse, status } =
       await roomAdminApi.profiles.updateMemberCulture({
         userid: ownerId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(status).toBe(403);
     expect(ownerResponse.statusCode).toBe(403);
     expect((ownerResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: docSpaceAdminResponse } =
+    const { data: docSpaceAdminResponse, status: docSpaceAdminResponseStatus } =
       await roomAdminApi.profiles.updateMemberCulture({
         userid: docSpaceAdminId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(docSpaceAdminResponseStatus).toBe(403);
     expect(docSpaceAdminResponse.statusCode).toBe(403);
     expect((docSpaceAdminResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: userResponse } =
+    const { data: userResponse, status: userResponseStatus } =
       await roomAdminApi.profiles.updateMemberCulture({
         userid: userId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(userResponseStatus).toBe(403);
     expect(userResponse.statusCode).toBe(403);
     expect((userResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: guestResponse } = await ownerApi.profiles.updateMemberCulture(
-      {
+    const { data: guestResponse, status: guestResponseStatus } =
+      await ownerApi.profiles.updateMemberCulture({
         userid: guestId,
         culture: {
           cultureName: "es",
         },
-      },
-    );
+      });
+    expect(guestResponseStatus).toBe(403);
     expect(guestResponse.statusCode).toBe(403);
     expect((guestResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1461,43 +1518,47 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "User",
     );
-    const { data: ownerResponse } = await userApi.profiles.updateMemberCulture({
-      userid: ownerId,
-      culture: {
-        cultureName: "es",
-      },
-    });
+    const { data: ownerResponse, status } =
+      await userApi.profiles.updateMemberCulture({
+        userid: ownerId,
+        culture: {
+          cultureName: "es",
+        },
+      });
+    expect(status).toBe(403);
     expect(ownerResponse.statusCode).toBe(403);
     expect((ownerResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: docSpaceAdminResponse } =
+    const { data: docSpaceAdminResponse, status: docSpaceAdminResponseStatus } =
       await userApi.profiles.updateMemberCulture({
         userid: docSpaceAdminId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(docSpaceAdminResponseStatus).toBe(403);
     expect(docSpaceAdminResponse.statusCode).toBe(403);
     expect((docSpaceAdminResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: roomAdminResponse } =
+    const { data: roomAdminResponse, status: roomAdminResponseStatus } =
       await userApi.profiles.updateMemberCulture({
         userid: roomAdminId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(roomAdminResponseStatus).toBe(403);
     expect(roomAdminResponse.statusCode).toBe(403);
     expect((roomAdminResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: guestResponse } = await ownerApi.profiles.updateMemberCulture(
-      {
+    const { data: guestResponse, status: guestResponseStatus } =
+      await ownerApi.profiles.updateMemberCulture({
         userid: guestId,
         culture: {
           cultureName: "es",
         },
-      },
-    );
+      });
+    expect(guestResponseStatus).toBe(403);
     expect(guestResponse.statusCode).toBe(403);
     expect((guestResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1528,43 +1589,47 @@ test.describe("API profiling tests for access rights", () => {
       "owner",
       "Guest",
     );
-    const { data: ownerResponse } = await guestApi.profiles.updateMemberCulture(
-      {
+    const { data: ownerResponse, status } =
+      await guestApi.profiles.updateMemberCulture({
         userid: ownerId,
         culture: {
           cultureName: "es",
         },
-      },
-    );
+      });
+    expect(status).toBe(403);
     expect(ownerResponse.statusCode).toBe(403);
     expect((ownerResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: docSpaceAdminResponse } =
+    const { data: docSpaceAdminResponse, status: docSpaceAdminResponseStatus } =
       await guestApi.profiles.updateMemberCulture({
         userid: docSpaceAdminId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(docSpaceAdminResponseStatus).toBe(403);
     expect(docSpaceAdminResponse.statusCode).toBe(403);
     expect((docSpaceAdminResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: roomAdminResponse } =
+    const { data: roomAdminResponse, status: roomAdminResponseStatus } =
       await guestApi.profiles.updateMemberCulture({
         userid: roomAdminId,
         culture: {
           cultureName: "es",
         },
       });
+    expect(roomAdminResponseStatus).toBe(403);
     expect(roomAdminResponse.statusCode).toBe(403);
     expect((roomAdminResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
 
-    const { data: userResponse } = await guestApi.profiles.updateMemberCulture({
-      userid: userId,
-      culture: {
-        cultureName: "es",
-      },
-    });
+    const { data: userResponse, status: userResponseStatus } =
+      await guestApi.profiles.updateMemberCulture({
+        userid: userId,
+        culture: {
+          cultureName: "es",
+        },
+      });
+    expect(userResponseStatus).toBe(403);
     expect(userResponse.statusCode).toBe(403);
     expect((userResponse as any).error.message).toBe("Access denied"); // TODO(sdk): error field not typed in SDK response wrappers
   });
@@ -1574,12 +1639,13 @@ test.describe("API profiling tests for access rights", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const userId = faker.string.uuid();
-    const { data } = await ownerApi.profiles.updateMemberCulture({
+    const { data, status } = await ownerApi.profiles.updateMemberCulture({
       userid: userId,
       culture: {
         cultureName: "es",
       },
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
     expect((data as any).error.message).toContain(
       "The user could not be found",

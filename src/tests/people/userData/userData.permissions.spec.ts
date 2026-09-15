@@ -6,10 +6,11 @@ test.describe("PUT /people/self/delete - Permissions", () => {
   test("PUT /people/self/delete - Owner cannot send deletion instructions", async ({
     apiSdk,
   }) => {
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("owner")
       .userData.sendInstructionsToDelete();
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -29,10 +30,11 @@ test.describe("DELETE /people/delete/personal - Permissions", () => {
   test("DELETE /people/delete/personal - Owner cannot delete personal folder", async ({
     apiSdk,
   }) => {
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("owner")
       .userData.startDeletePersonalFolder();
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -42,10 +44,11 @@ test.describe("DELETE /people/delete/personal - Permissions", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .userData.startDeletePersonalFolder();
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -55,10 +58,11 @@ test.describe("DELETE /people/delete/personal - Permissions", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .userData.startDeletePersonalFolder();
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -68,10 +72,11 @@ test.describe("DELETE /people/delete/personal - Permissions", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("user")
       .userData.startDeletePersonalFolder();
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -81,10 +86,11 @@ test.describe("DELETE /people/delete/personal - Permissions", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("guest")
       .userData.startDeletePersonalFolder();
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -106,10 +112,11 @@ test.describe("GET /people/reassign/necessary - Permissions", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
-    const { data } = await apiSdk
+    const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .userData.necessaryReassign();
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -119,8 +126,11 @@ test.describe("GET /people/reassign/necessary - Permissions", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "User");
 
-    const { data } = await apiSdk.forRole("user").userData.necessaryReassign();
+    const { data, status } = await apiSdk
+      .forRole("user")
+      .userData.necessaryReassign();
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -130,8 +140,11 @@ test.describe("GET /people/reassign/necessary - Permissions", () => {
   }) => {
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
-    const { data } = await apiSdk.forRole("guest").userData.necessaryReassign();
+    const { data, status } = await apiSdk
+      .forRole("guest")
+      .userData.necessaryReassign();
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -197,13 +210,14 @@ test.describe("POST /people/reassign/start - Permissions", () => {
       await roomAdminApi.profiles.getSelfProfile();
     const roomAdminId = roomAdminProfile.response!.id!;
 
-    const { data } = await roomAdminApi.userData.startReassign({
+    const { data, status } = await roomAdminApi.userData.startReassign({
       startReassignRequestDto: {
         fromUserId: targetUserId,
         toUserId: roomAdminId,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -252,13 +266,14 @@ test.describe("POST /people/reassign/start - Permissions", () => {
     const { data: userProfile } = await userApi.profiles.getSelfProfile();
     const userId = userProfile.response!.id!;
 
-    const { data } = await userApi.userData.startReassign({
+    const { data, status } = await userApi.userData.startReassign({
       startReassignRequestDto: {
         fromUserId: targetUserId,
         toUserId: userId,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -310,13 +325,14 @@ test.describe("POST /people/reassign/start - Permissions", () => {
     const { data: guestProfile } = await guestApi.profiles.getSelfProfile();
     const guestId = guestProfile.response!.id!;
 
-    const { data } = await guestApi.userData.startReassign({
+    const { data, status } = await guestApi.userData.startReassign({
       startReassignRequestDto: {
         fromUserId: targetUserId,
         toUserId: guestId,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -331,13 +347,14 @@ test.describe("POST /people/reassign/start - Permissions", () => {
     const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerProfile.response!.id!;
 
-    const { data } = await ownerApi.userData.startReassign({
+    const { data, status } = await ownerApi.userData.startReassign({
       startReassignRequestDto: {
         fromUserId: roomAdminId,
         toUserId: ownerId,
       },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
     expect((data as any).error?.message).toContain("Can not reassign data");
   });
@@ -372,10 +389,11 @@ test.describe("GET /people/reassign/progress - Permissions", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.userData.getReassignProgress({
+    const { data, status } = await roomAdminApi.userData.getReassignProgress({
       userid: targetUserId,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -389,10 +407,11 @@ test.describe("GET /people/reassign/progress - Permissions", () => {
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
-    const { data } = await userApi.userData.getReassignProgress({
+    const { data, status } = await userApi.userData.getReassignProgress({
       userid: targetUserId,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -409,10 +428,11 @@ test.describe("GET /people/reassign/progress - Permissions", () => {
     );
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
-    const { data } = await guestApi.userData.getReassignProgress({
+    const { data, status } = await guestApi.userData.getReassignProgress({
       userid: targetUserId,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -466,10 +486,11 @@ test.describe("GET /people/reassign/progress - Permissions", () => {
     });
 
     // DocSpace admin1 tries to check the progress of admin2's reassignment
-    const { data } = await admin1Api.userData.getReassignProgress({
+    const { data, status } = await admin1Api.userData.getReassignProgress({
       userid: admin2Id,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -533,12 +554,13 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.userData.terminateReassign({
+    const { data, status } = await roomAdminApi.userData.terminateReassign({
       terminateRequestDto: {
         userId: targetUserId,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -594,12 +616,13 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
-    const { data } = await userApi.userData.terminateReassign({
+    const { data, status } = await userApi.userData.terminateReassign({
       terminateRequestDto: {
         userId: targetUserId,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -658,12 +681,13 @@ test.describe("PUT /people/reassign/terminate - Permissions", () => {
     );
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
-    const { data } = await guestApi.userData.terminateReassign({
+    const { data, status } = await guestApi.userData.terminateReassign({
       terminateRequestDto: {
         userId: targetUserId,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -783,12 +807,13 @@ test.describe("POST /people/remove/start - Permissions", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.userData.startRemove({
+    const { data, status } = await roomAdminApi.userData.startRemove({
       terminateRequestDto: {
         userId: targetUserId,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -828,12 +853,13 @@ test.describe("POST /people/remove/start - Permissions", () => {
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
-    const { data } = await userApi.userData.startRemove({
+    const { data, status } = await userApi.userData.startRemove({
       terminateRequestDto: {
         userId: targetUserId,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -876,12 +902,13 @@ test.describe("POST /people/remove/start - Permissions", () => {
     );
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
-    const { data } = await guestApi.userData.startRemove({
+    const { data, status } = await guestApi.userData.startRemove({
       terminateRequestDto: {
         userId: targetUserId,
       },
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -915,10 +942,11 @@ test.describe("GET /people/remove/progress - Permissions", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.userData.getRemoveProgress({
+    const { data, status } = await roomAdminApi.userData.getRemoveProgress({
       userid: targetUserId,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -932,10 +960,11 @@ test.describe("GET /people/remove/progress - Permissions", () => {
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
-    const { data } = await userApi.userData.getRemoveProgress({
+    const { data, status } = await userApi.userData.getRemoveProgress({
       userid: targetUserId,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -952,10 +981,11 @@ test.describe("GET /people/remove/progress - Permissions", () => {
     );
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
-    const { data } = await guestApi.userData.getRemoveProgress({
+    const { data, status } = await guestApi.userData.getRemoveProgress({
       userid: targetUserId,
     });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain("Access denied");
   });
@@ -1019,13 +1049,14 @@ test.describe("PUT /people/remove/terminate - Permissions", () => {
       "RoomAdmin",
     );
 
-    const { data } = await roomAdminApi.userData.terminateRemove({
+    const { data, status } = await roomAdminApi.userData.terminateRemove({
       terminateRequestDto: {
         userId: targetUserId,
       },
     });
     const body = data as any;
 
+    expect(status).toBe(403);
     expect(body.statusCode).toBe(403);
     expect(body.error?.message).toContain("Access denied");
   });
@@ -1071,13 +1102,14 @@ test.describe("PUT /people/remove/terminate - Permissions", () => {
     const { userData: userUserData } = await apiSdk.addMember("owner", "User");
     const userApi = await apiSdk.authenticateMember(userUserData, "User");
 
-    const { data } = await userApi.userData.terminateRemove({
+    const { data, status } = await userApi.userData.terminateRemove({
       terminateRequestDto: {
         userId: targetUserId,
       },
     });
     const body = data as any;
 
+    expect(status).toBe(403);
     expect(body.statusCode).toBe(403);
     expect(body.error?.message).toContain("Access denied");
   });
@@ -1126,13 +1158,14 @@ test.describe("PUT /people/remove/terminate - Permissions", () => {
     );
     const guestApi = await apiSdk.authenticateMember(guestUserData, "Guest");
 
-    const { data } = await guestApi.userData.terminateRemove({
+    const { data, status } = await guestApi.userData.terminateRemove({
       terminateRequestDto: {
         userId: targetUserId,
       },
     });
     const body = data as any;
 
+    expect(status).toBe(403);
     expect(body.statusCode).toBe(403);
     expect(body.error?.message).toContain("Access denied");
   });

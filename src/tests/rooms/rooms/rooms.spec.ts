@@ -551,70 +551,77 @@ test.describe("API rooms methods", () => {
     test("POST /files/rooms - Missing title returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           roomType: RoomType.CustomRoom,
         } as any,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Null title returns 400", async ({ apiSdk }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           title: null,
           roomType: RoomType.CustomRoom,
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Empty title returns 400", async ({ apiSdk }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: { title: "", roomType: RoomType.CustomRoom },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Whitespace-only title returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: { title: "   ", roomType: RoomType.CustomRoom },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Missing roomType returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: { title: "Autotest" } as any,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Null roomType returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           title: "Autotest",
           roomType: null,
         } as any,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Unknown roomType returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           title: "Autotest",
           roomType: 99999,
         } as any,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -622,9 +629,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const title = "A".repeat(1000);
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -665,52 +673,56 @@ test.describe("API rooms methods", () => {
     test("POST /files/rooms - Invalid lifetime period returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           title: "Autotest",
           roomType: RoomType.VirtualDataRoom,
           lifetime: { period: 999, value: 10, enabled: true } as any,
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Invalid color (not hex) returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           title: "Autotest",
           roomType: RoomType.CustomRoom,
           color: "not-a-color",
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Non-existent cover ID returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           title: "Autotest",
           roomType: RoomType.CustomRoom,
           cover: "this-cover-does-not-exist",
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Invalid tags type (string instead of array) returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           title: "Autotest",
           roomType: RoomType.CustomRoom,
           tags: "not-an-array",
         } as any,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -731,26 +743,28 @@ test.describe("API rooms methods", () => {
     test("POST /files/rooms - Invalid share payload returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           title: "Autotest",
           roomType: RoomType.CustomRoom,
           share: "broken",
         } as any,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms - Invalid chatSettings returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
         createRoomRequestDto: {
           title: "Autotest",
           roomType: RoomType.CustomRoom,
           chatSettings: "broken",
         } as any,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -1107,13 +1121,14 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.updateRoom({
+      const { data, status } = await ownerApi.rooms.updateRoom({
         id: 999999999,
         updateRoomRequest: {
           title: "Does Not Exist",
         },
       });
 
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
   });
@@ -2629,11 +2644,12 @@ test.describe("API rooms methods", () => {
       }) => {
         const ownerApi = apiSdk.forRole("owner");
 
-        const { data } = await ownerApi.rooms.unarchiveRoom({
+        const { data, status } = await ownerApi.rooms.unarchiveRoom({
           id: 999999999,
           archiveRoomRequest: { deleteAfter: false },
         });
 
+        expect(status).toBe(404);
         expect(data.statusCode).toBe(404);
       });
 
@@ -2655,11 +2671,12 @@ test.describe("API rooms methods", () => {
         });
         await waitForOperation(ownerApi.operations);
 
-        const { data } = await ownerApi.rooms.unarchiveRoom({
+        const { data, status } = await ownerApi.rooms.unarchiveRoom({
           id: roomId,
           archiveRoomRequest: { deleteAfter: false },
         });
 
+        expect(status).toBe(404);
         expect(data.statusCode).toBe(404);
       });
 
@@ -2988,9 +3005,10 @@ test.describe("API rooms methods", () => {
         const ownerApi = apiSdk.forRole("owner");
         const roomId = await createRoom(ownerApi, "Autotest Pin Shape");
 
-        const { data } = await ownerApi.rooms.pinRoom({ id: roomId });
+        const { data, status } = await ownerApi.rooms.pinRoom({ id: roomId });
 
         expect(data.status).toBeDefined();
+        expect(status).toBe(200);
         expect(data.statusCode).toBe(200);
         expect(data.response).toBeDefined();
         expect(data.response!.id).toBe(roomId);
@@ -3790,9 +3808,10 @@ test.describe("API rooms methods", () => {
         const roomId = await createRoom(ownerApi, "Autotest Unpin Shape");
         await ownerApi.rooms.pinRoom({ id: roomId });
 
-        const { data } = await ownerApi.rooms.unpinRoom({ id: roomId });
+        const { data, status } = await ownerApi.rooms.unpinRoom({ id: roomId });
 
         expect(data.status).toBeDefined();
+        expect(status).toBe(200);
         expect(data.statusCode).toBe(200);
         expect(data.response).toBeDefined();
         expect(data.response!.id).toBe(roomId);
@@ -4481,9 +4500,10 @@ test.describe("API rooms methods", () => {
       });
       await waitForOperation(ownerApi.operations);
 
-      const { data } = await ownerApi.rooms.getPublicSettings({
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
         id: templateId,
       });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -4499,7 +4519,10 @@ test.describe("API rooms methods", () => {
       });
       const roomId = roomData.response!.id!;
 
-      const { data } = await ownerApi.rooms.getPublicSettings({ id: roomId });
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
+        id: roomId,
+      });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -4507,9 +4530,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getPublicSettings({
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
         id: 999999999,
       });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -4517,7 +4541,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getPublicSettings({ id: 0 });
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
+        id: 0,
+      });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -4525,7 +4552,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getPublicSettings({ id: -1 });
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
+        id: -1,
+      });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -4533,9 +4563,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getPublicSettings({
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
         id: "abc" as unknown as number,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -4554,7 +4585,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getPublicSettings({ id: 1.5 });
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
+        id: 1.5,
+      });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -4562,9 +4596,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getPublicSettings({
+      const { data, status } = await ownerApi.rooms.getPublicSettings({
         id: Number.MAX_SAFE_INTEGER,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -4696,9 +4731,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { id: 999999999, public: true },
       });
+      expect(status).toBe(404);
       expect((data as any).statusCode).toBe(404);
     });
 
@@ -4706,9 +4742,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { id: 0, public: true },
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
     });
 
@@ -4716,9 +4753,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { id: -1, public: true },
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
     });
 
@@ -4726,9 +4764,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { id: "abc" as unknown as number, public: true },
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
     });
 
@@ -4736,9 +4775,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { id: 1.5, public: true },
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
     });
 
@@ -4746,9 +4786,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { id: Number.MAX_SAFE_INTEGER, public: true },
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
     });
 
@@ -4756,9 +4797,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { public: true } as any,
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
     });
 
@@ -4771,9 +4813,10 @@ test.describe("API rooms methods", () => {
         "Autotest SetPublic NullPublic",
       );
 
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { id: templateId, public: null } as any,
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
 
       const { data: flag } = await ownerApi.rooms.getPublicSettings({
@@ -4791,9 +4834,10 @@ test.describe("API rooms methods", () => {
         "Autotest SetPublic StringPublic",
       );
 
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { id: templateId, public: "true" } as any,
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
 
       const { data: flag } = await ownerApi.rooms.getPublicSettings({
@@ -4806,9 +4850,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: {} as any,
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
     });
 
@@ -4816,9 +4861,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: null as any,
       });
+      expect(status).toBe(400);
       expect((data as any).statusCode).toBe(400);
     });
 
@@ -4836,9 +4882,10 @@ test.describe("API rooms methods", () => {
       });
       const roomId = roomData.response!.id!;
 
-      const { data } = await ownerApi.rooms.setPublicSettings({
+      const { data, status } = await ownerApi.rooms.setPublicSettings({
         setPublicDto: { id: roomId, public: true },
       });
+      expect(status).toBe(404);
       expect((data as any).statusCode).toBe(404);
     });
 
@@ -5270,18 +5317,24 @@ test.describe("API rooms methods", () => {
     test("POST /files/roomtemplate - Missing roomId returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoomTemplate({
-        roomTemplateDto: { title: "No RoomId" } as any,
-      });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.createRoomTemplate({
+          roomTemplateDto: { title: "No RoomId" } as any,
+        });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/roomtemplate - Null roomId returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoomTemplate({
-        roomTemplateDto: { roomId: null, title: "Null RoomId" } as any,
-      });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.createRoomTemplate({
+          roomTemplateDto: { roomId: null, title: "Null RoomId" } as any,
+        });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5290,7 +5343,7 @@ test.describe("API rooms methods", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       const templateTitle = "Zero RoomId";
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: { roomId: 0, title: templateTitle },
       });
 
@@ -5301,6 +5354,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain(templateTitle);
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -5309,7 +5363,7 @@ test.describe("API rooms methods", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       const templateTitle = "Missing RoomId";
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: { roomId: 999999999, title: templateTitle },
       });
 
@@ -5320,24 +5374,31 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain(templateTitle);
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
     test("POST /files/roomtemplate - Invalid roomId type (string) returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoomTemplate({
-        roomTemplateDto: { roomId: "abc", title: "Str RoomId" } as any,
-      });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.createRoomTemplate({
+          roomTemplateDto: { roomId: "abc", title: "Str RoomId" } as any,
+        });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/roomtemplate - Invalid roomId type (array) returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoomTemplate({
-        roomTemplateDto: { roomId: [1, 2], title: "Arr RoomId" } as any,
-      });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.createRoomTemplate({
+          roomTemplateDto: { roomId: [1, 2], title: "Arr RoomId" } as any,
+        });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5357,7 +5418,7 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: { roomId: roomData.response!.id! } as any,
       });
 
@@ -5370,6 +5431,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain(sourceRoomTitle);
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5384,7 +5446,7 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: { roomId: roomData.response!.id!, title: "" },
       });
 
@@ -5395,6 +5457,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain("");
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5410,7 +5473,7 @@ test.describe("API rooms methods", () => {
       });
 
       const longTitle = "A".repeat(1000);
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId: roomData.response!.id!,
           title: longTitle,
@@ -5424,6 +5487,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain(longTitle);
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5438,12 +5502,13 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId: roomData.response!.id!,
           title: 12345 as any,
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5458,12 +5523,13 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId: roomData.response!.id!,
           title: { foo: "bar" } as any,
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5480,13 +5546,14 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId: roomData.response!.id!,
           title: "Autotest BadPublic Template",
           public: "yes" as any,
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5501,13 +5568,14 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId: roomData.response!.id!,
           title: "Autotest BadCopyLogo Template",
           copyLogo: "yes" as any,
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5522,13 +5590,14 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId: roomData.response!.id!,
           title: "Autotest BadShare Template",
           share: "user@example.com" as any,
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5543,13 +5612,14 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId: roomData.response!.id!,
           title: "Autotest BadGroups Template",
           groups: "group-id" as any,
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5564,13 +5634,14 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId: roomData.response!.id!,
           title: "Autotest BadTags Template",
           tags: "TagName" as any,
         },
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -5595,7 +5666,7 @@ test.describe("API rooms methods", () => {
       await waitForOperation(ownerApi.operations);
 
       const templateTitle = "Should Not Be Created From Deleted";
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId,
           title: templateTitle,
@@ -5609,6 +5680,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain(templateTitle);
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -5631,7 +5703,7 @@ test.describe("API rooms methods", () => {
       await waitForOperation(ownerApi.operations);
 
       const templateTitle = "Should Not Be Created From Archived";
-      const { data } = await ownerApi.rooms.createRoomTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomTemplate({
         roomTemplateDto: {
           roomId,
           title: templateTitle,
@@ -5645,6 +5717,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain(templateTitle);
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -5700,7 +5773,10 @@ test.describe("API rooms methods", () => {
         "owner",
         "User",
       );
-      const { data } = await userApi.rooms.getRoomInfo({ id: templateId });
+      const { data, status } = await userApi.rooms.getRoomInfo({
+        id: templateId,
+      });
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -5758,7 +5834,10 @@ test.describe("API rooms methods", () => {
         const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
         const { api } = await apiSdk.addAuthenticatedMember("owner", role);
-        const { data } = await api.rooms.getRoomInfo({ id: templateId });
+        const { data, status } = await api.rooms.getRoomInfo({
+          id: templateId,
+        });
+        expect(status).toBe(403);
         expect(data.statusCode).toBe(403);
       });
     }
@@ -6935,34 +7014,46 @@ test.describe("API rooms methods", () => {
     });
 
     test("POST /files/tags - Empty name returns 400", async ({ apiSdk }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoomTag({
-        createTagRequestDto: { name: "" },
-      });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.createRoomTag({
+          createTagRequestDto: { name: "" },
+        });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("BUG 81683: POST /files/tags - Spaces-only name returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoomTag({
-        createTagRequestDto: { name: "   " },
-      });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.createRoomTag({
+          createTagRequestDto: { name: "   " },
+        });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/tags - Missing name field returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoomTag({
-        createTagRequestDto: {} as any,
-      });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.createRoomTag({
+          createTagRequestDto: {} as any,
+        });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/tags - Null name returns 400", async ({ apiSdk }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoomTag({
-        createTagRequestDto: { name: null } as any,
-      });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.createRoomTag({
+          createTagRequestDto: { name: null } as any,
+        });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -6975,9 +7066,12 @@ test.describe("API rooms methods", () => {
       test(`POST /files/tags - Non-string name (${invalid.label}) returns 400`, async ({
         apiSdk,
       }) => {
-        const { data } = await apiSdk.forRole("owner").rooms.createRoomTag({
-          createTagRequestDto: { name: invalid.value } as any,
-        });
+        const { data, status } = await apiSdk
+          .forRole("owner")
+          .rooms.createRoomTag({
+            createTagRequestDto: { name: invalid.value } as any,
+          });
+        expect(status).toBe(400);
         expect(data.statusCode).toBe(400);
       });
     }
@@ -6985,9 +7079,12 @@ test.describe("API rooms methods", () => {
     test("POST /files/tags - Very long tag name (10000 chars) returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk.forRole("owner").rooms.createRoomTag({
-        createTagRequestDto: { name: "a".repeat(10000) },
-      });
+      const { data, status } = await apiSdk
+        .forRole("owner")
+        .rooms.createRoomTag({
+          createTagRequestDto: { name: "a".repeat(10000) },
+        });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -8155,10 +8252,11 @@ test.describe("API rooms methods", () => {
         "User",
       );
 
-      const { data } = await userApi.rooms.getRoomSecurityInfo({
+      const { data, status } = await userApi.rooms.getRoomSecurityInfo({
         id: roomId,
       });
 
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -8179,10 +8277,11 @@ test.describe("API rooms methods", () => {
         "Guest",
       );
 
-      const { data } = await guestApi.rooms.getRoomSecurityInfo({
+      const { data, status } = await guestApi.rooms.getRoomSecurityInfo({
         id: roomId,
       });
 
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -8433,9 +8532,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getRoomSecurityInfo({
+      const { data, status } = await ownerApi.rooms.getRoomSecurityInfo({
         id: 999999999,
       });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -8458,7 +8558,10 @@ test.describe("API rooms methods", () => {
       const op = await waitForOperation(ownerApi.operations);
       expect(op.finished).toBe(true);
 
-      const { data } = await ownerApi.rooms.getRoomSecurityInfo({ id: roomId });
+      const { data, status } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: roomId,
+      });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -8477,7 +8580,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getRoomSecurityInfo({ id: -1 });
+      const { data, status } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: -1,
+      });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -8485,7 +8591,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getRoomSecurityInfo({ id: 0 });
+      const { data, status } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: 0,
+      });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -8498,9 +8607,10 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getRoomSecurityInfo({
+      const { data, status } = await ownerApi.rooms.getRoomSecurityInfo({
         id: "abc" as unknown as number,
       });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -8516,9 +8626,10 @@ test.describe("API rooms methods", () => {
         apiSdk,
       }) => {
         const ownerApi = apiSdk.forRole("owner");
-        const { data } = await ownerApi.rooms.getRoomSecurityInfo({
+        const { data, status } = await ownerApi.rooms.getRoomSecurityInfo({
           id: badId as unknown as number,
         });
+        expect(status).toBe(404);
         expect(data.statusCode).toBe(404);
       });
     }
@@ -8845,7 +8956,7 @@ test.describe("API rooms methods", () => {
       });
       const { data: memberData } = await apiSdk.addMember("owner", "User");
 
-      const { data } = await ownerApi.rooms.setRoomSecurity({
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
         id: roomData.response!.id!,
         roomInvitationRequest: {
           invitations: [
@@ -8855,6 +8966,7 @@ test.describe("API rooms methods", () => {
         },
       });
 
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -8871,7 +8983,7 @@ test.describe("API rooms methods", () => {
       });
       const { data: memberData } = await apiSdk.addMember("owner", "User");
 
-      const { data } = await ownerApi.rooms.setRoomSecurity({
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
         id: roomData.response!.id!,
         roomInvitationRequest: {
           invitations: [
@@ -8881,6 +8993,7 @@ test.describe("API rooms methods", () => {
         },
       });
 
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -8921,7 +9034,7 @@ test.describe("API rooms methods", () => {
       });
       const { data: memberData } = await apiSdk.addMember("owner", "User");
 
-      const { data } = await ownerApi.rooms.setRoomSecurity({
+      const { data, status } = await ownerApi.rooms.setRoomSecurity({
         id: roomData.response!.id!,
         roomInvitationRequest: {
           invitations: [
@@ -8931,6 +9044,7 @@ test.describe("API rooms methods", () => {
         },
       });
 
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
   });
@@ -10073,8 +10187,11 @@ test.describe("API rooms methods", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data } = await ownerApi.rooms.getRoomLinks({ id: 99999999 });
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: 99999999,
+      });
 
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -10096,8 +10213,11 @@ test.describe("API rooms methods", () => {
       });
       await waitForOperation(ownerApi.operations);
 
-      const { data } = await ownerApi.rooms.getRoomLinks({ id: roomId });
+      const { data, status } = await ownerApi.rooms.getRoomLinks({
+        id: roomId,
+      });
 
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -10287,10 +10407,13 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
-        id: roomData.response!.id!,
-      });
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: roomData.response!.id!,
+        },
+      );
 
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -10327,20 +10450,26 @@ test.describe("API rooms methods", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
-        id: 99999999,
-      });
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: 99999999,
+        },
+      );
 
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
     test("GET /files/rooms/:id/link - id 0 returns 404", async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
-        id: 0,
-      });
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: 0,
+        },
+      );
 
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -10349,10 +10478,13 @@ test.describe("API rooms methods", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
-        id: -1,
-      });
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: -1,
+        },
+      );
 
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -10361,10 +10493,13 @@ test.describe("API rooms methods", () => {
     }) => {
       const ownerApi = apiSdk.forRole("owner");
 
-      const { data } = await ownerApi.rooms.getRoomsPrimaryExternalLink({
-        id: "abc" as unknown as number,
-      });
+      const { data, status } = await ownerApi.rooms.getRoomsPrimaryExternalLink(
+        {
+          id: "abc" as unknown as number,
+        },
+      );
 
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -10523,7 +10658,7 @@ test.describe("API rooms methods", () => {
       });
       const firstId = first.response!.sharedLink!.id!;
 
-      const { data } = await setLink(ownerApi, roomId, {
+      const { data, status } = await setLink(ownerApi, roomId, {
         access: FileShare.Read,
         linkType: LinkType.Invitation,
         title: "Second Invitation",
@@ -10532,6 +10667,7 @@ test.describe("API rooms methods", () => {
 
       const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
       expect(links.map((l) => l.sharedLink?.id)).toContain(firstId);
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -10817,13 +10953,14 @@ test.describe("API rooms methods", () => {
       }) => {
         const ownerApi = apiSdk.forRole("owner");
 
-        const { data } = await setLink(ownerApi, badId, {
+        const { data, status } = await setLink(ownerApi, badId, {
           access: FileShare.Read,
           linkType: LinkType.External,
           title: "Bad Room Id",
           denyDownload: false,
         });
 
+        expect(status).toBe(404);
         expect(data.statusCode).toBe(404);
       });
     }
@@ -10840,13 +10977,14 @@ test.describe("API rooms methods", () => {
       });
       await waitForOperation(ownerApi.operations);
 
-      const { data } = await setLink(ownerApi, roomId, {
+      const { data, status } = await setLink(ownerApi, roomId, {
         access: FileShare.Read,
         linkType: LinkType.External,
         title: "On Deleted Room",
         denyDownload: false,
       });
 
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -10866,13 +11004,14 @@ test.describe("API rooms methods", () => {
       });
       await waitForOperation(ownerApi.operations);
 
-      const { data } = await setLink(ownerApi, roomId, {
+      const { data, status } = await setLink(ownerApi, roomId, {
         access: FileShare.Read,
         linkType: LinkType.External,
         title: "On Archived Room",
         denyDownload: false,
       });
 
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
     });
 
@@ -11017,13 +11156,14 @@ test.describe("API rooms methods", () => {
       const ownerApi = apiSdk.forRole("owner");
       const roomId = await mkRoom(ownerApi, "Autotest setLink Bad LinkType");
 
-      const { data } = await setLink(ownerApi, roomId, {
+      const { data, status } = await setLink(ownerApi, roomId, {
         access: FileShare.Read,
         linkType: 5 as unknown as LinkType,
         title: "Bad LinkType",
         denyDownload: false,
       });
 
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -11033,13 +11173,14 @@ test.describe("API rooms methods", () => {
       const ownerApi = apiSdk.forRole("owner");
       const roomId = await mkRoom(ownerApi, "Autotest setLink Bad Access");
 
-      const { data } = await setLink(ownerApi, roomId, {
+      const { data, status } = await setLink(ownerApi, roomId, {
         access: 99 as unknown as FileShare,
         linkType: LinkType.Invitation,
         title: "Bad Access",
         denyDownload: false,
       });
 
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -11087,13 +11228,14 @@ test.describe("API rooms methods", () => {
       const roomId = await mkRoom(ownerApi, "Autotest setLink Long Title");
 
       const longTitle = "L".repeat(300);
-      const { data } = await setLink(ownerApi, roomId, {
+      const { data, status } = await setLink(ownerApi, roomId, {
         access: FileShare.Read,
         linkType: LinkType.Invitation,
         title: longTitle,
         denyDownload: false,
       });
 
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -11126,7 +11268,7 @@ test.describe("API rooms methods", () => {
       const ownerApi = apiSdk.forRole("owner");
       const roomId = await mkRoom(ownerApi, "Autotest setLink MaxUse Zero");
 
-      const { data } = await setLink(ownerApi, roomId, {
+      const { data, status } = await setLink(ownerApi, roomId, {
         access: FileShare.Read,
         linkType: LinkType.Invitation,
         title: "MaxUse Zero",
@@ -11134,6 +11276,7 @@ test.describe("API rooms methods", () => {
         denyDownload: false,
       });
 
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -11143,7 +11286,7 @@ test.describe("API rooms methods", () => {
       const ownerApi = apiSdk.forRole("owner");
       const roomId = await mkRoom(ownerApi, "Autotest setLink MaxUse Negative");
 
-      const { data } = await setLink(ownerApi, roomId, {
+      const { data, status } = await setLink(ownerApi, roomId, {
         access: FileShare.Read,
         linkType: LinkType.Invitation,
         title: "MaxUse Negative",
@@ -11151,6 +11294,7 @@ test.describe("API rooms methods", () => {
         denyDownload: false,
       });
 
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -11490,13 +11634,14 @@ test.describe("API rooms methods", () => {
           roomType,
         );
 
-        const { data } = await setLink(ownerApi, roomId, {
+        const { data, status } = await setLink(ownerApi, roomId, {
           access: FileShare.Read,
           linkType: LinkType.External,
           title: `${label} External`,
           denyDownload: false,
         });
 
+        expect(status).toBe(403);
         expect(data.statusCode).toBe(403);
       });
     }
@@ -11513,13 +11658,14 @@ test.describe("API rooms methods", () => {
         RoomType.FillingFormsRoom,
       );
 
-      const { data } = await setLink(ownerApi, roomId, {
+      const { data, status } = await setLink(ownerApi, roomId, {
         access: FileShare.Read,
         linkType: LinkType.Invitation,
         title: "FillingForms Invitation",
         denyDownload: false,
       });
 
+      expect(status).toBe(403);
       expect(data.statusCode).toBe(403);
       const links = await listLinks(ownerApi, roomId, LinkType.Invitation);
       expect(links.length).toBe(0);
@@ -12320,22 +12466,24 @@ test.describe("API rooms methods", () => {
     test("POST /files/rooms/fromtemplate - Missing templateId returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk
+      const { data, status } = await apiSdk
         .forRole("owner")
         .rooms.createRoomFromTemplate({
           createRoomFromTemplateDto: { title: "Room" } as any,
         });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
     test("POST /files/rooms/fromtemplate - Null templateId returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk
+      const { data, status } = await apiSdk
         .forRole("owner")
         .rooms.createRoomFromTemplate({
           createRoomFromTemplateDto: { templateId: null, title: "Room" } as any,
         });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -12343,7 +12491,7 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomFromTemplate({
         createRoomFromTemplateDto: { templateId: 0, title: "Room" },
       });
 
@@ -12352,6 +12500,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain("Room");
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -12359,7 +12508,7 @@ test.describe("API rooms methods", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomFromTemplate({
         createRoomFromTemplateDto: { templateId: 999999999, title: "Room" },
       });
 
@@ -12368,6 +12517,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain("Room");
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -12395,7 +12545,7 @@ test.describe("API rooms methods", () => {
       });
       await waitForOperation(ownerApi.operations);
 
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomFromTemplate({
         createRoomFromTemplateDto: {
           templateId,
           title: "Room After Delete",
@@ -12407,6 +12557,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain("Room After Delete");
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -12428,9 +12579,10 @@ test.describe("API rooms methods", () => {
       });
       const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomFromTemplate({
         createRoomFromTemplateDto: { templateId } as any,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -12452,7 +12604,7 @@ test.describe("API rooms methods", () => {
       });
       const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomFromTemplate({
         createRoomFromTemplateDto: { templateId, title: "" },
       });
 
@@ -12461,6 +12613,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain("");
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -12482,7 +12635,7 @@ test.describe("API rooms methods", () => {
       });
       const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomFromTemplate({
         createRoomFromTemplateDto: { templateId, title: "   " },
       });
 
@@ -12491,6 +12644,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain("   ");
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -12513,7 +12667,7 @@ test.describe("API rooms methods", () => {
       const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
       const longTitle = "A".repeat(1000);
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomFromTemplate({
         createRoomFromTemplateDto: {
           templateId,
           title: longTitle,
@@ -12525,6 +12679,7 @@ test.describe("API rooms methods", () => {
         (f) => (f as any).title as string,
       );
       expect(titles).not.toContain(longTitle);
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -12601,7 +12756,7 @@ test.describe("API rooms methods", () => {
     test("POST /files/rooms/fromtemplate - Invalid templateId type returns 400", async ({
       apiSdk,
     }) => {
-      const { data } = await apiSdk
+      const { data, status } = await apiSdk
         .forRole("owner")
         .rooms.createRoomFromTemplate({
           createRoomFromTemplateDto: {
@@ -12609,6 +12764,7 @@ test.describe("API rooms methods", () => {
             title: "Room",
           } as any,
         });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -12630,9 +12786,10 @@ test.describe("API rooms methods", () => {
       });
       const templateId = await waitForRoomTemplate(ownerApi.rooms);
 
-      const { data } = await ownerApi.rooms.createRoomFromTemplate({
+      const { data, status } = await ownerApi.rooms.createRoomFromTemplate({
         createRoomFromTemplateDto: { templateId, title: 123 } as any,
       });
+      expect(status).toBe(400);
       expect(data.statusCode).toBe(400);
     });
 
@@ -17466,11 +17623,12 @@ test.describe("PUT /files/rooms/:id/tags - addRoomTags", () => {
       createTagRequestDto: { name: "GhostRoomTag" },
     });
 
-    const { data } = await ownerApi.rooms.addRoomTags({
+    const { data, status } = await ownerApi.rooms.addRoomTags({
       id: 999999999,
       batchTagsRequestDto: { names: ["GhostRoomTag"] },
     });
 
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -17498,11 +17656,12 @@ test.describe("PUT /files/rooms/:id/tags - addRoomTags", () => {
     const operation = await waitForOperation(ownerApi.operations);
     expect(operation.finished).toBe(true);
 
-    const { data } = await ownerApi.rooms.addRoomTags({
+    const { data, status } = await ownerApi.rooms.addRoomTags({
       id: roomId,
       batchTagsRequestDto: { names: ["DeletedRoomTag"] },
     });
 
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -17828,7 +17987,9 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     const ids = (listData.response!.folders ?? []).map((f) => (f as any).id);
     expect(ids).not.toContain(roomId);
 
-    const { data: infoData } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    const { data: infoData, status: infoDataStatus } =
+      await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(infoDataStatus).toBe(404);
     expect(infoData.statusCode).toBe(404);
   });
 
@@ -17881,9 +18042,11 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
       expect(operation.finished).toBe(true);
       expect(operation.error).toBe("");
 
-      const { data: infoData } = await ownerApi.rooms.getRoomInfo({
-        id: roomId,
-      });
+      const { data: infoData, status: infoDataStatus } =
+        await ownerApi.rooms.getRoomInfo({
+          id: roomId,
+        });
+      expect(infoDataStatus).toBe(404);
       expect(infoData.statusCode).toBe(404);
     });
   }
@@ -17999,9 +18162,14 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     const opB = await waitForOperation(ownerApi.operations);
     expect(opB.finished).toBe(true);
 
-    const { data: aInfo } = await ownerApi.rooms.getRoomInfo({ id: idA });
-    const { data: bInfo } = await ownerApi.rooms.getRoomInfo({ id: idB });
+    const { data: aInfo, status } = await ownerApi.rooms.getRoomInfo({
+      id: idA,
+    });
+    const { data: bInfo, status: bInfoStatus } =
+      await ownerApi.rooms.getRoomInfo({ id: idB });
+    expect(status).toBe(404);
     expect(aInfo.statusCode).toBe(404);
+    expect(bInfoStatus).toBe(404);
     expect(bInfo.statusCode).toBe(404);
   });
 
@@ -18039,9 +18207,14 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
 
     await waitForOperation(ownerApi.operations);
 
-    const { data: aInfo } = await ownerApi.rooms.getRoomInfo({ id: idA });
-    const { data: bInfo } = await ownerApi.rooms.getRoomInfo({ id: idB });
+    const { data: aInfo, status } = await ownerApi.rooms.getRoomInfo({
+      id: idA,
+    });
+    const { data: bInfo, status: bInfoStatus } =
+      await ownerApi.rooms.getRoomInfo({ id: idB });
+    expect(status).toBe(404);
     expect(aInfo.statusCode).toBe(404);
+    expect(bInfoStatus).toBe(404);
     expect(bInfo.statusCode).toBe(404);
   });
 
@@ -18066,11 +18239,12 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     const op = await waitForOperation(ownerApi.operations);
     expect(op.finished).toBe(true);
 
-    const { data } = await ownerApi.rooms.deleteRoom({
+    const { data, status } = await ownerApi.rooms.deleteRoom({
       id: roomId,
       deleteRoomRequest: { deleteAfter: false },
     });
 
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -18103,7 +18277,9 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     expect(deleteOp.finished).toBe(true);
     expect(deleteOp.error).toBe("");
 
-    const { data: infoData } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    const { data: infoData, status: infoDataStatus } =
+      await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(infoDataStatus).toBe(404);
     expect(infoData.statusCode).toBe(404);
   });
 
@@ -18133,10 +18309,15 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     expect(op.finished).toBe(true);
     expect(op.error).toBe("");
 
-    const { data: infoData } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    const { data: infoData, status } = await ownerApi.rooms.getRoomInfo({
+      id: roomId,
+    });
+    expect(status).toBe(404);
     expect(infoData.statusCode).toBe(404);
 
-    const { data: fileInfo } = await ownerApi.files.getFileInfo({ fileId });
+    const { data: fileInfo, status: fileInfoStatus } =
+      await ownerApi.files.getFileInfo({ fileId });
+    expect(fileInfoStatus).toBe(404);
     expect(fileInfo.statusCode).toBe(404);
   });
 
@@ -18319,7 +18500,10 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     const op = await waitForOperation(ownerApi.operations);
     expect(op.finished).toBe(true);
 
-    const { data: afterInfo } = await userApi.rooms.getRoomInfo({ id: roomId });
+    const { data: afterInfo, status } = await userApi.rooms.getRoomInfo({
+      id: roomId,
+    });
+    expect(status).toBe(404);
     expect(afterInfo.statusCode).toBe(404);
 
     const { data: list } = await userApi.rooms.getRoomsFolder({});
@@ -18352,11 +18536,15 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     expect(op.finished).toBe(true);
     expect(op.error).toBe("");
 
-    const { data: infoData } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    const { data: infoData, status } = await ownerApi.rooms.getRoomInfo({
+      id: roomId,
+    });
+    expect(status).toBe(404);
     expect(infoData.statusCode).toBe(404);
 
-    const { data: afterLink } =
+    const { data: afterLink, status: afterLinkStatus } =
       await ownerApi.rooms.getRoomsPrimaryExternalLink({ id: roomId });
+    expect(afterLinkStatus).toBe(404);
     expect(afterLink.statusCode).toBe(404);
   });
 
@@ -18417,11 +18605,12 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data } = await ownerApi.rooms.changeRoomCover({
+    const { data, status } = await ownerApi.rooms.changeRoomCover({
       id: roomId,
       coverRequestDto: { color: "FF5733", cover: coverId },
     });
 
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -18450,11 +18639,12 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data } = await ownerApi.rooms.createRoomLogo({
+    const { data, status } = await ownerApi.rooms.createRoomLogo({
       id: roomId,
       logoRequest: { tmpFile, x: 0, y: 0, width: 1, height: 1 },
     });
 
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -18462,19 +18652,21 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
 
   test("DELETE /files/rooms/:id - id:0 returns 404", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.rooms.deleteRoom({
+    const { data, status } = await ownerApi.rooms.deleteRoom({
       id: 0,
       deleteRoomRequest: { deleteAfter: false },
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
   test("DELETE /files/rooms/:id - id:-1 returns 404", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.rooms.deleteRoom({
+    const { data, status } = await ownerApi.rooms.deleteRoom({
       id: -1,
       deleteRoomRequest: { deleteAfter: false },
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -18482,19 +18674,21 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.rooms.deleteRoom({
+    const { data, status } = await ownerApi.rooms.deleteRoom({
       id: 999999999,
       deleteRoomRequest: { deleteAfter: false },
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
   test("DELETE /files/rooms/:id - id:'abc' returns 404", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.rooms.deleteRoom({
+    const { data, status } = await ownerApi.rooms.deleteRoom({
       id: "abc" as unknown as number,
       deleteRoomRequest: { deleteAfter: false },
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -18560,11 +18754,12 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     });
     const roomId = createData.response!.id!;
 
-    const { data } = await ownerApi.rooms.deleteRoom({
+    const { data, status } = await ownerApi.rooms.deleteRoom({
       id: roomId,
       deleteRoomRequest: { deleteAfter: "false" as unknown as boolean },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -18580,11 +18775,12 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     });
     const roomId = createData.response!.id!;
 
-    const { data } = await ownerApi.rooms.deleteRoom({
+    const { data, status } = await ownerApi.rooms.deleteRoom({
       id: roomId,
       deleteRoomRequest: { deleteAfter: 1 as unknown as boolean },
     });
 
+    expect(status).toBe(400);
     expect(data.statusCode).toBe(400);
   });
 
@@ -18901,10 +19097,11 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.rooms.deleteRoomTags({
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
       id: 999999999,
       batchTagsRequestDto: { names: ["GhostTag"] },
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -18928,11 +19125,12 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     const operation = await waitForOperation(ownerApi.operations);
     expect(operation.finished).toBe(true);
 
-    const { data } = await ownerApi.rooms.deleteRoomTags({
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
       id: roomId,
       batchTagsRequestDto: { names: ["NoTag"] },
     });
 
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -18973,10 +19171,11 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.rooms.deleteRoomTags({
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
       id: "not-a-number" as unknown as number,
       batchTagsRequestDto: { names: ["X"] },
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -18984,10 +19183,11 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
-    const { data } = await ownerApi.rooms.deleteRoomTags({
+    const { data, status } = await ownerApi.rooms.deleteRoomTags({
       id: 0,
       batchTagsRequestDto: { names: ["X"] },
     });
+    expect(status).toBe(404);
     expect(data.statusCode).toBe(404);
   });
 
@@ -20236,7 +20436,10 @@ test.describe("GET /files/rooms/:id - getRoomInfo", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getRoomInfo({ id: 999999999 });
+      const { data, status } = await ownerApi.rooms.getRoomInfo({
+        id: 999999999,
+      });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -20244,15 +20447,17 @@ test.describe("GET /files/rooms/:id - getRoomInfo", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getRoomInfo({
+      const { data, status } = await ownerApi.rooms.getRoomInfo({
         id: "abc" as unknown as number,
       });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
     test("GET /files/rooms/:id - Zero id returns 404", async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getRoomInfo({ id: 0 });
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: 0 });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 
@@ -20260,7 +20465,8 @@ test.describe("GET /files/rooms/:id - getRoomInfo", () => {
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
-      const { data } = await ownerApi.rooms.getRoomInfo({ id: -1 });
+      const { data, status } = await ownerApi.rooms.getRoomInfo({ id: -1 });
+      expect(status).toBe(404);
       expect(data.statusCode).toBe(404);
     });
 

@@ -70,8 +70,9 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
       "User",
     );
 
-    const { data } = await userApi.folders.getFolderPath({ folderId });
+    const { data, status } = await userApi.folders.getFolderPath({ folderId });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain(
       "You don't have enough permission to view the folder content",
@@ -96,8 +97,9 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
       "Guest",
     );
 
-    const { data } = await guestApi.folders.getFolderPath({ folderId });
+    const { data, status } = await guestApi.folders.getFolderPath({ folderId });
 
+    expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error?.message).toContain(
       "You don't have enough permission to view the folder content",
