@@ -4582,23 +4582,20 @@ test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploa
     },
   );
 
-  // BUG 82278: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Non-existent sessionId returns 500 instead of 404
-  test.fail(
-    "BUG 82278: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Non-existent" +
-      " sessionId returns 500 instead of 404",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
-      const folderId = myDocsData.response!.current!.id!;
+  test("BUG 82278: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Non-existent sessionId returns 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const folderId = myDocsData.response!.current!.id!;
 
-      const { status } = await ownerApi.operations.abortUploadSession({
-        sessionId: "00000000-0000-0000-0000-000000000000",
-        folderId,
-      });
+    const { status } = await ownerApi.operations.abortUploadSession({
+      sessionId: "00000000-0000-0000-0000-000000000000",
+      folderId,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   test(
     "DELETE /api/2.0/files/{folderId}/session/{sessionId} - Abort already" +
@@ -6876,16 +6873,10 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
     },
   );
 
-  test.fail(
+  test(
     "BUG 83509: PUT /api/2.0/files/fileops/markasread - Marking Files section" +
       " root as read does not clear Rooms section news",
     async ({ apiSdk }) => {
-      // markAsRead has no rootFolderType/section parameter, so it marks the
-      // unified "new" flag read regardless of which section triggered it.
-      // The UI calls markasread with the Files section root folder id, but
-      // that also clears news for an unrelated room the same user owns —
-      // violating the expectation that each root section tracks new items
-      // independently (same root cause pattern as BUG 82588 for emptytrash).
       const ownerApi = apiSdk.forRole("owner");
       const { api: userApi, data: userData } =
         await apiSdk.addAuthenticatedMember("owner", "User");

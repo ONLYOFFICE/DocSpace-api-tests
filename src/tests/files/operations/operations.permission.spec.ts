@@ -607,47 +607,45 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Permissions", 
     expect(status).toBe(200);
   });
 
-  // BUG 81825: GET /api/2.0/files/file/{fileId}/checkconversion returns 403 instead of 200 for room member with Editor access
-  test.fail(
-    "BUG 81825: GET /api/2.0/files/file/{fileId}/checkconversion - User with Editor access can check conversion status returns 200",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81825: GET /api/2.0/files/file/{fileId}/checkconversion - User with Editor access can check conversion status returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest CheckConversion Editor Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest CheckConversion Editor Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: fileData } = await ownerApi.files.createFile({
-        folderId: roomId,
-        createFileJsonElement: {
-          title: "Autotest CheckConversion Editor File.docx",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: {
+        title: "Autotest CheckConversion Editor File.docx",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.rooms.setRoomSecurity({
-        id: roomId,
-        roomInvitationRequest: {
-          invitations: [{ id: userId, access: FileShare.Editing }],
-          notify: false,
-        },
-      });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
 
-      const { status } = await userApi.operations.checkConversionStatus({
-        fileId,
-      });
+    const { status } = await userApi.operations.checkConversionStatus({
+      fileId,
+    });
 
-      expect(status).toBe(200);
-    },
-  );
+    expect(status).toBe(200);
+  });
 
   test("GET /api/2.0/files/file/{fileId}/checkconversion - User without room access cannot check conversion status returns 403", async ({
     apiSdk,
@@ -5427,90 +5425,84 @@ test.describe("DELETE /api/2.0/files/{folderId}/session/{sessionId} - abortUploa
     },
   );
 
-  // BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - Any authenticated user can abort another user's session regardless of room access
-  test.fail(
-    "BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
-      " (ContentCreator) cannot abort another user's session returns 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest AbortSession Perm CrossUser Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
+  test("BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User (ContentCreator) cannot abort another user's session returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest AbortSession Perm CrossUser Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
 
-      const { api: userApi, data: userData } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-
-      await ownerApi.rooms.setRoomSecurity({
-        id: folderId,
-        roomInvitationRequest: {
-          invitations: [
-            {
-              id: userData.response!.id!,
-              access: FileShare.ContentCreator,
-            },
-          ],
-          notify: false,
-        },
-      });
-
-      const { data: sessionData } =
-        await ownerApi.operations.createUploadSessionInFolder({
-          folderId,
-          sessionRequest: {
-            fileName: "Autotest AbortSession Perm CrossUser Owner.docx",
-            fileSize: 256,
-            createNewIfExist: true,
-          },
-        });
-      const sessionId = sessionData.response!.id!;
-
-      const { status } = await userApi.operations.abortUploadSession({
-        folderId,
-        sessionId,
-      });
-
-      expect(status).toBe(403);
-    },
-  );
-
-  // BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User without room access can abort another user's session (returns 200 and actually terminates the session)
-  test.fail(
-    "BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User" +
-      " without room access cannot abort session returns 403",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest AbortSession Perm NoAccess Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const folderId = roomData.response!.id!;
-
-      const { data: sessionData } =
-        await ownerApi.operations.createUploadSessionInFolder({
-          folderId,
-          sessionRequest: {
-            fileName: "Autotest AbortSession Perm NoAccess Owner.docx",
-            fileSize: 256,
-            createNewIfExist: true,
-          },
-        });
-      const sessionId = sessionData.response!.id!;
-
+    const { api: userApi, data: userData } =
       await apiSdk.addAuthenticatedMember("owner", "User");
-      const userApi = apiSdk.forRole("user");
 
-      const { status } = await userApi.operations.abortUploadSession({
+    await ownerApi.rooms.setRoomSecurity({
+      id: folderId,
+      roomInvitationRequest: {
+        invitations: [
+          {
+            id: userData.response!.id!,
+            access: FileShare.ContentCreator,
+          },
+        ],
+        notify: false,
+      },
+    });
+
+    const { data: sessionData } =
+      await ownerApi.operations.createUploadSessionInFolder({
         folderId,
-        sessionId,
+        sessionRequest: {
+          fileName: "Autotest AbortSession Perm CrossUser Owner.docx",
+          fileSize: 256,
+          createNewIfExist: true,
+        },
       });
+    const sessionId = sessionData.response!.id!;
 
-      expect(status).toBe(403);
-    },
-  );
+    const { status } = await userApi.operations.abortUploadSession({
+      folderId,
+      sessionId,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  test("BUG 82276: DELETE /api/2.0/files/{folderId}/session/{sessionId} - User without room access cannot abort session returns 403", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest AbortSession Perm NoAccess Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const folderId = roomData.response!.id!;
+
+    const { data: sessionData } =
+      await ownerApi.operations.createUploadSessionInFolder({
+        folderId,
+        sessionRequest: {
+          fileName: "Autotest AbortSession Perm NoAccess Owner.docx",
+          fileSize: 256,
+          createNewIfExist: true,
+        },
+      });
+    const sessionId = sessionData.response!.id!;
+
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    const userApi = apiSdk.forRole("user");
+
+    const { status } = await userApi.operations.abortUploadSession({
+      folderId,
+      sessionId,
+    });
+
+    expect(status).toBe(403);
+  });
 });
