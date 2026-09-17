@@ -139,6 +139,12 @@ export type AiProviderModel = {
   provider?: string;
   reasoning?: boolean;
   capabilities?: number;
+  reasoningSupport?: {
+    canDisable?: boolean;
+    defaultDepth?: string;
+    depths?: string[];
+    thinks?: boolean;
+  };
 };
 
 export class AiProfiles extends AiHttp {

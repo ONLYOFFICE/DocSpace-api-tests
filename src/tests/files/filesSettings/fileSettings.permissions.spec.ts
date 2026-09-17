@@ -2295,7 +2295,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const { status } = await apiSdk
       .forAnonymous()
-      .filesSettings.changeDownloadZipFromBody({
+      .filesSettings.changeDownloadZip({
         displayRequestDto: { set: true },
       });
 
@@ -2307,7 +2307,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const { data, status } = await apiSdk
       .forRole("owner")
-      .filesSettings.changeDownloadZipFromBody({
+      .filesSettings.changeDownloadZip({
         displayRequestDto: { set: true },
       });
 
@@ -2321,7 +2321,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const { data, status } = await apiSdk
       .forRole("owner")
-      .filesSettings.changeDownloadZipFromBody({
+      .filesSettings.changeDownloadZip({
         displayRequestDto: { set: false },
       });
 
@@ -2337,7 +2337,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
-      .filesSettings.changeDownloadZipFromBody({
+      .filesSettings.changeDownloadZip({
         displayRequestDto: { set: true },
       });
 
@@ -2353,7 +2353,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
-      .filesSettings.changeDownloadZipFromBody({
+      .filesSettings.changeDownloadZip({
         displayRequestDto: { set: false },
       });
 
@@ -2374,7 +2374,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
       updateMembersRequestDto: { userIds: [adminId], resendAll: false },
     });
 
-    const { status } = await adminApi.filesSettings.changeDownloadZipFromBody({
+    const { status } = await adminApi.filesSettings.changeDownloadZip({
       displayRequestDto: { set: true },
     });
 

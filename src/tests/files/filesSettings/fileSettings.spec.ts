@@ -2690,10 +2690,9 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } =
-      await ownerApi.filesSettings.changeDownloadZipFromBody({
-        displayRequestDto: { set: true },
-      });
+    const { data, status } = await ownerApi.filesSettings.changeDownloadZip({
+      displayRequestDto: { set: true },
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -2708,10 +2707,9 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } =
-      await ownerApi.filesSettings.changeDownloadZipFromBody({
-        displayRequestDto: { set: false },
-      });
+    const { data, status } = await ownerApi.filesSettings.changeDownloadZip({
+      displayRequestDto: { set: false },
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -2727,7 +2725,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
     const ownerApi = apiSdk.forRole("owner");
 
     await test.step("Enable tar.gz format", async () => {
-      await ownerApi.filesSettings.changeDownloadZipFromBody({
+      await ownerApi.filesSettings.changeDownloadZip({
         displayRequestDto: { set: true },
       });
       const { data } = await ownerApi.filesSettings.getFilesSettings();
@@ -2735,7 +2733,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
     });
 
     await test.step("Disable tar.gz format (revert to zip)", async () => {
-      await ownerApi.filesSettings.changeDownloadZipFromBody({
+      await ownerApi.filesSettings.changeDownloadZip({
         displayRequestDto: { set: false },
       });
       const { data } = await ownerApi.filesSettings.getFilesSettings();
@@ -2748,14 +2746,13 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    await ownerApi.filesSettings.changeDownloadZipFromBody({
+    await ownerApi.filesSettings.changeDownloadZip({
       displayRequestDto: { set: true },
     });
 
-    const { data, status } =
-      await ownerApi.filesSettings.changeDownloadZipFromBody({
-        displayRequestDto: { set: true },
-      });
+    const { data, status } = await ownerApi.filesSettings.changeDownloadZip({
+      displayRequestDto: { set: true },
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -2769,14 +2766,13 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    await ownerApi.filesSettings.changeDownloadZipFromBody({
+    await ownerApi.filesSettings.changeDownloadZip({
       displayRequestDto: { set: false },
     });
 
-    const { data, status } =
-      await ownerApi.filesSettings.changeDownloadZipFromBody({
-        displayRequestDto: { set: false },
-      });
+    const { data, status } = await ownerApi.filesSettings.changeDownloadZip({
+      displayRequestDto: { set: false },
+    });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -2790,7 +2786,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const { data, status } = await apiSdk
       .forRole("owner")
-      .filesSettings.changeDownloadZipFromBody({});
+      .filesSettings.changeDownloadZip({});
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -2801,7 +2797,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    await ownerApi.filesSettings.changeDownloadZipFromBody({
+    await ownerApi.filesSettings.changeDownloadZip({
       displayRequestDto: { set: true },
     });
 
@@ -2816,7 +2812,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
   }) => {
     const ownerApi = apiSdk.forRole("owner");
 
-    await ownerApi.filesSettings.changeDownloadZipFromBody({
+    await ownerApi.filesSettings.changeDownloadZip({
       displayRequestDto: { set: false },
     });
 
@@ -2833,10 +2829,10 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
     const ownerApi = apiSdk.forRole("owner");
     const adminApi = apiSdk.forRole("docSpaceAdmin");
 
-    await ownerApi.filesSettings.changeDownloadZipFromBody({
+    await ownerApi.filesSettings.changeDownloadZip({
       displayRequestDto: { set: true },
     });
-    await adminApi.filesSettings.changeDownloadZipFromBody({
+    await adminApi.filesSettings.changeDownloadZip({
       displayRequestDto: { set: false },
     });
 
@@ -2854,7 +2850,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .filesSettings.changeDownloadZipFromBody({
+      .filesSettings.changeDownloadZip({
         displayRequestDto: { set: true },
       });
 
@@ -2869,7 +2865,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .filesSettings.changeDownloadZipFromBody({
+      .filesSettings.changeDownloadZip({
         displayRequestDto: { set: true },
       });
 
@@ -2884,7 +2880,7 @@ test.describe("PUT /api/2.0/files/settings/downloadtargz - Change the archive do
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .filesSettings.changeDownloadZipFromBody({
+      .filesSettings.changeDownloadZip({
         displayRequestDto: { set: true },
       });
 

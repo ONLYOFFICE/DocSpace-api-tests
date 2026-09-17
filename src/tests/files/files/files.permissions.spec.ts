@@ -4513,7 +4513,7 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
       const guestId = guestData.response!.id!;
 
       await ownerApi.sharing.setFileSecurityInfo({
-        fileId,
+        id: fileId,
         securityInfoSimpleRequestDto: {
           share: [{ shareTo: guestId, access: FileShare.Read }],
           notify: false,

@@ -752,10 +752,20 @@ test.describe("AI Profiles - provider model discovery", () => {
     }
   });
 
-  test("POST /api/2.0/ai/profiles/list-provider-models - an empty catalogue is returned as an empty list", async ({
+  test("POST /api/2.0/ai/profiles/list-provider-models - the built-in gateway returns its own model catalogue", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // On SaaS, adding a custom provider is not even reachable — that form is
+    // server-only — so the "onlyoffice" gateway is the only provider discovery
+    // can ever run against here, and it comes pre-populated with OpenRouter's
+    // default catalogue the moment the AI service is activated. This used to be
+    // the "empty catalogue" case of section 4.2 — the gateway answered the
+    // discovery call but published nothing through it — which no longer
+    // reproduces on SaaS (re-measured 2026-09-17): there is no way to reach an
+    // active gateway with zero models to discover, so the coverage moved to
+    // what discovery against the gateway actually returns now — its real
+    // catalogue and capability metadata, the deepseek sibling test's shape.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -763,8 +773,6 @@ test.describe("AI Profiles - provider model discovery", () => {
     const catalogue = await profiles.catalogue("owner");
     const gateway = AiProfiles.byCapabilities(catalogue, AI_CAPS.textTools);
 
-    // The gateway provider answers the discovery call but publishes nothing
-    // through it — the "empty model list is handled" case of section 4.2.
     const { status, data } = await profiles.listProviderModels("owner", {
       providerType: "onlyoffice",
       baseUrl: gateway.baseUrl,
@@ -772,7 +780,22 @@ test.describe("AI Profiles - provider model discovery", () => {
     });
 
     expect(status).toBe(200);
-    expect(data).toEqual([]);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data!.length).toBeGreaterThan(0);
+
+    for (const model of data!) {
+      expect(model.id, "model id").toBeTruthy();
+      expect(model.provider).toBe("onlyoffice");
+      expect(typeof model.capabilities, `${model.id} capabilities`).toBe(
+        "number",
+      );
+      expect(typeof model.reasoning, `${model.id} reasoning`).toBe("boolean");
+      expect(
+        model.reasoningSupport,
+        `${model.id} reasoningSupport`,
+      ).toBeDefined();
+      expect(Array.isArray(model.reasoningSupport?.depths)).toBe(true);
+    }
   });
 
   test("POST /api/2.0/ai/profiles/list-provider-models - an invalid key is reported against the key", async ({

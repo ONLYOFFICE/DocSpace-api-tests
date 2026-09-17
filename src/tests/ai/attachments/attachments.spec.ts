@@ -774,9 +774,15 @@ test.describe("AI Attachments - save-file", () => {
     // The three fields the record type grew after the routes above were written:
     // `source: "tool"` marks an attachment the model produced (a generated
     // image), `canAnalyze` and `formKeys` describe an attached form. All three
-    // are read-only — a client that sends them gets a draft without them rather
-    // than an error, so an integration can neither forge the provenance of an
-    // attachment nor set up a form-analysis case by hand.
+    // are read-only — a client cannot forge the provenance of an attachment or
+    // set up a form-analysis case by hand.
+    //
+    // `source` and `formKeys` are stripped outright when there is nothing to
+    // report (undefined, not just falsy). `canAnalyze` is different, and
+    // genuinely so, not by accident: measured 2026-09-17, it comes back as a
+    // real computed answer — `false` for this plain .docx — rather than being
+    // omitted, so the server's own verdict is what a client gets back, not the
+    // `true` it tried to set.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
     const name = "Autotest form.docx";
@@ -800,11 +806,13 @@ test.describe("AI Attachments - save-file", () => {
     expect(data?.content).toBe("a form");
     expect(data?.type).toBe(FileType.Document);
 
-    // ...and the rest is dropped, in the response and in the store alike.
+    // ...and the client's own values for all three are gone, in the response
+    // and in the store alike: `source`/`formKeys` stripped, `canAnalyze`
+    // replaced by the server's real answer for this non-form file.
     const stored = await attachments.expectStored("owner", data!.id!);
     for (const record of [data!, stored]) {
       expect(record.source).toBeUndefined();
-      expect(record.canAnalyze).toBeUndefined();
+      expect(record.canAnalyze).toBe(false);
       expect(record.formKeys).toBeUndefined();
     }
   });

@@ -6903,7 +6903,7 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
           const fileId = fileData.response!.id!;
 
           await ownerApi.sharing.setFileSecurityInfo({
-            fileId,
+            id: fileId,
             securityInfoSimpleRequestDto: {
               share: [{ shareTo: String(userId), access: FileShare.ReadWrite }],
               notify: false,
