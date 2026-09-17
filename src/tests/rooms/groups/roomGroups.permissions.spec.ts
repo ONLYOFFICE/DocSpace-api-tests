@@ -88,7 +88,7 @@ test.describe("API room groups permissions", () => {
         ).toBe("heart");
 
         // list — the group is visible in the role's own listing.
-        const { data: list } = await api.groups.getRoomGroups({ id: 0 });
+        const { data: list } = await api.groups.getRoomGroups();
         expect(list.response!.map((g) => g.id)).toContain(id);
 
         // delete — then gone.
@@ -146,7 +146,7 @@ test.describe("API room groups permissions", () => {
         });
 
         // Correct contract: nothing is created in the caller's listing.
-        const { data: list } = await api.groups.getRoomGroups({ id: 0 });
+        const { data: list } = await api.groups.getRoomGroups();
         expect(list.response!.map((g) => g.name)).not.toContain(
           `${role} No Access`,
         );
@@ -175,10 +175,8 @@ test.describe("API room groups permissions", () => {
         rooms: [adminRoom],
       });
 
-      const { data: ownerList } = await owner.groups.getRoomGroups({ id: 0 });
-      const { data: adminList } = await adminApi.groups.getRoomGroups({
-        id: 0,
-      });
+      const { data: ownerList } = await owner.groups.getRoomGroups();
+      const { data: adminList } = await adminApi.groups.getRoomGroups({});
 
       const ownerNames = ownerList.response!.map((g) => g.name);
       const adminNames = adminList.response!.map((g) => g.name);

@@ -6866,8 +6866,8 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
 
     const { data, status } = await ownerApi.folders.getFolderHistory({
       folderId: roomId,
-      fromDate: { utcTime: fromDate },
-      toDate: { utcTime: toDate },
+      fromDate,
+      toDate,
     });
     expect(status).toBe(200);
     expect(data.response!.length).toBeGreaterThan(0);
@@ -9703,39 +9703,38 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
   // BUG 81648: sample files are injected as a side effect of delete operations, causing
   // myDocumentsUsedSpace to stay the same or increase instead of decreasing after hard delete.
   // Catches: if hard delete does not remove file size from myDocumentsUsedSpace
-  test.fail(
-    "BUG 81648: GET /api/2.0/files/filesusedspace - myDocumentsUsedSpace decreases after hard delete",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81648: GET /api/2.0/files/filesusedspace - myDocumentsUsedSpace decreases after hard delete", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Hard Delete Warmup" },
-      });
+    await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Hard Delete Warmup" },
+    });
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Hard Delete Target" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Hard Delete Target" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
-      const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
 
-      await ownerApi.files.deleteFile({
-        fileId,
-        _delete: { immediately: true },
-      });
-      await waitForOperation(ownerApi.operations);
+    await ownerApi.files.deleteFile({
+      fileId,
+      _delete: { immediately: true },
+    });
+    await waitForOperation(ownerApi.operations);
 
-      const { data: afterData, status } =
-        await ownerApi.folders.getFilesUsedSpace();
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
 
-      expect(status).toBe(200);
-      // Catches: if myDocumentsUsedSpace is not updated after hard delete
-      expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBeLessThan(
-        spaceBefore,
-      );
-    },
-  );
+    expect(status).toBe(200);
+    // Catches: if myDocumentsUsedSpace is not updated after hard delete
+    expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBeLessThan(
+      spaceBefore,
+    );
+  });
 
   // BUG 81648: getFileInfo triggers sample file injection, causing usedSpace to jump.
   // Catches: if GET requests (metadata read) incorrectly mutate usedSpace counters

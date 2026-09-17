@@ -10,6 +10,7 @@ import {
   getWalletBalance,
   operationDate,
   operationKey,
+  operationSource,
   waitForMatchingServiceOperation,
   waitForServiceOperation,
   walletServiceNames,
@@ -372,8 +373,9 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
 
     // The control: per-agent attribution works, and it works in this agent.
     expect(indexing?.description).toBe("Vectorization");
-    expect(indexing?.agentId).toBe(String(agentId));
-    expect(indexing?.agentTitle).toBe(agentTitle);
+    expect(operationSource(indexing).id).toBe(String(agentId));
+    expect(operationSource(indexing).title).toBe(agentTitle);
+    expect(operationSource(indexing).type).toBe("Agent");
 
     const beforeChat = new Set(
       (await getServiceOperations(ownerApi.payment, "aiTools")).map(
@@ -416,15 +418,15 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
     );
     if (questionEmbedding) {
       expect(
-        questionEmbedding.agentId,
+        operationSource(questionEmbedding).id,
         "the embedding of the question this chat asked names the agent",
       ).toBe(String(agentId));
     }
 
     // The half that used to fail: the same two fields, the same agent, a
     // different feature.
-    expect(charged?.agentId).toBe(String(agentId));
-    expect(charged?.agentTitle).toBe(agentTitle);
+    expect(operationSource(charged).id).toBe(String(agentId));
+    expect(operationSource(charged).title).toBe(agentTitle);
   });
 
   test("GET /api/2.0/portal/payment/customer/operations - a chat outside any agent is billed with no Source", async ({
@@ -459,10 +461,11 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
       beforeIndexing,
       isVectorizationCharge,
     );
-    expect(indexing?.agentId, "the control charge must name its agent").toBe(
-      String(agentId),
-    );
-    expect(indexing?.agentTitle).toBe(agentTitle);
+    expect(
+      operationSource(indexing).id,
+      "the control charge must name its agent",
+    ).toBe(String(agentId));
+    expect(operationSource(indexing).title).toBe(agentTitle);
 
     const beforeChat = new Set(
       (await getServiceOperations(ownerApi.payment, "aiTools")).map(
@@ -501,8 +504,8 @@ test.describe("AI usage - billed to the AI Tools add-on", () => {
     // Billed to whoever chatted, attributed to nothing else: this is the "—" the
     // wallet report shows in Source, and for this chat it is the right answer, not
     // the missing attribution the test above it is about.
-    expect(charged?.agentId).toBeUndefined();
-    expect(charged?.agentTitle).toBeUndefined();
+    expect(operationSource(charged).id).toBeUndefined();
+    expect(operationSource(charged).title).toBeUndefined();
   });
 
   test("GET /api/2.0/portal/payment/customer/operations - AI spend is filtered by service, participant and period", async ({
