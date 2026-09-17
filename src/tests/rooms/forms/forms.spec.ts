@@ -1586,11 +1586,20 @@ test.describe("Deleting and archiving a form filling room", () => {
 });
 
 /**
- * Recent is a file-level section reached through GET /files/recent. It accepts a
- * searchArea parameter, but live probing shows the parameter has no effect: the
- * same set of files comes back for Forms, Active, Any and for no value at all,
- * so a file inside a form filling room shows up in the Rooms-section Recent and
- * a file from a Rooms-section room shows up in the Forms Recent.
+ * Recent is a file-level section reached through GET /files/recent.
+ *
+ * `searchArea` used to have no effect — the same set came back for Forms,
+ * Active, Any and for no value at all, which is what BUG 82873 below is about.
+ * Re-measured 2026-09-17 and it now scopes properly, so the area a test asks for
+ * is load-bearing. Seeded with one form-filling-room form and one Rooms-section
+ * docx, both added to Recent, the areas answer:
+ *
+ *   no value / Active   the docx only — Active is what an omitted area means
+ *   Any                 both
+ *   Forms               the form only
+ *
+ * A test that wants to see both files therefore has to ask for `Any`; asking for
+ * nothing silently means "the Rooms section" and drops the form.
  */
 test.describe("GET /files/recent - the Forms section", () => {
   async function seedRecent(apiSdk: ApiSDK) {
@@ -1692,24 +1701,29 @@ test.describe("GET /files/recent - the Forms section", () => {
     expect(data.response!.total).toBe(0);
   });
 
-  test.fail(
-    "BUG 82874: GET /files/recent - total must count the whole selection, not the current page",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await seedRecent(apiSdk);
+  test("BUG 82874: GET /files/recent - total must count the whole selection, not the current page", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await seedRecent(apiSdk);
 
-      const { data: all } = await ownerApi.folders.getRecentFolder({});
-      expect(all.response!.total).toBe(2);
+    // Any, so the selection really is the two seeded files: an omitted
+    // searchArea means Active and selects one, which would fail this on its
+    // premise instead of on the paging it is about.
+    const { data: all } = await ownerApi.folders.getRecentFolder({
+      searchArea: SearchArea.Any,
+    });
+    expect(all.response!.total).toBe(2);
 
-      const { data: page, status } = await ownerApi.folders.getRecentFolder({
-        count: 1,
-      });
-      expect(status).toBe(200);
-      expect(page.response!.count).toBe(1);
-      // total currently collapses to the page size
-      expect(page.response!.total).toBe(2);
-    },
-  );
+    const { data: page, status } = await ownerApi.folders.getRecentFolder({
+      searchArea: SearchArea.Any,
+      count: 1,
+    });
+    expect(status).toBe(200);
+    expect(page.response!.count).toBe(1);
+    // total currently collapses to the page size
+    expect(page.response!.total).toBe(2);
+  });
 
   test("GET /files/recent - Deleting a form filling room drops its file from Recent", async ({
     apiSdk,
@@ -1717,7 +1731,12 @@ test.describe("GET /files/recent - the Forms section", () => {
     const ownerApi = apiSdk.forRole("owner");
     const { ffrId, formFileId, docxId } = await seedRecent(apiSdk);
 
-    const { data: before } = await ownerApi.folders.getRecentFolder({});
+    // Any, because this test needs both files in one listing and the form is
+    // only in the Forms area — an omitted searchArea means Active and would
+    // drop it. See the note above the seed.
+    const { data: before } = await ownerApi.folders.getRecentFolder({
+      searchArea: SearchArea.Any,
+    });
     const beforeIds = ((before.response!.files ?? []) as { id: number }[]).map(
       (f) => f.id,
     );
@@ -1730,7 +1749,11 @@ test.describe("GET /files/recent - the Forms section", () => {
     });
     await waitForOperation(ownerApi.operations);
 
-    const { data: after, status } = await ownerApi.folders.getRecentFolder({});
+    // The same area as before the delete, so the form's disappearance is the
+    // room going away rather than a narrower listing.
+    const { data: after, status } = await ownerApi.folders.getRecentFolder({
+      searchArea: SearchArea.Any,
+    });
     expect(status).toBe(200);
     const afterIds = ((after.response!.files ?? []) as { id: number }[]).map(
       (f) => f.id,
@@ -1965,24 +1988,22 @@ test.describe("Favorites and form filling rooms", () => {
     expect(folderIds(page)).toEqual([zForm]);
   });
 
-  test.fail(
-    "BUG 82877: GET /files/@favorites - total must count the whole selection, not the current page",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await seedFavorites(apiSdk);
+  test("BUG 82877: GET /files/@favorites - total must count the whole selection, not the current page", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await seedFavorites(apiSdk);
 
-      const { data: all } = await ownerApi.folders.getFavoritesFolder({});
-      expect(all.response!.total).toBe(2);
+    const { data: all } = await ownerApi.folders.getFavoritesFolder({});
+    expect(all.response!.total).toBe(2);
 
-      const { data: page, status } = await ownerApi.folders.getFavoritesFolder({
-        count: 1,
-      });
-      expect(status).toBe(200);
-      expect(page.response!.count).toBe(1);
-      // total currently collapses to the page size
-      expect(page.response!.total).toBe(2);
-    },
-  );
+    const { data: page, status } = await ownerApi.folders.getFavoritesFolder({
+      count: 1,
+    });
+    expect(status).toBe(200);
+    expect(page.response!.count).toBe(1);
+    expect(page.response!.total).toBe(2);
+  });
 
   test("GET /files/@favorites - Archiving a favorited form filling room keeps it in Favorites under the Archive root", async ({
     apiSdk,

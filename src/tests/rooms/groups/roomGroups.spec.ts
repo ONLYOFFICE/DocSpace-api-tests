@@ -127,7 +127,7 @@ test.describe("API room groups methods", () => {
 
         expect(g1.response!.id).not.toBe(g2.response!.id);
 
-        const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
+        const { data: list } = await owner.groups.getRoomGroups();
         const names = list.response!.map((g) => g.name);
         expect(names).toContain("Group One");
         expect(names).toContain("Group Two");
@@ -293,7 +293,7 @@ test.describe("API room groups methods", () => {
           },
         });
 
-        const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
+        const { data: list } = await owner.groups.getRoomGroups();
         const found = list.response!.find((g) => g.id === created.response!.id);
         expect(found).toBeDefined();
         expect(found!.name).toBe("In The List");
@@ -316,7 +316,7 @@ test.describe("API room groups methods", () => {
         // refused; the important assertion is that nothing gets created.
         expect(status).toBe(403);
 
-        const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
+        const { data: list } = await owner.groups.getRoomGroups();
         expect(list.response!.map((g) => g.name)).not.toContain("Empty Rooms");
       });
 
@@ -431,7 +431,7 @@ test.describe("API room groups methods", () => {
           },
         });
 
-        const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
+        const { data: list } = await owner.groups.getRoomGroups();
         expect(list.response!.map((g) => g.name)).toContain("Atomic Create");
         expect(status).toBe(403);
       });
@@ -713,7 +713,7 @@ test.describe("API room groups methods", () => {
       apiSdk,
     }) => {
       const owner = apiSdk.forRole("owner");
-      const { data, status } = await owner.groups.getRoomGroups({ id: 0 });
+      const { data, status } = await owner.groups.getRoomGroups();
 
       expect(status).toBe(200);
       expect(Array.isArray(data.response)).toBe(true);
@@ -730,7 +730,7 @@ test.describe("API room groups methods", () => {
         rooms: [roomId],
       });
 
-      const { data, status } = await owner.groups.getRoomGroups({ id: 0 });
+      const { data, status } = await owner.groups.getRoomGroups();
       expect(status).toBe(200);
       expect(data.response!.length).toBe(1);
       expectRoomGroupShape(data.response![0]);
@@ -745,7 +745,7 @@ test.describe("API room groups methods", () => {
       await createRoomGroup(owner.groups, { name: "LG1", rooms: [r1] });
       await createRoomGroup(owner.groups, { name: "LG2", rooms: [r2, r3] });
 
-      const { data } = await owner.groups.getRoomGroups({ id: 0 });
+      const { data } = await owner.groups.getRoomGroups();
       const g1 = data.response!.find((g) => g.name === "LG1");
       const g2 = data.response!.find((g) => g.name === "LG2");
       expect(g1!.totalRooms).toBe(1);
@@ -764,7 +764,7 @@ test.describe("API room groups methods", () => {
 
       await owner.groups.deleteRoomGroup({ id });
 
-      const { data } = await owner.groups.getRoomGroups({ id: 0 });
+      const { data } = await owner.groups.getRoomGroups();
       expect(data.response!.map((g) => g.id)).not.toContain(id);
     });
 
@@ -788,7 +788,7 @@ test.describe("API room groups methods", () => {
         iconRequest: { icon: "heart" },
       });
 
-      const { data } = await owner.groups.getRoomGroups({ id: 0 });
+      const { data } = await owner.groups.getRoomGroups();
       const g = data.response!.find((x) => x.id === id);
       expect(g!.name).toBe("After Update");
       expect(g!.icon!.id).toBe("heart");
@@ -809,29 +809,17 @@ test.describe("API room groups methods", () => {
         updateRoomGroupRequest: { roomsToAdd: [r2] },
       });
 
-      const { data } = await owner.groups.getRoomGroups({ id: 0 });
+      const { data } = await owner.groups.getRoomGroups();
       const g = data.response!.find((x) => x.id === id);
       expect(g!.totalRooms).toBe(2);
     });
 
-    test("GET /files/group - SDK id parameter is rudimentary (123 behaves like 0)", async ({
-      apiSdk,
-    }) => {
-      const owner = apiSdk.forRole("owner");
-      const roomId = await createRoomId(owner.rooms, "Rudiment Room");
-      await createRoomGroup(owner.groups, {
-        name: "Rudiment",
-        rooms: [roomId],
-      });
-
-      const { data: zero } = await owner.groups.getRoomGroups({ id: 0 });
-      const { data: onetwothree } = await owner.groups.getRoomGroups({
-        id: 123,
-      });
-      expect(onetwothree.response!.map((g) => g.name).sort()).toEqual(
-        zero.response!.map((g) => g.name).sort(),
-      );
-    });
+    // Two tests lived here documenting the SDK's spurious `id` parameter on this
+    // route — that 123 behaved like 0 because the backend ignored it, and that
+    // the SDK nonetheless required it locally. SDK 4.0.0 dropped the parameter
+    // (the path never carried an {id} placeholder to begin with), so there is no
+    // longer anything to pass or to ignore. The raw-request test below still
+    // covers the endpoint answering without one.
 
     test("GET /files/group - raw request without id parameter still returns 200", async ({
       apiSdk,
@@ -841,16 +829,6 @@ test.describe("API room groups methods", () => {
         path: "",
       });
       expect(status).toBe(200);
-    });
-
-    test("GET /files/group - SDK throws locally when id is omitted", async ({
-      apiSdk,
-    }) => {
-      const owner = apiSdk.forRole("owner");
-      // id is required by the SDK (assertParamExists) even though the backend ignores it
-      await expect(
-        owner.groups.getRoomGroups({} as unknown as { id: number }),
-      ).rejects.toThrow();
     });
   });
 
@@ -1489,7 +1467,7 @@ test.describe("API room groups methods", () => {
         const { data: info } = await owner.groups.getRoomGroupInfo({ id });
         expect(info.response!.icon!.id).toBe("heart");
 
-        const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
+        const { data: list } = await owner.groups.getRoomGroups();
         expect(list.response!.find((g) => g.id === id)!.icon!.id).toBe("heart");
       });
 
@@ -1786,7 +1764,7 @@ test.describe("API room groups methods", () => {
         const { status } = await owner.groups.deleteRoomGroup({ id });
         expect(status).toBe(200);
 
-        const { data } = await owner.groups.getRoomGroups({ id: 0 });
+        const { data } = await owner.groups.getRoomGroups();
         expect(data.response!.map((g) => g.id)).not.toContain(id);
       });
 
@@ -1982,7 +1960,7 @@ test.describe("API room groups methods", () => {
       });
 
       await test.step("appears in list", async () => {
-        const { data } = await owner.groups.getRoomGroups({ id: 0 });
+        const { data } = await owner.groups.getRoomGroups();
         expect(data.response!.map((g) => g.id)).toContain(groupId);
       });
 
@@ -2048,7 +2026,7 @@ test.describe("API room groups methods", () => {
       expect(info.response!.icon!.id).toBe("flag");
       expect(info.response!.totalRooms).toBe(1);
 
-      const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
+      const { data: list } = await owner.groups.getRoomGroups();
       const g = list.response!.find((x) => x.id === id)!;
       expect(g.name).toBe("CR After");
       expect(g.icon!.id).toBe("flag");
@@ -2073,7 +2051,7 @@ test.describe("API room groups methods", () => {
       const { data: info } = await owner.groups.getRoomGroupInfo({ id });
       expect(info.response!.totalRooms).toBe(2);
 
-      const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
+      const { data: list } = await owner.groups.getRoomGroups();
       expect(list.response!.find((x) => x.id === id)!.totalRooms).toBe(2);
     });
 
@@ -2095,7 +2073,7 @@ test.describe("API room groups methods", () => {
       const { data: info } = await owner.groups.getRoomGroupInfo({ id });
       expect(info.response!.totalRooms).toBe(1);
 
-      const { data: list } = await owner.groups.getRoomGroups({ id: 0 });
+      const { data: list } = await owner.groups.getRoomGroups();
       expect(list.response!.find((x) => x.id === id)!.totalRooms).toBe(1);
     });
 

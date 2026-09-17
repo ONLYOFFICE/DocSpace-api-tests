@@ -981,7 +981,6 @@ test.describe("GET /files/group - Dangling third-party room reference", () => {
     expect(deleteStatus).toBe(200);
 
     const { status } = await ownerApi.groups.getRoomGroups({
-      id: 0,
       includeMembers: false,
     });
 

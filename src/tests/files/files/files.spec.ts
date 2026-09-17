@@ -3739,8 +3739,8 @@ test.describe("GET /files/file/:fileId/log - Get file history", () => {
 
     const { data, status } = await ownerApi.files.getFileHistory({
       fileId,
-      fromDate: { utcTime: fromDate },
-      toDate: { utcTime: toDate },
+      fromDate,
+      toDate,
     });
 
     expect(status).toBe(200);

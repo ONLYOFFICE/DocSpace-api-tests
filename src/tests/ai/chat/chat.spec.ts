@@ -438,7 +438,8 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - Talk to an agent", () => {
 // Image-generation-only profiles (capabilities === AI_CAPS.imageOnly, e.g. the
 // "Nano Banana" / image models) are deliberately left out of the chat loop
 // below: driving one directly as a chat model is refused with
-// `code:"model_not_found"`, and the only in-product path to an image model — a
+// `code:"bad_request"`, "400 model is not a chat model", and the only in-product
+// path to an image model — a
 // chat model calling the built-in `generate_image` tool — never resolves
 // (BUG 82861, see the "AI Chat - image generation" describe further down). Both
 // are already pinned elsewhere; repeating a two-minute hang for every image
@@ -2276,7 +2277,7 @@ test.describe("AI Threads - started by the first message", () => {
     // help — the rename either fires almost immediately or never fires in this
     // sample — so this reads as the async rename job itself failing to run
     // most of the time now, not a race the old 30s timeout was too short for.
-    test.fail();
+
     const renamedTitle = await waitForRenamedThread(aiChat, threadId);
     expect(
       renamedTitle,
@@ -2534,7 +2535,6 @@ test.describe("AI Chat - the global entry point", () => {
     const listed = await aiChat.listThreads("guest");
     expect(listed.status, "a Guest listing global chats").toBe(403);
 
-    test.fail();
     expect(sent.status, "a Guest sending into a global chat").toBe(403);
   });
 
@@ -4787,7 +4787,7 @@ test.describe("AI Chat - the model of an agent room", () => {
 
   // The catalogue an agent's model is picked from has image profiles in it, and
   // the agent factory takes one without a word. What comes out is an agent
-  // nobody can talk to: the model refuses every turn with `model_not_found`,
+  // nobody can talk to: the model refuses every turn with `bad_request`,
   // "400 model is not a chat model" — the same refusal the image block further
   // down measures from a room, except that in a room the user picked the profile
   // and can pick another one, while in an agent the model is fixed and the
@@ -5004,7 +5004,6 @@ test.describe("AI Chat - the model of an agent room", () => {
     expect(opened.data?.threadId, "the existing thread is reused").toBe(
       threadId,
     );
-
     expect(
       (await aiChat.getThread("owner", threadId)).data?.profileId,
       "the open did not overwrite it with the profile it carried",
@@ -5847,8 +5846,9 @@ test.describe("AI Chat - an AI room created through the rooms API", () => {
 // result and no error) is FIXED as of 2026-08-24: the call now resolves with
 // a `{"data":{"ref":...}}` reference and the stream completes normally with a
 // healthy text reply. The other half — pointing a thread directly at the image
-// profile answering `model_not_found` — was not re-measured here and may still
-// hold; see the "an image profile cannot be used as a chat model" test below.
+// profile answering "400 model is not a chat model" — was not re-measured here
+// and may still hold; see the "an image profile cannot be used as a chat model"
+// test below.
 //
 // STREAM_CAP_MS is kept as a safety cap rather than removed outright: it bounds
 // how long a single test can block if the tool call ever regresses to hanging
@@ -6091,7 +6091,14 @@ test.describe("AI Chat - image generation", () => {
     expect(reply).toBeDefined();
     expect(reply.status?.type).toBe("incomplete");
     expect(reply.status?.reason).toBe("error");
-    expect(reply.status?.error?.code).toBe("model_not_found");
+    // The refusal used to be classified `model_not_found`; it is now the generic
+    // `bad_request`, with the same message as before. The message is asserted
+    // alongside the code because `bad_request` on its own would also match any
+    // other rejected send — it is the message that still identifies this refusal.
+    expect(reply.status?.error?.code, JSON.stringify(reply.status)).toBe(
+      "bad_request",
+    );
+    expect(reply.status?.error?.message).toContain("not a chat model");
     expect(AiAgentChat.messageText(reply)).toBe("");
 
     // The user's question is still in the thread — the failure costs the reply,
@@ -6466,15 +6473,26 @@ const RACE_PROMPT =
   "Write a detailed essay of at least 600 words about the history of typography. " +
   "Number every paragraph.";
 
-const RACE_CUT_MS = 5000;
+/** Upper bound on waiting for the send to be accepted, not a target. */
+const RACE_CUT_CAP_MS = 15000;
 
 async function settleGeneration(ms = GENERATION_WINDOW_MS) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Starts a reply and hands back control `RACE_CUT_MS` in, while the model is
- * still writing it and the connection is still open.
+ * Starts a reply and hands back control as early as the send is known to have
+ * been taken — while the model is still writing and the connection is still
+ * open.
+ *
+ * The cut is taken on the user's message appearing in the thread rather than
+ * after a fixed wait. The server stores the question before the model starts
+ * writing, so that is the earliest available proof the request is in flight, and
+ * waiting for it costs only as long as it actually takes. This used to sleep a
+ * flat 5 s, which was longer than the whole reply now takes (measured
+ * 2026-09-17: the question is readable at ~0.6 s and the stream settles at
+ * ~1.6-2.2 s) — so the mutation always landed after the reply had finished and
+ * the race being staged could not happen at all.
  *
  * `stillWriting()` is the control every test in this block needs: a mutation is
  * only a mid-reply mutation if the send had not finished when it was issued,
@@ -6494,8 +6512,20 @@ async function startReply(
       done = true;
     });
 
-  await new Promise((resolve) => setTimeout(resolve, RACE_CUT_MS));
-  return { inFlight, stillWriting: () => !done };
+  const startedAt = Date.now();
+  const deadline = startedAt + RACE_CUT_CAP_MS;
+  while (!done && Date.now() < deadline) {
+    const { data } = await aiChat.readMessages("owner", body.threadId);
+    if (AiAgentChat.userMessages(data).length > 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  return {
+    inFlight,
+    stillWriting: () => !done,
+    /** How long the cut took, so drift shows up in the failure message. */
+    cutAfterMs: () => Date.now() - startedAt,
+  };
 }
 
 test.describe("AI Threads - mutated while the model is still writing", () => {
@@ -6519,7 +6549,7 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       agentId,
     });
 
-    const { inFlight, stillWriting } = await startReply(aiChat, {
+    const { inFlight, stillWriting, cutAfterMs } = await startReply(aiChat, {
       threadId,
       profileId,
       agentId,
@@ -6532,7 +6562,7 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
     );
     expect(
       stillWriting(),
-      "the reply was still being written when the rename landed",
+      `the reply was still being written when the rename landed (cut after ${cutAfterMs()} ms)`,
     ).toBe(true);
     expect(renamed.status).toBe(200);
 
@@ -6582,7 +6612,7 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       agentId,
     });
 
-    const { inFlight, stillWriting } = await startReply(aiChat, {
+    const { inFlight, stillWriting, cutAfterMs } = await startReply(aiChat, {
       threadId: doomed,
       profileId,
       agentId,
@@ -6591,7 +6621,7 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
     const deleted = await aiChat.deleteThread("owner", doomed);
     expect(
       stillWriting(),
-      "the reply was still being written when the thread was deleted",
+      `the reply was still being written when the thread was deleted (cut after ${cutAfterMs()} ms)`,
     ).toBe(true);
     expect(deleted.status).toBe(200);
 
@@ -6633,7 +6663,7 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       agentId,
     });
 
-    const { inFlight, stillWriting } = await startReply(aiChat, {
+    const { inFlight, stillWriting, cutAfterMs } = await startReply(aiChat, {
       threadId,
       profileId,
       agentId,
@@ -6642,7 +6672,7 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
     const cleared = await aiChat.clearThreadMessages("owner", threadId);
     expect(
       stillWriting(),
-      "the reply was still being written when the thread was cleared",
+      `the reply was still being written when the thread was cleared (cut after ${cutAfterMs()} ms)`,
     ).toBe(true);
     expect(cleared.status).toBe(200);
 
@@ -6884,17 +6914,21 @@ test.describe("AI Chat - state changed by another actor", () => {
 // assistant message with empty content plus
 //
 //   status: { type: "incomplete", reason: "error",
-//             error: { code: "model_not_found", message: "400 model is not a chat model" } }
+//             error: { code: "bad_request", message: "400 model is not a chat model" } }
 //
 // so `error.code` is the machine-readable half a client can localise by, and
-// `error.message` is the upstream string, verbatim.
+// `error.message` is the upstream string, verbatim. Re-measured 2026-09-17: the
+// code used to be the specific `model_not_found` and is now the generic
+// `bad_request`, with the message unchanged — which is why the tests below pin
+// the message too, since the code alone no longer says which refusal this is.
 //
 // Which failures an API test can actually provoke on the gateway portal, and how:
 //
 //   provider refuses the credentials  the AI Tools wallet service is not paid for
 //                                     -> code "auth", "403 AI Gateway is not enabled"
 //   model cannot serve the request    an image profile driven as a chat model
-//                                     -> code "model_not_found"
+//                                     -> code "bad_request", "400 model is not
+//                                        a chat model"
 //   a limit is exceeded               a body past the request-size limit -> HTTP 413
 //   no reply at all                   a request for an image: the stream never ends
 //
@@ -7074,7 +7108,12 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
       catalogue,
       AI_CAPS.imageOnly,
     );
-    const [textProfile] = twoTextProfiles(catalogue);
+    // Picked by capability, like the image profile above: nothing here is
+    // asserted about *which* model recovers the thread, only that one that can
+    // hold a conversation does. `twoTextProfiles` was used before, which orders
+    // by modelId and hands back the alphabetically first — a model this test has
+    // no reason to prefer, and one the gateway currently cannot fund.
+    const textProfile = AiProfiles.byCapabilities(catalogue, AI_CAPS.textTools);
 
     const { data: room } = await ownerApi.rooms.createRoom({
       createRoomRequestDto: {
@@ -7105,8 +7144,8 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
     const failure = AiAgentChat.assistantStatus(failedTurn);
     expect(failure?.type).toBe("incomplete");
     expect(failure?.reason).toBe("error");
-    expect(failure?.error?.code).toBe("model_not_found");
-    expect(failure?.error?.message?.length ?? 0).toBeGreaterThan(0);
+    expect(failure?.error?.code, JSON.stringify(failure)).toBe("bad_request");
+    expect(failure?.error?.message).toContain("not a chat model");
     expect(AiAgentChat.assistantText(failedTurn)).toBe("");
     expect(
       AiAgentChat.messageText(AiAgentChat.userMessages(failedTurn)[0]),
@@ -7130,7 +7169,11 @@ test.describe("AI Chat - a provider failure lands in the thread", () => {
     );
     const replies = AiAgentChat.assistantMessages(settled);
     expect(replies).toHaveLength(2);
-    expect(replies[0].status?.error?.code).toBe("model_not_found");
+    expect(
+      replies[0].status?.error?.code,
+      JSON.stringify(replies[0].status),
+    ).toBe("bad_request");
+    expect(replies[0].status?.error?.message).toContain("not a chat model");
     expect(replies[1].status?.error).toBeUndefined();
     expect(AiAgentChat.messageText(replies[1]).length).toBeGreaterThan(0);
     expect(AiAgentChat.userMessages(settled)).toHaveLength(2);
@@ -8018,7 +8061,8 @@ test.describe("AI Threads - a cleared thread carries on", () => {
     // feeding it to the model — the conversation would then keep answering from
     // history the user believes is gone.
     //
-    // Three inference turns, so the default 240s test timeout is not enough.
+    // Three inference turns at minimum, and up to two more if the recall control
+    // below has to be re-asked — the default 240s test timeout is not enough.
     test.setTimeout(600000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -8051,27 +8095,47 @@ test.describe("AI Threads - a cleared thread carries on", () => {
     // The positive control, in this thread and on this model: before the clear
     // the word is recalled. Without it, the miss after the clear could just be a
     // model that would not have remembered either way.
+    //
+    // Asked up to three times because recall is stochastic, not because the
+    // history is in doubt: measured 2026-09-17, the same teach-then-ask sequence
+    // answered ORANGE three times out of four and NONE once, with the history
+    // reaching the model every time. One stray NONE used to fail the run on the
+    // control rather than on the contract the test is about. Every attempt costs
+    // a turn, and all of them are cleared a few lines below.
     const recallQuestion =
       "What code word did I ask you to remember earlier in this conversation? If no code word was ever mentioned here, reply with just: NONE.";
-    const beforeClear = await aiChat.sendMessage("owner", {
-      threadId,
-      profileId,
-      agentId,
-      message: recallQuestion,
-    });
-    expect(beforeClear.status).toBe(200);
-    expect(beforeClear.streamError).toBeUndefined();
-    const withHistory = await aiChat.waitForAssistantReplies(
-      "owner",
-      threadId,
-      2,
-      120000,
-    );
-    expectHealthyAssistantReply(withHistory, 2);
+
+    let recalled = "";
+    let replies = 1; // the teach turn above
+    for (
+      let attempt = 0;
+      attempt < 3 && !recalled.includes("ORANGE");
+      attempt++
+    ) {
+      const beforeClear = await aiChat.sendMessage("owner", {
+        threadId,
+        profileId,
+        agentId,
+        message: recallQuestion,
+      });
+      expect(beforeClear.status).toBe(200);
+      expect(beforeClear.streamError).toBeUndefined();
+
+      replies += 1;
+      const withHistory = await aiChat.waitForAssistantReplies(
+        "owner",
+        threadId,
+        replies,
+        120000,
+      );
+      expectHealthyAssistantReply(withHistory, replies);
+      recalled = AiAgentChat.messageText(
+        AiAgentChat.assistantMessages(withHistory)[replies - 1],
+      ).toUpperCase();
+    }
+
     expect(
-      AiAgentChat.messageText(
-        AiAgentChat.assistantMessages(withHistory)[1],
-      ).toUpperCase(),
+      recalled,
       "the model recalls the word while the history is still there",
     ).toContain("ORANGE");
 
@@ -8681,10 +8745,22 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - AI Chat suggested prompts"
       AiAgentChat.assistantMessages(messages)[0],
     );
 
+    // Which tools it reached for, and with what, is the whole diagnosis when
+    // this fails: "looked in the wrong folder" and "was offered no folder tool
+    // at all" read identically in the prose otherwise.
+    const reached = AiAgentChat.toolCalls(
+      AiAgentChat.assistantMessages(messages)[0],
+    )
+      .map(
+        (call) =>
+          `${call.toolName}(${call.argsText ?? JSON.stringify(call.args ?? {})})`,
+      )
+      .join("; ");
+
     expectMatchesAny(
       answer,
       [new RegExp(SAVED_MARKER), new RegExp(SAVED_TITLE)],
-      "the answer never reached Result Storage",
+      `the answer never reached Result Storage (folder ${agent.resultStorageId}, file ${savedId}); tools called: [${reached}]`,
     );
   });
 });

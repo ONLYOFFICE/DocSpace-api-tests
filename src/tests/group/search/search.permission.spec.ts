@@ -24,7 +24,7 @@ test.describe("GET /api/2.0/group/file/{id} - Permissions", () => {
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -73,7 +73,7 @@ test.describe("GET /api/2.0/group/file/{id} - Permissions", () => {
     const fileId = fileData.response!.id!;
 
     await userApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -110,7 +110,7 @@ test.describe("GET /api/2.0/group/file/{id} - Permissions", () => {
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -150,7 +150,7 @@ test.describe("GET /api/2.0/group/file/{id} - Permissions", () => {
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -214,7 +214,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Permissions", () => {
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFolderSecurityInfo({
-      folderId,
+      id: folderId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -263,7 +263,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Permissions", () => {
     const folderId = folderData.response!.id!;
 
     await userApi.sharing.setFolderSecurityInfo({
-      folderId,
+      id: folderId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -303,7 +303,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Permissions", () => {
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFolderSecurityInfo({
-      folderId,
+      id: folderId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -347,7 +347,7 @@ test.describe("GET /api/2.0/group/folder/{id} - Permissions", () => {
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFolderSecurityInfo({
-      folderId,
+      id: folderId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,

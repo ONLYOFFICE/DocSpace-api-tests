@@ -3,7 +3,6 @@ import { expect } from "@playwright/test";
 import { TenantWalletService } from "@onlyoffice/docspace-api-sdk";
 import {
   topUpDeposit,
-  creditAiBalance,
   enableWalletService,
   disableWalletService,
   enableAiGateway,
@@ -60,27 +59,6 @@ test.describe("PUT /api/2.0/portal/payment/url", () => {
     expect(url.searchParams.get("language")).toBeDefined();
     expect(url.searchParams.get("refId")).toBeDefined();
     expect(url.searchParams.get("email")).toBeDefined();
-  });
-});
-
-// The AI balance is a wallet sub-account these portals do not have: measured
-// 2026-08-19, both crediting it and reading it back answer 404 (it used to be
-// 403 "Accounting client does not support sub-accounts"). Nothing in test code
-// provisions it, and AI spend does not need it — chat charges are debited from
-// the ordinary wallet balance, which ai/billing/billing.spec.ts asserts.
-test.describe("POST /api/2.0/portal/payment/creditaibalance", () => {
-  test.skip("POST /api/2.0/portal/payment/creditaibalance - Owner credits AI balance", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-
-    const ownerApi = apiSdk.forRole("owner");
-    const { data, status } = await creditAiBalance(ownerApi.payment, 10);
-    expect(status).toBe(200);
-    expect(data.response?.operationId).toBeDefined();
-    expect(data.response?.amount).toBeDefined();
-    expect(data.response?.currency).toBe("USD");
   });
 });
 
@@ -462,7 +440,6 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await creditAiBalance(ownerApi.payment, 10);
     await enableWalletService(ownerApi.payment, "aiTools");
 
     const { data, status } =
@@ -541,7 +518,6 @@ test.describe("POST /api/2.0/portal/payment/customer/operationsreport", () => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await creditAiBalance(ownerApi.payment, 10);
     await enableWalletService(ownerApi.payment, "aiTools");
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
@@ -632,7 +608,6 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await creditAiBalance(ownerApi.payment, 10);
     await enableWalletService(ownerApi.payment, "aiTools");
     await ownerApi.payment.createCustomerOperationsReport({
       customerOperationsReportRequestDto: {
@@ -664,7 +639,6 @@ test.describe("GET /api/2.0/portal/payment/customer/operationsreport", () => {
     await paymentsApi.makeWalletTopUp();
 
     const ownerApi = apiSdk.forRole("owner");
-    await creditAiBalance(ownerApi.payment, 10);
     await enableWalletService(ownerApi.payment, "aiTools");
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
@@ -832,63 +806,6 @@ test.describe("GET /api/2.0/portal/payment/account", () => {
     expect(status).toBe(200);
     expect(data.response).toContain("payment.ashx");
     expect(data.response).toContain("backUrl");
-  });
-});
-
-// The AI balance is a wallet sub-account these portals do not have: measured
-// 2026-08-19, both crediting it and reading it back answer 404 (it used to be
-// 403 "Accounting client does not support sub-accounts"). Nothing in test code
-// provisions it, and AI spend does not need it — chat charges are debited from
-// the ordinary wallet balance, which ai/billing/billing.spec.ts asserts.
-test.describe("GET /api/2.0/portal/payment/customer/aibalance", () => {
-  test.skip("GET /api/2.0/portal/payment/customer/aibalance - Owner gets AI balance", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-
-    const ownerApi = apiSdk.forRole("owner");
-    await creditAiBalance(ownerApi.payment, 10);
-
-    const { data, status } = await ownerApi.payment.getCustomerAiBalance({});
-
-    expect(status).toBe(200);
-    expect(data.response?.accountNumber).toBeDefined();
-    expect(data.response?.subAccountNumber).toBeDefined();
-    expect(data.response?.accountCurrency).toBe("USD");
-    expect(data.response?.subAccounts?.length).toBeGreaterThan(0);
-    expect(data.response?.subAccounts?.[0].currency).toBe("USD");
-    expect(data.response?.subAccounts?.[0].amount).toBe(10);
-    expect(data.response?.lastCredit?.date).toBeDefined();
-    expect(data.response?.lastCredit?.currency).toBe("USD");
-    expect(data.response?.lastCredit?.amount).toBe(10);
-  });
-
-  // Skipped due to OO AI service being hidden
-  test.skip("GET /api/2.0/portal/payment/customer/aibalance - DocSpaceAdmin gets AI balance", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    await paymentsApi.makeWalletTopUp();
-
-    const ownerApi = apiSdk.forRole("owner");
-    await creditAiBalance(ownerApi.payment, 10);
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
-
-    const { data, status } = await apiSdk
-      .forRole("docSpaceAdmin")
-      .payment.getCustomerAiBalance({});
-
-    expect(status).toBe(200);
-    expect(data.response?.accountNumber).toBeDefined();
-    expect(data.response?.subAccountNumber).toBeDefined();
-    expect(data.response?.accountCurrency).toBe("USD");
-    expect(data.response?.subAccounts?.length).toBeGreaterThan(0);
-    expect(data.response?.subAccounts?.[0].currency).toBe("USD");
-    expect(data.response?.subAccounts?.[0].amount).toBe(10);
-    expect(data.response?.lastCredit?.date).toBeDefined();
-    expect(data.response?.lastCredit?.currency).toBe("USD");
-    expect(data.response?.lastCredit?.amount).toBe(10);
   });
 });
 
@@ -1212,10 +1129,11 @@ test.describe("GET /api/2.0/portal/payment/customer/operations", () => {
         endDate,
         participantName: "nonexistent-participant-xyz",
       });
-
     expect(status).toBe(200);
-    expect(data.response?.collection).toBeDefined();
-    expect((data.response?.collection ?? []).length).toBe(0);
+    // An empty page is serialized as {"count":0} with `response` omitted
+    // entirely (null is dropped), not as response.collection = [].
+    expect(data.count, JSON.stringify(data)).toBe(0);
+    expect(data.response?.collection ?? []).toEqual([]);
   });
 });
 

@@ -2,12 +2,52 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import type { ApiSDK } from "@/src/services/api-sdk";
 
+// Starting a trial only enqueues tenant provisioning; the tenant endpoints answer
+// 500/404 until it finishes. Provisioning routinely takes more than 15 s in CI.
+//
+// The call reaches the portal through CloudFront, which answers a 504 of its own
+// when the origin is slow or drops the connection — an HTML error page, not an
+// API response, and seen only from CI. That is a gateway failure rather than a
+// verdict on the request, so it is retried. Retrying is safe: a trial that did
+// start behind the 504 makes the next attempt answer 400 "Quota is already set",
+// which is as good as a 200 here.
+const TRIAL_ALREADY_STARTED = "Quota is already set";
+
 async function startTrialAndWait(apiSdk: ApiSDK) {
-  await apiSdk.forRole("owner").docsCloud.startDocsCloudTrial();
+  // A CloudFront 504 can burn ~90 s on its own, so two of them plus the
+  // provisioning wait below do not fit in the default per-test budget.
+  test.setTimeout(360_000);
+
+  const ownerApi = apiSdk.forRole("owner");
+
+  let started!: { status: number; data: unknown };
+  for (const backoffMs of [0, 5000, 15000]) {
+    if (backoffMs)
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    const { data, status } = await ownerApi.docsCloud.startDocsCloudTrial();
+    started = { status, data };
+    if (status < 500) break;
+  }
+
+  const accepted =
+    started.status === 200 ||
+    (started.status === 400 &&
+      (started.data as any)?.error?.message === TRIAL_ALREADY_STARTED);
+  expect(
+    accepted,
+    `startDocsCloudTrial answered ${started.status}: ${JSON.stringify(started.data)}`,
+  ).toBe(true);
+
+  // The readiness probe the UI itself uses after starting a trial, and the only
+  // tenant endpoint that tells "not provisioned yet" apart from a real failure:
+  // it answers 200 with an empty response until provisioning lands, while
+  // /tenant/quota answers 500 in both cases (BUG 83325). refresh=true keeps a
+  // cached snapshot from standing in for the answer.
   await expect(async () => {
-    const { status } = await apiSdk.forRole("owner").docsCloud.getTenantQuota();
-    expect(status).toBe(200);
-  }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
+    const tenant = await ownerApi.docsCloud.getTenant({ refresh: true });
+    expect(tenant.status).toBe(200);
+    expect(tenant.data.response).toBeTruthy();
+  }).toPass({ intervals: [1000, 2000, 3000, 5000], timeout: 60000 });
 }
 
 test.describe("POST /api/2.0/settings/docscloud/tenant/quota/report", () => {
@@ -685,18 +725,7 @@ test.describe("POST /api/2.0/settings/docscloud/trial", () => {
   test("POST /api/2.0/settings/docscloud/trial - returns 400 when DocsCloud trial is already active", async ({
     apiSdk,
   }) => {
-    const { status: firstStatus } = await apiSdk
-      .forRole("owner")
-      .docsCloud.startDocsCloudTrial();
-    expect(firstStatus).toBe(200);
-
-    await expect(async () => {
-      const { data: tenantData, status: tenantStatus } = await apiSdk
-        .forRole("owner")
-        .docsCloud.getTenantQuota();
-      expect(tenantStatus).toBe(200);
-      expect((tenantData as any).response).toBeTruthy();
-    }).toPass({ intervals: [1000, 2000, 3000], timeout: 15000 });
+    await startTrialAndWait(apiSdk);
 
     const { data, status } = await apiSdk
       .forRole("owner")

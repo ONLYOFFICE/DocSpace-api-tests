@@ -11,6 +11,7 @@ import {
   getServiceUsage,
   isWalletServiceEnabled,
   operationKey,
+  PORTAL_AI_DISABLED_MESSAGE,
   setAiSearchAddon,
   waitForServiceOperation,
   walletServiceErrorMessage,
@@ -1012,42 +1013,72 @@ test.describe("AI Web Search - the AI Features dependency", () => {
     ).toBeNull();
   });
 
-  test("POST /api/2.0/portal/payment/servicestate - the portal AI switch does not own the Web Search purchase", async ({
+  test("POST /api/2.0/portal/payment/servicestate - the portal AI switch is a second prerequisite for the Web Search purchase", async ({
     apiSdk,
     paymentsApi,
   }) => {
+    // "AI Features" reads two ways in the UI — the paid add-on (AI Tools) and
+    // the portal-wide AI switch (`PUT /settings/ai-access`). This portal switch
+    // used to be a separate axis from billing entirely: the add-on could be
+    // bought with it off, and only reading the feature back was refused.
+    // Re-measured 2026-09-17: it is now a second prerequisite, refused the same
+    // way AI Tools is (403, a message naming the missing piece, no dialog on
+    // the wire) — but it does not cascade the purchase off the way AI Tools
+    // does. Switching the portal AI off again after buying leaves `aiSearch`
+    // enabled in the wallet; only `is-configured` goes back to 403.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
 
-    // "AI Features" reads two ways in the UI — the paid add-on and the portal
-    // AI switch. The dependency is on the add-on; this pins that the other one
-    // is a separate axis, so a test that flips the wrong switch cannot pass by
-    // accident.
     const off = await setPortalAiAccess(ownerApi, false);
     expect(off.writeStatus, "PUT /settings/ai-access {enabled:false}").toBe(
       200,
     );
     expect(off.enabled, "the switch is really off").toBe(false);
 
-    await setAiSearchAddon(ownerApi.payment, true);
-
-    // Billing went through; the feature is still hidden while AI is off.
-    expect(
-      (await webSearch.isConfigured("owner")).status,
-      "the read side is refused while the portal AI switch is off",
-    ).toBe(403);
-
-    const on = await setPortalAiAccess(ownerApi, true);
-    expect(on.enabled, "the switch is back on").toBe(true);
-    expect(await isWalletServiceEnabled(ownerApi.payment, "aiSearch")).toBe(
-      true,
+    // The purchase itself is refused outright while the portal switch is off,
+    // and says so — the same shape as the AI Tools dependency above.
+    const refused = await enableWalletService(ownerApi.payment, "aiSearch");
+    expect(refused.status, "the purchase is refused while AI is off").toBe(403);
+    expect(walletServiceErrorMessage(refused.data)).toBe(
+      PORTAL_AI_DISABLED_MESSAGE,
     );
     expect(
-      (await webSearch.isConfigured("owner")).data,
-      "the purchase made while AI was off is what the portal comes back to",
+      await isWalletServiceEnabled(ownerApi.payment, "aiSearch"),
+      "a refused purchase leaves nothing enabled",
+    ).toBe(false);
+    expect(
+      (await webSearch.isConfigured("owner")).status,
+      "the read side is refused too while the portal switch is off",
+    ).toBe(403);
+
+    // With the prerequisite in place the purchase goes through.
+    const on = await setPortalAiAccess(ownerApi, true);
+    expect(on.enabled, "the switch is back on").toBe(true);
+    await setAiSearchAddon(ownerApi.payment, true);
+    expect((await webSearch.isConfigured("owner")).data).toBe(true);
+
+    // Unlike AI Tools, switching the portal AI off again does not cascade the
+    // purchase off — it only hides it. The wallet keeps the add-on enabled, and
+    // it comes back the moment the switch does.
+    const offAgain = await setPortalAiAccess(ownerApi, false);
+    expect(offAgain.enabled).toBe(false);
+    expect(
+      await isWalletServiceEnabled(ownerApi.payment, "aiSearch"),
+      "the purchase survives the portal switch being turned off again",
     ).toBe(true);
+    expect(
+      (await webSearch.isConfigured("owner")).status,
+      "only the read side is refused while the portal switch is off",
+    ).toBe(403);
+
+    // Turning Web Search off on its own is never refused for a reason about
+    // switching it on — the guard is activation-only.
+    expect(
+      (await disableWalletService(ownerApi.payment, "aiSearch")).status,
+      "switching off is allowed even with the portal switch off",
+    ).toBe(200);
   });
 });
 
@@ -1547,8 +1578,9 @@ test.describe("AI Web Search - entity scope robustness", () => {
 // the provider comes from the add-on. So the expected behaviour of these two is a
 // deterministic refusal, not a save — 403, the way `clear` refuses the same
 // billing-owned state and the way `/ai/profiles` CRUD refuses on a gateway
-// portal. Both tests below are `test.fail` on that 403; neither asks for a
-// working save any more.
+// portal. The add-on-owns-the-provider case below now gets that 403 (BUG 82812
+// fixed there); the other three below still don't — see each test for the
+// current (not-403) status.
 test.describe("AI Web Search - configure crashes instead of refusing", () => {
   test("BUG 82812: PUT /api/2.0/ai/web-search/configure - every body returns 500 and nothing is stored", async ({
     apiSdk,
@@ -1631,7 +1663,6 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
       "onlyoffice",
     );
 
-    test.fail();
     expect(
       attempt.status,
       `configure answered ${attempt.status} ${attempt.text}`,

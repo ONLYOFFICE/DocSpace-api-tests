@@ -511,7 +511,7 @@ test.describe("AI Preferences - deep mode and model support", () => {
     }
 
     // An image-generation profile is not a chat model — `canUseTool` is false and
-    // sending on one comes back as model_not_found — and it does not reason
+    // sending on one is refused as "not a chat model" — and it does not reason
     // either, so the switch has nothing to attach to there.
     for (const image of catalogue.filter(
       (profile) => profile.capabilities === AI_CAPS.imageOnly,
