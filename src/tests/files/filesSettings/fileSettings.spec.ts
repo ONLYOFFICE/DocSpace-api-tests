@@ -3161,6 +3161,21 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - Validation", () => 
     });
     expect(status).toBe(400);
   });
+
+  test("BUG 80022: PUT /api/2.0/files/settings/defaulttemplate - Non-existent selectedFile returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .filesSettings.setDefaultTemplate({
+        defaultTemplateSettingsRequestDto: {
+          selectedFile: 9999999,
+          fileExtension: ".docx",
+        },
+      });
+
+    expect(status).toBe(404);
+  });
 });
 
 test.describe("POST /api/2.0/files/settings/defaulttemplate - Upload default template", () => {
