@@ -1601,12 +1601,10 @@ test.describe("AI Web Search - entity scope robustness", () => {
 //    authorization question) — BUG 82812, tested below.
 //  - **business validation** (Owner, AI on, a well-formed `config` that fails
 //    business rules — missing baseUrl, missing provider) — no longer crashes;
-//    answers 200 with a `{success:false, error}` envelope instead. Whether a
-//    200 is this API's deliberate convention for an application-level error,
-//    or should be a 4xx, is an unconfirmed contract question — not folded
-//    into BUG 82812 as a fix, and not asserted as a bug either. Left as a
-//    `test.fixme` placeholder below until the contract is confirmed, so it
-//    isn't accidentally locked in as "correct" by a passing test.
+//    answers 200 with a `{success:false, error}` envelope instead. A 200 for
+//    an application-level failure is not this API's convention anywhere else
+//    on this route, so this is filed as its own bug (BUG XXXXX) rather than
+//    folded into BUG 82812 — tested below as `test.fail`, expecting 400.
 test.describe("AI Web Search - configure crashes instead of refusing", () => {
   test("BUG 82812: PUT /api/2.0/ai/web-search/configure - a malformed body crashes with 500 instead of a validation error", async ({
     apiSdk,
@@ -1640,11 +1638,11 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
     }
   });
 
-  // Open API-contract question, not filed as a bug and not asserted either
-  // way: an application-level validation failure answering HTTP 200 with
-  // `{success:false, error:{field,message}}` is unusual (a 4xx would be the
-  // common convention), but this project may have a deliberate envelope
-  // convention here — that needs a requirements check, not an assumption.
+  // An application-level validation failure answering HTTP 200 with
+  // `{success:false, error:{field,message}}` instead of a 4xx is not this
+  // API's convention anywhere else on this route (the structurally-malformed
+  // case above is at least consistently wrong with a 500; the auth checks
+  // elsewhere in this file are consistently 403) - call it BUG XXXXX.
   // Measured 2026-09-15 for `owner` with the AI gateway enabled:
   //   - {config:{provider:"exa", key, isCloudProvider:true}} (no baseUrl) ->
   //     200 {success:false, error:{field:"url", message:"Base URL is
@@ -1654,9 +1652,50 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
   //     message:"Provider is required"}}
   // Nothing is persisted in any case. The same 200 envelope also reaches a
   // Guest and an AI-disabled portal (see the malformed-body tests elsewhere
-  // in this file for those actors) — so whatever the right status turns out
-  // to be, it is unlikely to be authorization-related.
-  test.fixme("PUT /api/2.0/ai/web-search/configure - contract check: should a well-formed but business-invalid config answer 200 with success:false, or a 4xx?", () => {});
+  // in this file for those actors), so this is a client-error/validation
+  // question, not an authorization one - 400, not 200.
+  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - a well-formed but business-invalid config answers 200 with success:false instead of 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+
+    const bodies: Array<[string, Record<string, unknown>]> = [
+      [
+        "cloud provider missing baseUrl",
+        {
+          config: {
+            provider: "exa",
+            key: config.EXA_API_KEY,
+            isCloudProvider: true,
+          },
+        },
+      ],
+      [
+        "onlyoffice provider missing baseUrl",
+        { config: { provider: "onlyoffice" } },
+      ],
+      ["empty config object", { config: {} }],
+    ];
+
+    const results: Array<[string, number]> = [];
+    for (const [label, body] of bodies) {
+      const { status } = await webSearch.configure("owner", body);
+      results.push([label, status]);
+    }
+
+    // Nothing was saved regardless of how the business validation failed.
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+    expect((await webSearch.getActiveConfig("owner")).data).toBeNull();
+
+    test.fail();
+    for (const [label, status] of results) {
+      expect(status, `configure with ${label}`).toBe(400);
+    }
+  });
 
   test("BUG 82812: PUT /api/2.0/ai/web-search/configure - a manual config is refused, not crashed, while the add-on owns the provider", async ({
     apiSdk,
