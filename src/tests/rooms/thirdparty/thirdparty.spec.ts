@@ -980,7 +980,10 @@ test.describe("GET /files/group - Dangling third-party room reference", () => {
       await ownerApi.thirdPartyIntegration.deleteThirdParty({ providerId });
     expect(deleteStatus).toBe(200);
 
+    // `id` is required by the SDK type but ignored by the backend for this
+    // list endpoint - any value works.
     const { status } = await ownerApi.groups.getRoomGroups({
+      id: 0,
       includeMembers: false,
     });
 
