@@ -5,7 +5,7 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 
 // SKIPPED (2026-08-14, re-verified 2026-08-19): the Private Rooms feature was
 // postponed to the next release and temporarily removed, so the whole
-// PrivacyroomApi surface was unavailable on a release portal. The tests are
+// PrivacyRoomApi surface was unavailable on a release portal. The tests are
 // parked rather than deleted because the feature is expected back.
 //
 // Spot-check on 2026-09-14: the endpoints answer real requests again (not
@@ -21,7 +21,7 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 // closed as by-design and is no longer treated as a bug.
 
 /**
- * Functional tests for the PrivacyroomApi — per-user encryption key management
+ * Functional tests for the PrivacyRoomApi — per-user encryption key management
  * used by DocSpace Privacy Rooms.
  *
  *   GET    /api/2.0/privacyroom/keys           - getUserKeys

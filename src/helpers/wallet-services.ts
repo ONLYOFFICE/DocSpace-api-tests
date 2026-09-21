@@ -48,16 +48,6 @@ export async function topUpDeposit(
   });
 }
 
-export async function creditAiBalance(
-  paymentApi: Pick<PaymentApi, "creditAiBalance">,
-  amount: number,
-  currency = "USD",
-) {
-  return paymentApi.creditAiBalance({
-    creditAiBalanceRequestDto: { amount, currency },
-  });
-}
-
 export async function enableWalletService(
   paymentApi: Pick<PaymentApi, "changeTenantWalletServiceState">,
   service: WalletServiceName,
@@ -81,21 +71,22 @@ export async function enableWalletService(
  * on the gateway's upstream OpenRouter account having credits — when it runs
  * out, startNewChat streams `HTTP 402 upstream_error: Insufficient credits`,
  * which cannot be fixed from test code.
+ *
+ * There is no separate AI balance to fund: `POST /portal/payment/creditaibalance`
+ * and `GET /portal/payment/customer/aibalance` were dropped in SDK 4.0.0, and on
+ * these portals the sub-account behind them never existed anyway (both answered
+ * 403 "Accounting client does not support sub-accounts"). AI spend is debited
+ * from the ordinary wallet balance topped up above — see ai/billing/billing.spec.ts.
  */
 export async function enableAiGateway(
   paymentsApi: Pick<PortalPaymentApi, "setupPayment" | "makeWalletTopUp">,
-  payment: Pick<
-    PaymentApi,
-    "changeTenantWalletServiceState" | "creditAiBalance"
-  >,
+  payment: Pick<PaymentApi, "changeTenantWalletServiceState">,
 ) {
   await paymentsApi.setupPayment();
   // general wallet / tenant deposit
   await paymentsApi.makeWalletTopUp(1000);
   // enable the AI Tools wallet service
   await enableWalletService(payment, "aiTools");
-  // fund the AI balance separately
-  await creditAiBalance(payment, 1000);
 }
 
 export async function disableWalletService(
@@ -111,15 +102,15 @@ export async function disableWalletService(
 }
 
 /**
- * Same as `enableAiGateway` minus `creditAiBalance`: the portal pays for the AI
- * Tools wallet service but never gets any AI credit. That is a third portal
- * state, distinct from the unpaid one, and inference is expected to work in it.
+ * The portal pays for the AI Tools wallet service, and that it really is enabled
+ * is asserted rather than assumed — which is what separates this state from the
+ * unpaid one.
  *
- * The AI balance itself cannot be read back — `GET
- * /portal/payment/customer/aibalance` answers 403 "Accounting client does not
- * support sub-accounts" on these portals — so "zero credit" is established by
- * never crediting it, not by asserting a balance of 0. What is asserted is the
- * part that is observable: AI Tools really is in the enabled-services list.
+ * It used to differ from `enableAiGateway` by also skipping `creditAiBalance`,
+ * back when a separate AI credit balance was a thing. It no longer is: the
+ * routes behind it were dropped in SDK 4.0.0 and answered 404 on these portals
+ * before that, so the two now provision the same state and this one only adds
+ * the assertion.
  */
 export async function enableAiToolsWithoutAiCredit(
   paymentsApi: Pick<PortalPaymentApi, "setupPayment" | "makeWalletTopUp">,
@@ -356,16 +347,46 @@ export async function getServiceOperations(
 }
 
 /**
- * When an operation was booked.
+ * When an operation was booked — a bare ISO string
+ * (`"2026-08-19T10:02:26.5444310+01:00"`).
  *
- * The SDK types `date` as `ApiDateTime`, but the accounting service sends a bare
- * ISO string (`"2026-08-19T10:02:26.5444310+01:00"`), so `date.utcTime` is
- * always undefined — which quietly dropped the timestamp out of `operationKey`
- * and let two charges of the same size collide.
+ * Up to SDK 3.7.0 this was typed as an `ApiDateTime` wrapper the service never
+ * actually sent, so reading `date.utcTime` always gave undefined — which quietly
+ * dropped the timestamp out of `operationKey` and let two charges of the same
+ * size collide. SDK 4.0.0 types it as the string it always was.
  */
 export function operationDate(operation: OperationDto): string | undefined {
-  const date = operation.date as unknown;
-  return typeof date === "string" ? date : operation.date?.utcTime;
+  return operation.date ?? undefined;
+}
+
+/**
+ * What a billed operation is attributed to — the wallet report's Source
+ * column. The SDK still types `OperationDto` with `agentId`/`agentTitle` (both
+ * SDK 3.7.0 and 4.0.0), but the accounting service no longer sends those:
+ * measured 2026-09-17, a vectorization charge inside an agent comes back with
+ * `sourceType: "Agent"`, `sourceId`, `sourceTitle` instead, and a charge with no
+ * attribution (e.g. AI Chat opened from the portal header, no entityId) omits
+ * all three rather than sending them null. `id`/`title` are undefined on that
+ * row, matching what `agentId`/`agentTitle` used to give when they were
+ * present-but-unset.
+ */
+export function operationSource(operation: OperationDto | undefined): {
+  type?: string;
+  id?: string;
+  title?: string;
+} {
+  const raw = operation as
+    | (OperationDto & {
+        sourceType?: string;
+        sourceId?: string;
+        sourceTitle?: string;
+      })
+    | undefined;
+  return {
+    type: raw?.sourceType,
+    id: raw?.sourceId,
+    title: raw?.sourceTitle,
+  };
 }
 
 /**
@@ -471,6 +492,19 @@ export async function isWalletServiceEnabled(
  */
 export const AI_SEARCH_DEPENDENCY_MESSAGE =
   "AI Tools service must be enabled before Search";
+
+/**
+ * The 403 `servicestate` answers when the AI search add-on is bought while the
+ * portal-wide AI switch (`PUT /settings/ai-access`) is off — a second, separate
+ * prerequisite from `AI_SEARCH_DEPENDENCY_MESSAGE` above. Measured 2026-09-17:
+ * this dependency did not exist before, the two switches were independent axes
+ * (billing vs. visibility) and the add-on could be bought with the portal
+ * switch off. It answers the same way — a 403 with this exact text, driving the
+ * same "enable both?" dialog — but unlike AI Tools it does not cascade the
+ * purchase off when the switch is later turned off again: `aiSearch` stays
+ * enabled in the wallet, only `is-configured` goes back to 403.
+ */
+export const PORTAL_AI_DISABLED_MESSAGE = "AI is disabled for the portal";
 
 /** The message body `servicestate` returns on a refusal. */
 export function walletServiceErrorMessage(data: unknown): string | undefined {

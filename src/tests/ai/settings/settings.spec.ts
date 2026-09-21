@@ -4,7 +4,6 @@ import { UserType } from "@/src/services/api-sdk";
 import { AiSettings } from "@/src/helpers/ai-settings";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
-  creditAiBalance,
   enableWalletService,
   isWalletServiceEnabled,
 } from "@/src/helpers/wallet-services";
@@ -440,12 +439,10 @@ test.describe("AI services management - an administrator provisions AI", () => {
     // is only ever exercised one route at a time. This is the sequence: the
     // owner pays, the administrator does all four management steps, and the
     // portal ends up reporting itself AI-ready.
-    const ownerApi = apiSdk.forRole("owner");
     await paymentsApi.setupPayment();
+    // Funding is the payer's half — topping up the wallet is one of the routes
+    // the admin is refused (403, see the payer-boundary block below).
     await paymentsApi.makeWalletTopUp(1000);
-    // Funding is the payer's half — `creditAiBalance` is one of the routes the
-    // admin is refused (403, see the payer-boundary block below).
-    await creditAiBalance(ownerApi.payment, 1000);
 
     const { data: adminMember } = await apiSdk.addAuthenticatedMember(
       "owner",

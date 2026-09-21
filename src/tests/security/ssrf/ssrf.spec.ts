@@ -68,16 +68,17 @@ function expectUriRejectedBeforeConnecting(result: {
 }
 
 test.describe("GET /filehandler.ashx - fileuri parameter must not trigger outbound HTTP requests", () => {
-  test("BUG 82548: GET /filehandler.ashx - loopback fileuri is rejected before connecting", async ({
-    apiSdk,
-  }) => {
-    const result = await createFileFromUri(
-      apiSdk,
-      "http://127.0.0.1:9999/ssrf-canary",
-      "ssrf-loopback.txt",
-    );
-    expectUriRejectedBeforeConnecting(result);
-  });
+  test.fail(
+    "BUG 82548: GET /filehandler.ashx - loopback fileuri is rejected before connecting",
+    async ({ apiSdk }) => {
+      const result = await createFileFromUri(
+        apiSdk,
+        "http://127.0.0.1:9999/ssrf-canary",
+        "ssrf-loopback.txt",
+      );
+      expectUriRejectedBeforeConnecting(result);
+    },
+  );
 
   test.fail(
     "BUG 82548: GET /filehandler.ashx - link-local fileuri (169.254.x.x) is rejected before connecting",
@@ -111,73 +112,77 @@ test.describe("GET /filehandler.ashx - fileuri parameter must not trigger outbou
 // (loopback, link-local RFC-3927, RFC-1918, ULA) before establishing any connection,
 // with re-validation at connect time to prevent DNS-rebinding.
 
+// Third-party providers are off on a fresh portal, and `save-third-party` then
+// answers 403 "Access denied" before it ever looks at the url — which would make
+// these tests pass for a reason that has nothing to do with SSRF. Every case
+// therefore enables the feature first.
+async function saveWebDavProvider(
+  apiSdk: ApiSDK,
+  url: string,
+  customerTitle: string,
+) {
+  await apiSdk.request.put(
+    `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/files/thirdparty`,
+    {
+      data: { set: true },
+      headers: {
+        Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+        Origin: `https://${apiSdk.tokenStore.newTenantDomain}`,
+      },
+    },
+  );
+
+  return apiSdk.forRole("owner").thirdPartyIntegration.saveThirdParty({
+    thirdPartyRequestDto: {
+      url,
+      login: "ssrf-test",
+      password: "ssrf-test",
+      providerKey: "WebDav",
+      customerTitle,
+    },
+  });
+}
+
 test.describe("POST /api/2.0/files/thirdparty - WebDAV provider URL must be validated before outbound PROPFIND", () => {
   test.fail(
     "BUG 82560: WebDAV provider creation allows SSRF — server performs PROPFIND to arbitrary URL without validation",
     async ({ apiSdk }) => {
-      const baseUrl = apiSdk.tokenStore.portalBaseUrl;
-      const ownerToken = apiSdk.tokenStore.getToken("owner");
-
-      await apiSdk.request.put(`${baseUrl}/api/2.0/files/thirdparty`, {
-        data: { set: true },
-        headers: {
-          Authorization: `Bearer ${ownerToken}`,
-          Origin: `https://${apiSdk.tokenStore.newTenantDomain}`,
-        },
-      });
-
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .thirdPartyIntegration.saveThirdParty({
-          thirdPartyRequestDto: {
-            url: "http://127.0.0.1:9999/webdav-canary",
-            login: "ssrf-test",
-            password: "ssrf-test",
-            providerKey: "WebDav",
-            customerTitle: "ssrf-webdav-loopback",
-          },
-        });
+      const { data, status } = await saveWebDavProvider(
+        apiSdk,
+        "http://127.0.0.1:9999/webdav-canary",
+        "ssrf-webdav-loopback",
+      );
 
       expect(status, JSON.stringify(data)).toBe(400);
       expect((data as any).providerId).toBeUndefined();
     },
   );
 
-  test("BUG 82560: POST /api/2.0/files/thirdparty - should reject WebDAV provider with link-local URL (169.254.x.x)", async ({
-    apiSdk,
-  }) => {
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .thirdPartyIntegration.saveThirdParty({
-        thirdPartyRequestDto: {
-          url: "http://169.254.169.254/",
-          login: "ssrf-test",
-          password: "ssrf-test",
-          providerKey: "WebDav",
-          customerTitle: "ssrf-webdav-imds",
-        },
-      });
+  test.fail(
+    "BUG 82560: POST /api/2.0/files/thirdparty - should reject WebDAV provider with link-local URL (169.254.x.x)",
+    async ({ apiSdk }) => {
+      const { data, status } = await saveWebDavProvider(
+        apiSdk,
+        "http://169.254.169.254/",
+        "ssrf-webdav-imds",
+      );
 
-    expect(status).toBe(400);
-    expect((data as any).providerId).toBeUndefined();
-  });
+      expect(status, JSON.stringify(data)).toBe(400);
+      expect((data as any).providerId).toBeUndefined();
+    },
+  );
 
-  test("BUG 82560: POST /api/2.0/files/thirdparty - should reject WebDAV provider with RFC-1918 private IP", async ({
-    apiSdk,
-  }) => {
-    const { data, status } = await apiSdk
-      .forRole("owner")
-      .thirdPartyIntegration.saveThirdParty({
-        thirdPartyRequestDto: {
-          url: "http://192.168.0.1/webdav",
-          login: "ssrf-test",
-          password: "ssrf-test",
-          providerKey: "WebDav",
-          customerTitle: "ssrf-webdav-rfc1918",
-        },
-      });
+  test.fail(
+    "BUG 82560: POST /api/2.0/files/thirdparty - should reject WebDAV provider with RFC-1918 private IP",
+    async ({ apiSdk }) => {
+      const { data, status } = await saveWebDavProvider(
+        apiSdk,
+        "http://192.168.0.1/webdav",
+        "ssrf-webdav-rfc1918",
+      );
 
-    expect(status).toBe(400);
-    expect((data as any).providerId).toBeUndefined();
-  });
+      expect(status, JSON.stringify(data)).toBe(400);
+      expect((data as any).providerId).toBeUndefined();
+    },
+  );
 });

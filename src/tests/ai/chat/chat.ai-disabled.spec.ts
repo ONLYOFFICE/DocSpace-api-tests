@@ -458,17 +458,16 @@ test.describe("AI Chat - AI Tools wallet service not paid for", () => {
   });
 });
 
-// A third portal state, and the one that is easiest to confuse with the unpaid
-// one: AI Tools IS paid for, but no AI credit was ever added. Inference works
-// here. Kept as its own test with the contract in its title so that "AI is out
-// of money" and "AI was never paid for" cannot silently merge into one
-// expectation later.
+// AI Tools IS paid for, and inference works. Kept as its own test with the
+// contract in its title so that "AI is out of money" and "AI was never paid for"
+// cannot silently merge into one expectation later. The wallet service being
+// enabled IS asserted — that is what separates this state from the unpaid one
+// above.
 //
-// `GET /portal/payment/customer/aibalance` answers 403 "Accounting client does
-// not support sub-accounts" on these portals, so the zero-credit state is
-// established by never calling `creditAiBalance` rather than by reading a
-// balance of 0. The wallet service being enabled IS asserted — that is what
-// separates this state from the unpaid one above.
+// This was written as a third portal state: paid for, but with a separate AI
+// credit balance left at zero. That balance no longer exists — its routes were
+// dropped in SDK 4.0.0 and answered 404 on these portals before that — so the
+// setup is now the same one every other funded AI test uses.
 
 test.describe("AI Chat - AI Tools paid for with no AI credit", () => {
   test("POST /api/2.0/ai/ai/send-with-stream - AI inference remains available when AI Tools is enabled and AI credit balance is zero", async ({

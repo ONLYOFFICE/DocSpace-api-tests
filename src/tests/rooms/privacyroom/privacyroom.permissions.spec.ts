@@ -6,7 +6,7 @@ import { folderIds, roomAccesses } from "@/src/helpers/rooms";
 
 // SKIPPED (2026-08-14, re-verified 2026-08-19): the Private Rooms feature is
 // postponed to the next release and is being temporarily removed from the
-// current one, so neither the PrivacyroomApi nor private rooms
+// current one, so neither the PrivacyRoomApi nor private rooms
 // (createRoom({ private: true })) are available on a release portal. The tests
 // are parked rather than deleted because the feature is coming back — drop the
 // .skip on the describes below and re-verify the role matrix and the open bugs
@@ -14,7 +14,7 @@ import { folderIds, roomAccesses } from "@/src/helpers/rooms";
 // See the matching note in privacyroom.spec.ts.
 
 /**
- * Access control for the PrivacyroomApi.
+ * Access control for the PrivacyRoomApi.
  *
  * Encryption keys are personal and per-caller: every authenticated user manages
  * ONLY their own keys, and there is no parameter to target another user's keys.

@@ -1653,7 +1653,9 @@ test.describe("Threads - validation", () => {
       message: "",
     });
     expect(status).toBe(400);
-    expect(error).toBe("userMessage must contain non-empty text content");
+    expect(error).toBe(
+      "userMessage must contain non-empty text content or an attachment",
+    );
 
     // And nothing was written: the thread is still empty on both sides.
     const messages = await aiChat.readMessages("owner", threadId);

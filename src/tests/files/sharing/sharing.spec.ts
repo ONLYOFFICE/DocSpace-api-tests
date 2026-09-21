@@ -204,7 +204,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -250,7 +250,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -337,7 +337,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -383,7 +383,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -420,7 +420,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -478,7 +478,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -528,7 +528,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -570,7 +570,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -578,7 +578,7 @@ test.describe("POST /api/2.0/files/share", () => {
     });
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Comment }],
         notify: false,
@@ -618,7 +618,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const userId2 = userData2.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [
           { shareTo: userId1, access: FileShare.Read },
@@ -659,7 +659,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -667,7 +667,7 @@ test.describe("POST /api/2.0/files/share", () => {
     });
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.None }],
         notify: false,
@@ -742,7 +742,7 @@ test.describe("POST /api/2.0/files/share", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -823,7 +823,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -855,7 +855,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -905,7 +905,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -940,7 +940,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     const userEmail = userData.response!.email!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -973,7 +973,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/sharedusers", () => {
     const userId2 = userData2.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [
           { shareTo: userId1, access: FileShare.Read },
@@ -1009,7 +1009,7 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1099,14 +1099,14 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId: fileId1,
+      id: fileId1,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
       },
     });
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId: fileId2,
+      id: fileId2,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1168,7 +1168,7 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1250,7 +1250,7 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1290,7 +1290,7 @@ test.describe("DELETE /api/2.0/files/share - Remove security info", () => {
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1475,7 +1475,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1514,7 +1514,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Comment }],
         notify: false,
@@ -1552,7 +1552,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.ReadWrite }],
         notify: false,
@@ -1588,7 +1588,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1626,7 +1626,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1662,7 +1662,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const { data: userData2 } = await apiSdk.addMember("owner", "User");
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [
           { shareTo: userData1.response!.id!, access: FileShare.Read },
@@ -1729,7 +1729,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId2 = userData2.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [
           { shareTo: userId1, access: FileShare.Read },
@@ -1770,7 +1770,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const { data: userData2 } = await apiSdk.addMember("owner", "User");
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [
           { shareTo: userData1.response!.id!, access: FileShare.Read },
@@ -1810,7 +1810,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1818,7 +1818,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     });
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Comment }],
         notify: false,
@@ -1857,7 +1857,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1865,7 +1865,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     });
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.None }],
         notify: false,
@@ -1903,7 +1903,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1941,7 +1941,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -1985,7 +1985,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const guestId = guestData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: guestId, access: FileShare.Read }],
         notify: false,
@@ -2082,7 +2082,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const groupId = groupData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: groupId, access: FileShare.Read }],
         notify: false,
@@ -2122,7 +2122,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
@@ -2191,7 +2191,7 @@ test.describe("GET /api/2.0/files/file/{id}/share - Get file security info", () 
     const userId = userData.response!.id!;
 
     await ownerApi.sharing.setFileSecurityInfo({
-      fileId,
+      id: fileId,
       securityInfoSimpleRequestDto: {
         share: [{ shareTo: userId, access: FileShare.Read }],
         notify: false,
