@@ -4083,6 +4083,141 @@ test.describe("MCP - a registered server and the conversation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The dialog's checkbox on a custom MCP server's own tool, rather than on a
+// client-supplied host tool ("host") or a built-in generator ("docspace" /
+// "onlyoffice"). Those two are covered above and both round-trip cleanly,
+// because the name the model calls the tool by already matches what
+// is-allow-always is keyed on: a host tool is looked up as (serverType:
+// "host", toolName: "<bare name>"), and a generator is already called with its
+// server prefix attached ("onlyoffice_generate_docx"). A registered MCP
+// server's tool is neither: the model calls it by its bare name
+// ("get_time"), the checkbox persists exactly that string, and
+// is-allow-always is read by client code as (serverType: "calculator",
+// toolName: "get_time") — a pair the stored bare string was never keyed
+// under.
+//
+// Getting a real MCP server's tool to pause for approval at all first needs
+// the model to reach for it, which is the same flakiness BUG 82989/82990
+// measure elsewhere in this file (custom MCP tools reach the model on
+// roughly a third to a half of turns). That flakiness is not this test's
+// subject, so a turn where the tool is never offered is skipped rather than
+// failed.
+
+const ASK_CALCULATOR_TIME = `Call the tool named get_time (it belongs to the "calculator" MCP server) to get the current time, then report it. If you truly have no such tool, reply exactly: ${NO_TOOL_SENTINEL}`;
+
+test.describe("MCP - allow-always for a custom server's own tool", () => {
+  test(`BUG XXXXX: GET /api/2.0/ai/tools/is-allow-always - a custom MCP server's tool pre-approved through the dialog is not found under its own key`, async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.skip(
+      !isMcpServerConfigured(CALCULATOR_MCP_SERVER),
+      "needs MCP_CALCULATOR_URL and MCP_CALCULATOR_TOKEN",
+    );
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    // Control: the server is up and really does advertise this tool right now.
+    const advertised = await mcpToolNames(
+      apiSdk.request,
+      CALCULATOR_MCP_SERVER,
+    );
+    test.skip(
+      advertised.length === 0,
+      "the calculator MCP server did not answer initialize/tools-list — nothing to conclude about the portal",
+    );
+    expect(advertised).toContain("get_time");
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Calculator Allow-Always Agent",
+      profileId,
+    });
+
+    const serverName = "calculator";
+    const registered = await aiTools.addCustomServer("owner", {
+      name: serverName,
+      config: CALCULATOR_MCP_SERVER,
+      agentId,
+    });
+    expect(registered.data?.success, "the server is registered").toBe(true);
+
+    // Retried for the same reason as the generator's allow-always test above:
+    // whether the model reaches for a custom server's tool at all is a
+    // separate, already-filed flakiness, not the question asked here.
+    let frames: string[] = [];
+    let pending: ReturnType<typeof AiAgentChat.pendingToolCall>;
+    let threadId = "";
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      threadId = await aiChat.createThreadId("owner", {
+        title: `Autotest calculator get_time #${attempt}`,
+        profileId,
+        agentId,
+      });
+      const sent = await aiChat.sendMessage("owner", {
+        threadId,
+        profileId,
+        agentId,
+        message: ASK_CALCULATOR_TIME,
+      });
+      frames = AiAgentChat.frameTypes(sent.text);
+      pending = AiAgentChat.pendingToolCall(sent.text);
+      if (pending) break;
+    }
+    test.skip(
+      !pending!,
+      `the model never asked to run the calculator's tool in 3 turns (known flake, BUG 82989/82990); last frames were ${frames.join(", ")}`,
+    );
+
+    const toolName = AiAgentChat.toolCalls(pending!.message!)[0]?.toolName;
+    // The bug is specifically about the bare, unprefixed call name a registered
+    // MCP server's tool gets. If the model happened to call it some other way
+    // this run, the premise this test needs is not there.
+    test.skip(
+      toolName !== "get_time",
+      `the model called the tool as "${toolName}", not the bare "get_time" this bug needs`,
+    );
+
+    // No `result` when the engine ran the call itself (serverExecuted) — same
+    // as the generator's allow-always test; otherwise the client has to answer
+    // the call the way a host tool's would.
+    const approve = await aiChat.approveToolCall("owner", {
+      threadId,
+      messageId: pending!.messageId,
+      idx: pending!.idx ?? 0,
+      message: pending!.message,
+      entityId: String(agentId),
+      profileId,
+      allowAlways: true,
+      ...(pending!.serverExecuted ? {} : { result: "it is midnight UTC" }),
+    });
+    expect(approve.status).toBe(200);
+
+    // The checkbox's own write landed somewhere, or there is nothing left to
+    // look up at all.
+    const stored = await aiTools.getAllowAlways("owner", agentId);
+    expect(stored.status).toBe(200);
+    expect(
+      stored.data ?? [],
+      `the pre-approval list holds ${JSON.stringify(stored.data)}`,
+    ).toContain(toolName);
+
+    test.fail();
+    const isSet = await aiTools.isAllowAlways("owner", {
+      serverType: serverName,
+      toolName: toolName!,
+      agentId,
+    });
+    expect(
+      isSet.data,
+      `is-allow-always(serverType=${serverName}, toolName=${toolName}) — the checkbox saved "${toolName}" but the read is keyed on "${serverName}_${toolName}"`,
+    ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The other half of set-disabled: "Disabled tools are hidden from the AI model".
 //
 // The block near the top of this file pins set-disabled as stored state — the
