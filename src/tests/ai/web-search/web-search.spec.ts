@@ -1666,9 +1666,18 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
     const bodies: Array<[string, Record<string, unknown>]> = [
       [
         "cloud provider missing baseUrl",
-        { config: { provider: "exa", key: config.EXA_API_KEY, isCloudProvider: true } },
+        {
+          config: {
+            provider: "exa",
+            key: config.EXA_API_KEY,
+            isCloudProvider: true,
+          },
+        },
       ],
-      ["onlyoffice provider missing baseUrl", { config: { provider: "onlyoffice" } }],
+      [
+        "onlyoffice provider missing baseUrl",
+        { config: { provider: "onlyoffice" } },
+      ],
       ["empty config object", { config: {} }],
     ];
 
