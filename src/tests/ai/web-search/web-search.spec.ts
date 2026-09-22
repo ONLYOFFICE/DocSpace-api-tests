@@ -1578,11 +1578,83 @@ test.describe("AI Web Search - entity scope robustness", () => {
 // the provider comes from the add-on. So the expected behaviour of these two is a
 // deterministic refusal, not a save — 403, the way `clear` refuses the same
 // billing-owned state and the way `/ai/profiles` CRUD refuses on a gateway
-// portal. The add-on-owns-the-provider case below now gets that 403 (BUG 82812
-// fixed there); the other three below still don't — see each test for the
-// current (not-403) status.
+// portal.
+//
+// BUG 82812 used to mean one flat thing: "500 for every body, before auth,
+// before the AI switch." Re-measured 2026-09-15, that single bug is really
+// four independent failure modes, each with its own correct status — they do
+// NOT all converge on the same expected value, so they are tested separately
+// instead of one shared assertion:
+//  - **authorization** (Guest) — should be 403 regardless of body shape,
+//    before the body is looked at. The add-on-owns-the-provider shape (plain
+//    {provider, key}, no isCloudProvider) already gets there — fixed, test
+//    below is no longer `test.fail`. A malformed body from a Guest instead
+//    still crashes 500 (see "AI Web Search - permissions" below) — BUG 82812.
+//  - **the portal AI switch** — same story as authorization: a well-formed
+//    request against the add-on-owns-the-provider shape now correctly 403s;
+//    a malformed body still crashes 500 (see "AI Web Search - AI Disabled"
+//    below) — BUG 82812.
+//  - **malformed request handling** (Owner, AI on) — a structurally broken
+//    body (no `config` wrapper, or `{}`) still crashes with 500. The correct
+//    status for input the server cannot parse is a 4xx validation error
+//    (expected 400 below), not a crash and not 403 (this is not an
+//    authorization question) — BUG 82812, tested below.
+//  - **business validation** (Owner, AI on, a well-formed `config` that fails
+//    business rules — missing baseUrl, missing provider) — no longer crashes;
+//    answers 200 with a `{success:false, error}` envelope instead. A 200 for
+//    an application-level failure is not this API's convention anywhere else
+//    on this route, so this is filed as its own bug (BUG XXXXX) rather than
+//    folded into BUG 82812 — tested below as `test.fail`, expecting 400.
 test.describe("AI Web Search - configure crashes instead of refusing", () => {
-  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - every body returns 500 and nothing is stored", async ({
+  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - a malformed body crashes with 500 instead of a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+
+    const bodies: Array<[string, Record<string, unknown>]> = [
+      ["an unwrapped config", { provider: "onlyoffice", key: "k" }],
+      ["an empty body", {}],
+    ];
+
+    const results: Array<[string, number]> = [];
+    for (const [label, body] of bodies) {
+      const { status } = await webSearch.configure("owner", body);
+      results.push([label, status]);
+    }
+
+    // Nothing was saved regardless of how badly the body was shaped.
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+    expect((await webSearch.getActiveConfig("owner")).data).toBeNull();
+
+    test.fail();
+    for (const [label, status] of results) {
+      // A malformed body is a client-error/validation question, not an
+      // authorization one — 400, not 403.
+      expect(status, `configure with ${label}`).toBe(400);
+    }
+  });
+
+  // An application-level validation failure answering HTTP 200 with
+  // `{success:false, error:{field,message}}` instead of a 4xx is not this
+  // API's convention anywhere else on this route (the structurally-malformed
+  // case above is at least consistently wrong with a 500; the auth checks
+  // elsewhere in this file are consistently 403) - call it BUG XXXXX.
+  // Measured 2026-09-15 for `owner` with the AI gateway enabled:
+  //   - {config:{provider:"exa", key, isCloudProvider:true}} (no baseUrl) ->
+  //     200 {success:false, error:{field:"url", message:"Base URL is
+  //     required for cloud provider"}}
+  //   - {config:{provider:"onlyoffice"}} (no baseUrl) -> same 200 envelope
+  //   - {config:{}} -> 200 {success:false, error:{field:"name",
+  //     message:"Provider is required"}}
+  // Nothing is persisted in any case. The same 200 envelope also reaches a
+  // Guest and an AI-disabled portal (see the malformed-body tests elsewhere
+  // in this file for those actors), so this is a client-error/validation
+  // question, not an authorization one - 400, not 200.
+  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - a well-formed but business-invalid config answers 200 with success:false instead of 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1593,7 +1665,7 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
 
     const bodies: Array<[string, Record<string, unknown>]> = [
       [
-        "a well-formed Exa config",
+        "cloud provider missing baseUrl",
         {
           config: {
             provider: "exa",
@@ -1602,36 +1674,27 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
           },
         },
       ],
-      ["the ONLYOFFICE provider", { config: { provider: "onlyoffice" } }],
-      ["an unwrapped config", { provider: "onlyoffice", key: "k" }],
-      ["an empty config", { config: {} }],
-      ["an empty body", {}],
+      [
+        "onlyoffice provider missing baseUrl",
+        { config: { provider: "onlyoffice" } },
+      ],
+      ["empty config object", { config: {} }],
     ];
 
+    const results: Array<[string, number]> = [];
     for (const [label, body] of bodies) {
-      const { status, error } = await webSearch.configure("owner", body);
-      expect(status, `configure with ${label}`).toBe(500);
-      expect(error).toBe("Internal server error");
+      const { status } = await webSearch.configure("owner", body);
+      results.push([label, status]);
     }
 
-    const active = await webSearch.setActiveConfig("owner", {
-      config: { provider: "onlyoffice" },
-    });
-    expect(active.status).toBe(500);
-
-    // Nothing was saved, so the read side stays consistent at least.
+    // Nothing was saved regardless of how the business validation failed.
     expect((await webSearch.isConfigured("owner")).data).toBe(false);
     expect((await webSearch.getActiveConfig("owner")).data).toBeNull();
 
     test.fail();
-    expect(
-      (
-        await webSearch.configure("owner", {
-          config: { provider: "exa", key: config.EXA_API_KEY },
-        })
-      ).status,
-      "a manual provider is not a product feature any more, so this must be refused with 403, not crash with 500",
-    ).toBe(403);
+    for (const [label, status] of results) {
+      expect(status, `configure with ${label}`).toBe(400);
+    }
   });
 
   test("BUG 82812: PUT /api/2.0/ai/web-search/configure - a manual config is refused, not crashed, while the add-on owns the provider", async ({
@@ -1839,7 +1902,7 @@ test.describe("AI Web Search - permissions", () => {
     ).toBe(403);
   });
 
-  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - a Guest gets 500 instead of 403", async ({
+  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - Guest reaches config validation instead of being rejected with 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1854,15 +1917,55 @@ test.describe("AI Web Search - permissions", () => {
     await webSearch.expectActingAs("guest", guestData.response!.id!, "Guest");
 
     // The Guest is properly refused on the read side, so the authorization rule
-    // exists — the write side just crashes before reaching it.
+    // exists — the write side still lets the request through to validation
+    // instead of rejecting it by role.
     expect((await webSearch.getActiveConfig("guest")).status).toBe(403);
 
     const { status } = await webSearch.configure("guest", {
       config: { provider: "onlyoffice", key: config.EXA_API_KEY },
     });
 
+    // Nothing was saved either way — checked from the owner, who can read.
+    // The shared context's cookie sticks to whoever last authenticated, so the
+    // owner session has to be re-established before it can be used again.
+    await apiSdk.authenticateOwner();
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+
     test.fail();
-    expect(status, "a Guest must be refused with 403, not 500").toBe(403);
+    expect(
+      status,
+      "a Guest must be refused with 403 before the body is ever validated",
+    ).toBe(403);
+  });
+
+  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - Guest still isn't blocked for a malformed body, it crashes with 500 instead of 403", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    await webSearch.expectActingAs("guest", guestData.response!.id!, "Guest");
+
+    // Unlike the well-formed-body case above (which at least reaches
+    // validation and answers 200), a structurally malformed body from a
+    // Guest crashes exactly like it does for the owner — authorization is
+    // not checked before the crash either.
+    const { status } = await webSearch.configure("guest", {});
+
+    await apiSdk.authenticateOwner();
+    expect((await webSearch.isConfigured("owner")).data).toBe(false);
+
+    test.fail();
+    expect(
+      status,
+      "a Guest must be refused with 403 before the body is ever parsed, even a malformed one",
+    ).toBe(403);
   });
 });
 
@@ -1888,7 +1991,7 @@ test.describe("AI Web Search - AI Disabled", () => {
     expect((await webSearch.clear("owner", {})).status).toBe(403);
   });
 
-  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - the 500 also bypasses the portal AI switch", async ({
+  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - the portal AI switch does not gate configure, request reaches validation instead of 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1909,7 +2012,32 @@ test.describe("AI Web Search - AI Disabled", () => {
     test.fail();
     expect(
       status,
-      "configure must be refused with 403 when AI access is disabled",
+      "configure must be refused with 403 when AI access is disabled, before the body is ever validated",
+    ).toBe(403);
+  });
+
+  test("BUG 82812: PUT /api/2.0/ai/web-search/configure - the portal AI switch still isn't checked for a malformed body, it crashes with 500 instead of 403", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
+    const { enabled } = await setPortalAiAccess(ownerApi, false);
+    expect(enabled).toBe(false);
+
+    // Unlike the well-formed-body case above (which at least reaches
+    // validation and answers 200), a structurally malformed body crashes
+    // exactly like it does with AI enabled — the switch is not checked
+    // before the crash either.
+    const { status } = await webSearch.configure("owner", {});
+    expect((await webSearch.isConfigured("owner")).status).toBe(403);
+
+    test.fail();
+    expect(
+      status,
+      "configure must be refused with 403 when AI access is disabled, before the body is ever parsed, even a malformed one",
     ).toBe(403);
   });
 
