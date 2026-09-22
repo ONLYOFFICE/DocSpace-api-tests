@@ -1372,6 +1372,128 @@ test.describe("GET /api/2.0/files/rooms/news - Aggregation across rooms", () => 
   });
 });
 
+test.describe("GET /api/2.0/files/rooms/news - Opening one room must not clear another room's news", () => {
+  // Reported scenario: the room owner shares two rooms with a Content Creator,
+  // who adds one new file to each. Both rooms show a "new" badge (and the
+  // Rooms section shows a combined count of 2). The owner then opens ONLY one
+  // of the two rooms (without opening the file inside it). Only the opened
+  // room's badge is expected to clear.
+  //
+  // Investigated as a reported bug (opening one room also clears the badge
+  // of the other, untouched room, and empties the whole Rooms section). It
+  // did not reproduce through the API across every plausible "open" call
+  // (GET /files/rooms/:id, GET /files/:folderId, PUT /files/fileops/markasread
+  // with the room's folderId, GET /files/rooms/:id/news) - the persisted
+  // `new` badge count and the news item lists always isolated correctly per
+  // room. Kept as a regression/contract test for this isolation; see
+  // [[room_news_isolation_not_reproduced_via_api]] if the reported behavior
+  // needs revisiting with a different repro path (e.g. a client-side cache
+  // bug rather than a backend one).
+  test("GET /files/rooms/news - Opening one room clears only that room's badge, not another room's", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: roomAData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest News Isolation Room A",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomAId = roomAData.response!.id!;
+
+    const { data: roomBData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest News Isolation Room B",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomBId = roomBData.response!.id!;
+
+    const { api: userApi, data: userData } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    for (const roomId of [roomAId, roomBId]) {
+      const { status } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [{ id: userId, access: FileShare.ContentCreator }],
+          notify: false,
+        },
+      });
+      expect(status).toBe(200);
+    }
+
+    const { data: fileAData } = await userApi.files.createFile({
+      folderId: roomAId,
+      createFileJsonElement: { title: "Autotest News Isolation File A.docx" },
+    });
+    expect(fileAData.response?.id).toBeDefined();
+
+    const { data: fileBData } = await userApi.files.createFile({
+      folderId: roomBId,
+      createFileJsonElement: { title: "Autotest News Isolation File B.docx" },
+    });
+    expect(fileBData.response?.id).toBeDefined();
+
+    // The "new" badge shown next to each room, and next to the Rooms section
+    // itself, is FolderDtoInteger.new - assert it directly, not just the
+    // news item lists. This IS the pre-open baseline (2 / 1 / 1): no other
+    // news endpoint is touched before the "open" action below, to keep this
+    // as close to the reported UI sequence as possible. Polled because news
+    // generation runs asynchronously.
+    async function badgeCounts() {
+      const { data, status } = await ownerApi.rooms.getRoomsFolder({});
+      expect(status).toBe(200);
+      const folders = (data.response?.folders ?? []) as any[];
+      return {
+        current: data.response?.current?.new,
+        roomA: folders.find((f) => f.id === roomAId)?.new,
+        roomB: folders.find((f) => f.id === roomBId)?.new,
+      };
+    }
+
+    await expect
+      .poll(badgeCounts, { timeout: 10_000, intervals: [500, 1000, 2000] })
+      .toEqual({ current: 2, roomA: 1, roomB: 1 });
+
+    // Owner opens ONLY room A (navigates into it) - room B and its file are
+    // never touched.
+    const { status: openStatus } = await ownerApi.folders.getFolderByFolderId({
+      folderId: roomAId,
+    });
+    expect(openStatus).toBe(200);
+
+    // The opened room's badge clears, and the Rooms section total drops by
+    // exactly 1 - room B's badge is untouched. Polled too: clearing the
+    // badge may be just as asynchronous as writing it in the first place.
+    await expect
+      .poll(badgeCounts, { timeout: 10_000, intervals: [500, 1000, 2000] })
+      .toEqual({ current: 1, roomA: 0, roomB: 1 });
+
+    // Cross-check with the news item lists (same contract, different shape).
+    const { data: roomANewsAfter } = await ownerApi.rooms.getNewRoomItems({
+      id: roomAId,
+    });
+    expect(titlesOf(roomANewsAfter.response)).toEqual([]);
+
+    // Room B's badge must survive, since room B was never opened.
+    const { data: roomBNewsAfter } = await ownerApi.rooms.getNewRoomItems({
+      id: roomBId,
+    });
+    expect(titlesOf(roomBNewsAfter.response)).toContain(
+      "Autotest News Isolation File B.docx",
+    );
+
+    // The aggregated Rooms section must still report room B's new item.
+    const { data: aggregatedAfter } = await ownerApi.rooms.getRoomsNewItems();
+    expect(roomsNewTitlesOf(aggregatedAfter.response)).toContain(
+      "Autotest News Isolation File B.docx",
+    );
+  });
+});
+
 test.describe("GET /api/2.0/files/rooms/news - Cross-check with room endpoint", () => {
   test("GET /files/rooms/news - Includes the same new item as GET /files/rooms/:id/news", async ({
     apiSdk,
