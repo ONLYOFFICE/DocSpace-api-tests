@@ -9716,6 +9716,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
       createFileJsonElement: { title: "Autotest Hard Delete Target" },
     });
     const fileId = fileData.response!.id!;
+    const fileSize = fileData.response!.pureContentLength!;
 
     const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
     const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
@@ -9731,40 +9732,37 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
 
     expect(status).toBe(200);
     // Catches: if myDocumentsUsedSpace is not updated after hard delete
-    expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBeLessThan(
+    expect(
+      spaceBefore - afterData.response!.myDocumentsUsedSpace!.usedSpace!,
+    ).toBeGreaterThanOrEqual(fileSize);
+  });
+
+  test("BUG 81648: GET /api/2.0/files/filesusedspace - usedSpace does not change after reading file metadata", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Metadata Read" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
+
+    await ownerApi.files.getFileInfo({ fileId });
+    await ownerApi.files.getFileInfo({ fileId });
+    await ownerApi.files.getFileInfo({ fileId });
+
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
+
+    expect(status).toBe(200);
+    // Catches: if repeated metadata reads cause usedSpace to drift
+    expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBe(
       spaceBefore,
     );
   });
-
-  // BUG 81648: getFileInfo triggers sample file injection, causing usedSpace to jump.
-  // Catches: if GET requests (metadata read) incorrectly mutate usedSpace counters
-  test.fail(
-    "BUG 81648: GET /api/2.0/files/filesusedspace - usedSpace does not change after reading file metadata",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Metadata Read" },
-      });
-      const fileId = fileData.response!.id!;
-
-      const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
-      const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
-
-      await ownerApi.files.getFileInfo({ fileId });
-      await ownerApi.files.getFileInfo({ fileId });
-      await ownerApi.files.getFileInfo({ fileId });
-
-      const { data: afterData, status } =
-        await ownerApi.folders.getFilesUsedSpace();
-
-      expect(status).toBe(200);
-      // Catches: if repeated metadata reads cause usedSpace to drift
-      expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBe(
-        spaceBefore,
-      );
-    },
-  );
 
   // Catches: if usedSpace is computed incorrectly when multiple files exist
   // (e.g. only last file counted, or space reset instead of accumulated)
@@ -9807,37 +9805,33 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     expect(s3 - s0).toBe(s1 - s0 + (s2 - s1) + (s3 - s2));
   });
 
-  // BUG 81648: updateFile triggers sample file injection, causing usedSpace to jump.
-  // Catches: if renaming a file (metadata-only update) incorrectly changes usedSpace
-  // (title change has no effect on file size, counter must not drift)
-  test.fail(
-    "BUG 81648: GET /api/2.0/files/filesusedspace - usedSpace does not change after renaming a file",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81648: GET /api/2.0/files/filesusedspace - usedSpace does not change after renaming a file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Rename Before" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Rename Before" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
-      const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
+    const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
+    const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
 
-      await ownerApi.files.updateFile({
-        fileId,
-        updateFile: { title: "Autotest Rename After" },
-      });
+    await ownerApi.files.updateFile({
+      fileId,
+      updateFile: { title: "Autotest Rename After" },
+    });
 
-      const { data: afterData, status } =
-        await ownerApi.folders.getFilesUsedSpace();
+    const { data: afterData, status } =
+      await ownerApi.folders.getFilesUsedSpace();
 
-      expect(status).toBe(200);
-      // Catches: if metadata update (rename) incorrectly affects the storage counter
-      expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBe(
-        spaceBefore,
-      );
-    },
-  );
+    expect(status).toBe(200);
+    // Catches: if metadata update (rename) incorrectly affects the storage counter
+    expect(afterData.response!.myDocumentsUsedSpace!.usedSpace).toBe(
+      spaceBefore,
+    );
+  });
 
   // BUG 81648: skip instead of test.fail because the bug is non-deterministic.
   // test.fail requires the test to always fail; here the bug only reproduces ~60-80% of runs
