@@ -1373,7 +1373,6 @@ test.describe("GET /api/2.0/files/rooms/news - Aggregation across rooms", () => 
 });
 
 test.describe("GET /api/2.0/files/rooms/news - Opening one room must not clear another room's news", () => {
-  
   test("GET /files/rooms/news - Opening one room clears only that room's badge, not another room's", async ({
     apiSdk,
   }) => {
@@ -1422,7 +1421,6 @@ test.describe("GET /api/2.0/files/rooms/news - Opening one room must not clear a
     });
     expect(fileBData.response?.id).toBeDefined();
 
-  
     async function badgeCounts() {
       const { data, status } = await ownerApi.rooms.getRoomsFolder({});
       expect(status).toBe(200);
