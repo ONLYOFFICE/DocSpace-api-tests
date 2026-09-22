@@ -1373,22 +1373,7 @@ test.describe("GET /api/2.0/files/rooms/news - Aggregation across rooms", () => 
 });
 
 test.describe("GET /api/2.0/files/rooms/news - Opening one room must not clear another room's news", () => {
-  // Reported scenario: the room owner shares two rooms with a Content Creator,
-  // who adds one new file to each. Both rooms show a "new" badge (and the
-  // Rooms section shows a combined count of 2). The owner then opens ONLY one
-  // of the two rooms (without opening the file inside it). Only the opened
-  // room's badge is expected to clear.
-  //
-  // Investigated as a reported bug (opening one room also clears the badge
-  // of the other, untouched room, and empties the whole Rooms section). It
-  // did not reproduce through the API across every plausible "open" call
-  // (GET /files/rooms/:id, GET /files/:folderId, PUT /files/fileops/markasread
-  // with the room's folderId, GET /files/rooms/:id/news) - the persisted
-  // `new` badge count and the news item lists always isolated correctly per
-  // room. Kept as a regression/contract test for this isolation; see
-  // [[room_news_isolation_not_reproduced_via_api]] if the reported behavior
-  // needs revisiting with a different repro path (e.g. a client-side cache
-  // bug rather than a backend one).
+  
   test("GET /files/rooms/news - Opening one room clears only that room's badge, not another room's", async ({
     apiSdk,
   }) => {
@@ -1437,12 +1422,7 @@ test.describe("GET /api/2.0/files/rooms/news - Opening one room must not clear a
     });
     expect(fileBData.response?.id).toBeDefined();
 
-    // The "new" badge shown next to each room, and next to the Rooms section
-    // itself, is FolderDtoInteger.new - assert it directly, not just the
-    // news item lists. This IS the pre-open baseline (2 / 1 / 1): no other
-    // news endpoint is touched before the "open" action below, to keep this
-    // as close to the reported UI sequence as possible. Polled because news
-    // generation runs asynchronously.
+  
     async function badgeCounts() {
       const { data, status } = await ownerApi.rooms.getRoomsFolder({});
       expect(status).toBe(200);
