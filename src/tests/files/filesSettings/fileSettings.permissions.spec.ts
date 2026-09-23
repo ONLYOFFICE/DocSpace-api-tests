@@ -1524,35 +1524,101 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     expect(data.response).toBeDefined();
   });
 
-  test.fail(
-    "BUG 82200: PUT /api/2.0/files/settings/dafaultaccessrights - User cannot change default access rights",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "User");
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - User changing default access rights does not affect Owner's settings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { status } = await apiSdk
-        .forRole("user")
-        .filesSettings.changeDefaultAccessRights({
-          requestBody: [FileShare.Read],
-        });
+    await ownerApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Comment],
+    });
 
-      expect(status).toBe(403);
-    },
-  );
+    await apiSdk.addAuthenticatedMember("owner", "User");
+    await apiSdk.forRole("user").filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Read],
+    });
 
-  test.fail(
-    "BUG 82200: PUT /api/2.0/files/settings/dafaultaccessrights - Guest cannot change default access rights",
-    async ({ apiSdk }) => {
-      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
 
-      const { status } = await apiSdk
-        .forRole("guest")
-        .filesSettings.changeDefaultAccessRights({
-          requestBody: [FileShare.Read],
-        });
+    expect(status).toBe(200);
+    const ownerRights = data.response
+      ?.defaultSharingAccessRights as unknown as number[];
+    expect(ownerRights).toContain(FileShare.Comment);
+  });
 
-      expect(status).toBe(403);
-    },
-  );
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Guest changing default access rights does not affect Owner's settings", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Comment],
+    });
+
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+    await apiSdk.forRole("guest").filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Read],
+    });
+
+    const { data, status } = await ownerApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    const ownerRights = data.response
+      ?.defaultSharingAccessRights as unknown as number[];
+    expect(ownerRights).toContain(FileShare.Comment);
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - User sees their own default access rights, not Owner's", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Comment],
+    });
+
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await userApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Read],
+    });
+
+    const { data, status } = await userApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    const userRights = data.response
+      ?.defaultSharingAccessRights as unknown as number[];
+    expect(userRights).toContain(FileShare.Read);
+    expect(userRights).not.toContain(FileShare.Comment);
+  });
+
+  test("PUT /api/2.0/files/settings/dafaultaccessrights - Guest sees their own default access rights, not Owner's", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Comment],
+    });
+
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    await guestApi.filesSettings.changeDefaultAccessRights({
+      requestBody: [FileShare.Read],
+    });
+
+    const { data, status } = await guestApi.filesSettings.getFilesSettings();
+
+    expect(status).toBe(200);
+    const guestRights = data.response
+      ?.defaultSharingAccessRights as unknown as number[];
+    expect(guestRights).toContain(FileShare.Read);
+    expect(guestRights).not.toContain(FileShare.Comment);
+  });
 
   test("PUT /api/2.0/files/settings/dafaultaccessrights - Terminated DocSpaceAdmin cannot change default access rights", async ({
     apiSdk,
