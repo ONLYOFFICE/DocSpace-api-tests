@@ -1524,6 +1524,36 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     expect(data.response).toBeDefined();
   });
 
+  test.fail(
+    "BUG 82200: PUT /api/2.0/files/settings/dafaultaccessrights - User cannot change default access rights",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "User");
+
+      const { status } = await apiSdk
+        .forRole("user")
+        .filesSettings.changeDefaultAccessRights({
+          requestBody: [FileShare.Read],
+        });
+
+      expect(status).toBe(403);
+    },
+  );
+
+  test.fail(
+    "BUG 82200: PUT /api/2.0/files/settings/dafaultaccessrights - Guest cannot change default access rights",
+    async ({ apiSdk }) => {
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+      const { status } = await apiSdk
+        .forRole("guest")
+        .filesSettings.changeDefaultAccessRights({
+          requestBody: [FileShare.Read],
+        });
+
+      expect(status).toBe(403);
+    },
+  );
+
   test("PUT /api/2.0/files/settings/dafaultaccessrights - Terminated DocSpaceAdmin cannot change default access rights", async ({
     apiSdk,
   }) => {
