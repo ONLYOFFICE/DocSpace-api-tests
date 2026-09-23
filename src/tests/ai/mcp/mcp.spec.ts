@@ -381,14 +381,16 @@ test.describe("MCP - Disabling individual tools", () => {
     expect(cleared).toBe(false);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - the disabled list is scoped per agent", async ({
+  test("PUT /api/2.0/ai/tools/set-disabled - the disabled list is scoped per agent", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // `DISABLE_TARGET_SERVER` is an invented serverType, which set-disabled
-    // used to accept — see "the server type used to be an open vocabulary" in
-    // the block below. Now it answers 400 `unknown serverType`, so the write
-    // this test measures never lands at all, on either agent.
+    // `DISABLE_TARGET_SERVER` is a real custom MCP server, registered for the
+    // first agent only — so its name is a valid `serverType` there, and the
+    // second agent never even claims it exists. This is what makes it a valid
+    // `serverType` per "the server type used to be an open vocabulary, now a
+    // fixed list" below: an unregistered/invented name 400s instead of
+    // round-tripping.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -404,36 +406,48 @@ test.describe("MCP - Disabling individual tools", () => {
       profileId,
     });
 
+    await aiTools.addCustomServer("owner", {
+      name: DISABLE_TARGET_SERVER,
+      config: SERVER_CONFIG,
+      agentId: firstAgent,
+    });
+
+    const { data: before } = await aiTools.getDisabledTools(
+      "owner",
+      secondAgent,
+    );
+    expect(before, "second agent starts with nothing disabled").toEqual({});
+
     const written = await aiTools.setDisabledTools("owner", {
       serverType: DISABLE_TARGET_SERVER,
       toolNames: ["calculate"],
       agentId: firstAgent,
     });
+    expect(written.status).toBe(200);
+    expect(written.data?.success).toBe(true);
 
-    const { data: other } = await aiTools.isToolDisabled("owner", {
+    // The write is reflected for the agent it was made for...
+    const { data: ownDisabled } = await aiTools.isToolDisabled("owner", {
+      serverType: DISABLE_TARGET_SERVER,
+      toolName: "calculate",
+      agentId: firstAgent,
+    });
+    expect(ownDisabled, "the agent the write was made for").toBe(true);
+    expect((await aiTools.getDisabledTools("owner", firstAgent)).data).toEqual({
+      [DISABLE_TARGET_SERVER]: ["calculate"],
+    });
+
+    // ...and does not leak to the second agent, which never registered this
+    // server and never had anything disabled on it.
+    const { data: otherDisabled } = await aiTools.isToolDisabled("owner", {
       serverType: DISABLE_TARGET_SERVER,
       toolName: "calculate",
       agentId: secondAgent,
     });
-
-    test.fail();
-    expect(written.status, "an invented serverType is still accepted").toBe(
-      200,
+    expect(otherDisabled, "the other agent stays unaffected").toBe(false);
+    expect((await aiTools.getDisabledTools("owner", secondAgent)).data).toEqual(
+      {},
     );
-
-    // The write landed in the first agent's scope and nowhere else. Both halves
-    // are asserted: an unstored write would leave the second agent `false` too.
-    expect(
-      (
-        await aiTools.isToolDisabled("owner", {
-          serverType: DISABLE_TARGET_SERVER,
-          toolName: "calculate",
-          agentId: firstAgent,
-        })
-      ).data,
-      "the agent it was written for",
-    ).toBe(true);
-    expect(other).toBe(false);
   });
 });
 
