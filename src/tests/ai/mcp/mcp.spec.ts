@@ -4123,7 +4123,7 @@ test.describe("MCP - a registered server and the conversation", () => {
 const ASK_CALCULATOR_TIME = `Call the tool named get_time (it belongs to the "calculator" MCP server) to get the current time, then report it. If you truly have no such tool, reply exactly: ${NO_TOOL_SENTINEL}`;
 
 test.describe("MCP - allow-always for a custom server's own tool", () => {
-  test(`BUG XXXXX: GET /api/2.0/ai/tools/is-allow-always - a custom MCP server's tool pre-approved through the dialog is not found under its own key`, async ({
+  test(`BUG 84009: GET /api/2.0/ai/tools/is-allow-always - a custom MCP server's tool pre-approved through the dialog is not found under its own key`, async ({
     apiSdk,
     paymentsApi,
   }) => {
