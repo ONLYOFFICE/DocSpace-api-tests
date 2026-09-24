@@ -2381,7 +2381,7 @@ function expectCancelledPlaceholder(settled: SettledReply): void {
 }
 
 test.describe("AI Messages - stopping a stream", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream cancels the generation", async ({
+  test("BUG 84028: POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream cancels the generation", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2473,7 +2473,7 @@ test.describe("AI Messages - stopping a stream", () => {
     expect(AiAgentChat.userMessages(atStop.data)).toHaveLength(1);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - the thread works again after the client hangs up", async ({
+  test("BUG 84028: POST /api/2.0/ai/ai/send-with-stream - the thread works again after the client hangs up", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2517,7 +2517,7 @@ test.describe("AI Messages - stopping a stream", () => {
       threadId,
       QUIET_MS,
     );
-    // Same regression as the "hanging up mid-stream" test above (BUG XXXXX):
+    // Same regression as the "hanging up mid-stream" test above (BUG 84028):
     // the abandoned placeholder is not reliably marked cancelled any more.
     test.fail();
     expectCancelledPlaceholder(abandoned);
@@ -2557,7 +2557,7 @@ test.describe("AI Messages - stopping a stream", () => {
     ).toBe("cancelled");
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/regenerate-stream - regenerating after a hang-up replaces the abandoned reply", async ({
+  test("BUG 84028: POST /api/2.0/ai/ai/regenerate-stream - regenerating after a hang-up replaces the abandoned reply", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2596,7 +2596,7 @@ test.describe("AI Messages - stopping a stream", () => {
       threadId,
       QUIET_MS,
     );
-    // Same regression as the "hanging up mid-stream" test above (BUG XXXXX):
+    // Same regression as the "hanging up mid-stream" test above (BUG 84028):
     // the abandoned placeholder is not reliably marked cancelled any more.
     test.fail();
     expectCancelledPlaceholder(abandoned);
@@ -5236,14 +5236,14 @@ test.describe("AI Messages - markdown in the .docx export", () => {
 // live 2026-08-21 to NOT reach inference — a thread already talking to a
 // model kept talking to it after that model got restricted mid-conversation.
 //
-// BUG XXXXX: no longer true. `send-with-stream` on an already-open thread now
-// answers 400 `"unknown profileId: <id>"` once the thread's model is
-// restricted — same error shape as an unresolvable profileId elsewhere (see
-// the Guest and AI-switch-off cases in chat.spec.ts / chat.ai-disabled.spec.ts).
-// Restriction now reaches live inference too, not just the catalogue and
-// agent updates.
+// No longer true — re-measured live 2026-09-24. `send-with-stream` on an
+// already-open thread now answers 400 `"unknown profileId: <id>"` once the
+// thread's model is restricted, the same error shape as an unresolvable
+// profileId elsewhere (see the Guest and AI-switch-off cases in
+// chat.spec.ts / chat.ai-disabled.spec.ts). Restriction reaches live
+// inference too, not just the catalogue and agent updates.
 test.describe("POST /api/2.0/ai/ai/send-with-stream - a model restricted mid-conversation", () => {
-  test("BUG XXXXX: send-with-stream - a thread keeps answering normally after its model gets restricted", async ({
+  test("send-with-stream - an existing thread cannot use a model after it becomes restricted", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5288,14 +5288,10 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - a model restricted mid-con
       setRestrictedAiModelsRequestDto: { models: new Set() },
     });
 
-    test.fail();
-    expect(after.status, "after restricting the agent's model").toBe(200);
+    expect(after.status, "after restricting the agent's model").toBe(400);
     expect(
-      after.streamError,
-      "restriction does not gate inference, only the catalogue and agent updates",
-    ).toBeUndefined();
-
-    const messages = await aiChat.waitForAssistantReplies("owner", threadId, 2);
-    expectHealthyAssistantReply(messages, 2);
+      after.error,
+      "restriction now rejects the thread's resolved profileId outright",
+    ).toBe(`unknown profileId: ${profile.id}`);
   });
 });
