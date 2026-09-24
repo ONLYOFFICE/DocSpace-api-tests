@@ -3933,7 +3933,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
     ).toBe(200);
   });
 
-  test("BUG XXXXX: POST /api/2.0/files/folder/{knowledgeId} - a folder created directly in the agent's Knowledge folder is not created", async ({
+  test("BUG 84033: POST /api/2.0/files/folder/{knowledgeId} - a folder created directly in the agent's Knowledge folder is not created", async ({
     apiSdk,
     paymentsApi,
   }) => {
