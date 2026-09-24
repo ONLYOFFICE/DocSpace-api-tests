@@ -735,11 +735,11 @@ test.describe("AI Preferences - deep mode and the answer", () => {
 //     the behaviour the requirement wants, asserted as a green check below.
 //   * a write with a thread id used to be a 400 (the scope has to be a numeric
 //     entity) — now it is a 200 `{success:true}` that changes nothing (BUG
-//     XXXXX, see below): confirmed live that this is not silent data
+//     84026, see below): confirmed live that this is not silent data
 //     corruption, just an endpoint claiming success for a write with no
 //     effect, which is its own problem.
 test.describe("AI Preferences - deep mode is not per thread", () => {
-  test("BUG XXXXX: GET|PUT /api/2.0/ai/preferences/set-deep-mode - a thread is not a scope of its own", async ({
+  test("BUG 84026: GET|PUT /api/2.0/ai/preferences/set-deep-mode - a thread is not a scope of its own", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -808,7 +808,7 @@ test.describe("AI Preferences - deep mode is not per thread", () => {
       "the other thread of the same agent reads the same fallback",
     ).toBe(false);
 
-    // BUG XXXXX: a thread id used to be refused as a write scope (400); it now
+    // BUG 84026: a thread id used to be refused as a write scope (400); it now
     // answers 200 and silently does nothing instead.
     test.fail();
     expect(

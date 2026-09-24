@@ -3933,6 +3933,56 @@ test.describe("AI Attachments - the destination of a device file", () => {
     ).toBe(200);
   });
 
+  test("BUG XXXXX: POST /api/2.0/files/folder/{knowledgeId} - a folder created directly in the agent's Knowledge folder is not created", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Knowledge is meant to hold only what the agent vectorizes and searches
+    // over — see [[ai_knowledge_search_tool_is_the_only_file_tool]]. A
+    // subfolder inside it has no meaning to that search and only adds
+    // structure the feature was never designed to walk, so the contract is
+    // that Knowledge refuses to create one, the same way the agent room root
+    // refuses everything (see the test above).
+    //
+    // Measured 2026-09-24: it does not refuse. `folders.createFolder` against
+    // Knowledge answers 200 and the folder is really filed there — 6/6 repeats,
+    // with `enableAiGateway()` called first as every test in this suite does
+    // (skipping that step gives a 403 that looks like the fix but is really
+    // the unrelated AI-not-provisioned fallback in
+    // [[ai_gateway_403_means_payment_provisioning_broke]] — do not read that as
+    // this bug being closed).
+    test.fail();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { knowledgeId } = await createAgentWithStorage(
+      apiSdk,
+      "Autotest Knowledge Folder Agent",
+    );
+    const folderTitle = "Autotest Knowledge Subfolder";
+
+    const { status } = await ownerApi.folders.createFolder({
+      folderId: knowledgeId,
+      createFolder: { title: folderTitle },
+    });
+
+    // Side-effect check before the status check — see
+    // [[feedback_assertion_order]] — so a status assertion that fails first
+    // in this test.fail test never hides whether the folder also leaked in.
+    const { data: knowledge, status: knowledgeStatus } =
+      await ownerApi.folders.getFolderByFolderId({ folderId: knowledgeId });
+    expect(knowledgeStatus, "the owner reads Knowledge").toBe(200);
+    expect(
+      (knowledge.response?.folders ?? []) as Array<{ title?: string }>,
+      "the folder must not appear in Knowledge",
+    ).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ title: folderTitle })]),
+    );
+
+    expect(status, "creating a subfolder in Knowledge").not.toBe(200);
+  });
+
   test("POST /api/2.0/files/{roomId}/upload - a room created as RoomType.AiRoom refuses a device file at its root as well", async ({
     apiSdk,
   }) => {
