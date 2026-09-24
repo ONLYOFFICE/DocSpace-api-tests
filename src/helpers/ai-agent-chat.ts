@@ -591,6 +591,118 @@ export class AiAgentChat extends AiHttp {
   }
 
   /**
+   * Cuts the connection right after the generation demonstrably starts,
+   * instead of guessing a wall-clock delay. `sendAndAbort` races a fixed
+   * `afterMs` against however fast the model happens to answer that run — which
+   * made "mid-stream" a coin flip: at 5s against an $\approx$24s answer it
+   * worked, but the model has since gotten faster and the same 5s cut a whole
+   * short reply almost as often as it caught one mid-sentence (measured
+   * 2026-09-23: two answers finished in 8.4s and 9.5s, well inside the 5s
+   * window's assumed safety margin).
+   *
+   * `apiSdk.request` (Playwright's `APIRequestContext`) cannot help here: it
+   * only exposes `response.text()`, which buffers the whole body before
+   * returning — there is no way to see a chunk as it arrives. This bypasses it
+   * and uses the platform `fetch`, reading `response.body` chunk by chunk so
+   * the abort can be driven off the wire protocol itself: `send-with-stream`
+   * is newline-delimited JSON frames (see `streamFrames`), and a `message-delta`
+   * carrying real text is the model's generation actually under way — as
+   * opposed to `user-message-stored` (an echo of the question, not the answer)
+   * or an early `message-delta` that still carries no text. The very first
+   * such frame is where the connection is cut.
+   *
+   * `streamedText` is what had reached the client at that instant — short
+   * (usually a handful to a few dozen characters for a long-form prompt) and a
+   * fragment, not a finished reply. A test that wants proof the cut really
+   * landed mid-generation asserts on that rather than on how long the whole
+   * thing would have taken.
+   */
+  async sendAndAbortOnFirstDelta(
+    role: AgentRole,
+    body: {
+      threadId: string;
+      profileId?: string;
+      agentId: number | string;
+      message: string;
+    },
+  ): Promise<{ aborted: boolean; elapsedMs: number; streamedText: string }> {
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    const url = `${this.tokenStore.portalBaseUrl}/api/2.0/ai/ai/send-with-stream`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: this.headers(role),
+      body: JSON.stringify({
+        threadId: body.threadId,
+        entityId: String(body.agentId),
+        ...(body.profileId === undefined ? {} : { profileId: body.profileId }),
+        userMessage: {
+          role: "user",
+          content: [{ type: "text", text: body.message }],
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.body) {
+      return {
+        aborted: false,
+        elapsedMs: Date.now() - startedAt,
+        streamedText: "",
+      };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let aborted = false;
+    let streamedText = "";
+
+    try {
+      outer: while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? ""; // keep the last, possibly partial, line
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("{")) continue;
+          let frame: AiStreamFrame;
+          try {
+            frame = JSON.parse(trimmed);
+          } catch {
+            continue;
+          }
+          if (frame.type === "message-delta") {
+            const text = AiAgentChat.frameText(frame);
+            if (text.length > 0) {
+              streamedText = text;
+              controller.abort();
+              aborted = true;
+              break outer;
+            }
+          }
+        }
+      }
+    } catch {
+      // The abort itself throws inside the read loop — that is the event
+      // under test, not a failure of it.
+      aborted = true;
+    } finally {
+      try {
+        await reader.cancel();
+      } catch {
+        // Connection is already gone.
+      }
+    }
+
+    return { aborted, elapsedMs: Date.now() - startedAt, streamedText };
+  }
+
+  /**
    * Polls the newest assistant reply until its text has not grown for
    * `quietMs`, and returns it with the length trajectory.
    *

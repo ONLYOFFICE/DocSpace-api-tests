@@ -1,6 +1,8 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import {
+  FileShare,
+  FilterType,
   FolderType,
   RoomType,
   SearchArea,
@@ -3119,5 +3121,208 @@ test.describe("Forms room visited via external link appears in the Forms section
     });
     expect(status).toBe(200);
     expect(folderIds(forms)).toContain(roomId);
+  });
+});
+
+async function getSharedWithMeFolderId(
+  folders: ReturnType<ApiSDK["forRole"]>["folders"],
+): Promise<number> {
+  const { data } = await folders.getRootFolders({});
+  const section = data.response!.find(
+    (s) => s.current?.title === "Shared with me",
+  );
+  return section!.current!.id!;
+}
+
+test.describe("GET /api/2.0/files/:folderId - Shared with me: PDF filters (BUG 81919)", () => {
+  test.fail(
+    "BUG 81919: GET /files/:folderId - Shared with me ignores the PDF form filter",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: userData, api: userApi } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      const { data: docxData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Shared PdfForm Filter Doc" },
+      });
+      const docxTitle = docxData.response!.title!;
+
+      const { data: pdfSourceData } =
+        await ownerApi.files.createFileInMyDocuments({
+          createFileJsonElement: {
+            title: "Autotest Shared PdfForm Filter Pdf Source",
+          },
+        });
+      const { data: pdfData } = await ownerApi.files.saveFileAsPdf({
+        id: pdfSourceData.response!.id!,
+        saveAsPdfInteger: {
+          folderId: myDocsFolderId,
+          title: "Autotest Shared PdfForm Filter Pdf",
+        },
+      });
+      const pdfTitle = pdfData.response!.title!;
+
+      const pdfFormId = await createOoForm(ownerApi, myDocsFolderId);
+      const { data: pdfFormInfo } = await ownerApi.files.getFileInfo({
+        fileId: pdfFormId,
+      });
+      const pdfFormTitle = pdfFormInfo.response!.title!;
+
+      for (const id of [
+        docxData.response!.id!,
+        pdfData.response!.id!,
+        pdfFormId,
+      ]) {
+        await ownerApi.sharing.setFileSecurityInfo({
+          id,
+          securityInfoSimpleRequestDto: {
+            share: [{ shareTo: userId, access: FileShare.Read }],
+            notify: false,
+          },
+        });
+      }
+
+      const sharedWithMeId = await getSharedWithMeFolderId(userApi.folders);
+
+      const { data, status } = await userApi.folders.getFolderByFolderId({
+        folderId: sharedWithMeId,
+        filterType: FilterType.PdfForm,
+      });
+
+      expect(status).toBe(200);
+      const titles = (data.response!.files ?? []).map((f) => f.title);
+
+      // The PdfForm filter must exclude the .docx and the plain .pdf -- only
+      // the PDF form belongs in the filtered result.
+      expect(titles).not.toContain(docxTitle);
+      expect(titles).not.toContain(pdfTitle);
+      expect(titles).toContain(pdfFormTitle);
+    },
+  );
+
+  test.fail(
+    "BUG 81919: GET /files/:folderId - Shared with me ignores the PDF document filter",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+      const myDocsFolderId = myDocsData.response!.current!.id!;
+
+      const { data: userData, api: userApi } =
+        await apiSdk.addAuthenticatedMember("owner", "User");
+      const userId = userData.response!.id!;
+
+      const { data: docxData } = await ownerApi.files.createFileInMyDocuments({
+        createFileJsonElement: { title: "Autotest Shared Pdf Filter Doc" },
+      });
+      const docxTitle = docxData.response!.title!;
+
+      const { data: pdfSourceData } =
+        await ownerApi.files.createFileInMyDocuments({
+          createFileJsonElement: {
+            title: "Autotest Shared Pdf Filter Pdf Source",
+          },
+        });
+      const { data: pdfData } = await ownerApi.files.saveFileAsPdf({
+        id: pdfSourceData.response!.id!,
+        saveAsPdfInteger: {
+          folderId: myDocsFolderId,
+          title: "Autotest Shared Pdf Filter Pdf",
+        },
+      });
+      const pdfTitle = pdfData.response!.title!;
+
+      const pdfFormId = await createOoForm(ownerApi, myDocsFolderId);
+      const { data: pdfFormInfo } = await ownerApi.files.getFileInfo({
+        fileId: pdfFormId,
+      });
+      const pdfFormTitle = pdfFormInfo.response!.title!;
+
+      for (const id of [
+        docxData.response!.id!,
+        pdfData.response!.id!,
+        pdfFormId,
+      ]) {
+        await ownerApi.sharing.setFileSecurityInfo({
+          id,
+          securityInfoSimpleRequestDto: {
+            share: [{ shareTo: userId, access: FileShare.Read }],
+            notify: false,
+          },
+        });
+      }
+
+      const sharedWithMeId = await getSharedWithMeFolderId(userApi.folders);
+
+      const { data, status } = await userApi.folders.getFolderByFolderId({
+        folderId: sharedWithMeId,
+        filterType: FilterType.Pdf,
+      });
+
+      expect(status).toBe(200);
+      const titles = (data.response!.files ?? []).map((f) => f.title);
+
+      // The Pdf filter must exclude the .docx and the PDF form -- only the
+      // plain PDF document belongs in the filtered result.
+      expect(titles).not.toContain(docxTitle);
+      expect(titles).not.toContain(pdfFormTitle);
+      expect(titles).toContain(pdfTitle);
+    },
+  );
+
+  test("GET /files/:folderId - Shared with me: FoldersOnly filter still applies (control)", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myDocsData } = await ownerApi.folders.getMyFolder();
+    const myDocsFolderId = myDocsData.response!.current!.id!;
+
+    const { data: userData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
+
+    const { data: docxData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest Shared FoldersOnly Filter Doc",
+      },
+    });
+
+    const { data: folderData } = await ownerApi.folders.createFolder({
+      folderId: myDocsFolderId,
+      createFolder: { title: "Autotest Shared FoldersOnly Filter Folder" },
+    });
+    const folderTitle = folderData.response!.title!;
+
+    await ownerApi.sharing.setFileSecurityInfo({
+      id: docxData.response!.id!,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    await ownerApi.sharing.setFolderSecurityInfo({
+      id: folderData.response!.id!,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const sharedWithMeId = await getSharedWithMeFolderId(userApi.folders);
+
+    const { data, status } = await userApi.folders.getFolderByFolderId({
+      folderId: sharedWithMeId,
+      filterType: FilterType.FoldersOnly,
+    });
+
+    expect(status).toBe(200);
+    // Sanity/positive control: filtering by other file types works correctly
+    // in Shared with me -- only Pdf/PdfForm (BUG 81919) are broken.
+    expect(data.response!.files?.length ?? 0).toBe(0);
+    const folderTitles = (data.response!.folders ?? []).map((f) => f.title);
+    expect(folderTitles).toContain(folderTitle);
   });
 });

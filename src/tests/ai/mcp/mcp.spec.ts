@@ -381,14 +381,16 @@ test.describe("MCP - Disabling individual tools", () => {
     expect(cleared).toBe(false);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - the disabled list is scoped per agent", async ({
+  test("PUT /api/2.0/ai/tools/set-disabled - the disabled list is scoped per agent", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // `DISABLE_TARGET_SERVER` is an invented serverType, which set-disabled
-    // used to accept — see "the server type used to be an open vocabulary" in
-    // the block below. Now it answers 400 `unknown serverType`, so the write
-    // this test measures never lands at all, on either agent.
+    // `DISABLE_TARGET_SERVER` is a real custom MCP server, registered for the
+    // first agent only — so its name is a valid `serverType` there, and the
+    // second agent never even claims it exists. This is what makes it a valid
+    // `serverType` per "serverType must be a built-in or a registered custom
+    // server" below: an unregistered/invented name 400s instead of
+    // round-tripping.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -404,36 +406,48 @@ test.describe("MCP - Disabling individual tools", () => {
       profileId,
     });
 
+    await aiTools.addCustomServer("owner", {
+      name: DISABLE_TARGET_SERVER,
+      config: SERVER_CONFIG,
+      agentId: firstAgent,
+    });
+
+    const { data: before } = await aiTools.getDisabledTools(
+      "owner",
+      secondAgent,
+    );
+    expect(before, "second agent starts with nothing disabled").toEqual({});
+
     const written = await aiTools.setDisabledTools("owner", {
       serverType: DISABLE_TARGET_SERVER,
       toolNames: ["calculate"],
       agentId: firstAgent,
     });
+    expect(written.status).toBe(200);
+    expect(written.data?.success).toBe(true);
 
-    const { data: other } = await aiTools.isToolDisabled("owner", {
+    // The write is reflected for the agent it was made for...
+    const { data: ownDisabled } = await aiTools.isToolDisabled("owner", {
+      serverType: DISABLE_TARGET_SERVER,
+      toolName: "calculate",
+      agentId: firstAgent,
+    });
+    expect(ownDisabled, "the agent the write was made for").toBe(true);
+    expect((await aiTools.getDisabledTools("owner", firstAgent)).data).toEqual({
+      [DISABLE_TARGET_SERVER]: ["calculate"],
+    });
+
+    // ...and does not leak to the second agent, which never registered this
+    // server and never had anything disabled on it.
+    const { data: otherDisabled } = await aiTools.isToolDisabled("owner", {
       serverType: DISABLE_TARGET_SERVER,
       toolName: "calculate",
       agentId: secondAgent,
     });
-
-    test.fail();
-    expect(written.status, "an invented serverType is still accepted").toBe(
-      200,
+    expect(otherDisabled, "the other agent stays unaffected").toBe(false);
+    expect((await aiTools.getDisabledTools("owner", secondAgent)).data).toEqual(
+      {},
     );
-
-    // The write landed in the first agent's scope and nowhere else. Both halves
-    // are asserted: an unstored write would leave the second agent `false` too.
-    expect(
-      (
-        await aiTools.isToolDisabled("owner", {
-          serverType: DISABLE_TARGET_SERVER,
-          toolName: "calculate",
-          agentId: firstAgent,
-        })
-      ).data,
-      "the agent it was written for",
-    ).toBe(true);
-    expect(other).toBe(false);
   });
 });
 
@@ -2084,7 +2098,7 @@ test.describe("MCP - custom servers scoped to a room", () => {
     );
   });
 
-  test("BUG XXXXX: POST|GET /api/2.0/ai/tools/*-custom-server - a room member reads the room's tools but cannot register any", async ({
+  test("BUG 83998: POST|GET /api/2.0/ai/tools/*-custom-server - a room member reads the room's tools but cannot register any", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2742,22 +2756,30 @@ test.describe("MCP - concurrent writes to one scope", () => {
 });
 
 test.describe("MCP - server types", () => {
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - the server type used to be an open vocabulary, now a fixed list", async ({
+  test("PUT /api/2.0/ai/tools/set-disabled - serverType must be a built-in or a registered custom server", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Was: no enum behind `serverType` — the store took any string and reported
-    // it back. `editor`/`document`/`form`/`presentation` (the editor's tool
-    // groups) and an invented name all stored the same way.
+    // `serverType` used to accept any string and simply echo it back — but
+    // `editor`/`document`/`form`/`presentation` were never real DocSpace editor
+    // tool groups; they were arbitrary probe strings picked specifically to
+    // show the vocabulary was unvalidated (this file used to say so directly: a
+    // test that read them as validated names "would pass for the wrong
+    // reason"). The SDK's own doc for `serverType` backs that up — it is "MCP
+    // server name / host tool group id", nothing about editor/document/form/
+    // presentation groups.
     //
-    // Now: `set-disabled` answers 400 `{"error":"unknown serverType \"<name>\";
-    // valid values: docspace, docspace-integration,
-    // docspace-integration-approval, image-generation, web-search"}` for every
-    // one of them — none of the five are on that list either. This is not just
-    // a stricter test-data problem: a *custom* MCP server's own name is its
-    // `serverType` for this route (see the "server names as map keys" block
-    // above), so the practical loss is that a custom server's individual tools
-    // can no longer be disabled at all, only the five built-ins.
+    // Now `set-disabled` validates the value: a request names either one of the
+    // five built-ins (`docspace`, `docspace-integration`,
+    // `docspace-integration-approval`, `image-generation`, `web-search`) or a
+    // custom server actually registered for that scope (see "Owner disables and
+    // re-enables a tool of a registered server" above — that still works fine),
+    // and 400s `unknown serverType "<name>"` otherwise. That is the correct,
+    // current contract, not a lost feature — `set-allow-always`/`is-allow-always`
+    // were deliberately left open (see "a pre-approval granted for one server
+    // type answers for every other type" above, still accepts any string), so
+    // the validation added here is a deliberate, scoped tightening of this one
+    // route rather than accidental breakage.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2769,7 +2791,7 @@ test.describe("MCP - server types", () => {
       profileId,
     });
 
-    const serverTypes = [
+    const unknownServerTypes = [
       "editor",
       "document",
       "form",
@@ -2777,43 +2799,38 @@ test.describe("MCP - server types", () => {
       "autotest-not-a-server-type",
     ];
 
-    const results: Array<[string, number]> = [];
-    for (const serverType of serverTypes) {
+    for (const serverType of unknownServerTypes) {
       const set = await aiTools.setDisabledTools("owner", {
         serverType,
         toolNames: ["autotest_tool"],
         agentId,
       });
-      results.push([serverType, set.status]);
+      expect(set.status, `set-disabled for ${serverType}`).toBe(400);
     }
 
-    test.fail();
-    for (const [serverType, status] of results) {
-      expect(status, `set-disabled for ${serverType}`).toBe(200);
-    }
-
+    // None of the rejected writes landed.
     const disabled = await aiTools.getDisabledTools("owner", agentId);
     expect(disabled.status).toBe(200);
-    expect(Object.keys(disabled.data ?? {}).sort()).toEqual(
-      [...serverTypes].sort(),
-    );
+    expect(disabled.data).toEqual({});
 
-    for (const serverType of serverTypes) {
-      const isDisabled = await aiTools.isToolDisabled("owner", {
-        serverType,
-        toolName: "autotest_tool",
-        agentId,
-      });
-      expect(isDisabled.status, serverType).toBe(200);
-      expect(isDisabled.data, serverType).toBe(true);
-    }
-
-    // Invented server types are stored as disabled-tool keys and nothing more:
-    // the catalogue is unaffected by any of it (it publishes nothing at all —
-    // see the system tools block at the top of this file).
-    const system = await aiTools.listSystemTools("owner");
-    expect(system.status).toBe(200);
-    expect(system.data).toEqual(EMPTY_TOOL_CATALOGUE);
+    // Positive control: a real, registered custom server's own name is not
+    // "unknown" and still round-trips — so the 400s above are the validation
+    // rule at work, not a write path that is broken outright.
+    await aiTools.addCustomServer("owner", {
+      name: "autotest-valid-server-type",
+      config: SERVER_CONFIG,
+      agentId,
+    });
+    const validSet = await aiTools.setDisabledTools("owner", {
+      serverType: "autotest-valid-server-type",
+      toolNames: ["autotest_tool"],
+      agentId,
+    });
+    expect(validSet.status).toBe(200);
+    expect(validSet.data?.success).toBe(true);
+    expect((await aiTools.getDisabledTools("owner", agentId)).data).toEqual({
+      "autotest-valid-server-type": ["autotest_tool"],
+    });
   });
 });
 
@@ -4106,7 +4123,7 @@ test.describe("MCP - a registered server and the conversation", () => {
 const ASK_CALCULATOR_TIME = `Call the tool named get_time (it belongs to the "calculator" MCP server) to get the current time, then report it. If you truly have no such tool, reply exactly: ${NO_TOOL_SENTINEL}`;
 
 test.describe("MCP - allow-always for a custom server's own tool", () => {
-  test(`BUG XXXXX: GET /api/2.0/ai/tools/is-allow-always - a custom MCP server's tool pre-approved through the dialog is not found under its own key`, async ({
+  test(`BUG 84009: GET /api/2.0/ai/tools/is-allow-always - a custom MCP server's tool pre-approved through the dialog is not found under its own key`, async ({
     apiSdk,
     paymentsApi,
   }) => {

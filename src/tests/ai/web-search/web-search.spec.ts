@@ -1603,7 +1603,7 @@ test.describe("AI Web Search - entity scope robustness", () => {
 //    business rules — missing baseUrl, missing provider) — no longer crashes;
 //    answers 200 with a `{success:false, error}` envelope instead. A 200 for
 //    an application-level failure is not this API's convention anywhere else
-//    on this route, so this is filed as its own bug (BUG XXXXX) rather than
+//    on this route, so this is filed as its own bug (BUG 83994) rather than
 //    folded into BUG 82812 — tested below as `test.fail`, expecting 400.
 test.describe("AI Web Search - configure crashes instead of refusing", () => {
   test("BUG 82812: PUT /api/2.0/ai/web-search/configure - a malformed body crashes with 500 instead of a validation error", async ({
@@ -1642,7 +1642,7 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
   // `{success:false, error:{field,message}}` instead of a 4xx is not this
   // API's convention anywhere else on this route (the structurally-malformed
   // case above is at least consistently wrong with a 500; the auth checks
-  // elsewhere in this file are consistently 403) - call it BUG XXXXX.
+  // elsewhere in this file are consistently 403) - call it BUG 83994.
   // Measured 2026-09-15 for `owner` with the AI gateway enabled:
   //   - {config:{provider:"exa", key, isCloudProvider:true}} (no baseUrl) ->
   //     200 {success:false, error:{field:"url", message:"Base URL is
@@ -1654,7 +1654,7 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
   // Guest and an AI-disabled portal (see the malformed-body tests elsewhere
   // in this file for those actors), so this is a client-error/validation
   // question, not an authorization one - 400, not 200.
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - a well-formed but business-invalid config answers 200 with success:false instead of 400", async ({
+  test("BUG 83994: PUT /api/2.0/ai/web-search/configure - a well-formed but business-invalid config answers 200 with success:false instead of 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
