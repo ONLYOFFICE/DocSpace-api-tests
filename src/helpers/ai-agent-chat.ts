@@ -1095,12 +1095,17 @@ export class AiAgentChat extends AiHttp {
   }
 
   /** OpenAI-compatible SSE variant: `data: {...}` frames ending in `data: [DONE]`. */
-  sendWithStreamOpenAi(role: AgentRole, body: Record<string, unknown>) {
+  sendWithStreamOpenAi(
+    role: AgentRole,
+    body: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+  ) {
     return this.call(
       role,
       "post",
       "/api/2.0/ai/ai/send-with-stream-openai",
       body,
+      options,
     );
   }
 
