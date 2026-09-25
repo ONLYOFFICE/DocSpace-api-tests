@@ -2279,13 +2279,25 @@ test.describe("AI Messages - per-message routes with AI Disabled", () => {
 //
 //   POST /ai/ai/regenerate-stream       { threadId, entityId?, profileId? }
 //   POST /ai/ai/send                    { actionType, userMessage, entityId? }
-//   POST /ai/ai/send-custom             { isStream, systemPrompt, userMessage }
+//   POST /ai/ai/send-custom             { isStream, systemPrompt, userMessage, actionArgs? }
 //   POST /ai/ai/send-with-stream-openai same body as send-with-stream
 //
-// `regenerate-stream` is the regenerate of section 9.4 and it works. `send` and
-// `send-custom` are the one-shot, non-threaded paths and they do not: the model
-// call comes back with an `auth` error even on a portal where the streaming path
-// answers normally, so section 11's per-error-type matrix cannot be built on them.
+// `send` and `send-custom` used to come back with an `auth` error even on a
+// portal where the streaming path answered normally (BUG 82833/82835/82836,
+// fixed) — both now reach the model. Neither persists anything: no thread, no
+// history, confirmed both by the SDK's own operation docs and, in "AI Messages
+// - one-shot inference" below, by the live response carrying no thread-side
+// `id` at all and by `GET /ai/threads/list` staying empty after calling them.
+//
+// `send-custom` has no `profileId` field anywhere it can actually be sent —
+// **not a product bug, an SDK documentation/schema mismatch**: the operation's
+// own description claims "The profile is the explicit `profileId` when it
+// resolves, otherwise the `Default` assignment slot", but `AiAiSendCustomRequest`
+// is `{isStream, systemPrompt, userMessage, actionArgs?}` and `AiAiActionArgs`
+// is `{tools?, isReasoning?, prompt?}` — no `profileId` in either, and the
+// latter's own comment says the engine's `profile` is "never sent by the
+// caller". So there is deliberately no profileId/fallback/ACL-bypass test
+// below for this route: there is no such parameter to test.
 //
 // Two protocol notes, because they differ per route:
 //   * send-with-stream / regenerate-stream stream newline-delimited JSON frames
@@ -3646,6 +3658,22 @@ test.describe("AI Messages - regenerate with AI Disabled", () => {
   });
 });
 
+const OPENAI_WEATHER_TOOL = {
+  name: "get_weather",
+  description: "Get the current weather for a city.",
+  inputSchema: {
+    type: "object",
+    properties: { city: { type: "string", description: "City name" } },
+    required: ["city"],
+    additionalProperties: false,
+  },
+  enabled: true,
+  requireApproval: true,
+};
+
+const OPENAI_ASK_FOR_TOOL =
+  "What is the weather in Paris? Call the get_weather tool.";
+
 test.describe("AI Messages - the OpenAI-compatible stream", () => {
   test("POST /api/2.0/ai/ai/send-with-stream-openai - streams OpenAI chunks and terminates with [DONE]", async ({
     apiSdk,
@@ -3713,6 +3741,466 @@ test.describe("AI Messages - the OpenAI-compatible stream", () => {
 
     // The text assembled from the chunks is a real answer, not an empty stream.
     expect(assembled.length).toBeGreaterThan(0);
+  });
+
+  // The tests below do not re-run send-with-stream's whole business matrix —
+  // that lives in chat/chat.spec.ts and above it in this file. What is worth
+  // proving here is narrower: that re-encoding the same chat round as an
+  // OpenAI-compatible stream does not change what it DOES — thread creation,
+  // persistence, profile resolution, the prompt override and the pause on a
+  // tool call all have to behave the same way, just wearing a different wire
+  // format.
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - a new thread is created and both messages are persisted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest OpenAI Thread Agent",
+      profileId,
+    });
+
+    const question = "Reply with the single word OK.";
+    const { status, text } = await aiChat.sendWithStreamOpenAi("owner", {
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: question }],
+      },
+    });
+    expect(status).toBe(200);
+    const { done, text: assembled } = AiAgentChat.openAiStreamChunks(text);
+    expect(done).toBe(true);
+    expect(assembled.length).toBeGreaterThan(0);
+
+    // No threadId went out, so the route had to open one of its own — the same
+    // contract send-with-stream has.
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.status).toBe(200);
+    expect(listed.data).toHaveLength(1);
+    const threadId = listed.data[0].threadId!;
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    expectHealthyAssistantReply(messages.data);
+    const asked = AiAgentChat.userMessages(messages.data);
+    expect(asked, "the question is stored once").toHaveLength(1);
+    expect(AiAgentChat.messageText(asked[0])).toBe(question);
+    expect(AiAgentChat.assistantText(messages.data)).toBe(assembled);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - continuing an existing thread carries its context forward", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Two independent questions would pass on a backend that starts a fresh
+    // conversation every turn, so the second question can only be answered
+    // from the first one's context — same technique chat.spec.ts uses for the
+    // plain endpoint.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { aiChat, profileId, agentId, threadId } = await setupThread(apiSdk);
+
+    const first = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Remember the code word TANGERINE. Reply with just: OK.",
+          },
+        ],
+      },
+    });
+    expect(first.status).toBe(200);
+
+    const second = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "What code word did I ask you to remember? Reply with just that word.",
+          },
+        ],
+      },
+    });
+    expect(second.status).toBe(200);
+    const { text: secondAnswer } = AiAgentChat.openAiStreamChunks(second.text);
+    expect(secondAnswer.toUpperCase()).toContain("TANGERINE");
+
+    // One conversation, not two — the second call reused the given threadId
+    // rather than opening its own.
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.data.map((thread) => thread.threadId)).toEqual([threadId]);
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(AiAgentChat.userMessages(messages.data)).toHaveLength(2);
+    expect(AiAgentChat.assistantMessages(messages.data)).toHaveLength(2);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - a message with no profileId keeps the thread's model, and an explicit one moves it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // A room, not an agent: an agent fixes its own model and neither profileId
+    // nor omitting it changes that — see "AI Chat - the model of an agent
+    // room" in chat/chat.spec.ts. This route's parity claim is about the
+    // thread's own model, the same precedence "the profile sent with a
+    // message becomes the thread's model" pins for the plain endpoint.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [profileA, profileB] = twoTextProfiles(catalogue);
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest OpenAI Precedence Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest openai precedence thread",
+      profileId: profileA.id,
+      agentId: roomId,
+    });
+
+    const viaEntity = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+    expect(viaEntity.status).toBe(200);
+    const entityChunks = AiAgentChat.openAiStreamChunks(viaEntity.text).chunks;
+    expect(
+      entityChunks[0]?.model,
+      "no profileId keeps the thread on the model it was created with",
+    ).toBe(profileA.modelId);
+
+    const viaExplicit = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId: profileB.id,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+    expect(viaExplicit.status).toBe(200);
+    const explicitChunks = AiAgentChat.openAiStreamChunks(
+      viaExplicit.text,
+    ).chunks;
+    expect(
+      explicitChunks[0]?.model,
+      "an explicit profileId moves the thread's model, same precedence as send-with-stream",
+    ).toBe(profileB.modelId);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - actionArgs.prompt.replace applies for one request and does not stick", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // A room rather than an agent — chat.spec.ts's BUG 83236 documents that an
+    // agent's own stored instructions currently beat a per-request replace, so
+    // an agent entity would be testing that open bug, not this route's parity
+    // with the plain endpoint.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest OpenAI Prompt Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest openai prompt thread",
+      profileId,
+      agentId: roomId,
+    });
+
+    const marker = "ZZOPENAIPROMPTZZ";
+    const withOverride = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId,
+      actionArgs: {
+        prompt: {
+          mode: "replace",
+          text: `You are a helpful test assistant. Keep answers very short. Formatting rule: finish every reply with the exact token ${marker}.`,
+        },
+      },
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Hi there!" }],
+      },
+    });
+    expect(withOverride.status).toBe(200);
+    const { text: firstAnswer } = AiAgentChat.openAiStreamChunks(
+      withOverride.text,
+    );
+    expect(firstAnswer, "the per-request prompt reached the model").toMatch(
+      new RegExp(`\\b${marker}\\b`),
+    );
+
+    const withoutOverride = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Hi again!" }],
+      },
+    });
+    expect(withoutOverride.status).toBe(200);
+    const { text: secondAnswer } = AiAgentChat.openAiStreamChunks(
+      withoutOverride.text,
+    );
+    expect(
+      secondAnswer,
+      "the override does not persist to the next request",
+    ).not.toMatch(new RegExp(`\\b${marker}\\b`));
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - a tool call surfaces as OpenAI tool_calls, closes with finish_reason tool_calls, and leaks no internal frame type", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, agentId, threadId } = await setupThread(apiSdk);
+
+    const { status, text } = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      actionArgs: { tools: [OPENAI_WEATHER_TOOL] },
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: OPENAI_ASK_FOR_TOOL }],
+      },
+    });
+    expect(status).toBe(200);
+
+    const { chunks, done } = AiAgentChat.openAiStreamChunks(text);
+    expect(done, "the stream still ends with [DONE] on a pause").toBe(true);
+
+    // Nothing from the NDJSON vocabulary — `send-with-stream`'s own frame
+    // types — is meant to be visible through this wire shape at all.
+    for (const chunk of chunks) {
+      expect(JSON.stringify(chunk)).not.toMatch(
+        /tool-call-pending|message-start|message-end|message-delta|user-message-stored/,
+      );
+    }
+
+    const finishReasons = chunks.flatMap((chunk) => {
+      const choices = chunk.choices as Array<{
+        finish_reason?: string | null;
+      }>;
+      return choices.map((choice) => choice.finish_reason);
+    });
+    expect(
+      finishReasons,
+      `the stream closes on the tool call; finish reasons were ${JSON.stringify(finishReasons)}`,
+    ).toContain("tool_calls");
+
+    const toolCallDeltas = chunks.flatMap((chunk) => {
+      const choices = chunk.choices as Array<{
+        delta?: { tool_calls?: Array<Record<string, unknown>> };
+      }>;
+      return choices.flatMap((choice) => choice.delta?.tool_calls ?? []);
+    });
+    expect(
+      toolCallDeltas.length,
+      "the model's tool call is represented in the stream",
+    ).toBeGreaterThan(0);
+    const names = toolCallDeltas
+      .map((call) => (call.function as { name?: string } | undefined)?.name)
+      .filter((name): name is string => Boolean(name));
+    expect(names).toContain("get_weather");
+
+    // The pause is stored through the same mechanism as the plain endpoint's,
+    // so it resumes through the shared approve/deny routes.
+    const messages = await aiChat.readMessages("owner", threadId);
+    const reply = AiAgentChat.assistantMessages(messages.data)[0];
+    expect(reply, "the paused reply is stored").toBeDefined();
+    expect(AiAgentChat.toolCalls(reply!)).toHaveLength(1);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - a model that cannot serve the request reports the failure inside the stream, not as an HTTP error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Mirrors chat.spec.ts's "a model that cannot serve the request" control:
+    // an image-generation profile asked to hold a conversation. The plain
+    // endpoint answers 200 and carries the failure as a `message-incomplete`
+    // frame with `status.error.code:"bad_request"` — this proves the OpenAI
+    // adapter reports the same failure rather than crashing or hanging.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const imageProfile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.imageOnly,
+    );
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest OpenAI Provider Failure Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest openai failure thread",
+      profileId: imageProfile.id,
+      agentId: roomId,
+    });
+
+    const { status, text } = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId: imageProfile.id,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+    expect(status, "the refusal is reported inside the stream").toBe(200);
+
+    const failedTurn = await aiChat.waitForAssistantReply("owner", threadId);
+    const failure = AiAgentChat.assistantStatus(failedTurn);
+    expect(failure?.type).toBe("incomplete");
+    expect(failure?.error?.code, JSON.stringify(failure)).toBe("bad_request");
+
+    // The wire shape is neither a `chat.completion.chunk` nor the plain
+    // endpoint's NDJSON `{"type":"error"}` — this is a documented contract, not
+    // just what the live portal happened to answer: the SDK's generated
+    // `AiOpenAIStreamError` DTO (ai-open-aistream-error.d.ts) says so in words —
+    // "When the upstream request fails mid-stream the OpenAI API emits a single
+    // `data:` line carrying an `error` object (no `choices`), then closes the
+    // stream [...] Mirrors that shape so a host exposing an OpenAI-compatible
+    // endpoint stays wire-compatible" — and its sibling `AiOpenAIStreamErrorError`
+    // pins the field set this asserts on: `message`, `type`, `code`, `param`.
+    // Measured live, matching that DTO exactly: `data: {"error":
+    // {"message":"400 model is not a chat model","type":"invalid_request_error",
+    // "code":"bad_request","param":null}}`.
+    const dataLines = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trim());
+    expect(
+      dataLines[dataLines.length - 1],
+      "the stream still ends cleanly",
+    ).toBe("[DONE]");
+    const errorFrames = dataLines
+      .filter((line) => line !== "[DONE]")
+      .map((line) => JSON.parse(line) as { error?: Record<string, unknown> })
+      .filter((frame) => frame.error !== undefined);
+    expect(
+      errorFrames,
+      `the refusal must be readable as an OpenAI error frame; body was ${text.slice(0, 500)}`,
+    ).toHaveLength(1);
+    expect(errorFrames[0].error?.code).toBe("bad_request");
+    expect(errorFrames[0].error?.type).toBe("invalid_request_error");
+    expect(errorFrames[0].error?.message).toContain("not a chat model");
+    // The DTO declares `param` required (nullable, not optional) — absent
+    // would mean this frame drifted from its own documented shape.
+    expect(errorFrames[0].error).toHaveProperty("param");
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - hanging up mid-stream cancels the generation and the thread stays usable", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { aiChat, profileId, agentId, threadId } = await setupThread(apiSdk);
+
+    let aborted = false;
+    try {
+      await aiChat.sendWithStreamOpenAi(
+        "owner",
+        {
+          threadId,
+          entityId: String(agentId),
+          profileId,
+          userMessage: {
+            role: "user",
+            content: [{ type: "text", text: LONG_ANSWER_PROMPT }],
+          },
+        },
+        { timeoutMs: 5000 },
+      );
+    } catch {
+      // The request context threw on its own timeout — the connection is
+      // gone, which is the event under test.
+      aborted = true;
+    }
+    expect(aborted, "the client hung up before the reply finished").toBe(true);
+
+    // A placeholder reply is left behind, the same as the plain endpoint's —
+    // see the "stopping a stream" block above for the exact shape, including
+    // the currently open BUG 84028 regression around its `status`.
+    const abandoned = await aiChat.waitForStableAssistantText(
+      "owner",
+      threadId,
+      QUIET_MS,
+    );
+    expect(
+      abandoned.message,
+      "the abandoned turn left a reply behind",
+    ).toBeDefined();
+
+    const resumed = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+    expect(resumed.status).toBe(200);
+    const { text: assembled } = AiAgentChat.openAiStreamChunks(resumed.text);
+    expect(assembled.length).toBeGreaterThan(0);
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    const replies = AiAgentChat.assistantMessages(messages.data);
+    expect(replies, "two turns, two replies").toHaveLength(2);
+    expect(
+      replies[1].id,
+      "the new answer is its own message, not a reuse of the abandoned one",
+    ).not.toBe(abandoned.message?.id);
   });
 });
 
@@ -3879,6 +4367,410 @@ test.describe("AI Messages - one-shot inference", () => {
       JSON.stringify(last?.responseMessage?.content),
       "the model's answer, streamed",
     ).toMatch(/\b(4|four)\b/i);
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send - a malformed request crashes with 500 instead of a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Validation Agent",
+      profileId,
+    });
+    await profiles.assign("owner", { actionType: "Chat", profileId });
+
+    const userMessage = {
+      role: "user",
+      content: [{ type: "text", text: "Reply with the single word OK." }],
+    };
+
+    const cases: Array<[string, Record<string, unknown>]> = [
+      ["a missing actionType", { entityId: String(agentId), userMessage }],
+      [
+        "an unknown actionType",
+        { actionType: "Bogus", entityId: String(agentId), userMessage },
+      ],
+      [
+        "an empty actionType",
+        { actionType: "", entityId: String(agentId), userMessage },
+      ],
+      [
+        "a missing userMessage",
+        { actionType: "Chat", entityId: String(agentId) },
+      ],
+    ];
+
+    const results: Array<[string, number]> = [];
+    for (const [label, body] of cases) {
+      const { status } = await aiChat.send("owner", body);
+      results.push([label, status]);
+    }
+
+    // `send` has no thread of its own to corrupt, but this rules out the crash
+    // having created one behind the scenes regardless.
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.data).toEqual([]);
+
+    test.fail();
+    for (const [label, status] of results) {
+      // AiAiSendRequest declares both `actionType` and `userMessage` required —
+      // a caller violating that is a validation error, not a server crash.
+      expect(status, `send with ${label}`).toBe(400);
+    }
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-custom - a missing systemPrompt crashes with 500 instead of a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { status } = await aiChat.sendCustom("owner", {
+      isStream: false,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+
+    test.fail();
+    // AiAiSendCustomRequest declares `systemPrompt` required.
+    expect(
+      status,
+      "a missing required field is a validation error, not a crash",
+    ).toBe(400);
+  });
+
+  test('BUG XXXXX: POST /api/2.0/ai/ai/send-custom - isStream as the string "false" is accepted, and streams', async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    // Measured live: this does not fail closed on the wrong type — a non-empty
+    // string is truthy, so "false" is read as isStream:true and the response
+    // comes back as the NDJSON stream shape instead of one JSON object.
+    const { status } = await aiChat.sendCustom("owner", {
+      isStream: "false",
+      systemPrompt: "Answer briefly.",
+      userMessage: {
+        role: "user",
+        content: [
+          { type: "text", text: "What is 2+2? Reply with just the number." },
+        ],
+      },
+    });
+
+    test.fail();
+    // AiAiSendCustomRequest declares `isStream` a boolean.
+    expect(
+      status,
+      "a value outside the declared boolean type is a validation error",
+    ).toBe(400);
+  });
+
+  test("POST /api/2.0/ai/ai/send - an empty userMessage is accepted, unlike send-with-stream", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // send-with-stream refuses this with 400 (BUG 82720, fixed). `send` is a
+    // separate, stateless, one-shot route, and nothing in its own contract
+    // documents the same requirement — this pins its current, looser behavior
+    // rather than assuming the sibling route's rule carries over unverified.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Empty Content Agent",
+      profileId,
+    });
+    await profiles.assign("owner", { actionType: "Chat", profileId });
+
+    const emptyArray = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: { role: "user", content: [] },
+    });
+    expect(emptyArray.status).toBe(200);
+    expect(emptyArray.data?.role).toBe("assistant");
+    expect(emptyArray.data?.status?.error).toBeUndefined();
+
+    const emptyText = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: { role: "user", content: [{ type: "text", text: "" }] },
+    });
+    expect(emptyText.status).toBe(200);
+    expect(emptyText.data?.role).toBe("assistant");
+    expect(emptyText.data?.status?.error).toBeUndefined();
+  });
+
+  test("POST /api/2.0/ai/ai/send - entityId: nonexistent falls back to the portal-wide assignment, an accessible entity is used, an inaccessible one is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Entity Scope Agent",
+      profileId: profile.id,
+    });
+    await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: profile.id,
+    });
+
+    const userMessage = {
+      role: "user",
+      content: [{ type: "text", text: "Reply with the single word OK." }],
+    };
+
+    const nonexistent = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: "019f0000-0000-7000-8000-000000000000",
+      userMessage,
+    });
+    expect(
+      nonexistent.status,
+      "an entityId that resolves to nothing degrades to the portal-wide assignment rather than failing",
+    ).toBe(200);
+    expect(nonexistent.data?.status?.error).toBeUndefined();
+
+    const accessible = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage,
+    });
+    expect(accessible.status, "the caller's own agent is a valid scope").toBe(
+      200,
+    );
+    expect(accessible.data?.status?.error).toBeUndefined();
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await aiChat.expectActingAs("user", memberData.response!.id!, "the User");
+
+    const inaccessible = await aiChat.send("user", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage,
+    });
+    expect(
+      inaccessible.status,
+      "an entity that exists but the caller cannot see is refused, not silently ignored",
+    ).toBe(403);
+  });
+
+  test("POST /api/2.0/ai/ai/send - creates no thread, and two calls do not share history", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Persistence Agent",
+      profileId,
+    });
+    await profiles.assign("owner", { actionType: "Chat", profileId });
+
+    const first = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Remember the code word ORANGE. Reply with just: OK.",
+          },
+        ],
+      },
+    });
+    expect(first.status).toBe(200);
+    // No thread-side identity comes back at all — matching the operation's own
+    // "nothing is persisted, no thread, no title generation, no storage
+    // writes" description.
+    expect(
+      first.data?.id,
+      "the response carries no thread-side identity",
+    ).toBeUndefined();
+
+    const second = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "What code word did I ask you to remember? Reply with just that word, or say you don't know.",
+          },
+        ],
+      },
+    });
+    expect(second.status).toBe(200);
+    expect(
+      JSON.stringify(second.data?.content).toUpperCase(),
+      "the second call has no memory of the first — send keeps no history between calls",
+    ).not.toContain("ORANGE");
+
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.data, "neither call created a thread").toEqual([]);
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send - a profile restricted after being assigned to an actionType is still used", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Restricted Agent",
+      profileId: profile.id,
+    });
+    await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: profile.id,
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([profile.modelId!]) },
+    });
+
+    const restrictedCatalogue = await profiles.catalogue("owner");
+    expect(
+      restrictedCatalogue.some((p) => p.id === profile.id),
+      "the restriction really took effect",
+    ).toBe(false);
+
+    const { status, data } = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    // send-with-stream already enforces this at inference time — a restricted
+    // model's own thread gets `400 "unknown profileId: <id>"` (see "a model
+    // restricted mid-conversation" above). A portal-wide restriction is a
+    // billing/compliance control; a second route resolving the same restricted
+    // profile through its own assignment and still answering defeats it.
+    test.fail();
+    expect(status, "the restricted model must not still answer").toBe(400);
+    expect(data?.status?.error?.message).toBe(
+      `unknown profileId: ${profile.id}`,
+    );
+  });
+
+  test("POST /api/2.0/ai/ai/send-custom - a different systemPrompt produces a verifiably different answer", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const markerA = await aiChat.sendCustom("owner", {
+      isStream: false,
+      systemPrompt: "Finish every reply with the exact token ZZPROMPTAZZ.",
+      userMessage: { role: "user", content: [{ type: "text", text: "Hi." }] },
+    });
+    expect(markerA.status).toBe(200);
+    // The real text, not `JSON.stringify` of it — stringifying re-escapes a
+    // literal newline as the two characters `\`+`n`, and `n` is a word
+    // character, so a `\b`-bounded marker straight after a line break fails to
+    // match its own JSON encoding even though the marker is right there.
+    const textA = AiAgentChat.messageText(markerA.data!);
+    expect(textA).toMatch(/\bZZPROMPTAZZ\b/);
+
+    const markerB = await aiChat.sendCustom("owner", {
+      isStream: false,
+      systemPrompt: "Finish every reply with the exact token ZZPROMPTBZZ.",
+      userMessage: { role: "user", content: [{ type: "text", text: "Hi." }] },
+    });
+    expect(markerB.status).toBe(200);
+    const textB = AiAgentChat.messageText(markerB.data!);
+    expect(textB).toMatch(/\bZZPROMPTBZZ\b/);
+    expect(textB).not.toMatch(/\bZZPROMPTAZZ\b/);
+  });
+
+  test("POST /api/2.0/ai/ai/send-custom - neither isStream mode persists a thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // send-custom has no entityId/agentId of its own to scope a
+    // GET /threads/list check against (see the block comment above this
+    // describe) — the response shape itself is the available proof: neither
+    // form carries a thread-side `id`, matching the operation's own "No
+    // thread, no history and no persistence" description.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const userMessage = {
+      role: "user",
+      content: [{ type: "text", text: "Reply with the single word OK." }],
+    };
+
+    const nonStreaming = await aiChat.sendCustom("owner", {
+      isStream: false,
+      systemPrompt: "Answer briefly.",
+      userMessage,
+    });
+    expect(nonStreaming.status).toBe(200);
+    expect(nonStreaming.data?.id).toBeUndefined();
+
+    const streaming = await aiChat.sendCustom("owner", {
+      isStream: true,
+      systemPrompt: "Answer briefly.",
+      userMessage,
+    });
+    expect(streaming.status).toBe(200);
+    const frames = AiAgentChat.sendCustomFrames(streaming.text);
+    for (const frame of frames) {
+      expect(frame.id).toBeUndefined();
+      expect(frame.responseMessage?.id).toBeUndefined();
+    }
   });
 });
 

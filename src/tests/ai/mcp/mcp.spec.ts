@@ -1052,6 +1052,33 @@ const WEATHER_TOOL: HostTool = {
 
 const ASK_FOR_TOOL = "What is the weather in Paris? Call the get_weather tool.";
 
+/** A second tool whose input depends on the first's result — for forcing a
+ *  genuine two-hop call rather than two calls the model could batch at once. */
+const RECOMMENDATION_TOOL: HostTool = {
+  name: "get_recommendation",
+  description:
+    "Get a clothing recommendation for a given temperature in Celsius. Must be called AFTER get_weather, using the exact temperature it returned.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      temperatureCelsius: {
+        type: "number",
+        description: "The temperature returned by get_weather, in Celsius",
+      },
+    },
+    required: ["temperatureCelsius"],
+    additionalProperties: false,
+  },
+  enabled: true,
+  requireApproval: true,
+};
+
+const ASK_FOR_TWO_HOP_TOOLS =
+  "First call get_weather for Paris. Once you get the temperature, call " +
+  "get_recommendation with that exact temperature value. Do not skip either " +
+  "call, and do not call them at the same time — call get_weather first, wait " +
+  "for its result, then call get_recommendation.";
+
 /** Fresh agent + thread on a text profile, ready to be sent a message. */
 async function setupChat(
   aiChat: AiAgentChat,
@@ -1268,6 +1295,838 @@ test.describe("MCP - the tool-call pause", () => {
       "User deny tool call",
     );
     expect(AiAgentChat.messageText(replies[0]).length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Multi-hop: a second tool call that only makes sense once the first one's
+// result is known, forcing genuinely sequential pending -> approve -> pending
+// -> approve rather than two calls the model could have batched into one turn.
+//
+// There is no formal schema for what a tool-call content part contains
+// (`AiThreadMessageLikeContent` is `{}`, deliberately "open-ended by content
+// type" per its own doc comment) — what is asserted below about `toolName`,
+// `args`, `result` and array position is the same shape the tests above
+// already rely on, cross-checked live rather than against a spec that does not
+// exist. The one part of this that IS formally documented is the addressing
+// scheme: `AiAiToolCallData.idx` is described as "Index of the tool-call
+// content part inside `message.content`" — which is exactly what the second
+// half of the test below pins.
+test.describe("MCP - a genuine two-hop tool call", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream, approve-tool-call - pending A -> approve A -> pending B -> approve B -> final, with both calls, results and the final answer in order", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Two-Hop Agent",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TWO_HOP_TOOLS,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+    });
+    expect(sent.status).toBe(200);
+
+    const pendingA = AiAgentChat.pendingToolCall(sent.text);
+    expect(
+      pendingA,
+      `no first pause; frames were ${AiAgentChat.frameTypes(sent.text).join(", ")}`,
+    ).toBeDefined();
+    const contentA = pendingA!.message!.content as AiMessageContentPart[];
+    expect(contentA[pendingA!.idx!]?.toolName).toBe("get_weather");
+
+    const approveA = await aiChat.approvePendingToolCall("owner", pendingA!, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+      result: "14",
+    });
+    expect(approveA.status).toBe(200);
+
+    // The resume paused again rather than finishing — the second tool is
+    // genuinely a second hop, not folded into the first response.
+    const pendingB = AiAgentChat.pendingToolCall(approveA.text);
+    expect(
+      pendingB,
+      `no second pause; frames were ${AiAgentChat.frameTypes(approveA.text).join(", ")}`,
+    ).toBeDefined();
+    expect(pendingB!.messageId).toBe(pendingA!.messageId);
+    expect(pendingB!.idx).not.toBe(pendingA!.idx);
+
+    // Both calls now live in ONE message's content array, at their own
+    // indices. A's result is filled in; B is present but still unresolved —
+    // approving A must not have reached into B at all.
+    const midway = pendingB!.message!.content as AiMessageContentPart[];
+    const partA = midway[pendingA!.idx!];
+    const partB = midway[pendingB!.idx!];
+    expect(partA.toolName).toBe("get_weather");
+    expect(partA.result).toBe("14");
+    expect(partB.toolName).toBe("get_recommendation");
+    expect(
+      partB.result,
+      "B is untouched until it is approved itself",
+    ).toBeUndefined();
+    // The temperature A resolved to is what the model fed into B's arguments.
+    expect(partB.args).toMatchObject({ temperatureCelsius: 14 });
+
+    const approveB = await aiChat.approvePendingToolCall("owner", pendingB!, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+      result: "wear a light jacket",
+    });
+    expect(approveB.status).toBe(200);
+    expect(AiAgentChat.frameTypes(approveB.text)).toContain("message-end");
+    expect(AiAgentChat.frameTypes(approveB.text)).not.toContain(
+      "tool-call-pending",
+    );
+
+    // One thread, one assistant message, everything folded into it: both tool
+    // calls, both results, and the final prose — in that order, nothing lost
+    // or duplicated.
+    const final = await aiChat.readMessages("owner", threadId);
+    expect(AiAgentChat.userMessages(final.data)).toHaveLength(1);
+    const replies = AiAgentChat.assistantMessages(final.data);
+    expect(replies, "still one assistant message, not two").toHaveLength(1);
+    expect(replies[0].id).toBe(pendingA!.messageId);
+    expect(replies[0].status?.error).toBeUndefined();
+
+    const content = replies[0].content as AiMessageContentPart[];
+    // At least the text/toolA/text/toolB skeleton; a trailing wrap-up after B
+    // is common but not guaranteed by anything asserted above, so it is not
+    // required here — `messageText` below covers "there is real prose".
+    expect(content.length).toBeGreaterThanOrEqual(4);
+    const finalA = content[pendingA!.idx!];
+    const finalB = content[pendingB!.idx!];
+    expect(finalA.toolName).toBe("get_weather");
+    expect(finalA.result, "A's result from the first approve survived").toBe(
+      "14",
+    );
+    expect(finalB.toolName).toBe("get_recommendation");
+    expect(finalB.result).toBe("wear a light jacket");
+
+    // Something was written after B — the wrap-up the model gives once both
+    // calls are resolved.
+    const toolCalls = AiAgentChat.toolCalls(replies[0]);
+    expect(toolCalls).toHaveLength(2);
+    expect(AiAgentChat.messageText(replies[0]).length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The lifecycle of one pending call once it has already been resolved.
+//
+// Section 3/4's "странные 200" precedent (an unknown messageId/idx being
+// accepted with a no-op 200) does not carry over here. That case mutates
+// nothing — there is no pending call at that address, so nothing to write.
+// This one is different and worse: (threadId, messageId, idx) still points at
+// a REAL, already-resolved tool call, and a second decision on it is not
+// refused and not a no-op — it is measured live to silently REPLAY: the
+// stored `result` is overwritten with whatever the new call carries, and the
+// content that followed it is thrown away and regenerated from that point.
+// Filed as a bug rather than folded into the documented "no validation"
+// contract, because unlike the earlier case this one destroys already-settled
+// history rather than merely ignoring a bad address.
+//
+// The expected contract asserted below is deliberately about absence of
+// mutation, not a specific status code: nothing here documents what the
+// correct HTTP response should be (400? 409? a no-op 200?), only that a
+// second decision on an already-resolved call must not rewrite its stored
+// result or erase/regenerate what already followed it.
+//
+// `createdAt` looked like the obvious "was this rewritten" signal and turned
+// out not to be one: measured live across 6 runs (3 repeat-denies, 3 stale
+// approves), it never moves even though the stored `result` and/or the
+// generated text demonstrably do, every single time. So the assertions below
+// read the field that actually changes instead — the tool call's `result`
+// where a fresh one is supplied, the message's rendered text where it is not
+// (a repeat deny always answers with the same canned "User deny tool call"
+// result, so only the regenerated prose around it shows the replay).
+test.describe("MCP - a decision replayed on an already-resolved tool call", () => {
+  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - a second approve with a different result overwrites the first", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Approve-Approve Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    const firstApprove = await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+    expect(firstApprove.status).toBe(200);
+    const settled = await aiChat.readMessages("owner", threadId);
+    const settledReply = AiAgentChat.assistantMessages(settled.data)[0];
+    const settledResult = AiAgentChat.toolCalls(settledReply)[0].result;
+    expect(settledResult).toBe("14C and sunny");
+
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "DIFFERENT RESULT SECOND CALL",
+    });
+
+    const after = await aiChat.readMessages("owner", threadId);
+    const afterReply = AiAgentChat.assistantMessages(after.data)[0];
+
+    test.fail();
+    expect(
+      AiAgentChat.toolCalls(afterReply)[0].result,
+      "the first decision's result must survive a stale second approve",
+    ).toBe("14C and sunny");
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/deny-tool-call - denying an already-approved call overwrites its result", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Approve-Deny Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+    const settled = await aiChat.readMessages("owner", threadId);
+    const settledReply = AiAgentChat.assistantMessages(settled.data)[0];
+    expect(AiAgentChat.toolCalls(settledReply)[0].result).toBe("14C and sunny");
+
+    await aiChat.denyPendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+    });
+
+    const after = await aiChat.readMessages("owner", threadId);
+    const afterReply = AiAgentChat.assistantMessages(after.data)[0];
+
+    test.fail();
+    expect(
+      AiAgentChat.toolCalls(afterReply)[0].result,
+      "an approved result must survive a stale deny",
+    ).toBe("14C and sunny");
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - approving an already-denied call overwrites its result", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Deny-Approve Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    await aiChat.denyPendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+    });
+    const settled = await aiChat.readMessages("owner", threadId);
+    const settledReply = AiAgentChat.assistantMessages(settled.data)[0];
+    expect(AiAgentChat.toolCalls(settledReply)[0].result).toBe(
+      "User deny tool call",
+    );
+
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+
+    const after = await aiChat.readMessages("owner", threadId);
+    const afterReply = AiAgentChat.assistantMessages(after.data)[0];
+
+    test.fail();
+    expect(
+      AiAgentChat.toolCalls(afterReply)[0].result,
+      "a denial must survive a stale approve",
+    ).toBe("User deny tool call");
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/ai/deny-tool-call - a second deny regenerates the follow-up text even though the result is unchanged", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Deny-Deny Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    await aiChat.denyPendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+    });
+    const settled = await aiChat.readMessages("owner", threadId);
+    const settledReply = AiAgentChat.assistantMessages(settled.data)[0];
+
+    await aiChat.denyPendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+    });
+
+    const after = await aiChat.readMessages("owner", threadId);
+    const afterReply = AiAgentChat.assistantMessages(after.data)[0];
+
+    // The canned deny result reads the same both times, so it cannot tell a
+    // replay apart from a true no-op here — the generated prose around it can:
+    // measured live across 3 runs, a repeat deny always re-answers with
+    // differently-worded text even though nothing about the situation changed.
+    test.fail();
+    expect(
+      AiAgentChat.messageText(afterReply),
+      "an already-denied call must not trigger a fresh generation on a repeat deny",
+    ).toBe(AiAgentChat.messageText(settledReply));
+  });
+
+  // The escalated version of the same bug: the stale call is no longer even
+  // the thread's last message — a real later turn already exists. Measured
+  // live: the mutation stayed CONTAINED to the stale message itself (its
+  // result and trailing text were overwritten with garbled output) and did
+  // NOT cascade into deleting or altering the later turn. That containment is
+  // asserted as a real, reassuring fact before `test.fail()` — it is what
+  // keeps this a "wrong message got rewritten" bug rather than a "the whole
+  // thread can be rolled back" one.
+  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - a stale approve reaches back into an earlier, already-superseded message", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Stale Escalated Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+    const afterApprove = await aiChat.readMessages("owner", threadId);
+    const firstReply = AiAgentChat.assistantMessages(afterApprove.data)[0];
+
+    // A whole new, unrelated turn on top of it.
+    const second = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Now tell me a fun fact about giraffes, in one sentence.",
+    });
+    expect(second.status).toBe(200);
+    const afterSecondTurn = await aiChat.readMessages("owner", threadId);
+    expect(
+      afterSecondTurn.data,
+      "user1, assistant1(tool), user2, assistant2",
+    ).toHaveLength(4);
+    const secondReply = AiAgentChat.assistantMessages(afterSecondTurn.data)[1];
+    expect(secondReply.status?.error).toBeUndefined();
+    expect(AiAgentChat.messageText(secondReply).length).toBeGreaterThan(0);
+
+    // The stale decision, made against a message that is no longer the
+    // thread's last one at all.
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "STALE REPLAY RESULT",
+    });
+
+    const final = await aiChat.readMessages("owner", threadId);
+
+    // The later turn survives untouched regardless of how the bug above is
+    // fixed — this is not itself in question here.
+    expect(
+      final.data.length,
+      "the later turn was not deleted by the stale decision",
+    ).toBe(4);
+    const finalSecondReply = AiAgentChat.assistantMessages(final.data)[1];
+    expect(finalSecondReply.id).toBe(secondReply.id);
+    expect(AiAgentChat.messageText(finalSecondReply)).toBe(
+      AiAgentChat.messageText(secondReply),
+    );
+
+    const finalFirstReply = AiAgentChat.assistantMessages(final.data)[0];
+    test.fail();
+    expect(
+      AiAgentChat.toolCalls(finalFirstReply)[0]?.result,
+      "a message that is no longer the thread's last turn must not be reopened by a stale decision on it",
+    ).toBe(AiAgentChat.toolCalls(firstReply)[0]?.result);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regenerate over a resolved tool-call history.
+//
+// The operation's own doc comment (aiapi.d.ts, aiAiRegenerateStream) already
+// specifies the contract this section pins: "every message after the last
+// user message (the previous reply plus any tool-call hops) is dropped and a
+// fresh reply is streamed against the unchanged prompt [...] no title is
+// generated." That is a documented guarantee, not just what the live portal
+// happened to do — measured live below to confirm the implementation matches
+// it rather than assuming it does.
+//
+// One live mechanic worth spelling out because it is not obvious from the
+// route's own body shape: `AiAiRegenerateStreamRequest` carries no
+// `userMessage`, but it does carry `actionArgs`, so a caller controls whether
+// the model has any TOOL to call again by whether it re-sends `tools` on the
+// regenerate call itself — exactly as it would on send-with-stream. Without
+// `tools`, the model has no way to redo the call at all and answers in plain
+// text instead ("I don't have a get_weather tool available"); the "no
+// mutation, per-request-only" contract still holds regardless of which one a
+// caller does.
+//
+// Per lifecycle-bug lesson above: `createdAt` does not reliably show a
+// rewrite happened on these routes, so it is not used as a signal here either
+// — the assertions read message ids, tool-call ids/results and content shape
+// directly.
+
+/** No `date.now()`-style timestamp check — waits for the specific old id to
+ *  disappear and a replacement assistant message to exist, per the same
+ *  polling shape "AI Messages - regenerate" in messages.spec.ts uses. */
+async function waitForRegenerateReplacement(
+  aiChat: AiAgentChat,
+  threadId: string,
+  oldReplyId: string,
+  timeoutMs = 90000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const messages = await aiChat.readMessages("owner", threadId);
+    const replies = AiAgentChat.assistantMessages(messages.data);
+    if (replies.length >= 1 && !replies.some((r) => r.id === oldReplyId)) {
+      return messages.data;
+    }
+    if (Date.now() >= deadline) {
+      return messages.data;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+}
+
+test.describe("MCP - regenerate over a resolved tool call", () => {
+  test("POST /api/2.0/ai/ai/regenerate-stream - the old tool call and its result are replaced whole, not orphaned or duplicated", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Regen Basic Agent",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+
+    const before = await aiChat.readMessages("owner", threadId);
+    const question = AiAgentChat.userMessages(before.data)[0];
+    const oldReply = AiAgentChat.assistantMessages(before.data)[0];
+    const oldToolCallId = AiAgentChat.toolCalls(oldReply)[0].toolCallId;
+    expect(oldToolCallId).toBeTruthy();
+
+    // No `tools` re-offered: the model cannot redo the call at all, which is
+    // the cleanest way to see whether the OLD call and result survive
+    // anywhere they should not — there is no legitimate new tool-call for
+    // them to be confused with.
+    const regen = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+    });
+    expect(regen.status).toBe(200);
+    expect(regen.streamError).toBeUndefined();
+    expect(
+      AiAgentChat.frameTypes(regen.text),
+      "regenerate never generates a title",
+    ).not.toContain("thread-title");
+
+    const after = await waitForRegenerateReplacement(
+      aiChat,
+      threadId,
+      oldReply.id,
+    );
+
+    // The question survives untouched.
+    const questions = AiAgentChat.userMessages(after);
+    expect(questions).toHaveLength(1);
+    expect(questions[0].id).toBe(question.id);
+
+    // Exactly one assistant message, replaced rather than appended to.
+    const replies = AiAgentChat.assistantMessages(after);
+    expect(replies).toHaveLength(1);
+    expect(replies[0].id).not.toBe(oldReply.id);
+    expect(replies[0].status?.error).toBeUndefined();
+
+    // No tool call at all this time — nothing to confuse the old one with —
+    // and specifically the old call's own id/result do not resurface.
+    expect(AiAgentChat.toolCalls(replies[0])).toHaveLength(0);
+    const serialized = JSON.stringify(after);
+    expect(
+      serialized.includes(oldToolCallId as string),
+      "the old tool call's id does not survive the regenerate",
+    ).toBe(false);
+    expect(
+      serialized.includes("14C and sunny"),
+      "the old tool call's result does not survive the regenerate",
+    ).toBe(false);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream - a two-hop tool chain is replaced whole, not just its last call", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Regen Multihop Agent",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TWO_HOP_TOOLS,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+    });
+    const pendingA = AiAgentChat.pendingToolCall(sent.text)!;
+    const approveA = await aiChat.approvePendingToolCall("owner", pendingA, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+      result: "14",
+    });
+    const pendingB = AiAgentChat.pendingToolCall(approveA.text)!;
+    await aiChat.approvePendingToolCall("owner", pendingB, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+      result: "wear a light jacket",
+    });
+
+    const before = await aiChat.readMessages("owner", threadId);
+    const oldReply = AiAgentChat.assistantMessages(before.data)[0];
+    const oldToolCalls = AiAgentChat.toolCalls(oldReply);
+    expect(
+      oldToolCalls,
+      "both hops resolved before the regenerate",
+    ).toHaveLength(2);
+    const [oldIdA, oldIdB] = oldToolCalls.map((call) => call.toolCallId);
+
+    const regen = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+    });
+    expect(regen.status).toBe(200);
+    expect(regen.streamError).toBeUndefined();
+
+    const after = await waitForRegenerateReplacement(
+      aiChat,
+      threadId,
+      oldReply.id,
+    );
+    const replies = AiAgentChat.assistantMessages(after);
+    expect(replies).toHaveLength(1);
+    expect(replies[0].id).not.toBe(oldReply.id);
+
+    // Neither hop survives — this is the case that would catch a regenerate
+    // that only rewinds as far as the LAST tool call and leaves the first one
+    // (and its result) sitting orphaned ahead of the new content.
+    expect(AiAgentChat.toolCalls(replies[0])).toHaveLength(0);
+    const serialized = JSON.stringify(after);
+    expect(serialized.includes(oldIdA as string)).toBe(false);
+    expect(serialized.includes(oldIdB as string)).toBe(false);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream, approve-tool-call - a regenerated reply that itself calls a tool starts a clean new chain", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Regen New Chain Agent",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "OLD RESULT 14C and sunny",
+    });
+
+    const before = await aiChat.readMessages("owner", threadId);
+    const oldReply = AiAgentChat.assistantMessages(before.data)[0];
+    const oldToolCallId = AiAgentChat.toolCalls(oldReply)[0].toolCallId;
+
+    // `tools` IS re-offered this time, so the model can redo the call — and,
+    // measured live, reliably does: the original question still asks for it.
+    const regen = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      actionArgs: { tools: [WEATHER_TOOL] },
+    });
+    expect(regen.status).toBe(200);
+
+    const newPending = AiAgentChat.pendingToolCall(regen.text);
+    expect(
+      newPending,
+      `regenerate did not re-trigger the tool; frames were ${AiAgentChat.frameTypes(regen.text).join(", ")}`,
+    ).toBeDefined();
+    expect(newPending!.messageId).not.toBe(oldReply.id);
+
+    const newToolCallId = (
+      newPending!.message!.content as AiMessageContentPart[]
+    )[newPending!.idx!].toolCallId;
+    expect(
+      newToolCallId,
+      "the regenerated chain gets its own, different tool-call id",
+    ).not.toBe(oldToolCallId);
+
+    const approveNew = await aiChat.approvePendingToolCall(
+      "owner",
+      newPending!,
+      {
+        threadId,
+        profileId,
+        agentId,
+        tools: [WEATHER_TOOL],
+        result: "NEW RESULT 20C and windy",
+      },
+    );
+    expect(approveNew.status).toBe(200);
+    expect(AiAgentChat.frameTypes(approveNew.text)).toContain("message-end");
+
+    const final = await aiChat.readMessages("owner", threadId);
+    const replies = AiAgentChat.assistantMessages(final.data);
+    expect(replies, "one message, the regenerated one").toHaveLength(1);
+    expect(replies[0].id).toBe(newPending!.messageId);
+
+    const finalToolCalls = AiAgentChat.toolCalls(replies[0]);
+    expect(finalToolCalls, "only the new chain's call, not both").toHaveLength(
+      1,
+    );
+    expect(finalToolCalls[0].toolCallId).toBe(newToolCallId);
+    expect(finalToolCalls[0].result).toBe("NEW RESULT 20C and windy");
+
+    const serialized = JSON.stringify(final.data);
+    expect(
+      serialized.includes(oldToolCallId as string),
+      "the old chain's call id does not leak into the new one",
+    ).toBe(false);
+    expect(
+      serialized.includes("OLD RESULT 14C and sunny"),
+      "the old chain's result does not leak into the new one",
+    ).toBe(false);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream - actionArgs.prompt.replace applies to the regenerate and does not stick to the next ordinary turn", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    // A room, not an agent — same reason as the OpenAI-stream parity test in
+    // messages.spec.ts: an agent's own stored instructions currently beat a
+    // per-request replace (BUG 83236), so an agent entity would be testing
+    // that open bug instead of this route's own prompt-override contract.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Regen Prompt Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest regen prompt thread",
+      profileId,
+      agentId: roomId,
+    });
+
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Hi there!",
+    });
+    const before = await aiChat.waitForAssistantReply("owner", threadId);
+    const firstReply = AiAgentChat.assistantMessages(before)[0];
+
+    const marker = "ZZREGENPROMPTZZ";
+    const regen = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId,
+      actionArgs: {
+        prompt: {
+          mode: "replace",
+          text: `You are a helpful test assistant. Keep answers very short. Formatting rule: finish every reply with the exact token ${marker}.`,
+        },
+      },
+    });
+    expect(regen.status).toBe(200);
+    expect(regen.streamError).toBeUndefined();
+
+    const afterRegen = await waitForRegenerateReplacement(
+      aiChat,
+      threadId,
+      firstReply.id,
+    );
+    const regenReply = AiAgentChat.assistantMessages(afterRegen)[0];
+    expect(
+      AiAgentChat.messageText(regenReply),
+      "the per-request prompt reached the regenerate",
+    ).toMatch(new RegExp(`\\b${marker}\\b`));
+
+    const second = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Say hi again.",
+    });
+    expect(second.status).toBe(200);
+    const afterSecond = await aiChat.waitForAssistantReplies(
+      "owner",
+      threadId,
+      2,
+    );
+    const secondReply = AiAgentChat.assistantMessages(afterSecond)[1];
+    expect(
+      AiAgentChat.messageText(secondReply),
+      "the override does not persist into the next ordinary turn",
+    ).not.toMatch(new RegExp(`\\b${marker}\\b`));
   });
 });
 
