@@ -146,7 +146,7 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
     }
 
     // A refused create builds nothing: no agent record, and no room in the AI
-    // area either — an agent is a room with Knowledge and Result Storage
+    // area either — an agent is a room with Knowledge and Chat outputs
     // folders in it, so a half-finished one would be visible as a room even if
     // the agents list never learned about it.
     expect(
@@ -210,7 +210,7 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
     expect(
       await storageFolders(ownerApi, controlId),
       "a whole agent has both storage folders",
-    ).toEqual(["Knowledge", "Result Storage"]);
+    ).toEqual(["Chat outputs", "Knowledge"]);
 
     const created = await aiChat.createAgent("owner", {
       title: "Autotest Unknown Profile Agent",
@@ -1520,7 +1520,7 @@ async function roomsInAiArea(
   );
 }
 
-/** The folders an agent is built with: Knowledge and Result Storage. */
+/** The folders an agent is built with: Knowledge and Chat outputs. */
 async function storageFolders(
   api: OwnerApi,
   agentId: number,

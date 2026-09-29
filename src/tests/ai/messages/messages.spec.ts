@@ -655,7 +655,7 @@ test.describe("AI Messages - text-to-docx export", () => {
 //
 // The two rooms below take documents; the form-filling room does not, and it
 // gets a test of its own further down because the two surfaces disagree there.
-// The agent room, whose export lands in Result Storage rather than in the root,
+// The agent room, whose export lands in Chat outputs rather than in the root,
 // is covered by the transcript block above.
 
 const EXPORT_ROOM_TYPES: Array<{ label: string; roomType: RoomType }> = [
@@ -784,15 +784,21 @@ test.describe("AI Messages - text-to-docx into every room type", () => {
   });
 });
 
-test.describe("AI Messages - .docx is the only format an answer can be saved as", () => {
-  test("POST /api/2.0/ai/text-to-* - there is no pdf, txt or markdown export, and a requested format is ignored", async ({
+test.describe("AI Messages - text-to-docx's format takes Docx, Pdf or Md", () => {
+  // Was "the .docx is the only format an answer can be saved as": measured
+  // 2026-09-29, `format` is no longer decoration. It is a case-sensitive enum
+  // — "Docx" | "Pdf" | "Md" — and the extension of the written file follows it:
+  // request "Pdf" and DocSpace holds a .pdf, not a .docx with the wrong name.
+  // `extension` remains what it always was, an undocumented field with no
+  // effect — sent alongside a valid `format` it changes nothing, the format
+  // alone decides the file DocSpace ends up holding.
+  //
+  // There is still exactly one export route: the sibling paths a client might
+  // reasonably try (`/text-to-pdf`, `/text-to-txt`, …) remain 404, so `format`
+  // on `/text-to-docx` is the only way to ask for anything but a .docx.
+  test("POST /api/2.0/ai/text-to-*, /text-to-docx - sibling export routes are 404, and format decides the extension", async ({
     apiSdk,
   }) => {
-    // "Save the answer as a file" is one format wide. Worth pinning both ways:
-    // the sibling routes a client might reasonably try do not exist, and the
-    // one route there is does not take a format — it accepts the field and
-    // still writes a .docx, so a client that thinks it asked for a PDF gets a
-    // document with the wrong extension and no error to show for it.
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
@@ -819,32 +825,95 @@ test.describe("AI Messages - .docx is the only format an answer can be saved as"
       expect(response.status(), `POST ${route}`).toBe(404);
     }
 
-    const title = `Exported format ${apiSdk.faker.generateString(8)}`;
-    const { status } = await aiSettings.textToDocx("owner", {
-      title,
+    for (const [format, extension] of [
+      ["Docx", ".docx"],
+      ["Pdf", ".pdf"],
+      ["Md", ".md"],
+    ] as const) {
+      const title = `Exported format ${format} ${apiSdk.faker.generateString(8)}`;
+      const { status } = await aiSettings.textToDocx("owner", {
+        title,
+        content: "The assistant said hello.",
+        format,
+        folderId,
+      });
+      expect(status, `format: "${format}"`).toBe(202);
+
+      const exported = await waitForExportedFile(
+        ownerApi,
+        folderId,
+        `${title}${extension}`,
+        60000,
+      );
+      expect(
+        exported,
+        `no "${title}${extension}" for format "${format}"`,
+      ).toBeDefined();
+      expect(exported!.fileExst).toBe(extension);
+    }
+
+    // No format at all defaults to a .docx, same as before this contract
+    // existed — the default is the one behavior every other test in this file
+    // relies on.
+    const defaultTitle = `Exported default format ${apiSdk.faker.generateString(8)}`;
+    const { status: defaultStatus } = await aiSettings.textToDocx("owner", {
+      title: defaultTitle,
       content: "The assistant said hello.",
-      format: "pdf",
+      folderId,
+    });
+    expect(defaultStatus).toBe(202);
+    expect(
+      await waitForExportedFile(ownerApi, folderId, `${defaultTitle}.docx`),
+    ).toBeDefined();
+
+    // `extension` alongside a valid `format` changes nothing — `format` alone
+    // decides the file that lands in DocSpace.
+    const overrideTitle = `Exported format override ${apiSdk.faker.generateString(8)}`;
+    const { status: overrideStatus } = await aiSettings.textToDocx("owner", {
+      title: overrideTitle,
+      content: "The assistant said hello.",
+      format: "Pdf",
       extension: ".txt",
       folderId,
     });
-    expect(status).toBe(202);
-
-    const exported = await waitForExportedFile(
+    expect(overrideStatus).toBe(202);
+    const overridden = await waitForExportedFile(
       ownerApi,
       folderId,
-      `${title}.docx`,
+      `${overrideTitle}.pdf`,
+      60000,
     );
     expect(
-      exported,
-      `no "${title}.docx" — a requested format should be ignored, not honoured`,
+      overridden,
+      `"extension" must not override "format": expected a .pdf for format "Pdf"`,
     ).toBeDefined();
-    expect(exported!.fileExst).toBe(".docx");
-
     const titles = (await listFolderFiles(ownerApi, folderId)).map(
       (file) => file.title,
     );
-    expect(titles).not.toContain(`${title}.pdf`);
-    expect(titles).not.toContain(`${title}.txt`);
+    expect(titles).not.toContain(`${overrideTitle}.txt`);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - an unrecognised format is rejected, not silently ignored", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    for (const format of ["pdf", "docx", "md", "bogus"]) {
+      const { status, error } = await aiSettings.textToDocx("owner", {
+        title: `Exported invalid format ${apiSdk.faker.generateString(8)}`,
+        content: "The assistant said hello.",
+        format,
+        folderId,
+      });
+      expect(status, `format: "${format}"`).toBe(400);
+      expect(error, `format: "${format}"`).toBe(
+        "format must be one of Docx, Pdf, Md",
+      );
+    }
   });
 });
 
@@ -1106,15 +1175,15 @@ test.describe("AI Messages - exporting a thread", () => {
     );
   });
 
-  test("POST /api/2.0/ai/text-to-docx - a transcript exported to an agent lands in its Result Storage, not in the room root", async ({
+  test("POST /api/2.0/ai/text-to-docx - a transcript exported to an agent lands in its Chat outputs, not in the room root", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // The other half of "save this chat": keeping it next to the agent rather
     // than in personal documents. An agent is a room, so its id is a legal
     // export target — but not the folder the document ends up in. An agent room
-    // ships with "Knowledge" and "Result Storage" subfolders and everything the
-    // agent produces is filed under Result Storage, exports included. A caller
+    // ships with "Knowledge" and "Chat outputs" subfolders and everything the
+    // agent produces is filed under Chat outputs, exports included. A caller
     // that polls the id it passed in never sees its own document.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -1164,12 +1233,9 @@ test.describe("AI Messages - exporting a thread", () => {
       await ownerApi.folders.getFolderByFolderId({ folderId: agentId });
     expect(roomStatus).toBe(200);
     const resultStorage = (room.response?.folders ?? []).find(
-      (folder) => (folder as { title?: string }).title === "Result Storage",
+      (folder) => (folder as { title?: string }).title === "Chat outputs",
     ) as { id?: number } | undefined;
-    expect(
-      resultStorage?.id,
-      "the agent's Result Storage folder",
-    ).toBeDefined();
+    expect(resultStorage?.id, "the agent's Chat outputs folder").toBeDefined();
 
     const exported = await waitForExportedFile(
       ownerApi,
@@ -1178,7 +1244,7 @@ test.describe("AI Messages - exporting a thread", () => {
     );
     expect(
       exported,
-      `no "${title}.docx" in the agent's Result Storage`,
+      `no "${title}.docx" in the agent's Chat outputs`,
     ).toBeDefined();
 
     // Nothing was left in the room root the export was addressed to.

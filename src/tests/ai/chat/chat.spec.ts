@@ -6227,13 +6227,13 @@ test.describe("AI Chat - image generation", () => {
   // The landing folder is matched on file ids taken before the request, not on
   // a name: the picture's file name is the server's to choose.
 
-  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a picture generated in an agent chat is not saved into its Result Storage", async ({
+  test("BUG 82861: POST /api/2.0/ai/ai/send-with-stream - a picture generated in an agent chat is not saved into its Chat outputs", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // An agent room is the one "current section" a chat has by default, and its
     // root takes no files at all (`security.Create:false`, 403 even for the
-    // Owner) — Result Storage is where everything the agent produces is filed,
+    // Owner) — Chat outputs is where everything the agent produces is filed,
     // exports included. So that, not the room id, is where the picture belongs.
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
