@@ -87,3 +87,30 @@ export function extractDocxText(buffer: Buffer): string {
     .replace(/&amp;/g, "&")
     .trim();
 }
+
+/**
+ * Visible text of each slide in a .pptx, one entry per `ppt/slides/slideN.xml`,
+ * in slide order (not archive order, which is not a contract).
+ */
+export function extractPptxSlideTexts(buffer: Buffer): string[] {
+  const entries = readCentralDirectory(buffer)
+    .filter((entry) => /^ppt\/slides\/slide\d+\.xml$/.test(entry.name))
+    .sort(
+      (a, b) =>
+        Number(a.name.match(/slide(\d+)\.xml$/)![1]) -
+        Number(b.name.match(/slide(\d+)\.xml$/)![1]),
+    );
+
+  return entries.map((entry) =>
+    readEntry(buffer, entry)
+      .toString("utf8")
+      .replace(/<\/a:p>/g, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, "&")
+      .trim(),
+  );
+}

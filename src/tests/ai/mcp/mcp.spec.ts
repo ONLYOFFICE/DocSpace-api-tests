@@ -17,7 +17,11 @@ import {
   agentStorageFolderId,
   downloadFile,
 } from "@/src/helpers/device-upload";
-import { extractDocxText, listDocxEntries } from "@/src/helpers/docx";
+import {
+  extractDocxText,
+  extractPptxSlideTexts,
+  listDocxEntries,
+} from "@/src/helpers/docx";
 import {
   listFolderFiles,
   waitForExportToSettle,
@@ -6417,9 +6421,16 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   // writes a real `.pptx` (BUG 83232) and the form generator a real PDF with
   // `isForm: true` (BUG 83233, confirmed across 2 of 3 measured runs — the
   // third run failed earlier because the model did not call the tool at all,
-  // an unrelated flakiness). Only the plain-docx-is-blank claim (BUG 83231)
-  // still holds, so it is the only one still `test.fail` on the CORRECT
-  // expectation rather than green on today's answer.
+  // an unrelated flakiness). The plain-docx-is-blank claim (BUG 83231) still
+  // holds.
+  //
+  // BUG 83232 fixed the CONTAINER — a real `.pptx` instead of a `.docx` — but
+  // not the CONTENT. Measured 2026-09-25: asked for three slides about the
+  // water cycle, the file that comes back has exactly one slide, a bare
+  // "Title + Subtitle" layout with both placeholders empty — no title text,
+  // no water-cycle content, nothing in the slide's notes either. Filed as
+  // BUG 84063, its own `test.fail` right after BUG 83232's (now green)
+  // container test.
 
   test("BUG 83231: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
     apiSdk,
@@ -6493,6 +6504,40 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       documentType: generator.promised.documentType,
       hasSlides: true,
     });
+  });
+
+  test("BUG 84063: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes blank slides", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // BUG 83232 fixed the container (a real .pptx). This is the content half:
+    // the ask named three slides and a topic (the water cycle); what comes
+    // back has one slide, and it carries no text at all — title, subtitle and
+    // notes are all empty placeholders. Same shape of defect as BUG 83231's
+    // blank docx, just not caught by BUG 83232's test, which only checks that
+    // a `ppt/slides/*.xml` entry exists, not how many or what is in them.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const generator = GENERATORS[1];
+    const { created } = await generateFile(
+      apiSdk,
+      aiChat,
+      generator,
+      "Autotest Blank Presentation Agent",
+    );
+
+    // Read everything before the verdict, same discipline as BUG 83231.
+    const opened = await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
+    const slideTexts = extractPptxSlideTexts(opened.bytes);
+
+    test.fail();
+    expect(
+      { slideCount: slideTexts.length, hasText: slideTexts.some((t) => t) },
+      "the presentation has the three requested slides, and at least one carries text about the water cycle",
+    ).not.toEqual({ slideCount: 1, hasText: false });
   });
 
   test("POST /api/2.0/ai/ai/approve-tool-call - the form generator writes a real form", async ({
