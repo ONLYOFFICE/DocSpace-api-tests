@@ -1235,10 +1235,7 @@ test.describe("AI Messages - exporting a thread", () => {
     const resultStorage = (room.response?.folders ?? []).find(
       (folder) => (folder as { title?: string }).title === "Chat outputs",
     ) as { id?: number } | undefined;
-    expect(
-      resultStorage?.id,
-      "the agent's Chat outputs folder",
-    ).toBeDefined();
+    expect(resultStorage?.id, "the agent's Chat outputs folder").toBeDefined();
 
     const exported = await waitForExportedFile(
       ownerApi,
