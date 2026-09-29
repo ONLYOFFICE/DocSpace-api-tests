@@ -3851,7 +3851,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
     for (const { label, folderId, writable } of [
       { label: "the agent room root", folderId: agentId, writable: false },
       {
-        label: "the agent's Result Storage",
+        label: "the agent's Chat outputs",
         folderId: resultStorageId,
         writable: true,
       },
@@ -3888,7 +3888,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
     // Why the destination for an agent chat cannot simply be "the room". The
     // root refuses both routes that could create a file, to the portal owner as
     // much as to anyone, while an ordinary Custom room takes the same request.
-    // The portal's own export route resolves an agent room id to Result Storage
+    // The portal's own export route resolves an agent room id to Chat outputs
     // for exactly this reason.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -4012,7 +4012,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
     ).toBe(403);
   });
 
-  test("POST /api/2.0/files/{resultStorageId}/upload - Result Storage takes a device file and keeps it out of the agent's index", async ({
+  test("POST /api/2.0/files/{resultStorageId}/upload - Chat outputs takes a device file and keeps it out of the agent's index", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4024,7 +4024,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
 
     const { knowledgeId, resultStorageId } = await createAgentWithStorage(
       apiSdk,
-      "Autotest Result Storage Agent",
+      "Autotest Chat Outputs Agent",
     );
 
     const fileName = `autotest-device-${apiSdk.faker.generateString(6)}.txt`;

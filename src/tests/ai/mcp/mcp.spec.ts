@@ -4948,7 +4948,9 @@ test.describe("MCP - a registered server and the conversation", () => {
       .map((call) => call.toolName ?? "");
     const reply = AiAgentChat.assistantText(messages);
 
-    test.fail();
+    // BUG 82990 is closed in the tracker: the product side works in the UI.
+    // The tool still doesn't reach the model on every turn here, so this stays
+    // a plain (flaky) assertion rather than test.fail().
     expect(
       calledTools.length > 0 || !reply.includes(NO_TOOL_SENTINEL),
       `portal-wide registration offered no tool either; called [${calledTools.join(", ") || "nothing"}]`,
@@ -5928,10 +5930,10 @@ test.describe("MCP - a registered server in the tool list", () => {
 //   entityId = the agent room id      -> generators only; the model states it
 //                                        has no folder tools, and "create a file
 //                                        in Files" is served by generate_docx
-//                                        into Result Storage
+//                                        into Chat outputs
 //   entityId = any folder or room id  -> the REST family is offered as well, and
 //                                        that includes the agent's OWN Knowledge
-//                                        and Result Storage folders
+//                                        and Chat outputs folders
 //
 // So a chat that looks like it is "inside the agent room" reaches the 401 as
 // soon as the client scopes it to a folder of that room instead of to the room.
@@ -6295,7 +6297,7 @@ async function generateFile(
 
 test.describe("MCP - the server-executed DocSpace tools", () => {
   for (const generator of GENERATORS) {
-    test(`POST /api/2.0/ai/ai/approve-tool-call - an agent's ${generator.toolName} writes ${generator.label} into Result Storage, and it opens`, async ({
+    test(`POST /api/2.0/ai/ai/approve-tool-call - an agent's ${generator.toolName} writes ${generator.label} into Chat outputs, and it opens`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -6304,7 +6306,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       // the created file's id, that file is then read back out of DocSpace, and
       // the editor configuration a client would open it with is built from it.
       //
-      // Result Storage, not "the Files section the user asked for": the agent room
+      // Chat outputs, not "the Files section the user asked for": the agent room
       // root takes no files at all, so an agent-scoped chat has exactly one place
       // to put what it produces. The model's own sentence about where the file went
       // is deliberately not asserted — it is prose, and on the measured runs it
@@ -6367,7 +6369,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       );
       expect(
         created.parentId,
-        `${generator.label} is filed in the agent's Result Storage`,
+        `${generator.label} is filed in the agent's Chat outputs`,
       ).toBe(resultStorageId);
 
       // And DocSpace really has it — the tool result alone would only prove the
@@ -6584,7 +6586,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     // does: the engine, not the client, would run it, so "the user said no" has
     // to mean the document was never written.
     //
-    // Both decisions are taken in one test on purpose. "Result Storage is empty"
+    // Both decisions are taken in one test on purpose. "Chat outputs is empty"
     // is also what a portal where the tool never ran at all would report, so the
     // approve leg below is the positive control that makes the empty read mean
     // something — the same agent, the same request, one thread apart.
@@ -6607,7 +6609,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       const { data, status } = await ownerApi.folders.getFolderByFolderId({
         folderId: resultStorageId,
       });
-      expect(status, "the agent's Result Storage is readable").toBe(200);
+      expect(status, "the agent's Chat outputs is readable").toBe(200);
       return (data.response?.files ?? []) as Array<{
         id?: number;
         title?: string;
@@ -6616,7 +6618,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
 
     // Setup premise: nothing is in there before the conversation, or the
     // assertions below would be measuring the portal's seed data.
-    expect(await storedFiles(), "Result Storage starts empty").toEqual([]);
+    expect(await storedFiles(), "Chat outputs starts empty").toEqual([]);
 
     await test.step("the refused call", async () => {
       const threadId = await aiChat.createThreadId("owner", {
@@ -6707,7 +6709,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       );
       expect(
         (await storedFiles()).map((file) => file.id),
-        "an approved call does write into Result Storage",
+        "an approved call does write into Chat outputs",
       ).toContain(created.id);
     });
   });
@@ -6834,7 +6836,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     // can write anywhere. A member cannot: ContentCreator is the lowest level
     // that may use an agent at all, and the file lands in a folder the member
     // does not own. Two things are worth pinning because the UI has no other
-    // outcome to offer — the document is filed in the agent's Result Storage the
+    // outcome to offer — the document is filed in the agent's Chat outputs the
     // same way, and the member who asked for it can open it.
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
@@ -6894,7 +6896,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     );
     expect(
       created.parentId,
-      "a member's document is filed in the agent's Result Storage too",
+      "a member's document is filed in the agent's Chat outputs too",
     ).toBe(resultStorageId);
 
     // The member's own read, which is the one the requirement is about: they
@@ -7178,7 +7180,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     /** Which of the agent's folders to scope to; a plain folder when absent. */
     folder?: FolderType;
   }> = [
-    { label: "the agent's Result Storage", folder: FolderType.ResultStorage },
+    { label: "the agent's Chat outputs", folder: FolderType.ResultStorage },
     { label: "the agent's Knowledge Base", folder: FolderType.Knowledge },
     { label: "an ordinary folder in Files" },
   ];

@@ -59,20 +59,24 @@ import { AiAgentChat, AiThreadMessage } from "./ai-agent-chat";
 //     `{field:"name", message:"Unknown web-search provider: X"}`. (The earlier
 //     note here said no name was recognised at all; that was true on 2026-08-04
 //     and is not any more.)
-//   * `configure` and `set-active-config` answer **500 for every body** — BUG
-//     82812, re-measured 2026-08-18 against seven spellings of the config,
-//     `provider`/`name` and `key`/`apiKey` included. With no manual path in the
-//     product, the behaviour to ask for is a deterministic **403** (what `clear`
-//     already answers on the same billing-owned state), not a working save — the
-//     `test.fail` tests are written that way.
+//   * `configure` and `set-active-config` used to answer **500 for every
+//     body** — BUG 82812, re-measured 2026-08-18 against seven spellings of
+//     the config, `provider`/`name` and `key`/`apiKey` included. **CONFIRMED
+//     FIXED 2026-09-29**: a structurally malformed body now answers 400
+//     instead of crashing, and the add-on-owns-the-provider shape now answers
+//     403. With no manual path in the product, the behaviour to ask for is a
+//     deterministic **403** (what `clear` already answers on the same
+//     billing-owned state), not a working save.
 //
-// The 500 lands *before* both the authorization check and the portal AI switch
-// (a Guest gets 500 instead of 403, and so does a caller on an AI-disabled
-// portal), and it is the odd one out: `clear`, the same kind of write against
-// the same billing-owned state, refuses cleanly with 403. `test-connection` has
-// the mirror-image problem — gated by neither role nor switch, so a Guest who
-// cannot read the configuration can still spend the portal's egress on it. All
-// of these are in web-search.spec.ts.
+// What's still open is authorization order, not the crash: a request still
+// reaches validation *before* both the authorization check and the portal AI
+// switch (a Guest gets 400 instead of 403, and so does a caller on an
+// AI-disabled portal), and it is the odd one out — `clear`, the same kind of
+// write against the same billing-owned state, refuses cleanly with 403. This
+// is a separate, unfiled bug (BUG XXXXX in the `test.fail` titles).
+// `test-connection` has the mirror-image problem — gated by neither role nor
+// switch, so a Guest who cannot read the configuration can still spend the
+// portal's egress on it. All of these are in web-search.spec.ts.
 
 /** The two names this portal accepts; every other candidate is "Unknown". */
 export const WEB_SEARCH_RECOGNISED_PROVIDERS = ["exa", "onlyoffice"] as const;

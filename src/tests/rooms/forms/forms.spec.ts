@@ -3135,8 +3135,8 @@ async function getSharedWithMeFolderId(
 }
 
 test.describe("GET /api/2.0/files/:folderId - Shared with me: PDF filters (BUG 81919)", () => {
-  test.fail(
-    "BUG 81919: GET /files/:folderId - Shared with me ignores the PDF form filter",
+  test(
+    "BUG 81919: GET /files/:folderId - Shared with me applies the PDF form filter",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
@@ -3204,8 +3204,8 @@ test.describe("GET /api/2.0/files/:folderId - Shared with me: PDF filters (BUG 8
     },
   );
 
-  test.fail(
-    "BUG 81919: GET /files/:folderId - Shared with me ignores the PDF document filter",
+  test(
+    "BUG 81919: GET /files/:folderId - Shared with me applies the PDF document filter",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: myDocsData } = await ownerApi.folders.getMyFolder();
