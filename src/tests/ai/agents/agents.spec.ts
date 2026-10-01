@@ -317,6 +317,35 @@ test.describe("POST /ai/agents - Create AI agent validation", () => {
   });
 });
 
+test.describe("POST /ai/agents - the Chat assignment a create produces", () => {
+  test("POST /ai/agents - create binds the given profile as the agent's Chat assignment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Create Assignment Contract Agent",
+      profileId,
+      prompt: "You are a test assistant",
+    });
+
+    const { status, data } = await profiles.getAllAssignments("owner", agentId);
+    expect(status).toBe(200);
+    expect(data?.Chat, "create binds the profile as a Chat assignment").toBe(
+      profileId,
+    );
+
+    const info = await aiChat.getAgentInfo("owner", agentId);
+    expect(info.data?.response?.profileId).toBe(profileId);
+  });
+});
+
 test.describe("GET /ai/agents - Get AI agents", () => {
   test("GET /ai/agents - Owner creates an agent and verifies it in agent list", async ({
     apiSdk,
@@ -1000,17 +1029,15 @@ test.describe("PUT /ai/agents/:id - the agent's profile binding", () => {
     }
   });
 
-  // Measured 2026-08-06: this answers 200 and writes the request in halves. The
-  // title, the tags and the prompt all land, while the model is not replaced but
-  // *erased* — the agent record loses its `profileId` and its assignment scope
-  // goes back to `{}`. So a plain rename that happened to carry a stale id
-  // leaves an agent with no model at all, and the composer has nothing to show
-  // where the fixed model used to be. Either the whole request is refused or
-  // none of it is written; a half-applied PUT is neither.
-  //
-  // Threads made before the update are the one thing that survives — each keeps
-  // the profile it was stamped with — so the damage is to new conversations.
-  test("BUG 82925: PUT /ai/agents/:id - an unknown profileId is written in halves: the rename lands and the model is erased", async ({
+  // BUG 82925 as originally filed (measured 2026-08-06): this used to answer
+  // 200 and write the request in halves — title, tags and prompt all landed,
+  // while the model was not replaced but *erased* (the agent lost its
+  // `profileId` and its assignment scope went back to `{}`). Fixed since:
+  // measured live 2026-09-30, an unknown profileId is now refused atomically
+  // with 400 ("AI profile "..." does not exist") and nothing about the agent
+  // changes — title, tags, prompt, `profileId`, its Chat assignment and any
+  // thread already bound to it all stay exactly as they were before the call.
+  test("BUG 82925: PUT /ai/agents/:id - an unknown profileId is refused atomically, the existing agent state and assignment are preserved", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1069,6 +1096,303 @@ test.describe("PUT /ai/agents/:id - the agent's profile binding", () => {
       thread: profileId,
     });
   });
+});
+
+test.describe("PUT /ai/agents/:id - profileId positive path", () => {
+  test("PUT /ai/agents/:id - moving from profile A to profile B replaces the Chat assignment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const usable = catalogue.filter(
+      (p) => !!p.id && !!p.modelId && p.canUseTool !== false,
+    );
+    if (usable.length < 2) {
+      throw new Error(
+        `Need 2 distinct usable profiles, catalogue has ${usable.length}`,
+      );
+    }
+    const [a, b] = usable;
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Move Profile Agent",
+      profileId: a.id,
+      prompt: "Original prompt",
+    });
+    expect(
+      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      "the agent starts bound to A",
+    ).toBe(a.id);
+
+    const update = await aiChat.updateAgent("owner", agentId, {
+      profileId: b.id,
+    });
+    expect(update.status).toBe(200);
+
+    const info = await aiChat.getAgentInfo("owner", agentId);
+    const scope = await profiles.getAllAssignments("owner", agentId);
+
+    expect(info.data?.response?.profileId, "GET reflects B").toBe(b.id);
+    expect(
+      scope.data?.Chat,
+      "the assignment is replaced by B, A is not left behind",
+    ).toBe(b.id);
+  });
+
+  test("PUT /ai/agents/:id - updating only profileId leaves title, tags and prompt untouched", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const usable = catalogue.filter(
+      (p) => !!p.id && !!p.modelId && p.canUseTool !== false,
+    );
+    if (usable.length < 2) {
+      throw new Error(
+        `Need 2 distinct usable profiles, catalogue has ${usable.length}`,
+      );
+    }
+    const [a, b] = usable;
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Only ProfileId Agent",
+      tags: ["original-tag"],
+      profileId: a.id,
+      prompt: "Original prompt",
+    });
+
+    const update = await aiChat.updateAgent("owner", agentId, {
+      profileId: b.id,
+    });
+    expect(update.status).toBe(200);
+
+    const info = await aiChat.getAgentInfo("owner", agentId);
+    expect(info.data?.response?.title).toBe("Autotest Only ProfileId Agent");
+    expect(info.data?.response?.tags).toEqual(["original-tag"]);
+    expect(info.data?.response?.chatSettings?.prompt).toBe("Original prompt");
+    expect(info.data?.response?.profileId).toBe(b.id);
+  });
+});
+
+// "GET /ai/agents/:id - an agent with no Chat assignment" is NOT in this file.
+// The JSDoc promises the field is simply absent rather than null/error, but
+// there is currently no reachable way to stage that state to test it against:
+// /ai/assignments/unassign only ever touches the portal-wide default, never an
+// entity scope, and both known erasure paths that used to leave an agent
+// assignment-less are gone on this build —
+//   * BUG 82925 (update to an unknown profileId): now a clean 400 that writes
+//     nothing, measured live 2026-09-30.
+//   * BUG 83359 (update onto a model restricted at that moment): also now a
+//     clean 400 ("AI profile "<id>" does not exist"), binding unchanged —
+//     measured the same run.
+// Both of those tests still report as expected failures because their
+// `test.fail()`/asserted shape still encodes the OLD broken outcome, so nothing
+// in the test report flags that the underlying behavior changed. Worth a
+// dedicated look at BUG 82925/83355/83359 rather than folding it into this
+// gap-fill pass — see the chat write-up for details.
+
+test.describe("PUT|DELETE /ai/agents/:id - nonexistent agent", () => {
+  // Measured live: GET and DELETE both answer 404 for a non-existent agent,
+  // but PUT answers 403 "Forbidden" for the exact same id — the permission
+  // check runs before the existence check on this route and not on the other
+  // two. Pinned as a candidate contract gap rather than silently matched to
+  // 404, since that is what was actually observed.
+  test.fail(
+    "BUG XXXXX: PUT /ai/agents/:id answers 403 for a non-existent agent instead of 404 like GET and DELETE do",
+    async ({ apiSdk, paymentsApi }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+
+      const { status } = await aiChat.updateAgent("owner", 999999999, {
+        title: "Autotest Ghost Agent",
+        profileId,
+      });
+
+      expect(status).toBe(404);
+    },
+  );
+
+  test("DELETE /ai/agents/:id - Owner deletes a non-existent agent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { status } = await aiChat.deleteAgent("owner", 999999999);
+
+    expect(status).toBe(404);
+  });
+});
+
+test.describe("DELETE /ai/agents/:id - assignment cleanup", () => {
+  test("DELETE /ai/agents/:id - deleting an agent leaves no dangling Chat assignment", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Assignment Cleanup Agent",
+      profileId,
+    });
+    expect(
+      (await profiles.getAllAssignments("owner", agentId)).data?.Chat,
+      "the agent is bound before delete",
+    ).toBe(profileId);
+
+    const { status } = await aiChat.deleteAgent("owner", agentId);
+    await aiChat.waitForAgentDeleted("owner", agentId);
+    expect(status).toBe(200);
+
+    const scope = await profiles.getAllAssignments("owner", agentId);
+    expect(
+      scope.data?.Chat,
+      "no dangling Chat assignment for a deleted agent's entityId",
+    ).toBeUndefined();
+  });
+});
+
+test.describe("GET /ai/agents - ordinary rooms never surface as agents", () => {
+  test("GET /ai/agents - an ordinary room is never listed alongside real agents", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Real Agent Among Rooms",
+      profileId,
+    });
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Ordinary Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+
+    const { status, data } = await aiChat.getAgents("owner");
+    const ids = data?.response?.folders?.map((folder) => folder.id) ?? [];
+
+    expect(status).toBe(200);
+    expect(ids, "the real agent is listed").toContain(agentId);
+    expect(
+      ids,
+      "an ordinary room never surfaces in the agent list",
+    ).not.toContain(roomId);
+  });
+
+  // Measured live: GET /ai/agents/:id has no agent-type check at all — an
+  // ordinary CustomRoom id answers 200 with the room's full payload
+  // (parentId, security, shareSettings, the lot), including an
+  // `internal/ai/agents/{id}` self-link. The endpoint is not scoped to
+  // roomType 9 the way the rest of this surface assumes; it reads as a
+  // generic "get room by id" once past whatever access check gated it.
+  test.fail(
+    "BUG XXXXX: GET /ai/agents/:id serves an ordinary, non-agent room's full data instead of refusing it",
+    async ({ apiSdk, paymentsApi }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const { data: room } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Ordinary Room For Agent Get",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = room.response!.id!;
+
+      const { status } = await aiChat.getAgentInfo("owner", roomId);
+
+      expect(status).toBe(404);
+    },
+  );
+});
+
+test.describe("PUT /ai/agents/agentquota|resetquota - batch semantics with mixed roomIds", () => {
+  // Measured live: a batch with one real agent id and one that does not exist
+  // does not partially apply, does not refuse cleanly, and does not echo back
+  // the valid agent — it 500s with `{"error":"Internal Server Error"}`. Any of
+  // "valid id updated, unknown one dropped" or "the whole batch is refused
+  // with 400" would be a defensible contract; blowing up the server is not.
+  test.fail(
+    "BUG XXXXX: PUT /ai/agents/agentquota - a roomIds batch mixing a valid and a non-existent id answers 500",
+    async ({ apiSdk, paymentsApi }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+      });
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "Autotest Quota Mixed Ids Agent",
+        profileId,
+      });
+
+      const { status } = await aiChat.updateAgentsQuota("owner", {
+        roomIds: [agentId, 999999999],
+        quota: 1048576,
+      });
+
+      expect(status).toBe(200);
+    },
+  );
+
+  test.fail(
+    "BUG XXXXX: PUT /ai/agents/resetquota - a roomIds batch mixing a valid and a non-existent id answers 500",
+    async ({ apiSdk, paymentsApi }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+      });
+
+      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+      const profileId = await aiChat.defaultProfileId("owner");
+      const agentId = await aiChat.createAgentId("owner", {
+        title: "Autotest Reset Quota Mixed Ids Agent",
+        profileId,
+      });
+      await aiChat.updateAgentsQuota("owner", {
+        roomIds: [agentId],
+        quota: 1048576,
+      });
+
+      const { status } = await aiChat.resetAgentsQuota("owner", {
+        roomIds: [agentId, 999999999],
+      });
+
+      expect(status).toBe(200);
+    },
+  );
 });
 
 // Reported 2026-08-21: an admin disables a model via its provider toggle in AI
@@ -1266,7 +1590,14 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
     ).toEqual({ status: 200, profileId: replacement.id, chat: replacement.id });
   });
 
-  test("BUG 83359: PUT /ai/agents/:id - moving onto a restricted model erases the binding instead of a controlled refusal", async ({
+  // BUG 83359 as originally filed (measured 2026-08-21): this used to answer
+  // 200 and erase the binding — the agent's `profileId` and its Chat
+  // assignment were both wiped by a request the server itself refused. Fixed
+  // since: measured live 2026-09-30, moving onto a model that is restricted
+  // at the moment of the update is now a controlled refusal — 400, the same
+  // "AI profile "..." does not exist" shape an unrecognised profileId gets —
+  // and the agent keeps the profileId/Chat assignment it already had.
+  test("BUG 83359: PUT /ai/agents/:id - moving onto a restricted model is refused atomically, the current profileId/Chat assignment is preserved", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1300,17 +1631,21 @@ test.describe("PUT /api/2.0/ai/agents/:id - restricting the agent's current mode
       profileId: target.id,
     });
     const info = await aiChat.getAgentInfo("owner", agentId);
+    const scope = await profiles.getAllAssignments("owner", agentId);
 
     await ownerApi.payment.setRestrictedAiModels({
       setRestrictedAiModelsRequestDto: { models: new Set() },
     });
 
-    test.fail();
     expect(
-      { status: update.status, profileId: info.data?.response?.profileId },
-      "moving onto a restricted model should be a controlled refusal (like " +
-        "assignments' 'Profile not found'), not a 200 that erases the model",
-    ).toEqual({ status: 200, profileId: target.id });
+      {
+        status: update.status,
+        profileId: info.data?.response?.profileId,
+        chat: scope.data?.Chat,
+      },
+      "moving onto a restricted model is a controlled refusal, not a 200 " +
+        "that erases the model — the agent keeps the profile it already had",
+    ).toEqual({ status: 400, profileId: current.id, chat: current.id });
   });
 
   test("POST /ai/agents - a restricted model at create time is refused, not silently dropped", async ({
