@@ -15,11 +15,15 @@ import {
 test.describe("API room groups methods", () => {
   test.describe("POST /files/group", () => {
     test.describe("positive", () => {
-      test("POST /files/group - Owner creates a group with all room types", async ({
+      test("POST /files/group - Owner creates a group with all supported room types", async ({
         apiSdk,
       }) => {
         const ownerApi = apiSdk.forRole("owner");
-        const rooms = await createAllRoomTypes(apiSdk, "owner");
+        // Form filling rooms live under their own root (FolderType.Forms) and
+        // cannot be grouped — the UI does not offer them either
+        const rooms = (await createAllRoomTypes(apiSdk, "owner")).filter(
+          (r) => r.roomType !== RoomType.FillingFormsRoom,
+        );
         const roomIds = rooms.map((r) => r.id);
 
         const { data, status } = await ownerApi.groups.addRoomGroup({
