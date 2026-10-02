@@ -3564,16 +3564,16 @@ test.describe("AI Chat - the default model of a room", () => {
     expect(AiAgentChat.messageText(reply).length).toBeGreaterThan(0);
   });
 
-  test("BUG 82895: GET /api/2.0/ai/assignments - the scope of a room the caller cannot open returns 500", async ({
+  test("BUG 82895: GET /api/2.0/ai/assignments - the scope of a room the caller cannot open is refused with 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Third route in the same family, and the last one still doing it: naming a
-    // room the caller has no access to crashes the access check instead of
-    // refusing it. `get-deep-mode` (BUG 82816) and `threads/list` (BUG 82858)
-    // both answer 403 now; this is /ai/assignments. A member of the room is
-    // answered normally (portal-wide fallback), so the 500 really is the access
-    // check and not a broken scope parameter.
+    // Third route in the same family: naming a room the caller has no access to
+    // used to crash the access check (500) instead of refusing it, like
+    // `get-deep-mode` (BUG 82816) and `threads/list` (BUG 82858). All three answer
+    // 403 now — this one measured 3/3 on 2026-10-02. A member of the room is
+    // answered normally (portal-wide fallback), so the 403 is the access check
+    // and not a broken scope parameter.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3614,8 +3614,7 @@ test.describe("AI Chat - the default model of a room", () => {
     const own = await profiles.getAllAssignments("user");
     expect(own.status, "the caller's own portal-wide read").toBe(200);
 
-    test.fail();
-    expect(scoped.status).toBe(403);
+    expect(scoped.status, "a room the caller cannot open is refused").toBe(403);
   });
 });
 
@@ -4893,14 +4892,15 @@ test.describe("AI Chat - the model of an agent room", () => {
     ).toEqual({ profileId: textProfile.id, chat: textProfile.id });
   });
 
-  test("BUG 82895: GET /api/2.0/ai/assignments/* - the scope of an agent the caller is not in returns 500", async ({
+  test("BUG 82895: GET /api/2.0/ai/assignments/* - the scope of an agent the caller is not in is refused with 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Same crash as the room case in "the default model of a room", on the scope
-    // that actually holds a binding: an agent's is the one entity scope with a
-    // Chat profile in it, so a client that asks about an agent it may not see
-    // gets a 500 instead of a refusal — from both reads of the pair.
+    // Same 500 as the room case in "the default model of a room" used to be, on
+    // the scope that actually holds a binding: an agent's is the one entity scope
+    // with a Chat profile in it, so a client that asks about an agent it may not
+    // see must be refused — on get-all and on both resolve routes. Fixed:
+    // 403 across the board, 3/3 on 2026-10-02.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -4922,12 +4922,16 @@ test.describe("AI Chat - the model of an agent room", () => {
 
     const scoped = await profiles.getAllAssignments("user", agentId);
     const resolved = await profiles.resolveForAction("user", "Chat", agentId);
+    const tried = await profiles.tryResolveForAction("user", "Chat", agentId);
 
-    test.fail();
     expect(
-      { getAll: scoped.status, resolve: resolved.status },
+      {
+        getAll: scoped.status,
+        resolve: resolved.status,
+        tryResolve: tried.status,
+      },
       "an agent the caller is not in is refused, not crashed",
-    ).toEqual({ getAll: 403, resolve: 403 });
+    ).toEqual({ getAll: 403, resolve: 403, tryResolve: 403 });
   });
 
   // The three edge cases of a model choice — a profile carried by the open call,
