@@ -3944,15 +3944,11 @@ test.describe("AI Attachments - the destination of a device file", () => {
     // that Knowledge refuses to create one, the same way the agent room root
     // refuses everything (see the test above).
     //
-    // Measured 2026-09-24: it does not refuse. `folders.createFolder` against
-    // Knowledge answers 200 and the folder is really filed there — 6/6 repeats,
-    // with `enableAiGateway()` called first as every test in this suite does
-    // (skipping that step gives a 403 that looks like the fix but is really
-    // the unrelated AI-not-provisioned fallback in
-    // [[ai_gateway_403_means_payment_provisioning_broke]] — do not read that as
-    // this bug being closed).
-    test.fail();
-
+    // Fixed (checked 2026-10-02): until then `folders.createFolder` against
+    // Knowledge answered 200 and the folder was really filed there. Keep
+    // `enableAiGateway()` first — without it a 403 appears that is only the
+    // AI-not-provisioned fallback in
+    // [[ai_gateway_403_means_payment_provisioning_broke]], not this rule.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -3967,9 +3963,8 @@ test.describe("AI Attachments - the destination of a device file", () => {
       createFolder: { title: folderTitle },
     });
 
-    // Side-effect check before the status check — see
-    // [[feedback_assertion_order]] — so a status assertion that fails first
-    // in this test.fail test never hides whether the folder also leaked in.
+    // Side-effect check before the status check, so a status failure never
+    // hides whether the folder also leaked in.
     const { data: knowledge, status: knowledgeStatus } =
       await ownerApi.folders.getFolderByFolderId({ folderId: knowledgeId });
     expect(knowledgeStatus, "the owner reads Knowledge").toBe(200);
