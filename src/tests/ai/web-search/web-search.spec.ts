@@ -579,10 +579,15 @@ test.describe("AI Web Search - billed as a service of its own", () => {
       "a search the model really ran must be billed to ai-search",
     ).toBeDefined();
     expect(charged?.service).toBe("ai-search");
-    expect(charged?.description).toBe("AI search");
-    // Searches are sold by result, not by token — its own unit is the clearest
-    // sign this is a service of its own and not part of the AI Tools meter.
-    expect(charged?.serviceUnit).toBe("Results");
+    // One service, more than one kind of row: the portal books the search itself
+    // as "Web search" and fetching a result page as "Web crawling". Which of the
+    // two lands first depends on what the model did with the question.
+    expect(charged?.description).toMatch(/^Web (search|crawling)$/);
+    // Neither is sold by token — each has its own unit, which is the clearest sign
+    // this is a service of its own and not part of the AI Tools meter.
+    expect(charged?.serviceUnit).toBe(
+      charged?.description === "Web crawling" ? "Sources" : "Results",
+    );
     expect(charged?.quantity).toBeGreaterThan(0);
     expect(charged?.currency).toBe("USD");
     // "Paid" means money actually left the wallet, not just that a row appeared.
