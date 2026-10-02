@@ -80,7 +80,11 @@ export const AI_CAP_KNOWN_BITS =
  */
 export const AI_CAP_VISION = AI_CAP_BITS.vision;
 
-/** Every action type the assignment API accepts. */
+/**
+ * Every action type the assignment API accepts. `FormAnalysis` is served by the
+ * backend (seeded on a fresh portal, measured 2026-10-02) but is missing from
+ * the SDK 4.0.0 `AiActionType` enum and from its parameter docs.
+ */
 export const AI_ACTION_TYPES = [
   "Default",
   "Chat",
@@ -91,6 +95,7 @@ export const AI_ACTION_TYPES = [
   "ImageGeneration",
   "OCR",
   "Vision",
+  "FormAnalysis",
 ] as const;
 
 /**
