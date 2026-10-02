@@ -625,7 +625,16 @@ export class AiAgentChat extends AiHttp {
       agentId: number | string;
       message: string;
     },
-  ): Promise<{ aborted: boolean; elapsedMs: number; streamedText: string }> {
+  ): Promise<{
+    aborted: boolean;
+    elapsedMs: number;
+    streamedText: string;
+    /** HTTP status and the frame types read before the stream ended — what a
+     * missed cut looked like, since `aborted: false` alone says nothing. */
+    status: number;
+    framesSeen: string[];
+    rawHead: string;
+  }> {
     const startedAt = Date.now();
     const controller = new AbortController();
     const url = `${this.tokenStore.portalBaseUrl}/api/2.0/ai/ai/send-with-stream`;
@@ -650,10 +659,15 @@ export class AiAgentChat extends AiHttp {
         aborted: false,
         elapsedMs: Date.now() - startedAt,
         streamedText: "",
+        status: response.status,
+        framesSeen: [],
+        rawHead: "",
       };
     }
 
     const reader = response.body.getReader();
+    const framesSeen: string[] = [];
+    let rawHead = "";
     const decoder = new TextDecoder();
     let buffer = "";
     let aborted = false;
@@ -664,7 +678,9 @@ export class AiAgentChat extends AiHttp {
         const { value, done } = await reader.read();
         if (done) break;
         if (!value) continue;
-        buffer += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        if (rawHead.length < 600) rawHead += chunk;
+        buffer += chunk;
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? ""; // keep the last, possibly partial, line
         for (const line of lines) {
@@ -676,6 +692,7 @@ export class AiAgentChat extends AiHttp {
           } catch {
             continue;
           }
+          framesSeen.push(String(frame.type));
           if (frame.type === "message-delta") {
             const text = AiAgentChat.frameText(frame);
             if (text.length > 0) {
@@ -699,7 +716,14 @@ export class AiAgentChat extends AiHttp {
       }
     }
 
-    return { aborted, elapsedMs: Date.now() - startedAt, streamedText };
+    return {
+      aborted,
+      elapsedMs: Date.now() - startedAt,
+      streamedText,
+      status: response.status,
+      framesSeen,
+      rawHead: rawHead.slice(0, 600),
+    };
   }
 
   /**

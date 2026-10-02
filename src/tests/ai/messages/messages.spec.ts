@@ -2395,11 +2395,12 @@ test.describe("AI Messages - per-message routes with AI Disabled", () => {
 //                       "reason":"cancelled"},"content":""}
 //
 // So the hang-up now reaches the generation: it is cancelled, and the thread
-// keeps a placeholder reply carrying that status. Two consequences for the
-// assertions below — the status is what tells "cancelled" apart from "not
-// written yet", and the five seconds of text that had already streamed are
-// discarded rather than kept as a truncated answer, so the stored reply is
-// empty and its length cannot carry the check on its own.
+// keeps the reply with that status. Whatever had already streamed is KEPT as
+// the stored reply, the same as when Stop is pressed in the composer — the
+// developers' answer on BUG 84028 (until 2026-10 the contract here was "the
+// partial text is discarded", which is no longer the expectation). The status
+// is what tells "cancelled" apart from "not written yet", and the text, which
+// must stay unfinished and stop growing, is what shows the generation ended.
 //
 // The sentinel is what makes completeness checkable without guessing at
 // lengths: the model is told to end with FINISHED, so its absence long after
@@ -2425,9 +2426,17 @@ test.describe("AI Messages - per-message routes with AI Disabled", () => {
 
 const LONG_ANSWER_PROMPT =
   "Write a detailed essay of at least 600 words about the history of typography. " +
-  "Number every paragraph. When the whole essay is done, end your answer with the exact word FINISHED.";
+  "Number every paragraph. When the whole essay is done, end your answer with the exact word FINISHED. " +
+  "Answer from your own knowledge and do not call any tools.";
 
 const SENTINEL = "FINISHED";
+
+/**
+ * A completed answer ENDS with the sentinel. "Contains" is not enough: the
+ * model sometimes restates the instruction in its opening line ("...and ending
+ * with FINISHED"), which would read a fragment as a finished answer.
+ */
+const ENDS_WITH_SENTINEL = /FINISHED\W*$/;
 
 /** No growth for this long counts as "the backend has finished with it". */
 const QUIET_MS = 20000;
@@ -2437,25 +2446,30 @@ type SettledReply = Awaited<
 >;
 
 /**
- * What a hung-up-on turn leaves behind now that the abort is a real stop: one
- * placeholder reply, empty and marked cancelled. The two recovery tests below
- * need it only as their premise — they are about what happens NEXT, so they
- * assert the placeholder is there and settled rather than re-testing the
- * cancellation itself.
+ * What a hung-up-on turn leaves behind: one reply marked cancelled that keeps
+ * the part already generated (intended, as with Stop in the composer). The two
+ * recovery tests below need it only as their premise — they are about what
+ * happens NEXT, so they assert the reply is there, cancelled, not an error and
+ * still unfinished rather than re-testing the cancellation itself.
  */
-function expectCancelledPlaceholder(settled: SettledReply): void {
+function expectCancelledPartial(settled: SettledReply): void {
   expect(
     settled.message,
     "the abandoned turn left a reply behind",
   ).toBeDefined();
+  const status = AiAgentChat.messageStatus(settled.message!);
+  expect(status?.type, "the abandoned reply is marked incomplete").toBe(
+    "incomplete",
+  );
+  expect(status?.reason, "…because it was cancelled").toBe("cancelled");
+  expect(status?.error, "a cancellation is not an error").toBeUndefined();
   expect(
-    AiAgentChat.messageStatus(settled.message!)?.reason,
-    "the abandoned reply is marked cancelled",
-  ).toBe("cancelled");
-  expect(
-    settled.text,
-    `the cancelled reply holds no text; lengths seen: ${settled.lengths.join(" -> ")}`,
-  ).toBe("");
+    settled.text.length,
+    `the part generated before the hang-up is kept; lengths seen: ${settled.lengths.join(" -> ")}`,
+  ).toBeGreaterThan(0);
+  expect(settled.text, "the kept text is an unfinished answer").not.toMatch(
+    ENDS_WITH_SENTINEL,
+  );
 }
 
 test.describe("AI Messages - stopping a stream", () => {
@@ -2479,16 +2493,16 @@ test.describe("AI Messages - stopping a stream", () => {
       agentId,
     });
 
-    const { aborted, streamedText, elapsedMs } =
-      await aiChat.sendAndAbortOnFirstDelta("owner", {
-        threadId,
-        profileId,
-        agentId,
-        message: LONG_ANSWER_PROMPT,
-      });
+    const cut = await aiChat.sendAndAbortOnFirstDelta("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: LONG_ANSWER_PROMPT,
+    });
+    const { aborted, streamedText, elapsedMs } = cut;
     expect(
       aborted,
-      "the connection was cut right after real content started streaming",
+      `the connection was cut right after real content started streaming — HTTP ${cut.status}, frames ${cut.framesSeen.join(",")}, head ${JSON.stringify(cut.rawHead)}`,
     ).toBe(true);
     // Proof the cut landed mid-generation rather than on an already-finished
     // reply, without guessing at timing: what had streamed by the cut is a
@@ -2496,15 +2510,14 @@ test.describe("AI Messages - stopping a stream", () => {
     expect(
       streamedText,
       `the cut arrived after the answer already finished — ${JSON.stringify(streamedText)} at ${elapsedMs}ms`,
-    ).not.toContain(SENTINEL);
+    ).not.toMatch(ENDS_WITH_SENTINEL);
 
     // What the thread holds the moment the client is gone.
     const atStop = await aiChat.readMessages("owner", threadId);
     expect(atStop.status).toBe(200);
     const partial = AiAgentChat.assistantText(atStop.data);
-    test.fail();
-    expect(partial, "the answer was still being written").not.toContain(
-      SENTINEL,
+    expect(partial, "the answer was still being written").not.toMatch(
+      ENDS_WITH_SENTINEL,
     );
 
     // Watched for longer than a whole answer takes, so "still not finished"
@@ -2519,33 +2532,12 @@ test.describe("AI Messages - stopping a stream", () => {
     expect(
       settled.text,
       `a generation the user stopped must not run to its end; the stored reply over ${QUIET_MS}ms: ${settled.lengths.join(" -> ")}`,
-    ).not.toContain(SENTINEL);
+    ).not.toMatch(ENDS_WITH_SENTINEL);
 
     // What makes that absence a cancellation rather than a reply the backend
-    // is still writing: the thread says so. Without this the assertion above
-    // would also pass on a build that simply lost the answer.
-    //
-    // Was reliable per BUG 82898 (closed 2026-08-18: cancelled + emptied).
-    // Re-measured 2026-08-24, 4 runs: only 1 came back marked
-    // `{"type":"incomplete","reason":"cancelled"}` with content discarded: the
-    // other 3 stored `status: undefined` with the partial answer LEFT IN
-    // PLACE (228 and 708 chars observed, unchanged over 60s of re-reads) —
-    // i.e. worse than "not marked cancelled", the text is not being discarded
-    // either, which is the pre-08-18 behaviour BUG 82898 was filed against.
-    // Reads as that fix regressing, not a race a longer wait would clear.
-    //
-    // Re-measured 2026-09-23 with the deterministic first-delta cut (see
-    // `sendAndAbortOnFirstDelta`): 3/3 runs stored `status: undefined` with a
-    // truncated, mid-sentence fragment left in place — unchanged over 40s of
-    // re-reads — same regression, now reproducing every time rather than 3
-    // in 4.
-    test.fail();
-    const status = AiAgentChat.messageStatus(settled.message!);
-    expect(status?.type, "the stopped reply is marked incomplete").toBe(
-      "incomplete",
-    );
-    expect(status?.reason, "…because it was cancelled").toBe("cancelled");
-    expect(status?.error, "a cancellation is not an error").toBeUndefined();
+    // is still writing: the thread says so, and keeps the text generated so far
+    // (intended, same as Stop in the composer).
+    expectCancelledPartial(settled);
 
     // The question is kept, so the turn can be retried.
     expect(AiAgentChat.userMessages(atStop.data)).toHaveLength(1);
@@ -2574,19 +2566,19 @@ test.describe("AI Messages - stopping a stream", () => {
       agentId,
     });
 
-    const { aborted, streamedText } = await aiChat.sendAndAbortOnFirstDelta(
-      "owner",
-      {
-        threadId,
-        profileId,
-        agentId,
-        message: LONG_ANSWER_PROMPT,
-      },
-    );
-    expect(aborted).toBe(true);
+    const cut = await aiChat.sendAndAbortOnFirstDelta("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: LONG_ANSWER_PROMPT,
+    });
+    expect(
+      cut.aborted,
+      `the connection was cut — HTTP ${cut.status}, frames ${cut.framesSeen.join(",")}, head ${JSON.stringify(cut.rawHead)}`,
+    ).toBe(true);
     // Proof the cut landed mid-generation, the same way the "hanging up
     // mid-stream" test above establishes it.
-    expect(streamedText).not.toContain(SENTINEL);
+    expect(cut.streamedText).not.toMatch(ENDS_WITH_SENTINEL);
 
     // The cancellation is allowed to settle before the next turn — sending into
     // a thread the backend is still writing to is a different test.
@@ -2595,10 +2587,7 @@ test.describe("AI Messages - stopping a stream", () => {
       threadId,
       QUIET_MS,
     );
-    // Same regression as the "hanging up mid-stream" test above (BUG 84028):
-    // the abandoned placeholder is not reliably marked cancelled any more.
-    test.fail();
-    expectCancelledPlaceholder(abandoned);
+    expectCancelledPartial(abandoned);
 
     const resumed = await aiChat.sendMessage("owner", {
       threadId,
@@ -2624,8 +2613,8 @@ test.describe("AI Messages - stopping a stream", () => {
     expect(second.id).not.toBe(abandoned.message?.id);
 
     // The cancelled turn is left as it was: still its own message, still marked
-    // cancelled. Comparing the text alone would now be ""==="" and pass on a
-    // build that reused the placeholder for the new answer.
+    // cancelled. Comparing the text alone would miss a build that reused the abandoned
+    // message for the new answer, so id and status are what is checked.
     expect(replies[0].id, "the abandoned reply is still there").toBe(
       abandoned.message?.id,
     );
@@ -2656,28 +2645,25 @@ test.describe("AI Messages - stopping a stream", () => {
       agentId,
     });
 
-    const { aborted, streamedText } = await aiChat.sendAndAbortOnFirstDelta(
-      "owner",
-      {
-        threadId,
-        profileId,
-        agentId,
-        message: LONG_ANSWER_PROMPT,
-      },
-    );
-    expect(aborted).toBe(true);
+    const cut = await aiChat.sendAndAbortOnFirstDelta("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: LONG_ANSWER_PROMPT,
+    });
+    expect(
+      cut.aborted,
+      `the connection was cut — HTTP ${cut.status}, frames ${cut.framesSeen.join(",")}, head ${JSON.stringify(cut.rawHead)}`,
+    ).toBe(true);
     // Proof the cut landed mid-generation, the same way the "hanging up
     // mid-stream" test above establishes it.
-    expect(streamedText).not.toContain(SENTINEL);
+    expect(cut.streamedText).not.toMatch(ENDS_WITH_SENTINEL);
     const abandoned = await aiChat.waitForStableAssistantText(
       "owner",
       threadId,
       QUIET_MS,
     );
-    // Same regression as the "hanging up mid-stream" test above (BUG 84028):
-    // the abandoned placeholder is not reliably marked cancelled any more.
-    test.fail();
-    expectCancelledPlaceholder(abandoned);
+    expectCancelledPartial(abandoned);
 
     const { status, streamError } = await aiChat.regenerateStream("owner", {
       threadId,
@@ -4234,9 +4220,9 @@ test.describe("AI Messages - the OpenAI-compatible stream", () => {
     }
     expect(aborted, "the client hung up before the reply finished").toBe(true);
 
-    // A placeholder reply is left behind, the same as the plain endpoint's —
+    // A cancelled reply is left behind, the same as the plain endpoint's —
     // see the "stopping a stream" block above for the exact shape, including
-    // the currently open BUG 84028 regression around its `status`.
+    // its `status` and the partial text it keeps.
     const abandoned = await aiChat.waitForStableAssistantText(
       "owner",
       threadId,
