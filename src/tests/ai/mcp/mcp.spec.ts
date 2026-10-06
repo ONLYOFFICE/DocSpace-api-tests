@@ -1433,7 +1433,7 @@ test.describe("MCP - a genuine two-hop tool call", () => {
 // (a repeat deny always answers with the same canned "User deny tool call"
 // result, so only the regenerated prose around it shows the replay).
 test.describe("MCP - a decision replayed on an already-resolved tool call", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - a second approve with a different result overwrites the first", async ({
+  test("BUG 84283: POST /api/2.0/ai/ai/approve-tool-call - a second approve with a different result overwrites the first", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1485,7 +1485,7 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
     ).toBe("14C and sunny");
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/deny-tool-call - denying an already-approved call overwrites its result", async ({
+  test("BUG 84285: POST /api/2.0/ai/ai/deny-tool-call - denying an already-approved call overwrites its result", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1534,7 +1534,7 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
     ).toBe("14C and sunny");
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - approving an already-denied call overwrites its result", async ({
+  test("BUG 84287: POST /api/2.0/ai/ai/approve-tool-call - approving an already-denied call overwrites its result", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1585,7 +1585,7 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
     ).toBe("User deny tool call");
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/deny-tool-call - a second deny regenerates the follow-up text even though the result is unchanged", async ({
+  test("BUG 84288: POST /api/2.0/ai/ai/deny-tool-call - a second deny regenerates the follow-up text even though the result is unchanged", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1644,7 +1644,7 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
   // asserted as a real, reassuring fact before `test.fail()` — it is what
   // keeps this a "wrong message got rewritten" bug rather than a "the whole
   // thread can be rolled back" one.
-  test("BUG XXXXX: POST /api/2.0/ai/ai/approve-tool-call - a stale approve reaches back into an earlier, already-superseded message", async ({
+  test("BUG 84291: POST /api/2.0/ai/ai/approve-tool-call - a stale approve reaches back into an earlier, already-superseded message", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2365,7 +2365,7 @@ test.describe("MCP - the tool call announces itself", () => {
 });
 
 test.describe("MCP - always-allow drives the pause", () => {
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-allow-always - a listed tool comes back autoAllow and delisting it prompts again", async ({
+  test("BUG 84292: PUT /api/2.0/ai/tools/set-allow-always - a listed tool comes back autoAllow and delisting it prompts again", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2548,7 +2548,7 @@ test.describe("MCP - always-allow drives the pause", () => {
     ).toBe(true);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/tools/is-allow-always - a client tool pre-approved through the dialog is not found under its own key", async ({
+  test("BUG 84293: GET /api/2.0/ai/tools/is-allow-always - a client tool pre-approved through the dialog is not found under its own key", async ({
     apiSdk,
     paymentsApi,
   }) => {

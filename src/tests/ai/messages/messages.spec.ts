@@ -4421,7 +4421,7 @@ test.describe("AI Messages - one-shot inference", () => {
     ).toMatch(/\b(4|four)\b/i);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send - a malformed request crashes with 500 instead of a validation error", async ({
+  test("BUG 84294: POST /api/2.0/ai/ai/send - a malformed request crashes with 500 instead of a validation error", async ({
     apiSdk,
     paymentsApi,
   }) => {
