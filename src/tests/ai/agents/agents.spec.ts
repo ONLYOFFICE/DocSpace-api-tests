@@ -1208,7 +1208,7 @@ test.describe("PUT|DELETE /ai/agents/:id - nonexistent agent", () => {
   // two. Pinned as a candidate contract gap rather than silently matched to
   // 404, since that is what was actually observed.
   test.fail(
-    "BUG XXXXX: PUT /ai/agents/:id answers 403 for a non-existent agent instead of 404 like GET and DELETE do",
+    "BUG 84274: PUT /ai/agents/:id answers 403 for a non-existent agent instead of 404 like GET and DELETE do",
     async ({ apiSdk, paymentsApi }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -1314,7 +1314,7 @@ test.describe("GET /ai/agents - ordinary rooms never surface as agents", () => {
   // roomType 9 the way the rest of this surface assumes; it reads as a
   // generic "get room by id" once past whatever access check gated it.
   test.fail(
-    "BUG XXXXX: GET /ai/agents/:id serves an ordinary, non-agent room's full data instead of refusing it",
+    "BUG 84275: GET /ai/agents/:id serves an ordinary, non-agent room's full data instead of refusing it",
     async ({ apiSdk, paymentsApi }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -1342,7 +1342,7 @@ test.describe("PUT /ai/agents/agentquota|resetquota - batch semantics with mixed
   // "valid id updated, unknown one dropped" or "the whole batch is refused
   // with 400" would be a defensible contract; blowing up the server is not.
   test.fail(
-    "BUG XXXXX: PUT /ai/agents/agentquota - a roomIds batch mixing a valid and a non-existent id answers 500",
+    "BUG 84276: PUT /ai/agents/agentquota - a roomIds batch mixing a valid and a non-existent id answers 500",
     async ({ apiSdk, paymentsApi }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -1367,7 +1367,7 @@ test.describe("PUT /ai/agents/agentquota|resetquota - batch semantics with mixed
   );
 
   test.fail(
-    "BUG XXXXX: PUT /ai/agents/resetquota - a roomIds batch mixing a valid and a non-existent id answers 500",
+    "BUG 84277: PUT /ai/agents/resetquota - a roomIds batch mixing a valid and a non-existent id answers 500",
     async ({ apiSdk, paymentsApi }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);

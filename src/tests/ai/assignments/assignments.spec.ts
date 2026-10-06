@@ -1348,7 +1348,7 @@ test.describe("AI Assignments - resolution precedence", () => {
     expect(direct.data).toBeNull();
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/assignments/resolve-for-action - returns 500 Internal Server Error when no profile can be resolved", async ({
+  test("BUG 84278: GET /api/2.0/ai/assignments/resolve-for-action - returns 500 Internal Server Error when no profile can be resolved", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1367,7 +1367,7 @@ test.describe("AI Assignments - resolution precedence", () => {
     expect(status, "resolve with no profile to resolve").not.toBe(500);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/assignments/resolve-for-action - an unknown entityId is a 404 instead of the portal-wide model", async ({
+  test("BUG 84279: GET /api/2.0/ai/assignments/resolve-for-action - an unknown entityId is a 404 instead of the portal-wide model", async ({
     apiSdk,
     paymentsApi,
   }) => {
