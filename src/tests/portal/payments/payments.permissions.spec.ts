@@ -2855,3 +2855,54 @@ test.describe("POST /api/2.0/portal/payment/subscription/movetowallet - permissi
     expect((data as any)?.error?.message).toBe("Access denied");
   });
 });
+
+// Measured 2026-10-06: Owner and DocSpaceAdmin read the price list; RoomAdmin,
+// User and Guest get 403 "Access denied" (PaymentHelper.DemandAdminAsync) and
+// Anonymous 401. The role check runs before the service lookup, so a non-admin
+// gets the same 403 for a name that exists and for one that does not — the
+// billing catalogue is not probeable from below admin.
+test.describe("GET /api/2.0/portal/payment/accounting/prices/{serviceName} - permissions", () => {
+  test("GET /api/2.0/portal/payment/accounting/prices - Anonymous cannot get service prices", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .payment.getAccountingServicePrices({ serviceName: "ai-tools" });
+
+    expect(status).toBe(401);
+  });
+
+  const DENIED = [
+    ["RoomAdmin", "roomAdmin"],
+    ["User", "user"],
+    ["Guest", "guest"],
+  ] as const;
+
+  for (const [memberType, role] of DENIED) {
+    test(`GET /api/2.0/portal/payment/accounting/prices - ${memberType} cannot get service prices`, async ({
+      apiSdk,
+    }) => {
+      // Control: the Owner reads the same name, so the 403 below is the role.
+      const control = await apiSdk
+        .forRole("owner")
+        .payment.getAccountingServicePrices({ serviceName: "ai-tools" });
+      expect(control.status).toBe(200);
+
+      await apiSdk.addAuthenticatedMember("owner", memberType);
+
+      const { data, status } = await apiSdk
+        .forRole(role)
+        .payment.getAccountingServicePrices({ serviceName: "ai-tools" });
+      expect(status).toBe(403);
+      expect((data as any)?.error?.message).toBe("Access denied");
+
+      const unknown = await apiSdk
+        .forRole(role)
+        .payment.getAccountingServicePrices({ serviceName: "no-such-service" });
+      expect(
+        unknown.status,
+        "the role check comes before the service lookup",
+      ).toBe(403);
+    });
+  }
+});

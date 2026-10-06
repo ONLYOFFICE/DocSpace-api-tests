@@ -1544,3 +1544,165 @@ test.describe("GET /api/2.0/ai/profiles/list - effect of a portal-wide model res
     });
   });
 });
+
+// `reasoningSupport` (SDK 4.0.0) says what one model can do with extended
+// thinking. The catalogue copies it onto each profile "at save time", and the
+// gateway portal cannot save one: create/update answer 403, so the
+// create -> get-by-id round trip is unreachable here. What is reachable is that
+// every read surface of the catalogue says the same thing, and that the shape is
+// coherent. Measured 2026-10-06 on the 9 gateway profiles: seven thinking models
+// (depths drawn from low/medium/high/max — some skip `medium`, some cap at
+// `high`; `canDisable` false on two) and two image-generation ones with
+// `{thinks:false, canDisable:true, depths:[]}`.
+const REASONING_DEPTHS = ["low", "medium", "high", "max"];
+
+test.describe("AI Profiles - reasoningSupport", () => {
+  test("GET /api/2.0/ai/profiles/list - every profile describes its model's extended thinking coherently", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    // Controls: the loop below says nothing on a catalogue that never thinks or
+    // never refuses to.
+    expect(
+      catalogue.some((profile) => profile.reasoningSupport?.thinks === true),
+      "a thinking model is offered",
+    ).toBe(true);
+    expect(
+      catalogue.some((profile) => profile.reasoningSupport?.thinks === false),
+      "a model that does not think is offered",
+    ).toBe(true);
+
+    for (const profile of catalogue) {
+      const support = profile.reasoningSupport;
+      const label = profile.modelId;
+      expect(support, `${label} reasoningSupport`).toBeDefined();
+      expect(typeof support!.thinks, `${label} thinks`).toBe("boolean");
+      expect(typeof support!.canDisable, `${label} canDisable`).toBe("boolean");
+
+      const depths = support!.depths!;
+      expect(Array.isArray(depths), `${label} depths`).toBe(true);
+      for (const depth of depths) {
+        expect(REASONING_DEPTHS, `${label} depth`).toContain(depth);
+      }
+      expect(new Set(depths).size, `${label} depths are unique`).toBe(
+        depths.length,
+      );
+      expect(
+        depths.map((depth) => REASONING_DEPTHS.indexOf(depth)),
+        `${label} depths run lowest first`,
+      ).toEqual(
+        depths
+          .map((depth) => REASONING_DEPTHS.indexOf(depth))
+          .sort((a, b) => a - b),
+      );
+
+      if (support!.defaultDepth !== undefined) {
+        expect(depths, `${label} defaultDepth is one of its depths`).toContain(
+          support!.defaultDepth,
+        );
+      }
+      if (!support!.thinks) {
+        expect(depths, `${label} does not think, so no depth`).toEqual([]);
+      }
+      expect(
+        profile.reasoning,
+        `${label}: the older boolean agrees with thinks`,
+      ).toBe(support!.thinks);
+    }
+  });
+
+  test("GET /api/2.0/ai/profiles/get-by-id - a profile reads the same reasoningSupport as the list and the model discovery", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    const gateway = AiProfiles.byCapabilities(catalogue, AI_CAPS.textTools);
+    const discovery = await profiles.listProviderModels("owner", {
+      providerType: "onlyoffice",
+      baseUrl: gateway.baseUrl,
+      apiKey: "onlyoffice",
+    });
+    expect(discovery.status).toBe(200);
+    const byModel = new Map(discovery.data!.map((model) => [model.id, model]));
+    expect(byModel.size, "discovery lists models").toBeGreaterThan(0);
+
+    for (const profile of catalogue) {
+      const byId = await profiles.getProfileById("owner", profile.id!);
+      expect(byId.status, `${profile.modelId} get-by-id`).toBe(200);
+      expect(
+        byId.data?.reasoningSupport,
+        `${profile.modelId}: get-by-id repeats the list`,
+      ).toEqual(profile.reasoningSupport);
+
+      const model = byModel.get(profile.modelId);
+      expect(model, `${profile.modelId} is in discovery`).toBeDefined();
+      expect(
+        profile.reasoningSupport,
+        `${profile.modelId}: the profile carries what discovery reported`,
+      ).toEqual(model!.reasoningSupport);
+    }
+  });
+
+  test("GET /api/2.0/ai/assignments/resolve-for-action - the resolved profile carries its catalogue entry's reasoningSupport", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    const resolved = await profiles.resolveForAction("owner", "Chat");
+    expect(resolved.status).toBe(200);
+    const listed = catalogue.find((p) => p.id === resolved.data?.profileId);
+    expect(listed, "the resolved profile is in the catalogue").toBeDefined();
+    expect(resolved.data?.profile?.reasoningSupport).toEqual(
+      listed!.reasoningSupport,
+    );
+  });
+
+  test("POST|PUT /api/2.0/ai/profiles/create - a reasoningSupport in the body does not reach a read-only catalogue", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const before = await profiles.catalogue("owner");
+    const target = AiProfiles.byCapabilities(before, AI_CAPS.textTools);
+
+    // The opposite of what the target really advertises, so a write that landed
+    // could not be mistaken for the stored value.
+    const forged = { thinks: false, canDisable: true, depths: [] };
+    expect(target.reasoningSupport?.thinks, "control").toBe(true);
+
+    const created = await profiles.createProfile("owner", {
+      name: "Autotest reasoning support",
+      providerType: "onlyoffice",
+      baseUrl: target.baseUrl,
+      key: "onlyoffice",
+      modelId: target.modelId,
+      capabilities: AI_CAPS.textTools,
+      reasoning: true,
+      reasoningSupport: forged,
+    });
+    const updated = await profiles.updateProfile("owner", {
+      ...target,
+      reasoningSupport: forged,
+    });
+
+    const after = await profiles.catalogue("owner");
+    expect(after.length, "no profile was added").toBe(before.length);
+    const stored = await profiles.getProfileById("owner", target.id!);
+    expect(stored.data?.reasoningSupport).toEqual(target.reasoningSupport);
+
+    expect(created.status, "create").toBe(403);
+    expect(updated.status, "update").toBe(403);
+  });
+});
