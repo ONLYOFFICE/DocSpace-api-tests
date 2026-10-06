@@ -52,7 +52,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
     await test.step("Start form filling", async () => {
       const { status } = await dsAdminApi.files.manageFormFilling({
         fileId: String(formId),
-        manageFormFillingDtoInteger: {
+        manageFormFillingDto: {
           formId,
           action: FormFillingManageAction.Start,
         },
@@ -64,7 +64,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
     await test.step("Stop form filling", async () => {
       const { status } = await dsAdminApi.files.manageFormFilling({
         fileId: String(formId),
-        manageFormFillingDtoInteger: {
+        manageFormFillingDto: {
           formId,
           action: FormFillingManageAction.Stop,
         },
@@ -116,7 +116,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
 
     const { status } = await contentCreatorApi.files.manageFormFilling({
       fileId: String(formId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Start,
       },
@@ -168,7 +168,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
     await test.step("Start form filling", async () => {
       const { status } = await contentCreatorApi.files.manageFormFilling({
         fileId: String(formId),
-        manageFormFillingDtoInteger: {
+        manageFormFillingDto: {
           formId,
           action: FormFillingManageAction.Start,
         },
@@ -180,7 +180,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
     await test.step("Stop form filling", async () => {
       const { status } = await contentCreatorApi.files.manageFormFilling({
         fileId: String(formId),
-        manageFormFillingDtoInteger: {
+        manageFormFillingDto: {
           formId,
           action: FormFillingManageAction.Stop,
         },
@@ -232,7 +232,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
 
     await contentCreatorApi.files.manageFormFilling({
       fileId: String(formId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Start,
       },
@@ -240,7 +240,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
 
     const { status } = await contentCreatorApi.files.manageFormFilling({
       fileId: String(formId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Stop,
       },
@@ -291,7 +291,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
 
     await ownerApi.files.manageFormFilling({
       fileId: String(formId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Start,
       },
@@ -299,7 +299,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - permissions", () => {
 
     const { status } = await contentCreatorApi.files.manageFormFilling({
       fileId: String(formId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Stop,
       },

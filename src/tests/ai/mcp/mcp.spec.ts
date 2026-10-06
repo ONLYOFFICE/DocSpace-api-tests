@@ -14,6 +14,11 @@ import {
 } from "@/src/helpers/ai-agent-chat";
 import { AiTools, EMPTY_TOOL_CATALOGUE } from "@/src/helpers/ai-tools";
 import {
+  ASK_FOR_TOOL,
+  WEATHER_TOOL,
+  setupChat,
+} from "@/src/helpers/ai-host-tool";
+import {
   agentStorageFolderId,
   downloadFile,
 } from "@/src/helpers/device-upload";
@@ -1041,21 +1046,6 @@ test.describe("MCP - tool-call confirmation with AI Disabled", () => {
 // here asserts the pause arrived before it asserts anything about it — a missing
 // pause is a failed test, never a silently skipped one.
 
-const WEATHER_TOOL: HostTool = {
-  name: "get_weather",
-  description: "Get the current weather for a city.",
-  inputSchema: {
-    type: "object",
-    properties: { city: { type: "string", description: "City name" } },
-    required: ["city"],
-    additionalProperties: false,
-  },
-  enabled: true,
-  requireApproval: true,
-};
-
-const ASK_FOR_TOOL = "What is the weather in Paris? Call the get_weather tool.";
-
 /** A second tool whose input depends on the first's result — for forcing a
  *  genuine two-hop call rather than two calls the model could batch at once. */
 const RECOMMENDATION_TOOL: HostTool = {
@@ -1082,21 +1072,6 @@ const ASK_FOR_TWO_HOP_TOOLS =
   "get_recommendation with that exact temperature value. Do not skip either " +
   "call, and do not call them at the same time — call get_weather first, wait " +
   "for its result, then call get_recommendation.";
-
-/** Fresh agent + thread on a text profile, ready to be sent a message. */
-async function setupChat(
-  aiChat: AiAgentChat,
-  title = "Autotest Host Tools Agent",
-) {
-  const profileId = await aiChat.defaultProfileId("owner");
-  const agentId = await aiChat.createAgentId("owner", { title, profileId });
-  const threadId = await aiChat.createThreadId("owner", {
-    title: "Autotest host tool thread",
-    profileId,
-    agentId,
-  });
-  return { profileId, agentId, threadId };
-}
 
 test.describe("MCP - the tool-call pause", () => {
   test("POST /api/2.0/ai/ai/send-with-stream - a client-supplied tool pauses the stream at tool-call-pending", async ({
@@ -6322,10 +6297,10 @@ async function generateFile(
     title: agentTitle,
     profileId,
   });
-  const resultStorageId = await agentStorageFolderId(
+  const chatOutputsId = await agentStorageFolderId(
     ownerApi,
     agentId,
-    FolderType.ResultStorage,
+    FolderType.ChatOutputs,
   );
   const threadId = await aiChat.createThreadId("owner", {
     title: `Autotest ${generator.toolName} thread`,
@@ -6352,7 +6327,7 @@ async function generateFile(
     expect.any(Number),
   );
 
-  return { agentId, profileId, threadId, resultStorageId, driven, created };
+  return { agentId, profileId, threadId, chatOutputsId, driven, created };
 }
 
 test.describe("MCP - the server-executed DocSpace tools", () => {
@@ -6380,10 +6355,10 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
         aiChat,
         "Autotest Server Tool Agent",
       );
-      const resultStorageId = await agentStorageFolderId(
+      const chatOutputsId = await agentStorageFolderId(
         ownerApi,
         agentId,
-        FolderType.ResultStorage,
+        FolderType.ChatOutputs,
       );
       const threadId = await aiChat.createThreadId("owner", {
         title: `Autotest ${generator.toolName} thread`,
@@ -6430,13 +6405,13 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       expect(
         created.parentId,
         `${generator.label} is filed in the agent's Chat outputs`,
-      ).toBe(resultStorageId);
+      ).toBe(chatOutputsId);
 
       // And DocSpace really has it — the tool result alone would only prove the
       // engine claimed a file id.
       const { data: storage, status } =
         await ownerApi.folders.getFolderByFolderId({
-          folderId: resultStorageId,
+          folderId: chatOutputsId,
         });
       expect(status).toBe(200);
       const stored = (storage.response?.files ?? []) as Array<{
@@ -6659,15 +6634,15 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       aiChat,
       "Autotest Denied Generator Agent",
     );
-    const resultStorageId = await agentStorageFolderId(
+    const chatOutputsId = await agentStorageFolderId(
       ownerApi,
       agentId,
-      FolderType.ResultStorage,
+      FolderType.ChatOutputs,
     );
 
     const storedFiles = async () => {
       const { data, status } = await ownerApi.folders.getFolderByFolderId({
-        folderId: resultStorageId,
+        folderId: chatOutputsId,
       });
       expect(status, "the agent's Chat outputs is readable").toBe(200);
       return (data.response?.files ?? []) as Array<{
@@ -6911,10 +6886,10 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       aiChat,
       "Autotest Member Generator Agent",
     );
-    const resultStorageId = await agentStorageFolderId(
+    const chatOutputsId = await agentStorageFolderId(
       ownerApi,
       agentId,
-      FolderType.ResultStorage,
+      FolderType.ChatOutputs,
     );
 
     const { data: memberData } = await apiSdk.addAuthenticatedMember(
@@ -6961,7 +6936,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     expect(
       created.parentId,
       "a member's document is filed in the agent's Chat outputs too",
-    ).toBe(resultStorageId);
+    ).toBe(chatOutputsId);
 
     // The member's own read, which is the one the requirement is about: they
     // confirmed the call, so the finished file has to open for them.
@@ -7244,7 +7219,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     /** Which of the agent's folders to scope to; a plain folder when absent. */
     folder?: FolderType;
   }> = [
-    { label: "the agent's Chat outputs", folder: FolderType.ResultStorage },
+    { label: "the agent's Chat outputs", folder: FolderType.ChatOutputs },
     { label: "the agent's Knowledge Base", folder: FolderType.Knowledge },
     { label: "an ordinary folder in Files" },
   ];

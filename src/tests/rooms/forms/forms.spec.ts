@@ -3159,7 +3159,7 @@ test.describe("GET /api/2.0/files/:folderId - Shared with me: PDF filters (BUG 8
       });
     const { data: pdfData } = await ownerApi.files.saveFileAsPdf({
       id: pdfSourceData.response!.id!,
-      saveAsPdfInteger: {
+      saveAsPdf: {
         folderId: myDocsFolderId,
         title: "Autotest Shared PdfForm Filter Pdf",
       },
@@ -3227,7 +3227,7 @@ test.describe("GET /api/2.0/files/:folderId - Shared with me: PDF filters (BUG 8
       });
     const { data: pdfData } = await ownerApi.files.saveFileAsPdf({
       id: pdfSourceData.response!.id!,
-      saveAsPdfInteger: {
+      saveAsPdf: {
         folderId: myDocsFolderId,
         title: "Autotest Shared Pdf Filter Pdf",
       },

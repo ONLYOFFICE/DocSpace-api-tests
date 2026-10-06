@@ -6250,15 +6250,15 @@ test.describe("AI Chat - image generation", () => {
       profileId,
     });
 
-    const resultStorageId = await agentStorageFolderId(
+    const chatOutputsId = await agentStorageFolderId(
       ownerApi,
       agentId,
-      FolderType.ResultStorage,
+      FolderType.ChatOutputs,
     );
     const { data: myDocs } = await ownerApi.folders.getMyFolder();
     const myDocsId = myDocs.response!.current!.id!;
 
-    const storedBefore = await fileIdsIn(ownerApi, resultStorageId);
+    const storedBefore = await fileIdsIn(ownerApi, chatOutputsId);
     const myDocsBefore = await stableFileIds(ownerApi, myDocsId);
 
     const attempt = await requestPicture(
@@ -6273,11 +6273,7 @@ test.describe("AI Chat - image generation", () => {
       "the drawing was attempted — without this the rest proves nothing",
     ).toContain("generate_image");
 
-    const landed = await waitForNewFile(
-      ownerApi,
-      resultStorageId,
-      storedBefore,
-    );
+    const landed = await waitForNewFile(ownerApi, chatOutputsId, storedBefore);
     expect(landed, "the picture is filed next to the agent").toBeDefined();
     expect(landed!.title).toMatch(IMAGE_EXTENSION);
 

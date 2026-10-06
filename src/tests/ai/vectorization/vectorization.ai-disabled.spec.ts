@@ -36,7 +36,7 @@ test.describe("AI Vectorization - AI Disabled", () => {
     });
 
     const { status } = await ownerApi.vectorization.aiVectorizationStartTask({
-      requestBody: { files: new Set([1]) },
+      aiVectorizationStartTaskRequest: { files: [1] },
     });
 
     expect(status).toBe(403);
@@ -75,7 +75,7 @@ test.describe("AI Vectorization - AI Tools wallet service not paid for", () => {
       // needed to show the route is reachable while unpaid — a 402/403 naming
       // the wallet service would be the gate this test is looking for.
       const { status } = await ownerApi.vectorization.aiVectorizationStartTask({
-        requestBody: { files: new Set([MISSING_FILE_ID]) },
+        aiVectorizationStartTaskRequest: { files: [MISSING_FILE_ID] },
       });
       expect(status).toBe(404);
     });
@@ -119,7 +119,7 @@ test.describe("AI Vectorization - AI Tools wallet service not paid for", () => {
       );
 
       const { status } = await ownerApi.vectorization.aiVectorizationStartTask({
-        requestBody: { files: new Set([fileId]) },
+        aiVectorizationStartTaskRequest: { files: [fileId] },
       });
       expect(status).toBe(200);
 

@@ -2,11 +2,11 @@
 import { test } from "@/src/fixtures";
 import {
   CheckDestFolderResult,
-  FileDtoInteger,
+  FileDto,
   FileConflictResolveType,
   FileOperationType,
   FileShare,
-  FolderDtoInteger,
+  FolderDto,
   FolderType,
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
@@ -857,7 +857,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data, status } = await ownerApi.operations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },
@@ -915,7 +915,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data, status } = await ownerApi.operations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },
@@ -946,7 +946,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data, status } = await ownerApi.operations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },
@@ -977,7 +977,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data, status } = await ownerApi.operations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: false,
       },
     });
@@ -996,7 +996,7 @@ test.describe("GET /api/2.0/files/file/{fileId}/checkconversion - Check conversi
 
     const { data, status } = await ownerApi.operations.startFileConversion({
       fileId: 999999999,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },
@@ -2371,7 +2371,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const copiedFolder = destContent.response!.folders!.find(
         (f) => f.title === folderTitle,
-      ) as FolderDtoInteger;
+      ) as FolderDto;
       const { data: copiedContent } =
         await ownerApi.folders.getFolderByFolderId({
           folderId: copiedFolder.id!,
@@ -2473,7 +2473,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const { data: destBefore } = await ownerApi.folders.getFolderByFolderId({
         folderId: destFolderId,
       });
-      const existingFileId = (destBefore.response!.files![0] as FileDtoInteger)
+      const existingFileId = (destBefore.response!.files![0] as FileDto)
         .id!;
 
       const { status } = await ownerApi.operations.copyBatchItems({
@@ -2493,7 +2493,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const destFiles = destAfter.response?.files ?? [];
       expect(destFiles).toHaveLength(1);
-      expect((destFiles[0] as FileDtoInteger).id).toBe(existingFileId);
+      expect((destFiles[0] as FileDto).id).toBe(existingFileId);
     },
   );
 
@@ -2532,7 +2532,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const { data: destBefore } = await ownerApi.folders.getFolderByFolderId({
         folderId: destFolderId,
       });
-      const originalFileId = (destBefore.response!.files![0] as FileDtoInteger)
+      const originalFileId = (destBefore.response!.files![0] as FileDto)
         .id!;
 
       const { data: file2Data } = await ownerApi.files.createFile({
@@ -2558,7 +2558,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const destFiles = destAfter.response?.files ?? [];
       expect(destFiles).toHaveLength(1);
-      expect((destFiles[0] as FileDtoInteger).id).toBe(originalFileId);
+      expect((destFiles[0] as FileDto).id).toBe(originalFileId);
     },
   );
 
@@ -2982,7 +2982,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const copiedFolder = level3Content.response!.folders!.find(
         (f) => f.title === sourceFolderTitle,
-      ) as FolderDtoInteger;
+      ) as FolderDto;
       const { data: copiedContent } =
         await ownerApi.folders.getFolderByFolderId({
           folderId: copiedFolder.id!,
@@ -3038,7 +3038,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const { data: beforeData } = await ownerApi.folders.getFolderByFolderId({
         folderId: folder3Id,
       });
-      const existingId = (beforeData.response!.files![0] as FileDtoInteger).id!;
+      const existingId = (beforeData.response!.files![0] as FileDto).id!;
 
       const { status } = await ownerApi.operations.copyBatchItems({
         batchRequestDto: {
@@ -3057,7 +3057,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const afterFiles = afterData.response?.files ?? [];
       expect(afterFiles).toHaveLength(1);
-      expect((afterFiles[0] as FileDtoInteger).id).toBe(existingId);
+      expect((afterFiles[0] as FileDto).id).toBe(existingId);
     },
   );
 
@@ -3183,7 +3183,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
 
       const copiedSubfolder = destContent.response!.folders!.find(
         (f) => f.title === subFolderTitle,
-      ) as FolderDtoInteger;
+      ) as FolderDto;
       const { data: copiedContent } =
         await ownerApi.folders.getFolderByFolderId({
           folderId: copiedSubfolder.id!,
@@ -3499,7 +3499,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const { data: beforeData } = await ownerApi.folders.getFolderByFolderId({
         folderId: folder3Id,
       });
-      const originalFileId = (beforeData.response!.files![0] as FileDtoInteger)
+      const originalFileId = (beforeData.response!.files![0] as FileDto)
         .id!;
 
       const { data: file2 } = await ownerApi.files.createFile({
@@ -3525,7 +3525,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const afterFiles = afterData.response?.files ?? [];
       expect(afterFiles).toHaveLength(1);
-      expect((afterFiles[0] as FileDtoInteger).id).toBe(originalFileId);
+      expect((afterFiles[0] as FileDto).id).toBe(originalFileId);
     },
   );
 
@@ -3746,7 +3746,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       });
       const copiedFolder = (destContent.response?.folders ?? []).find(
         (f) => f.title === emptyFolderTitle,
-      ) as FolderDtoInteger;
+      ) as FolderDto;
       expect(copiedFolder).toBeDefined();
 
       const { data: copiedFolderContent } =
@@ -5850,7 +5850,7 @@ test.describe("PUT /api/2.0/files/fileops/duplicate - duplicateBatchItems", () =
           folderId: myDocsFolderId,
         });
       const matchingFolders = (
-        myDocsContent.response!.folders as FolderDtoInteger[]
+        myDocsContent.response!.folders as FolderDto[]
       ).filter((f) => f.title?.includes(folderBase));
       expect(matchingFolders.length).toBeGreaterThanOrEqual(2);
 
@@ -7176,7 +7176,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
 
       const movedFolder = destContent.response!.folders!.find(
         (f) => f.title === folderTitle,
-      ) as FolderDtoInteger;
+      ) as FolderDto;
       const { data: movedContent } = await ownerApi.folders.getFolderByFolderId(
         {
           folderId: movedFolder.id!,
@@ -7513,10 +7513,10 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
         folderId: destFolderId,
       });
       const destTitlesAfterSetup = (destBefore.response?.files ?? []).map(
-        (f) => (f as FileDtoInteger).title,
+        (f) => (f as FileDto).title,
       );
       expect(destTitlesAfterSetup).toContain(fileTitle);
-      const existingFileId = (destBefore.response!.files![0] as FileDtoInteger)
+      const existingFileId = (destBefore.response!.files![0] as FileDto)
         .id!;
 
       const { data: file2Data } = await ownerApi.files.createFile({
@@ -7529,7 +7529,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
           folderId: myDocsFolderId,
         });
       const srcIdsBeforeMove = (srcBeforeMove.response?.files ?? []).map(
-        (f) => (f as FileDtoInteger).id,
+        (f) => (f as FileDto).id,
       );
       expect(srcIdsBeforeMove).toContain(file2Data.response!.id!);
 
@@ -7550,13 +7550,13 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       });
       const destFiles = destAfter.response?.files ?? [];
       expect(destFiles).toHaveLength(1);
-      expect((destFiles[0] as FileDtoInteger).id).toBe(existingFileId);
+      expect((destFiles[0] as FileDto).id).toBe(existingFileId);
 
       const { data: srcAfter } = await ownerApi.folders.getFolderByFolderId({
         folderId: myDocsFolderId,
       });
       const srcFileIdsAfter = (srcAfter.response?.files ?? []).map(
-        (f) => (f as FileDtoInteger).id,
+        (f) => (f as FileDto).id,
       );
       expect(srcFileIdsAfter).toContain(file2Data.response!.id!);
     },
@@ -7597,7 +7597,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const { data: destBefore } = await ownerApi.folders.getFolderByFolderId({
         folderId: destFolderId,
       });
-      const originalFileId = (destBefore.response!.files![0] as FileDtoInteger)
+      const originalFileId = (destBefore.response!.files![0] as FileDto)
         .id!;
 
       const { data: file2Data } = await ownerApi.files.createFile({
@@ -7623,7 +7623,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       });
       const destFiles = destAfter.response?.files ?? [];
       expect(destFiles).toHaveLength(1);
-      expect((destFiles[0] as FileDtoInteger).id).toBe(originalFileId);
+      expect((destFiles[0] as FileDto).id).toBe(originalFileId);
     },
   );
 
@@ -8156,7 +8156,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
         });
       const srcFileIdsAfterOverwrite = (
         srcAfterOverwrite.response?.files ?? []
-      ).map((f) => (f as FileDtoInteger).id);
+      ).map((f) => (f as FileDto).id);
       expect(srcFileIdsAfterOverwrite).not.toContain(file2Data.response!.id!);
     },
   );
@@ -8228,7 +8228,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
         });
       const srcFileIdsAfterDuplicate = (
         srcAfterDuplicate.response?.files ?? []
-      ).map((f) => (f as FileDtoInteger).id);
+      ).map((f) => (f as FileDto).id);
       expect(srcFileIdsAfterDuplicate).not.toContain(file2Data.response!.id!);
     },
   );
@@ -8286,7 +8286,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
           folderId: myDocsFolderId,
         });
       const srcIdsBeforeMove = (srcBeforeMove.response?.files ?? []).map(
-        (f) => (f as FileDtoInteger).id,
+        (f) => (f as FileDto).id,
       );
       expect(srcIdsBeforeMove).toContain(file2Data.response!.id!);
 
@@ -8308,7 +8308,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
         },
       );
       const srcFileIdsAfterSkip = (srcAfterSkip.response?.files ?? []).map(
-        (f) => (f as FileDtoInteger).id,
+        (f) => (f as FileDto).id,
       );
       expect(srcFileIdsAfterSkip).not.toContain(file2Data.response!.id!);
     },
@@ -8589,7 +8589,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
         folderId: myDocsFolderId,
       });
       const srcFileIds = (srcAfter.response?.files ?? []).map(
-        (f) => (f as FileDtoInteger).id,
+        (f) => (f as FileDto).id,
       );
       expect(srcFileIds).not.toContain(formFileId);
     },

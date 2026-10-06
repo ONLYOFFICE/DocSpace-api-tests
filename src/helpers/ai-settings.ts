@@ -17,6 +17,8 @@ import { AiHttp, AgentRole, Envelope } from "./ai-http";
 
 export type AiUserConfig = {
   chatRecommendedModelVisible?: boolean;
+  /** 0 ask, 1 auto, 2 allow — the numeric twin of set-tool-permission-mode. */
+  toolPermissionMode?: number;
 };
 
 /**

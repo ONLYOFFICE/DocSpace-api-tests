@@ -55,7 +55,7 @@ export async function startFormFilling(
 
   await apiSdk.forRole(role).files.manageFormFilling({
     fileId: String(formId),
-    manageFormFillingDtoInteger: {
+    manageFormFillingDto: {
       formId,
       action: FormFillingManageAction.Start,
     },
