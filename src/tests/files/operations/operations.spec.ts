@@ -2473,8 +2473,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const { data: destBefore } = await ownerApi.folders.getFolderByFolderId({
         folderId: destFolderId,
       });
-      const existingFileId = (destBefore.response!.files![0] as FileDto)
-        .id!;
+      const existingFileId = (destBefore.response!.files![0] as FileDto).id!;
 
       const { status } = await ownerApi.operations.copyBatchItems({
         batchRequestDto: {
@@ -2532,8 +2531,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const { data: destBefore } = await ownerApi.folders.getFolderByFolderId({
         folderId: destFolderId,
       });
-      const originalFileId = (destBefore.response!.files![0] as FileDto)
-        .id!;
+      const originalFileId = (destBefore.response!.files![0] as FileDto).id!;
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
@@ -3499,8 +3497,7 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       const { data: beforeData } = await ownerApi.folders.getFolderByFolderId({
         folderId: folder3Id,
       });
-      const originalFileId = (beforeData.response!.files![0] as FileDto)
-        .id!;
+      const originalFileId = (beforeData.response!.files![0] as FileDto).id!;
 
       const { data: file2 } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
@@ -7516,8 +7513,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
         (f) => (f as FileDto).title,
       );
       expect(destTitlesAfterSetup).toContain(fileTitle);
-      const existingFileId = (destBefore.response!.files![0] as FileDto)
-        .id!;
+      const existingFileId = (destBefore.response!.files![0] as FileDto).id!;
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
@@ -7597,8 +7593,7 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       const { data: destBefore } = await ownerApi.folders.getFolderByFolderId({
         folderId: destFolderId,
       });
-      const originalFileId = (destBefore.response!.files![0] as FileDto)
-        .id!;
+      const originalFileId = (destBefore.response!.files![0] as FileDto).id!;
 
       const { data: file2Data } = await ownerApi.files.createFile({
         folderId: myDocsFolderId,
