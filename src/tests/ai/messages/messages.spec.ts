@@ -949,7 +949,7 @@ test.describe("AI Messages - text-to-docx and the room storage quota", () => {
 
     const { data: quotaData, status: quotaStatus } =
       await ownerApi.roomQuota.updateRoomsQuota({
-        updateRoomsQuotaRequestDtoInteger: {
+        updateRoomsQuotaRequestDto: {
           roomIds: [roomId] as unknown as number[],
           quota: 1024,
         },
@@ -1232,14 +1232,14 @@ test.describe("AI Messages - exporting a thread", () => {
     const { data: room, status: roomStatus } =
       await ownerApi.folders.getFolderByFolderId({ folderId: agentId });
     expect(roomStatus).toBe(200);
-    const resultStorage = (room.response?.folders ?? []).find(
+    const chatOutputs = (room.response?.folders ?? []).find(
       (folder) => (folder as { title?: string }).title === "Chat outputs",
     ) as { id?: number } | undefined;
-    expect(resultStorage?.id, "the agent's Chat outputs folder").toBeDefined();
+    expect(chatOutputs?.id, "the agent's Chat outputs folder").toBeDefined();
 
     const exported = await waitForExportedFile(
       ownerApi,
-      resultStorage!.id!,
+      chatOutputs!.id!,
       `${title}.docx`,
     );
     expect(

@@ -34,7 +34,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { data, status } = await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -71,7 +71,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     const room2Id = room2Data.response!.id!;
 
     const { data, status } = await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [room1Id, room2Id] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -95,7 +95,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .roomQuota.updateRoomsQuota({
-        updateRoomsQuotaRequestDtoInteger: {
+        updateRoomsQuotaRequestDto: {
           roomIds: [] as any,
           quota: QUOTA_MINIMAL_BYTES,
         },
@@ -123,7 +123,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { data, status } = await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: 0,
       },
@@ -150,7 +150,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { status } = await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -181,7 +181,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     await waitForOperation(ownerApi.operations);
 
     const { status } = await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -207,7 +207,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { data, status } = await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -236,7 +236,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { data, status } = await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -265,7 +265,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { data, status } = await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -305,7 +305,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { status } = await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -339,7 +339,7 @@ test.describe("Room quota exhaustion - file upload behavior", () => {
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: 1,
       },
@@ -371,7 +371,7 @@ test.describe("Room quota exhaustion - file upload behavior", () => {
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -410,7 +410,7 @@ test.describe("Room quota exhaustion - file upload behavior", () => {
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -450,14 +450,14 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
     const { data, status } = await ownerApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -493,14 +493,14 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const room2Id = room2Data.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [room1Id, room2Id] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
     const { data, status } = await ownerApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [room1Id, room2Id] as any,
       },
     });
@@ -530,7 +530,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { data, status } = await ownerApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -550,7 +550,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .roomQuota.resetRoomQuota({
-        updateRoomsRoomIdsRequestDtoInteger: {
+        updateRoomsRoomIdsRequestDto: {
           roomIds: [] as any,
         },
       });
@@ -576,7 +576,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { status } = await ownerApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -601,7 +601,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -614,7 +614,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     await waitForOperation(ownerApi.operations);
 
     const { status } = await ownerApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -639,14 +639,14 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
     const { data, status } = await ownerApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -674,14 +674,14 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
     const { data, status } = await ownerApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -709,14 +709,14 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
     });
 
     const { data, status } = await ownerApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -755,7 +755,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
     const roomId = roomData.response!.id!;
 
     const { status } = await ownerApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });

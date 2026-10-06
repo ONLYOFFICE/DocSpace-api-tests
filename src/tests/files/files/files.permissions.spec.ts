@@ -4305,7 +4305,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
     const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
     const { data, status } = await adminApi.files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId },
+      getReferenceDataDto: { fileKey, instanceId },
     });
 
     expect(status).toBe(200);
@@ -4348,7 +4348,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
     const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
     const { data, status } = await roomAdminApi.files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId },
+      getReferenceDataDto: { fileKey, instanceId },
     });
 
     expect(status).toBe(200);
@@ -4380,7 +4380,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
     const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
     const { status } = await apiSdk.forAnonymous().files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId },
+      getReferenceDataDto: { fileKey, instanceId },
     });
 
     expect(status).toBe(401);
@@ -4412,7 +4412,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
     await apiSdk.addAuthenticatedMember("owner", "User");
 
     const { status } = await apiSdk.forRole("user").files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId },
+      getReferenceDataDto: { fileKey, instanceId },
     });
 
     expect(status).toBe(403);
@@ -4453,7 +4453,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
     const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
     const { data, status } = await guestApi.files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId },
+      getReferenceDataDto: { fileKey, instanceId },
     });
 
     expect(status).toBe(200);
@@ -4488,7 +4488,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
     await apiSdk.addAuthenticatedMember("owner", "Guest");
 
     const { status } = await apiSdk.forRole("guest").files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId },
+      getReferenceDataDto: { fileKey, instanceId },
     });
 
     expect(status).toBe(403);
@@ -4898,7 +4898,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
     const fileId = fileData.response!.id!;
 
     const { status } = await apiSdk.forAnonymous().files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 1 }],
       },
     });
@@ -4940,7 +4940,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
     const fileId = fileData.response!.id!;
 
     const { status } = await guestApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 1 }],
       },
     });
@@ -4986,7 +4986,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
     const fileId = fileData.response!.id!;
 
     const { status } = await userApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 2 }],
       },
     });
@@ -5030,7 +5030,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
     const fileId = fileData.response!.id!;
 
     const { status } = await userApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 1 }],
       },
     });
@@ -5063,7 +5063,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
     const fileId = fileData.response!.id!;
 
     const { data, status } = await adminApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 3 }],
       },
     });
@@ -6596,7 +6596,7 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
     const formId = await createOoForm(ownerApi, myDocsFolderId);
     await ownerApi.files.manageFormFilling({
       fileId: String(roomId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Start,
       },
@@ -6625,7 +6625,7 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
     const formId = await createOoForm(ownerApi, myDocsFolderId);
     await ownerApi.files.manageFormFilling({
       fileId: String(roomId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Start,
       },
@@ -6657,7 +6657,7 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
       const formId = await createOoForm(ownerApi, myDocsFolderId);
       await ownerApi.files.manageFormFilling({
         fileId: String(roomId),
-        manageFormFillingDtoInteger: {
+        manageFormFillingDto: {
           formId,
           action: FormFillingManageAction.Start,
         },
@@ -6689,7 +6689,7 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file permiss
       const formId = await createOoForm(ownerApi, myDocsFolderId);
       await ownerApi.files.manageFormFilling({
         fileId: String(roomId),
-        manageFormFillingDtoInteger: {
+        manageFormFillingDto: {
           formId,
           action: FormFillingManageAction.Start,
         },
@@ -6851,7 +6851,7 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
 
     await ownerApi.files.manageFormFilling({
       fileId: String(roomId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Start,
       },

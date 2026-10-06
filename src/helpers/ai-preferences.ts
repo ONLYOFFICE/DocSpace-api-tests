@@ -20,6 +20,25 @@ import { AiHttp, AgentRole } from "./ai-http";
 //   * `get-deep-mode` returns a bare JSON boolean, not an envelope, so `data`
 //     is `false` on a real "off" and `undefined` on a refusal. Assert the status
 //     first, then the value.
+//
+// The tool-permission mode lives in the same family (measured 2026-10-05):
+//
+//   GET    /ai/preferences/get-tool-permission-mode  -> bare JSON string
+//   PUT    /ai/preferences/set-tool-permission-mode  { value: "ask"|"auto"|"allow" }
+//
+// It is also reported as a number by `/ai/config` and `/ai/config/user`
+// (ask 0, auto 1, allow 2). There is no clear/is-set route (both 404), so a
+// mode cannot be reset — rely on the throwaway portal instead of cleaning up.
+// Anything but one of the three strings is a 400, a number included.
+
+export const TOOL_PERMISSION_MODES = [
+  { value: "ask", numeric: 0, label: "Ask every time" },
+  { value: "auto", numeric: 1, label: "Auto approve" },
+  { value: "allow", numeric: 2, label: "Allow without asking" },
+] as const;
+
+export type ToolPermissionMode =
+  (typeof TOOL_PERMISSION_MODES)[number]["value"];
 
 export class AiPreferences extends AiHttp {
   private scope(entityId?: number | string) {
@@ -56,6 +75,24 @@ export class AiPreferences extends AiHttp {
       role,
       "delete",
       "/api/2.0/ai/preferences/clear-deep-mode",
+      body,
+    );
+  }
+
+  getToolPermissionMode(role: AgentRole) {
+    return this.call<ToolPermissionMode>(
+      role,
+      "get",
+      "/api/2.0/ai/preferences/get-tool-permission-mode",
+    );
+  }
+
+  /** `body` is wide on purpose: negative tests send the wrong key or type. */
+  setToolPermissionMode(role: AgentRole, body: Record<string, unknown>) {
+    return this.call<{ success?: boolean }>(
+      role,
+      "put",
+      "/api/2.0/ai/preferences/set-tool-permission-mode",
       body,
     );
   }

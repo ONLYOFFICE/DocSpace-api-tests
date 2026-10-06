@@ -33,7 +33,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota - access c
 
     const anonApi = apiSdk.forAnonymous();
     const { status } = await anonApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -64,7 +64,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota - access c
     );
 
     const { data, status } = await adminApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -96,7 +96,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota - access c
     );
 
     const { data, status } = await roomAdminApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -128,7 +128,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota - access c
     );
 
     const { data, status } = await userApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -157,7 +157,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -165,7 +165,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
 
     const anonApi = apiSdk.forAnonymous();
     const { status } = await anonApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -190,7 +190,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -202,7 +202,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
     );
 
     const { data, status } = await adminApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -228,7 +228,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -240,7 +240,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
     );
 
     const { data, status } = await roomAdminApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });
@@ -266,7 +266,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
     const roomId = roomData.response!.id!;
 
     await ownerApi.roomQuota.updateRoomsQuota({
-      updateRoomsQuotaRequestDtoInteger: {
+      updateRoomsQuotaRequestDto: {
         roomIds: [roomId] as any,
         quota: QUOTA_MINIMAL_BYTES,
       },
@@ -278,7 +278,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota - access c
     );
 
     const { data, status } = await userApi.roomQuota.resetRoomQuota({
-      updateRoomsRoomIdsRequestDtoInteger: {
+      updateRoomsRoomIdsRequestDto: {
         roomIds: [roomId] as any,
       },
     });

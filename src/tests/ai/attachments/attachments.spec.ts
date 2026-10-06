@@ -3110,7 +3110,7 @@ type Agent = {
   profileId: string;
   agentId: number;
   knowledgeId: number;
-  resultStorageId: number;
+  chatOutputsId: number;
 };
 
 /** An agent plus the ids of the two folders inside it that accept files. */
@@ -3132,10 +3132,10 @@ async function createAgentWithStorage(
       agentId,
       FolderType.Knowledge,
     ),
-    resultStorageId: await agentStorageFolderId(
+    chatOutputsId: await agentStorageFolderId(
       ownerApi,
       agentId,
-      FolderType.ResultStorage,
+      FolderType.ChatOutputs,
     ),
   };
 }
@@ -3197,7 +3197,7 @@ async function pdfWithMarker(
 
   const { status, data } = await ownerApi.files.saveFileAsPdf({
     id: docx.id,
-    saveAsPdfInteger: { folderId, title: `${title}.pdf` },
+    saveAsPdf: { folderId, title: `${title}.pdf` },
   });
   return expectConverted(
     ownerApi,
@@ -3840,7 +3840,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
       expect(response.status(), `POST ${route}`).toBe(404);
     }
 
-    const { agentId, resultStorageId } = await createAgentWithStorage(
+    const { agentId, chatOutputsId } = await createAgentWithStorage(
       apiSdk,
       "Autotest Destination Agent",
     );
@@ -3852,7 +3852,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
       { label: "the agent room root", folderId: agentId, writable: false },
       {
         label: "the agent's Chat outputs",
-        folderId: resultStorageId,
+        folderId: chatOutputsId,
         writable: true,
       },
       { label: "My Documents", folderId: myFolderId, writable: true },
@@ -4007,7 +4007,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
     ).toBe(403);
   });
 
-  test("POST /api/2.0/files/{resultStorageId}/upload - Chat outputs takes a device file and keeps it out of the agent's index", async ({
+  test("POST /api/2.0/files/{chatOutputsId}/upload - Chat outputs takes a device file and keeps it out of the agent's index", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4017,7 +4017,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { knowledgeId, resultStorageId } = await createAgentWithStorage(
+    const { knowledgeId, chatOutputsId } = await createAgentWithStorage(
       apiSdk,
       "Autotest Chat Outputs Agent",
     );
@@ -4027,13 +4027,13 @@ test.describe("AI Attachments - the destination of a device file", () => {
     const file = await expectDeviceFileStored(
       apiSdk,
       "owner",
-      resultStorageId,
+      chatOutputsId,
       fileName,
       content,
       "text/plain",
     );
 
-    expect(file.folderId).toBe(resultStorageId);
+    expect(file.folderId).toBe(chatOutputsId);
     expect(file.pureContentLength).toBe(content.length);
     expect(
       (await downloadFile(apiSdk, "owner", file.id)).toString("utf8"),
@@ -4105,14 +4105,14 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
   // exists for them. They do not show that the client falls back — see the
   // "destination" describe above for why nothing on the server can.
   for (const { label, access } of NO_CREATE_ACCESS) {
-    test(`POST /api/2.0/files/{resultStorageId}/upload - a ${label} in the agent room is refused there but can write to their own My Documents`, async ({
+    test(`POST /api/2.0/files/{chatOutputsId}/upload - a ${label} in the agent room is refused there but can write to their own My Documents`, async ({
       apiSdk,
       paymentsApi,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
       await enableAiGateway(paymentsApi, ownerApi.payment);
 
-      const { agentId, resultStorageId } = await createAgentWithStorage(
+      const { agentId, chatOutputsId } = await createAgentWithStorage(
         apiSdk,
         `Autotest Fallback Agent ${label}`,
       );
@@ -4121,7 +4121,7 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
       await expectDeviceFileStored(
         apiSdk,
         "owner",
-        resultStorageId,
+        chatOutputsId,
         `autotest-owner-control-${apiSdk.faker.generateString(6)}.txt`,
         Buffer.from(DEVICE_TEXT, "utf8"),
         "text/plain",
@@ -4152,7 +4152,7 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
           await uploadDeviceFile(
             apiSdk,
             "user",
-            resultStorageId,
+            chatOutputsId,
             fileName,
             content,
             "text/plain",
@@ -4161,7 +4161,7 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
         `a ${label} storing a device file inside the agent`,
       ).toBe(403);
       expect(
-        (await listFolderFiles(ownerApi, resultStorageId)).map(
+        (await listFolderFiles(ownerApi, chatOutputsId)).map(
           (entry) => entry.title,
         ),
         "and nothing was created behind the refusal",
@@ -4226,7 +4226,7 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
     );
   });
 
-  test("POST /api/2.0/files/{resultStorageId}/upload - a ContentCreator in the agent room stores a device file there", async ({
+  test("POST /api/2.0/files/{chatOutputsId}/upload - a ContentCreator in the agent room stores a device file there", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4236,7 +4236,7 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { agentId, resultStorageId } = await createAgentWithStorage(
+    const { agentId, chatOutputsId } = await createAgentWithStorage(
       apiSdk,
       "Autotest Fallback Agent ContentCreator",
     );
@@ -4259,15 +4259,15 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
     const file = await expectDeviceFileStored(
       apiSdk,
       "user",
-      resultStorageId,
+      chatOutputsId,
       fileName,
       Buffer.from(DEVICE_TEXT, "utf8"),
       "text/plain",
     );
 
-    expect(file.folderId).toBe(resultStorageId);
+    expect(file.folderId).toBe(chatOutputsId);
     expect(
-      (await listFolderFiles(ownerApi, resultStorageId)).map(
+      (await listFolderFiles(ownerApi, chatOutputsId)).map(
         (entry) => entry.title,
       ),
       "the member's device file is inside the agent",
@@ -4285,7 +4285,7 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
-    const { agentId, resultStorageId } = await createAgentWithStorage(
+    const { agentId, chatOutputsId } = await createAgentWithStorage(
       apiSdk,
       "Autotest Guest Fallback Agent",
     );
@@ -4295,7 +4295,7 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
     await expectDeviceFileStored(
       apiSdk,
       "owner",
-      resultStorageId,
+      chatOutputsId,
       `autotest-owner-control-${apiSdk.faker.generateString(6)}.txt`,
       Buffer.from(DEVICE_TEXT, "utf8"),
       "text/plain",
@@ -4323,7 +4323,7 @@ test.describe("AI Attachments - who can store a device file inside an agent", ()
         await uploadDeviceFile(
           apiSdk,
           "guest",
-          resultStorageId,
+          chatOutputsId,
           fileName,
           content,
           "text/plain",
@@ -4369,7 +4369,7 @@ test.describe("AI Attachments - the whole path, end to end", () => {
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    const { aiChat, profileId, agentId, resultStorageId } =
+    const { aiChat, profileId, agentId, chatOutputsId } =
       await createAgentWithStorage(apiSdk, "Autotest End To End Agent");
 
     const marker = `PINEAPPLE-${apiSdk.faker.generateString(6).toUpperCase()}`;
@@ -4377,7 +4377,7 @@ test.describe("AI Attachments - the whole path, end to end", () => {
     const uploaded = await expectDeviceFileStored(
       apiSdk,
       "owner",
-      resultStorageId,
+      chatOutputsId,
       fileName,
       Buffer.from(`The code word is ${marker}. Nothing else matters.`, "utf8"),
       "text/plain",

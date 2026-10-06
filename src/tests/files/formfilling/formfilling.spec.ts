@@ -39,7 +39,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling", () => {
     await test.step("Start form filling", async () => {
       const { status } = await ownerApi.files.manageFormFilling({
         fileId: String(formId),
-        manageFormFillingDtoInteger: {
+        manageFormFillingDto: {
           formId,
           action: FormFillingManageAction.Start,
         },
@@ -51,7 +51,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling", () => {
     await test.step("Stop form filling", async () => {
       const { status } = await ownerApi.files.manageFormFilling({
         fileId: String(formId),
-        manageFormFillingDtoInteger: {
+        manageFormFillingDto: {
           formId,
           action: FormFillingManageAction.Stop,
         },

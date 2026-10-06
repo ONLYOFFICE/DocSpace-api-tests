@@ -59,8 +59,8 @@ test.describe("Vectorization - startTask", () => {
       );
 
       const { status } = await api.vectorization.aiVectorizationStartTask({
-        requestBody: {
-          files: new Set([fileId]),
+        aiVectorizationStartTaskRequest: {
+          files: [fileId],
         },
       });
 

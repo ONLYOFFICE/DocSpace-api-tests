@@ -3,6 +3,7 @@ import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import { AiPreferences } from "@/src/helpers/ai-preferences";
+import { AiSettings } from "@/src/helpers/ai-settings";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
 import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
 import { AgentRole } from "@/src/helpers/ai-http";
@@ -44,6 +45,33 @@ test.describe("AI Preferences - anonymous access", () => {
     // The refused write left the owner's own preference untouched.
     await apiSdk.authenticateOwner();
     expect((await preferences.isDeepModeSet("owner")).data).toBe(false);
+  });
+});
+
+test.describe("AI Preferences - tool permission mode, anonymous access", () => {
+  test("GET|PUT /api/2.0/ai/preferences/*-tool-permission-mode - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    const read = await preferences.getToolPermissionMode("anonymous");
+    expect(read.status).toBe(401);
+
+    const write = await preferences.setToolPermissionMode("anonymous", {
+      value: "ask",
+    });
+    expect(write.status).toBe(401);
+
+    // The refused write changed nothing for the owner, who is still on the
+    // default.
+    await apiSdk.authenticateOwner();
+    const mode = await preferences.getToolPermissionMode("owner");
+    expect(mode.status).toBe(200);
+    expect(mode.data).toBe("auto");
   });
 });
 
@@ -293,5 +321,118 @@ test.describe("AI Preferences - AI Disabled", () => {
     const on = await setPortalAiAccess(ownerApi, true);
     expect(on.enabled).toBe(true);
     expect((await preferences.getDeepMode("owner")).data).toBe(true);
+  });
+});
+
+// Every member type that has AI access reads and writes their own tool
+// permission mode and starts from the default rather than from anybody else's
+// value (measured 2026-10-05). A Guest has no AI access and is refused by the
+// other /ai/preferences/* routes (deep mode, above) — see the Guest test at the
+// end of this describe for what the tool permission mode does instead.
+const TOOL_MODE_ROLES = MEMBER_ROLES;
+
+test.describe("AI Preferences - tool permission mode, role access", () => {
+  for (const { label, type, role } of TOOL_MODE_ROLES) {
+    test(`GET|PUT /api/2.0/ai/preferences/set-tool-permission-mode - ${label} manages their own tool permission mode`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+
+      const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+      const settings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+      // All of the owner's setup comes before the member exists: afterwards the
+      // shared context speaks as the member. The owner's value is neither the
+      // default nor the one the member will pick, so a member who inherited it,
+      // or who overwrote it, shows.
+      expect(
+        (await preferences.setToolPermissionMode("owner", { value: "ask" }))
+          .status,
+      ).toBe(200);
+
+      const { data: memberData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        type,
+      );
+      await preferences.expectActingAs(role, memberData.response!.id!, label);
+
+      const initial = await preferences.getToolPermissionMode(role);
+      expect(initial.status).toBe(200);
+      expect(initial.data, "the member starts from the default").toBe("auto");
+
+      const put = await preferences.setToolPermissionMode(role, {
+        value: "allow",
+      });
+      expect(put.status).toBe(200);
+      expect(put.data?.success).toBe(true);
+
+      expect((await preferences.getToolPermissionMode(role)).data).toBe(
+        "allow",
+      );
+      expect(
+        (await settings.getUserConfig(role)).data?.response?.toolPermissionMode,
+      ).toBe(2);
+
+      await apiSdk.authenticateOwner();
+      expect(
+        (await preferences.getToolPermissionMode("owner")).data,
+        "the owner's own value survives",
+      ).toBe("ask");
+    });
+  }
+
+  // The expectation: the same refusal a Guest gets from the other preferences
+  // routes, decided on the Guest's lack of AI access and therefore BEFORE the
+  // body is looked at — an invalid value is a 403 too, not a 400.
+  //
+  // Measured 2026-10-05: GET and PUT both answer 200 and the write sticks. The
+  // value is also reported by GET /ai/config/user, which the settings suite pins
+  // as open to a Guest (a Viewer's own preference), so refusing the preferences
+  // routes alone would not hide it; which of the two conventions this setting
+  // follows is for the developers to say.
+  test("BUG XXXXX: GET|PUT /api/2.0/ai/preferences/*-tool-permission-mode - a Guest cannot read or change the tool permission mode", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.fail();
+
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const settings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    await preferences.expectActingAs("guest", guestData.response!.id!, "Guest");
+
+    // The control that this caller really is treated as a Guest: the sibling
+    // preference refuses them.
+    expect((await preferences.getDeepMode("guest")).status).toBe(403);
+
+    const read = await preferences.getToolPermissionMode("guest");
+    const write = await preferences.setToolPermissionMode("guest", {
+      value: "allow",
+    });
+    const invalid = await preferences.setToolPermissionMode("guest", {
+      value: "sometimes",
+    });
+
+    // The side effect first: the Guest's own config still shows the default.
+    expect(
+      (await settings.getUserConfig("guest")).data?.response
+        ?.toolPermissionMode,
+      "the refused write changed nothing",
+    ).toBe(1);
+
+    expect(read.status, "GET").toBe(403);
+    expect(write.status, "PUT with a valid value").toBe(403);
+    expect(
+      invalid.status,
+      "PUT with an invalid value: authorization comes before validation",
+    ).toBe(403);
   });
 });
