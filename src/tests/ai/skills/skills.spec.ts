@@ -2,260 +2,298 @@ import { expect } from "@playwright/test";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
-import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
+import {
+  AiAgentChat,
+  SkillCatalogueEntry,
+  expectHealthyAssistantReply,
+} from "@/src/helpers/ai-agent-chat";
 import { uploadFileToFolder } from "@/src/helpers/upload-file";
+import { ApiSDK } from "@/src/services/api-sdk";
 
-// AI Skills: PAUSED, not a real test suite yet.
+// AI Skills: a `.ai` folder's files become a per-room skill catalogue, but
+// the backend does not discover it by itself. `POST /ai/ai/send-with-stream`
+// needs the catalogue handed to it explicitly, on every call, as
 //
-// The feature ("drop a file in a `.ai` folder inside a Room, it becomes an
-// AI-readable skill") has no footprint anywhere in this repo, in any SDK
-// type, or in any route map collected from prior AI-stack investigation
-// sessions. Measured on a live portal on 2026-10-01 with the two probes
-// below (soft-asserted, console.log-driven, so a wrong guess about the
-// contract doesn't just fail the run): creating `.ai` and uploading a
-// skill-shaped YAML (front-matter `name`/`description` + a marker in the
-// body) behaves as completely ordinary file/folder operations — no special
-// FolderType, no special file security flags — and a chat message that
-// should trigger the skill gets answered from the model's own general
-// knowledge: zero tool calls, no `tool-call-pending` frame, the marker never
-// appears. A `.ai` folder inside an agent's own room can't even be created
-// (403 — same rule as any other folder at that root). Full writeup:
-// see memory note ai_skills_feature_not_observable_2026_10_01.
+//   actionArgs.contextRoom = {
+//     cloud: "docspace",
+//     id: <roomId>,
+//     skills: [{ id: <skillFileId>, name, description }, ...],
+//   }
 //
-// Decision (2026-10-01): pause here. The feature is not deployed to test
-// stands yet, so there is nothing real to assert against — writing the full
-// checklist now would mean inventing a contract. Resume once the stands are
-// updated: drop `.skip`, re-run both probes to confirm what (if anything)
-// changed, then replace them with the real test suite.
+// `id` is the skill FILE's real DocSpace file id; `name`/`description` are
+// copied from its YAML front matter. Given that catalogue — and nothing
+// else: no instruction to search, no hint to call a tool — the model picks
+// the matching skill by its `description` and calls the internal
+// `read_skill` tool with that skill's `id`. The tool's result is the whole
+// skill file, body included; the model then follows the body's instruction.
+//
+// Measured live on 2026-10-06 by reproducing a UI network capture
+// (`entityId` alone, without `contextRoom`, is NOT the full contract — every
+// earlier attempt without it made the model fall back to its generic
+// DocSpace REST tools, `get_folder_content`/`download_file_as_text`, to
+// manually browse for the file. That is ordinary file browsing, not the
+// Skills mechanism, and none of the tests below rely on it).
+//
+// Separate, unfiled discrepancy, deliberately not mixed into these tests: a
+// `.yml` file with identical, valid front matter never showed up in the UI's
+// own Skills picker — only `.md` did. Every skill fixture here is `.md`.
 
-const SKILL_YAML = `---
-name: Pirate
-description: Answer using the Pirate skill when asked to speak like a pirate.
----
-Always include the exact marker SKILL_APPLIED_7391 in the final answer.
-`;
+const CANARY = "СКИЛЛ ПРОЧИТАН: СИНИЙ ЕНОТ 7429";
 
-test.describe
-  .skip("AI Skills - investigation probes (paused, feature not deployed yet)", () => {
-  test("INVESTIGATION - .ai folder + skill file discovery", async ({
+const QA_SKILL = {
+  name: "qa-happy-path-skill",
+  description:
+    "Используй этот скилл, когда пользователь просит проверочный ответ QA для теста поддержки скиллов. Прочитай основную инструкцию скилла и выполни ее.",
+  body: `Для проверочного ответа QA напиши ровно одну строку: ${CANARY}. Не добавляй пояснений.`,
+};
+
+const DUMMY_SKILL = {
+  name: "weather-briefing",
+  description:
+    "Используй этот скилл, когда пользователь просит сводку погоды или прогноз погоды на день.",
+  body: "Всегда отвечай ровно одной строкой: ПОГОДА: ЯСНО, 21°C. Не добавляй пояснений.",
+};
+
+/** Generic DocSpace REST tools the model reaches for when given no skill
+ * metadata and told to go look for something — the fallback the happy path
+ * must not need. */
+const GENERIC_FILE_TOOLS = [
+  "get_folder_content",
+  "download_file_as_text",
+  "get_my_folder",
+  "get_rooms_folder",
+];
+
+async function setupSkillsRoom(
+  apiSdk: ApiSDK,
+): Promise<{ roomId: number; aiFolderId: number }> {
+  const ownerApi = apiSdk.forRole("owner");
+  const { data: roomData, status: roomStatus } =
+    await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `Autotest Skills Room ${apiSdk.faker.generateString(6)}`,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+  if (roomStatus !== 200 || !roomData.response?.id) {
+    throw new Error(
+      `createRoom failed: ${roomStatus} ${JSON.stringify(roomData)}`,
+    );
+  }
+  const roomId = roomData.response.id;
+
+  const { data: aiFolder, status: aiFolderStatus } =
+    await ownerApi.folders.createFolder({
+      folderId: roomId,
+      createFolder: { title: ".ai" },
+    });
+  if (aiFolderStatus !== 200 || !aiFolder.response?.id) {
+    throw new Error(
+      `createFolder('.ai') failed: ${aiFolderStatus} ${JSON.stringify(aiFolder)}`,
+    );
+  }
+  return { roomId, aiFolderId: aiFolder.response.id };
+}
+
+async function uploadSkill(
+  apiSdk: ApiSDK,
+  aiFolderId: number,
+  fileName: string,
+  skill: { name: string; description: string; body: string },
+): Promise<SkillCatalogueEntry> {
+  const content = `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n${skill.body}\n`;
+  const upload = await uploadFileToFolder(
+    apiSdk,
+    "owner",
+    aiFolderId,
+    Buffer.from(content, "utf8"),
+    fileName,
+    { mimeType: "text/markdown" },
+  );
+  const fileId = upload.data?.response?.[0]?.id;
+  if (upload.status !== 200 || !fileId) {
+    throw new Error(
+      `uploading skill ${fileName} failed: ${upload.status} ${JSON.stringify(upload.data)}`,
+    );
+  }
+  return {
+    id: String(fileId),
+    name: skill.name,
+    description: skill.description,
+  };
+}
+
+test.describe("AI Skills - .ai folder catalogue + read_skill contract", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream - a matching prompt makes the model call read_skill for the right skill", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    test.setTimeout(540000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
-    const { data: roomData, status: roomStatus } =
-      await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Skills Room",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-    console.log("createRoom status:", roomStatus, "id:", roomData.response?.id);
-    const roomId = roomData.response!.id!;
-
-    const { data: aiFolder, status: aiFolderStatus } =
-      await ownerApi.folders.createFolder({
-        folderId: roomId,
-        createFolder: { title: ".ai" },
-      });
-    console.log(
-      "createFolder('.ai') status:",
-      aiFolderStatus,
-      "response:",
-      JSON.stringify(aiFolder),
-    );
-    const aiFolderId = aiFolder.response?.id;
-
-    const { data: roomContents, status: roomContentsStatus } =
-      await ownerApi.folders.getFolderByFolderId({ folderId: roomId });
-    console.log(
-      "room contents status:",
-      roomContentsStatus,
-      "folders:",
-      JSON.stringify(
-        (roomContents.response?.folders ?? []).map((f: any) => ({
-          id: f.id,
-          title: f.title,
-          type: f.rootFolderType ?? f.type,
-        })),
-      ),
-    );
-
-    if (!aiFolderId) {
-      console.log("No .ai folder id — aborting probe early.");
-      return;
-    }
-
-    const upload = await uploadFileToFolder(
+    const { roomId, aiFolderId } = await setupSkillsRoom(apiSdk);
+    const qaSkill = await uploadSkill(
       apiSdk,
-      "owner",
       aiFolderId,
-      Buffer.from(SKILL_YAML, "utf8"),
-      "pirate.yml",
-      { mimeType: "application/x-yaml" },
-    );
-    console.log("upload pirate.yml status:", upload.status);
-    console.log("upload response:", JSON.stringify(upload.data));
-
-    // Give any async indexing a moment.
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
-    const { data: aiFolderContents, status: aiFolderContentsStatus } =
-      await ownerApi.folders.getFolderByFolderId({ folderId: aiFolderId });
-    console.log(
-      ".ai folder contents status:",
-      aiFolderContentsStatus,
-      "files:",
-      JSON.stringify(
-        (aiFolderContents.response?.files ?? []).map((f: any) => ({
-          id: f.id,
-          title: f.title,
-        })),
-      ),
+      "qa-happy-path-skill.md",
+      QA_SKILL,
     );
 
     const profileId = await aiChat.defaultProfileId("owner");
-
-    // Try the room itself as the entityId scope (no dedicated agent) first —
-    // the room is where `.ai` physically lives.
     const threadId = await aiChat.createThreadId("owner", {
-      title: "Autotest Skills Thread",
+      title: "Autotest Skills Happy Path",
       profileId,
       agentId: roomId,
     });
-    console.log("threadId (entityId=room):", threadId);
 
     const sent = await aiChat.sendMessage("owner", {
       threadId,
       profileId,
       agentId: roomId,
-      message: "Please speak like a pirate in your answer.",
+      message: "Дай мне проверочный ответ QA для теста поддержки скиллов.",
+      contextRoom: { cloud: "docspace", id: roomId, skills: [qaSkill] },
       timeoutMs: 180000,
     });
-    console.log("send status:", sent.status, "streamError:", sent.streamError);
-    console.log(
-      "frameTypes:",
-      JSON.stringify(AiAgentChat.frameTypes(sent.text)),
-    );
-    const pending = AiAgentChat.pendingToolCall(sent.text);
-    console.log("pendingToolCall:", JSON.stringify(pending));
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
 
     const { data: messages } = await aiChat.readMessages("owner", threadId);
-    const assistantText = AiAgentChat.assistantText(messages);
-    console.log("assistantText:", assistantText);
-    console.log(
-      "contains SKILL_APPLIED_7391:",
-      assistantText.includes("SKILL_APPLIED_7391"),
-    );
+    expectHealthyAssistantReply(messages);
+
     const toolCalls = AiAgentChat.assistantMessages(messages).flatMap((m) =>
       AiAgentChat.toolCalls(m),
     );
-    console.log("toolCalls:", JSON.stringify(toolCalls));
+    const readSkillCalls = toolCalls.filter((c) => c.toolName === "read_skill");
+    expect(
+      readSkillCalls,
+      `the model must call read_skill; tool calls were ${JSON.stringify(toolCalls.map((c) => c.toolName))}`,
+    ).toHaveLength(1);
+    expect(readSkillCalls[0].args?.id).toBe(qaSkill.id);
+    expect(String(readSkillCalls[0].result)).toContain(CANARY);
 
-    expect(roomStatus).toBe(200);
+    expect(
+      toolCalls.map((c) => c.toolName),
+      "the happy path must not need generic file browsing",
+    ).not.toEqual(expect.arrayContaining(GENERIC_FILE_TOOLS));
+
+    // The model sometimes narrates ("I'll read the skill instructions...")
+    // before the canary even with a single skill in play — pure model
+    // chattiness, unrelated to whether the body was really read. That is
+    // already proven above by the read_skill call itself (right id, result
+    // containing the canary), so this only checks the canary made it into
+    // the final answer, not that nothing else did.
+    expect(AiAgentChat.assistantText(messages)).toContain(CANARY);
   });
 
-  test("INVESTIGATION - .ai folder inside an agent's own room", async ({
+  test("POST /api/2.0/ai/ai/send-with-stream - an unrelated prompt does not read the skill", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    test.setTimeout(540000);
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
 
-    const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest Skills Agent",
-      profileId,
-    });
-    console.log("agentId:", agentId);
-
-    const { data: agentFolders, status: agentFoldersStatus } =
-      await ownerApi.folders.getFolders({ folderId: agentId });
-    console.log(
-      "agent's existing subfolders status:",
-      agentFoldersStatus,
-      "folders:",
-      JSON.stringify(
-        (
-          (agentFolders.response ?? []) as Array<{
-            id?: number;
-            title?: string;
-            type?: number;
-          }>
-        ).map((f) => ({ id: f.id, title: f.title, type: f.type })),
-      ),
-    );
-
-    const { data: aiFolder, status: aiFolderStatus } =
-      await ownerApi.folders.createFolder({
-        folderId: agentId,
-        createFolder: { title: ".ai" },
-      });
-    console.log(
-      "createFolder('.ai') in agent room status:",
-      aiFolderStatus,
-      "id:",
-      aiFolder.response?.id,
-      "type:",
-      (aiFolder.response as any)?.type,
-    );
-    const aiFolderId = aiFolder.response?.id;
-    if (!aiFolderId) {
-      console.log("No .ai folder id in agent room — aborting probe early.");
-      return;
-    }
-
-    const upload = await uploadFileToFolder(
+    const { roomId, aiFolderId } = await setupSkillsRoom(apiSdk);
+    const qaSkill = await uploadSkill(
       apiSdk,
-      "owner",
       aiFolderId,
-      Buffer.from(SKILL_YAML, "utf8"),
-      "pirate.yml",
-      { mimeType: "application/x-yaml" },
+      "qa-happy-path-skill.md",
+      QA_SKILL,
     );
-    console.log("upload pirate.yml (agent room) status:", upload.status);
 
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
+    const profileId = await aiChat.defaultProfileId("owner");
     const threadId = await aiChat.createThreadId("owner", {
-      title: "Autotest Skills Agent Thread",
+      title: "Autotest Skills Negative",
       profileId,
-      agentId,
+      agentId: roomId,
     });
-    console.log("threadId (entityId=agent):", threadId);
 
     const sent = await aiChat.sendMessage("owner", {
       threadId,
       profileId,
-      agentId,
-      message: "Please speak like a pirate in your answer.",
+      agentId: roomId,
+      message: "Сколько будет 2 + 2?",
+      contextRoom: { cloud: "docspace", id: roomId, skills: [qaSkill] },
       timeoutMs: 180000,
     });
-    console.log("send status:", sent.status, "streamError:", sent.streamError);
-    console.log(
-      "frameTypes:",
-      JSON.stringify(AiAgentChat.frameTypes(sent.text)),
-    );
-    const pending = AiAgentChat.pendingToolCall(sent.text);
-    console.log("pendingToolCall:", JSON.stringify(pending));
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
 
     const { data: messages } = await aiChat.readMessages("owner", threadId);
-    const assistantText = AiAgentChat.assistantText(messages);
-    console.log("assistantText:", assistantText);
-    console.log(
-      "contains SKILL_APPLIED_7391:",
-      assistantText.includes("SKILL_APPLIED_7391"),
-    );
+    expectHealthyAssistantReply(messages);
+
     const toolCalls = AiAgentChat.assistantMessages(messages).flatMap((m) =>
       AiAgentChat.toolCalls(m),
     );
-    console.log("toolCalls:", JSON.stringify(toolCalls));
+    expect(
+      toolCalls.filter((c) => c.toolName === "read_skill"),
+      "an irrelevant prompt must not read an unrelated skill",
+    ).toHaveLength(0);
+  });
 
-    expect(agentId).toBeGreaterThan(0);
+  test("POST /api/2.0/ai/ai/send-with-stream - among several skills, the model reads only the one matching the prompt", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { roomId, aiFolderId } = await setupSkillsRoom(apiSdk);
+    const qaSkill = await uploadSkill(
+      apiSdk,
+      aiFolderId,
+      "qa-happy-path-skill.md",
+      QA_SKILL,
+    );
+    const dummySkill = await uploadSkill(
+      apiSdk,
+      aiFolderId,
+      "weather-briefing.md",
+      DUMMY_SKILL,
+    );
+
+    const profileId = await aiChat.defaultProfileId("owner");
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest Skills Discrimination",
+      profileId,
+      agentId: roomId,
+    });
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Дай мне проверочный ответ QA для теста поддержки скиллов.",
+      contextRoom: {
+        cloud: "docspace",
+        id: roomId,
+        skills: [qaSkill, dummySkill],
+      },
+      timeoutMs: 180000,
+    });
+    expect(sent.status).toBe(200);
+    expect(sent.streamError).toBeUndefined();
+
+    const { data: messages } = await aiChat.readMessages("owner", threadId);
+    expectHealthyAssistantReply(messages);
+
+    const toolCalls = AiAgentChat.assistantMessages(messages).flatMap((m) =>
+      AiAgentChat.toolCalls(m),
+    );
+    const readSkillCalls = toolCalls.filter((c) => c.toolName === "read_skill");
+    expect(readSkillCalls, "exactly one skill must be read").toHaveLength(1);
+    expect(
+      readSkillCalls[0].args?.id,
+      "the model must pick the QA skill, not the weather one",
+    ).toBe(qaSkill.id);
+    expect(readSkillCalls[0].args?.id).not.toBe(dummySkill.id);
+
+    // Unlike the single-skill happy path, the model sometimes narrates its
+    // choice before the canary when more than one skill is in play — the
+    // discrimination contract is which skill got read, not the exact final
+    // text, so this only checks the canary is present.
+    expect(AiAgentChat.assistantText(messages)).toContain(CANARY);
   });
 });

@@ -142,6 +142,23 @@ export type HostTool = {
 };
 
 /**
+ * One entry of the AI Skills catalogue, as the UI builds it from a `.ai`
+ * folder's files: `id` is the skill FILE's real DocSpace id, `name` and
+ * `description` are copied from its YAML front matter. The backend does not
+ * discover `.ai` on its own — the caller (normally the UI, scanning `.ai`
+ * itself) must hand this list over on every `sendMessage`/`send-with-stream`
+ * call via `contextRoom`. Without it, the model has no skill metadata at all
+ * and falls back to its generic DocSpace REST tools (`get_folder_content`,
+ * `download_file_as_text`, …) if asked to go find something by hand — which
+ * is NOT the Skills mechanism, just ordinary file browsing.
+ */
+export type SkillCatalogueEntry = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+/**
  * One frame of a streamed response. `tool-call-pending` is the only pause point
  * the engine has: the stream stops there and only resumes through
  * approve-tool-call / deny-tool-call.
@@ -512,6 +529,17 @@ export class AiAgentChat extends AiHttp {
        */
       contentBlocks?: Array<Record<string, unknown>>;
       /**
+       * The AI Skills catalogue for the room this message is sent in — see
+       * `SkillCatalogueEntry`. `cloud` is the constant the UI sends
+       * ("docspace"); `id` is the room (or other entity) the skills live in,
+       * normally the same value as `agentId`.
+       */
+      contextRoom?: {
+        cloud: string;
+        id: string | number;
+        skills: SkillCatalogueEntry[];
+      };
+      /**
        * Caps the wait on the stream. Needed for the requests that never
        * terminate; the frames received before the cap are lost, so the
        * assertions then have to read the thread back.
@@ -524,6 +552,17 @@ export class AiAgentChat extends AiHttp {
         ? { prompt: { mode: "replace", text: body.instructions } }
         : {}),
       ...(body.tools ? { tools: body.tools } : {}),
+      ...(body.contextRoom
+        ? {
+            isReasoning: false,
+            reasoningLevel: "off",
+            contextRoom: {
+              cloud: body.contextRoom.cloud,
+              id: String(body.contextRoom.id),
+              skills: body.contextRoom.skills,
+            },
+          }
+        : {}),
     };
 
     const { status, error, text, headers } = await this.call(
