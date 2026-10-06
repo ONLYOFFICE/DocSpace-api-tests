@@ -4457,3 +4457,103 @@ test.describe("AI Attachments - the whole path, end to end", () => {
     expect(listDocxEntries(archive)).toEqual(["notes.txt", "inner/second.txt"]);
   });
 });
+
+// POST /api/2.0/ai/attachments/suggested-questions — measured 2026-10-06.
+//
+//   * The request is `{ id: <attachment uuid> }` — the id `save-file` returns, not
+//     the DocSpace file id. The SDK leaves the body a free dictionary.
+//   * The response is `{ status, questions }`. The SDK types it as
+//     `AiSuccessResponse` (`{success}`).
+//   * Every attachment that can be set up through the API — plain files, PDF forms
+//     — reads `status: "unavailable"` with an empty `questions` list, in about
+//     100 ms and without a model call: `canAnalyze` is false for all of them. The
+//     branch where questions are generated has never been observed, so nothing
+//     here says `unavailable` is the only status the route can answer, and the
+//     content of `questions` is not asserted.
+//   * The route works without the AI gateway being enabled.
+const UNKNOWN_ATTACHMENT_ID = "01a1112f-0000-7000-8000-000000000000";
+
+test.describe("AI Attachments - suggested questions", () => {
+  test("POST /api/2.0/ai/attachments/suggested-questions - a valid attachment id answers 200 with a status and a questions list", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const draftId = await attachments.saveFileId("owner", {
+      title: "Autotest suggested questions.docx",
+      content: "Quarterly revenue grew twelve percent.",
+      type: FileType.Document,
+    });
+    // Why the observed branch is the unavailable one: the draft is a plain file,
+    // not a form the portal can analyse.
+    const stored = await attachments.expectStored("owner", draftId);
+    expect(stored.canAnalyze).toBe(false);
+
+    const { status, data } = await attachments.suggestedQuestions("owner", {
+      id: draftId,
+    });
+
+    expect(status).toBe(200);
+    expect(data?.status).toBe("unavailable");
+    expect(Array.isArray(data?.questions)).toBe(true);
+    expect(data?.questions).toEqual([]);
+  });
+
+  test("POST /api/2.0/ai/attachments/suggested-questions - a missing, empty, null, mistyped or malformed id is a 400", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const draftId = await attachments.saveFileId("owner", {
+      title: "Autotest suggested questions validation.docx",
+      content: "x",
+      type: FileType.Document,
+    });
+
+    // Control: the same route with a real id answers, so the refusals below are
+    // about the body and not a dead route.
+    const control = await attachments.suggestedQuestions("owner", {
+      id: draftId,
+    });
+    expect(control.status).toBe(200);
+
+    const bodies: Array<[string, unknown]> = [
+      ["no body", undefined],
+      ["an empty object", {}],
+      ["null", null],
+      ["an array", []],
+      ["another field name", { attachmentId: draftId }],
+      ["an empty id", { id: "" }],
+      ["a null id", { id: null }],
+      ["a number", { id: 123 }],
+      ["a boolean", { id: true }],
+      ["an object", { id: { value: draftId } }],
+      ["an array of ids", { id: [draftId] }],
+      ["text that is not a uuid", { id: "not-a-uuid" }],
+      ["a DocSpace file id", { id: "3708066" }],
+      ["a uuid with a character cut off", { id: draftId.slice(0, -1) }],
+    ];
+    for (const [label, body] of bodies) {
+      await test.step(label, async () => {
+        const { status, data } = await attachments.suggestedQuestions(
+          "owner",
+          body,
+        );
+        expect(status, label).toBe(400);
+        expect(data?.questions, `${label} carries no list`).toBeUndefined();
+      });
+    }
+  });
+
+  test("POST /api/2.0/ai/attachments/suggested-questions - an unknown but well-formed id answers 200, unavailable and empty", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { status, data } = await attachments.suggestedQuestions("owner", {
+      id: UNKNOWN_ATTACHMENT_ID,
+    });
+
+    expect(status).toBe(200);
+    expect(data?.status).toBe("unavailable");
+    expect(data?.questions).toEqual([]);
+  });
+});

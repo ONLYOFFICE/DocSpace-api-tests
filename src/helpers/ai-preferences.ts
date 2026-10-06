@@ -1,8 +1,14 @@
 import { AiHttp, AgentRole } from "./ai-http";
 
-// "Deep mode" is the reasoning / extended-thinking switch of section 10, and it
-// is the only reasoning-related surface the API exposes — verified live
-// 2026-08-04.
+// "Deep mode" is the reasoning / extended-thinking switch of section 10. SDK 4.0.0
+// added a depth on top of it (the "reasoning level"), so there are now two views
+// of one stored setting:
+//
+//   GET    /ai/preferences/get-reasoning-level[?entityId=] -> bare "off"|"low"|"medium"|"high"|"max"
+//   PUT    /ai/preferences/set-reasoning-level  { value, entityId? }
+//
+// The deep-mode routes below predate it and are still live. Their contract with
+// the level routes is measured in preferences.spec.ts, not assumed here.
 //
 //   GET    /ai/preferences/get-deep-mode[?entityId=]     -> bare true/false
 //   GET    /ai/preferences/is-deep-mode-set[?entityId=]  -> bare true/false
@@ -75,6 +81,24 @@ export class AiPreferences extends AiHttp {
       role,
       "delete",
       "/api/2.0/ai/preferences/clear-deep-mode",
+      body,
+    );
+  }
+
+  getReasoningLevel(role: AgentRole, entityId?: number | string) {
+    return this.call<string>(
+      role,
+      "get",
+      `/api/2.0/ai/preferences/get-reasoning-level${this.scope(entityId)}`,
+    );
+  }
+
+  /** `body` is wide on purpose: negative tests send a value outside the enum. */
+  setReasoningLevel(role: AgentRole, body: Record<string, unknown>) {
+    return this.call<{ success?: boolean }>(
+      role,
+      "put",
+      "/api/2.0/ai/preferences/set-reasoning-level",
       body,
     );
   }

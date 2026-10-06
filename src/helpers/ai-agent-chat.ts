@@ -36,6 +36,15 @@ export type { AgentRole };
  * `createdAt` really is DateTime.MinValue for the gateway profiles — don't
  * assert on it.
  */
+/** What one model can do with extended thinking; copied onto the profile. */
+export type AiReasoningSupport = {
+  thinks?: boolean;
+  canDisable?: boolean;
+  /** Lowest first; empty for an on/off switch or a model that does not think. */
+  depths?: string[];
+  defaultDepth?: string;
+};
+
 export type AiProfile = {
   id: string;
   name: string;
@@ -52,6 +61,7 @@ export type AiProfile = {
   /** false on the image/video profiles, true on every text one. */
   canUseTool?: boolean;
   reasoning?: boolean;
+  reasoningSupport?: AiReasoningSupport;
   [key: string]: unknown;
 };
 

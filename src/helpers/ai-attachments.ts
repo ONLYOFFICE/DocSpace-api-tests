@@ -78,6 +78,17 @@ export type AiAttachment = {
 export type AiAttachmentMutation = { success?: boolean };
 
 /**
+ * `POST /ai/attachments/suggested-questions` answers `{status, questions}`. The
+ * SDK types it as `AiSuccessResponse` (`{success}`) and the request as a free
+ * dictionary; the live request is `{ id: <attachment uuid> }`. Every case that can
+ * be set up through the API reads `status: "unavailable"` with an empty list.
+ */
+export type AiSuggestedQuestions = {
+  status?: string;
+  questions?: unknown[];
+};
+
+/**
  * A file draft. `path`, `content` and `type` are required and `title` is
  * optional — exactly what the SDK documents, and the inverse of what the route
  * used to accept.
@@ -310,6 +321,16 @@ export class AiAttachments extends AiHttp {
       role,
       "delete",
       `${ATTACHMENTS_BASE}/delete-many`,
+      body,
+    );
+  }
+
+  /** `body` is wide on purpose: validation tests send the wrong shape. */
+  suggestedQuestions(role: AgentRole, body?: unknown) {
+    return this.call<AiSuggestedQuestions>(
+      role,
+      "post",
+      `${ATTACHMENTS_BASE}/suggested-questions`,
       body,
     );
   }

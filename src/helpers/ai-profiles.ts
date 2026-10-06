@@ -1,5 +1,5 @@
 import { AiHttp, AgentRole } from "./ai-http";
-import { AiProfile } from "./ai-agent-chat";
+import { AiProfile, AiReasoningSupport } from "./ai-agent-chat";
 
 // The AI profile catalogue and the per-action model assignments — verified
 // against a live portal on 2026-08-04.
@@ -144,12 +144,7 @@ export type AiProviderModel = {
   provider?: string;
   reasoning?: boolean;
   capabilities?: number;
-  reasoningSupport?: {
-    canDisable?: boolean;
-    defaultDepth?: string;
-    depths?: string[];
-    thinks?: boolean;
-  };
+  reasoningSupport?: AiReasoningSupport;
 };
 
 export class AiProfiles extends AiHttp {

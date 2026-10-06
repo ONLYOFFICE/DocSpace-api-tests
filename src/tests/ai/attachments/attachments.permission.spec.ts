@@ -757,3 +757,106 @@ test.describe("AI Attachments - cross-user access", () => {
     ).not.toBeNull();
   });
 });
+
+// suggested-questions access, measured 2026-10-06: Owner and User read it,
+// Anonymous is 401, and an id that belongs to somebody else answers exactly what
+// an unknown id answers — the route does not say whether an attachment exists or
+// whose it is.
+//
+// Not pinned: a Guest also gets 200 here, although every other attachments route
+// is closed to a Guest. Whether that is intended is a question for the
+// developers, so there is no Guest test.
+test.describe("AI Attachments - suggested questions access", () => {
+  test("POST /api/2.0/ai/attachments/suggested-questions - Anonymous gets 401 Unauthorized", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const draftId = await attachments.saveFileId("owner", {
+      title: "Autotest anon suggested questions.docx",
+      content: "x",
+      type: FileType.Document,
+    });
+
+    for (const [label, body] of [
+      ["a valid id", { id: draftId }],
+      ["an empty body", {}],
+    ] as const) {
+      const { status } = await attachments.suggestedQuestions(
+        "anonymous",
+        body,
+      );
+      expect(status, label).toBe(401);
+    }
+  });
+
+  test("POST /api/2.0/ai/attachments/suggested-questions - the Owner and a User each get 200 on their own attachment", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const ownerDraft = await attachments.saveFileId("owner", {
+      title: "Autotest owner suggested questions.docx",
+      content: "owner text",
+      type: FileType.Document,
+    });
+    const ownerResult = await attachments.suggestedQuestions("owner", {
+      id: ownerDraft,
+    });
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await attachments.expectActingAs("user", memberData.response!.id!, "User");
+    const memberDraft = await attachments.saveFileId("user", {
+      title: "Autotest user suggested questions.docx",
+      content: "user text",
+      type: FileType.Document,
+    });
+    const memberResult = await attachments.suggestedQuestions("user", {
+      id: memberDraft,
+    });
+
+    expect(ownerResult.status, "Owner").toBe(200);
+    expect(ownerResult.data?.status).toBe("unavailable");
+    expect(memberResult.status, "User").toBe(200);
+    expect(memberResult.data?.status).toBe("unavailable");
+    expect(Array.isArray(memberResult.data?.questions)).toBe(true);
+  });
+
+  test("POST /api/2.0/ai/attachments/suggested-questions - another user's attachment id answers exactly what an unknown id answers", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const ownerDraft = await attachments.saveFileId("owner", {
+      title: "Autotest foreign suggested questions.docx",
+      content: "OWNER-SECRET",
+      type: FileType.Document,
+    });
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await attachments.expectActingAs("user", memberData.response!.id!, "User");
+
+    // Control: the id really is somebody else's — the User cannot read it
+    // through the attachments store, so an identical answer is not just the User
+    // seeing their own draft.
+    expect(
+      await attachments.findAttachment("user", ownerDraft),
+      "the owner's draft is invisible to the User",
+    ).toBeNull();
+
+    const foreign = await attachments.suggestedQuestions("user", {
+      id: ownerDraft,
+    });
+    const unknown = await attachments.suggestedQuestions("user", {
+      id: "01a1112f-0000-7000-8000-000000000000",
+    });
+
+    expect(foreign.status).toBe(200);
+    expect(unknown.status).toBe(200);
+    expect(foreign.data).toEqual(unknown.data);
+    expect(JSON.stringify(foreign.data)).not.toContain("OWNER-SECRET");
+  });
+});
