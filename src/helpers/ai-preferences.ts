@@ -48,7 +48,9 @@ export type ToolPermissionMode =
 
 export class AiPreferences extends AiHttp {
   private scope(entityId?: number | string) {
-    return entityId === undefined ? "" : `?entityId=${entityId}`;
+    return entityId === undefined
+      ? ""
+      : `?entityId=${encodeURIComponent(String(entityId))}`;
   }
 
   getDeepMode(role: AgentRole, entityId?: number | string) {
@@ -82,6 +84,18 @@ export class AiPreferences extends AiHttp {
       "delete",
       "/api/2.0/ai/preferences/clear-deep-mode",
       body,
+    );
+  }
+
+  /**
+   * `clear-deep-mode` only reads its body: the same id in the query string is a
+   * 400 (measured 2026-10-07), so this is the "wrong place" form for tests.
+   */
+  clearDeepModeByQuery(role: AgentRole, entityId: number | string) {
+    return this.call<{ success?: boolean }>(
+      role,
+      "delete",
+      `/api/2.0/ai/preferences/clear-deep-mode${this.scope(entityId)}`,
     );
   }
 

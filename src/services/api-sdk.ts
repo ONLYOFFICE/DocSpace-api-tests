@@ -39,6 +39,7 @@ import {
   UsersApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { ProfilesApi as ProvidersApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/profiles-api";
+import { OpenAIPassthroughApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/open-aipassthrough-api";
 import { ThreadsApi as ChatApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/threads-api";
 import { SettingsApi as AiSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/settings-api";
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
@@ -214,6 +215,11 @@ export class ApiSDK {
       security: new SecurityApi(config, undefined, axiosInstance),
       agents: new AgentsApi(config, undefined, axiosInstance),
       providers: new ProvidersApi(config, undefined, axiosInstance),
+      openaiPassthrough: new OpenAIPassthroughApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
       payment: new SdkPaymentApi(config, undefined, axiosInstance),
@@ -329,6 +335,11 @@ export class ApiSDK {
       security: new SecurityApi(config, undefined, axiosInstance),
       agents: new AgentsApi(config, undefined, axiosInstance),
       providers: new ProvidersApi(config, undefined, axiosInstance),
+      openaiPassthrough: new OpenAIPassthroughApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
       settingsMessages: new MessagesApi(config, undefined, axiosInstance),

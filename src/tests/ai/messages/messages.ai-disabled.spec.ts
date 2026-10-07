@@ -113,6 +113,62 @@ test.describe("AI Messages - AI Disabled", () => {
     expect(status).toBe(400);
   });
 
+  // The test above pins one invalid body (no title). The order is the same for
+  // every validation the endpoint has, and each is its own way for an off-state
+  // test to be fooled, so the others are listed: a body that fails validation is
+  // answered by the validation, a valid body by the switch.
+  for (const { name, body, message, withFolder = true } of [
+    {
+      name: "a missing folderId",
+      body: { title: "T", content: "hello" },
+      withFolder: false,
+      message: "folderId is required",
+    },
+    {
+      name: "a null folderId",
+      body: { title: "T", content: "hello", folderId: null },
+      message: "folderId is required",
+    },
+    {
+      name: "an empty content",
+      body: { title: "T", content: "" },
+      message: "title and content are required",
+    },
+    {
+      name: "a missing content",
+      body: { title: "T" },
+      message: "title and content are required",
+    },
+    {
+      name: "an unrecognised format",
+      body: { title: "T", content: "hello", format: "bogus" },
+      message: "format must be one of Docx, Pdf, Md",
+    },
+  ]) {
+    test(`POST /api/2.0/ai/text-to-docx - ${name} is a 400 with the switch off, not a 403`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+      const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+      const folderId = myFolder.response!.current!.id!;
+
+      const disabled = await setPortalAiAccess(ownerApi, false);
+      expect(disabled.writeStatus).toBe(200);
+      expect(disabled.enabled).toBe(false);
+
+      // Only the "missing folderId" case may leave the folder out; every other
+      // body gets a real one so it fails on its own defect and no other.
+      const { status, error } = await aiSettings.textToDocx(
+        "owner",
+        withFolder ? { folderId, ...body } : body,
+      );
+
+      expect(error).toBe(message);
+      expect(status).toBe(400);
+    });
+  }
+
   test("POST /api/2.0/ai/text-to-docx - exports text both before and after AI Tools is enabled", async ({
     apiSdk,
     paymentsApi,

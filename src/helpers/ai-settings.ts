@@ -27,15 +27,15 @@ export type AiUserConfig = {
  * type, and doing that through the type system beats casting at every call.
  */
 export type TextToDocxBody = {
-  title?: string | null;
-  content?: string | null;
+  title?: unknown;
+  content?: unknown;
   folderId?: number | string | null;
   /**
    * Not part of the contract. The endpoint writes a .docx and nothing else, and
    * the "only format" test sends these to show they are accepted and ignored
    * rather than honoured.
    */
-  format?: string;
+  format?: unknown;
   extension?: string;
 };
 

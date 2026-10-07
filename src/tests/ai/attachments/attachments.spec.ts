@@ -501,22 +501,31 @@ test.describe("AI Attachments - save-file", () => {
     expect(stored.source).toBeUndefined();
   });
 
-  test("BUG 82739: POST /api/2.0/ai/attachments/save-file - the request body the SDK documents is rejected with 500", async ({
+  test("BUG 82739: POST /api/2.0/ai/attachments/save-file - the body the SDK documents, with a storage path in `path`, is a 404", async ({
     apiSdk,
   }) => {
     // `AiAttachmentsSaveFileRequestInput` declares path + content + type
-    // required and title optional, so this is the body a client generated from
-    // the SDK sends. It answers 500.
+    // required and title optional, and describes `path` as "Storage path/key of
+    // the file". A client generated from the SDK therefore sends a path-shaped
+    // string, which used to answer 500 and was once expected to answer 200.
     //
-    // The cause is the DTO's description of `path` — "Storage path/key of the
-    // file". It is not a path at all: `path` is the DocSpace **file id** as a
-    // string, and the server resolves it, checks access and extracts the text
-    // itself (see the "attaching a stored file by id" describe at the end of
-    // this file). A path-shaped string resolves to
-    // nothing, and an id that resolves to nothing crashes the request — that is
-    // BUG 82742, below. So this test is about the documented body being
-    // unusable; it does not mean `path` itself is broken.
+    // 200 was never right: `path` is the DocSpace **file id** as a string, so a
+    // path-shaped value is an id that resolves to nothing — a 404, the same
+    // as BUG 82742 below. What stays wrong is the SDK/OpenAPI description of `path`,
+    // which is a documentation problem and not something this test can pin.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const fileId = await attachments.backingFileId(
+      "owner",
+      "Autotest sdk-body.docx",
+      "x",
+    );
+
+    // Control: the same body with the file id as the string `path` is accepted,
+    // so the 404 below is about what `path` holds and not about the body shape.
+    const control = await attachments.saveFile("owner", {
+      input: { path: String(fileId), content: "x", type: FileType.Document },
+    });
+    expect(control.status, "the documented body with a real file id").toBe(200);
 
     const { status } = await attachments.saveFile("owner", {
       input: {
@@ -526,16 +535,14 @@ test.describe("AI Attachments - save-file", () => {
       },
     });
 
-    test.fail();
-    expect(status).toBe(200);
+    expect(status).toBe(404);
   });
 
   test("BUG 82740: POST /api/2.0/ai/attachments/save-file - the optional title may be omitted", async ({
     apiSdk,
   }) => {
-    // `title` is optional in the DTO, so a body without it has to be accepted.
-    // The endpoint used to require it in practice — an undocumented required
-    // field — and signalled that with a 500 rather than a 400.
+    // `title` is optional in the DTO, so a body without it has to be accepted
+    // and the title comes from the file.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const name = "Autotest untitled.docx";
     const path = String(await attachments.backingFileId("owner", name, "x"));
@@ -561,6 +568,21 @@ test.describe("AI Attachments - save-file", () => {
         { title: "a.docx", content: "x" },
       ],
       ["inputs[] instead of input", { inputs: [{ title: "a.docx" }] }],
+      [
+        "input without a path",
+        { input: { title: "a.docx", content: "", type: FileType.Document } },
+      ],
+      [
+        "a null path",
+        {
+          input: {
+            path: null,
+            title: "a.docx",
+            content: "",
+            type: FileType.Document,
+          },
+        },
+      ],
     ];
 
     // Every one of these used to be a 500.
@@ -573,20 +595,38 @@ test.describe("AI Attachments - save-file", () => {
     expect(statuses).toEqual(bodies.map(([label]) => [label, 400]));
   });
 
-  test("BUG 82742: POST /api/2.0/ai/attachments/save-file - a path that resolves to no file returns 500 instead of 404", async ({
+  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - an empty path is a 400", async ({
     apiSdk,
   }) => {
-    // Re-measured 2026-08-10. This test used to claim that any non-empty `path`
-    // is a 500; that was wrong, and it hid what the field is for. `path` is the
-    // DocSpace **file id** as a string — a resolvable one answers 200 with the
-    // file's text extracted server-side, which is how "Add files from DocSpace"
-    // and the attach step of "Upload from device" work. The full contract, with
-    // the access check and the format rule, is in the "attaching a stored file
-    // by id" describe at the end of this file.
+    // A missing path and a null path are both a 400 (the test above); an empty
+    // string is the one malformed value that crashes the request with a 500.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+
+    const { status } = await attachments.saveFile("owner", {
+      input: {
+        path: "",
+        title: "a.docx",
+        content: "",
+        type: FileType.Document,
+      },
+    });
+
+    test.fail();
+    expect(status).toBe(400);
+  });
+
+  test("BUG 82742: POST /api/2.0/ai/attachments/save-file - a path that resolves to no file returns 404", async ({
+    apiSdk,
+  }) => {
+    // `path` is the DocSpace **file id** as a string — a resolvable one answers
+    // 200 with the file's text extracted server-side, which is how "Add files
+    // from DocSpace" and the attach step of "Upload from device" work. The full
+    // contract, with the access check and the format rule, is in the "attaching
+    // a stored file by id" describe at the end of this file.
     //
-    // What is left of the defect: an id that resolves to nothing crashes the
-    // request instead of answering a client error. Both shapes of "nothing" are
-    // here so a fix for one does not leave the other silently red.
+    // An id that resolves to nothing used to crash the request with a 500; it is
+    // a 404 now. Both shapes of "nothing" are here — an id no file has and a
+    // path-shaped string, which is just another id that resolves to nothing.
     const ownerApi = apiSdk.forRole("owner");
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
 
@@ -640,17 +680,19 @@ test.describe("AI Attachments - save-file", () => {
     ).toEqual([404, 404]);
   });
 
-  test("POST /api/2.0/ai/attachments/save-file - a type outside the FileType enum is accepted, same as any other", async ({
+  test("POST /api/2.0/ai/attachments/save-file - any numeric type is accepted, same as any in-enum value", async ({
     apiSdk,
   }) => {
     // FileType defines 0-7, 10 and 11. `type` is not validated or normalized
-    // (see the regression note above), so an out-of-range int (999, -1, 8) is
-    // accepted and echoed back unchanged, same as any in-enum value.
+    // (see the regression note above): it is a client-decided number, so an
+    // out-of-range int (999, -1, 8) and a fractional one (1.5) are accepted and
+    // echoed back unchanged, same as any in-enum value. Only a value that is not
+    // a JSON number at all is a type error — see the BUG 82745 test below.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const path = String(
       await attachments.backingFileId("owner", "Autotest type.docx", "x"),
     );
-    const types = [999, -1, 8];
+    const types = [999, -1, 8, 1.5];
 
     for (const type of types) {
       const { status, data } = await attachments.saveFile("owner", {
@@ -666,18 +708,17 @@ test.describe("AI Attachments - save-file", () => {
     }
   });
 
-  test("BUG 82745: POST /api/2.0/ai/attachments/save-file - a fractional type is accepted", async ({
+  test("BUG 82745: POST /api/2.0/ai/attachments/save-file - a type that is not a JSON number is a 400", async ({
     apiSdk,
   }) => {
-    // Separate from the enum-range case: these are not out-of-range integers but
-    // values that are not integers at all, which a DTO binder would normally
-    // reject before any range check. A boolean, an object and an array are now
-    // refused — a number that is not whole still is not.
+    // `type` is a client-decided number and any number is accepted (the test
+    // above — 1.5 included, which this bug used to ask to be refused), but a
+    // boolean, an object and an array are not numbers at all and are refused.
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
     const path = String(
       await attachments.backingFileId("owner", "Autotest mistyped.docx", "x"),
     );
-    const types: unknown[] = [1.5, true, { value: 7 }, [7]];
+    const types: unknown[] = [true, { value: 7 }, [7]];
 
     const statuses: Array<[unknown, number]> = [];
     for (const type of types) {
@@ -687,7 +728,6 @@ test.describe("AI Attachments - save-file", () => {
       statuses.push([type, status]);
     }
 
-    test.fail();
     expect(statuses).toEqual(types.map((type) => [type, 400]));
   });
 
@@ -1003,6 +1043,130 @@ test.describe("AI Attachments - batch saves", () => {
 
     expect(statuses).toEqual(values.map(() => 400));
   });
+
+  test("POST /api/2.0/ai/attachments/save-files-many - a batch of one saves the file the way save-file does", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const name = "Autotest single-batch.docx";
+    const fileId = await attachments.backingFileId("owner", name, "only one");
+
+    const { status, data } = await attachments.saveFilesMany("owner", {
+      inputs: [{ path: String(fileId), content: "", type: FileType.Document }],
+    });
+
+    expect(status).toBe(200);
+    expect(data).toHaveLength(1);
+    expectDraftShape(data![0], "file");
+    expect(data![0].title).toBe(name);
+    expect(data![0].content).toBe("only one");
+    expect(data![0].path).toBe(`${fileId}/${name}`);
+
+    const stored = await attachments.expectStored("owner", data![0].id!);
+    expect(stored.content).toBe("only one");
+  });
+
+  test("POST /api/2.0/ai/attachments/save-files-many - a numeric path inside an element is a 400 naming it", async ({
+    apiSdk,
+  }) => {
+    // The file id has to be a string, same as for save-file. Here the refusal is
+    // also expected to point at the offending element.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const fileId = await attachments.backingFileId(
+      "owner",
+      "Autotest numeric-path.docx",
+      "x",
+    );
+    const valid = {
+      path: String(fileId),
+      content: "",
+      type: FileType.Document,
+    };
+
+    // Control: the same elements with the id as a string are accepted, so the
+    // refusal below is about the number and nothing else.
+    const control = await attachments.saveFilesMany("owner", {
+      inputs: [valid, valid],
+    });
+    expect(control.status).toBe(200);
+
+    const { status, error } = await attachments.saveFilesMany("owner", {
+      inputs: [valid, { ...valid, path: fileId }],
+    });
+
+    expect(status).toBe(400);
+    expect(error).toContain("inputs[1]");
+  });
+
+  test("POST /api/2.0/ai/attachments/save-files-many - a batch holding a file that does not exist is a 404", async ({
+    apiSdk,
+  }) => {
+    // Status only. A failed batch returns no ids and there is no list route, so
+    // whether the valid element was stored anyway cannot be observed.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const fileId = await attachments.backingFileId(
+      "owner",
+      "Autotest mixed-missing.docx",
+      "x",
+    );
+    const valid = {
+      path: String(fileId),
+      content: "",
+      type: FileType.Document,
+    };
+
+    const control = await attachments.saveFilesMany("owner", {
+      inputs: [valid],
+    });
+    expect(control.status, "the valid element on its own").toBe(200);
+
+    const { status } = await attachments.saveFilesMany("owner", {
+      inputs: [valid, { ...valid, path: "999999999" }],
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("POST /api/2.0/ai/attachments/save-files-many - a batch holding an archive is a 400", async ({
+    apiSdk,
+  }) => {
+    // The archive rule is applied per element at attach time (see the single-file
+    // test); in a batch it refuses the request. Status only, for the same reason
+    // as the test above.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const text = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      "@my",
+      "autotest-mixed.txt",
+      Buffer.from("plain text", "utf8"),
+      "text/plain",
+    );
+    const archive = await expectDeviceFileStored(
+      apiSdk,
+      "owner",
+      "@my",
+      "autotest-mixed.zip",
+      createZipArchive([{ name: "inner.txt", content: "inside" }]),
+      "application/zip",
+    );
+    const element = (file: { id: number }) => ({
+      path: String(file.id),
+      content: "",
+      type: FileType.Document,
+    });
+
+    const control = await attachments.saveFilesMany("owner", {
+      inputs: [element(text)],
+    });
+    expect(control.status, "the text file on its own").toBe(200);
+
+    const { status } = await attachments.saveFilesMany("owner", {
+      inputs: [element(text), element(archive)],
+    });
+
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("AI Attachments - get", () => {
@@ -1267,6 +1431,77 @@ test.describe("AI Attachments - reads and deletes take effect at once", () => {
   });
 });
 
+/**
+ * Two threads with one stored message each, and one stored draft that has been
+ * linked to the first message once. Linking is the control for the tests that
+ * follow: if the real attachment into the real message is not accepted, a refusal
+ * measured afterwards says nothing about the target.
+ */
+async function prepareLinkTargets(
+  apiSdk: ApiSDK,
+  paymentsApi: Parameters<typeof enableAiGateway>[0],
+) {
+  const ownerApi = apiSdk.forRole("owner");
+  await enableAiGateway(paymentsApi, ownerApi.payment);
+  const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+  const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+  const profileId = await aiChat.defaultProfileId("owner");
+  const agentId = await aiChat.createAgentId("owner", {
+    title: "Autotest Attachments Agent",
+    profileId,
+  });
+  const first = await createThreadWithUserMessage(aiChat, "owner", {
+    profileId,
+    agentId,
+    title: "Autotest Thread A",
+  });
+  const second = await createThreadWithUserMessage(aiChat, "owner", {
+    profileId,
+    agentId,
+    title: "Autotest Thread B",
+  });
+  const id = await attachments.saveFileId("owner", {
+    title: "Autotest target.docx",
+    content: "x",
+  });
+  await attachments.expectStored("owner", id, "draft before linking");
+
+  const control = await attachments.linkToMessage("owner", {
+    ids: [id],
+    messageId: first.messageId,
+    threadId: first.threadId,
+  });
+  expect(control.status, "the attachment into its own message").toBe(200);
+
+  return { attachments, aiChat, first, second, id };
+}
+
+/**
+ * The ids of the attachments a stored message carries, or undefined when it has
+ * none at all. Polled for the same reason draft reads are: this backend answers
+ * intermittently.
+ */
+async function attachmentIdsOnMessage(
+  aiChat: AiAgentChat,
+  target: { threadId: string; messageId: string },
+): Promise<string[] | undefined> {
+  for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
+    const message = await readMessageById(
+      aiChat,
+      "owner",
+      target.threadId,
+      target.messageId,
+    );
+    if (Array.isArray(message?.attachments)) {
+      return (message.attachments as Array<{ id?: string }>).map(
+        (attachment) => attachment.id ?? "",
+      );
+    }
+  }
+  return undefined;
+}
+
 test.describe("AI Attachments - link-to-message", () => {
   test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - a linked draft never reaches the message", async ({
     apiSdk,
@@ -1372,74 +1607,118 @@ test.describe("AI Attachments - link-to-message", () => {
     ).toEqual({ messageId, threadId });
   });
 
-  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - unknown and mismatched targets all report success", async ({
+  // A link that cannot be made is refused with a status that says why. All of
+  // these answered 200 {success:true} before; each case is its own test so a
+  // regression names the case it broke. Every one opens with the same control —
+  // the real attachment into the real message is accepted — so a refusal below is
+  // about the target and not about a dead route.
+  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - a message id from another thread is a 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { attachments, first, second, id } = await prepareLinkTargets(
+      apiSdk,
+      paymentsApi,
+    );
 
-    const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest Attachments Agent",
-      profileId,
-    });
-    const first = await createThreadWithUserMessage(aiChat, "owner", {
-      profileId,
-      agentId,
-      title: "Autotest Thread A",
-    });
-    const second = await createThreadWithUserMessage(aiChat, "owner", {
-      profileId,
-      agentId,
-      title: "Autotest Thread B",
-    });
-    const id = await attachments.saveFileId("owner", {
-      title: "Autotest target.docx",
-      content: "x",
+    const { status } = await attachments.linkToMessage("owner", {
+      ids: [id],
+      messageId: first.messageId,
+      threadId: second.threadId,
     });
 
-    const cases: Array<
-      [string, { ids: unknown; messageId: unknown; threadId: unknown }]
-    > = [
-      [
-        "a message id from another thread",
-        { ids: [id], messageId: first.messageId, threadId: second.threadId },
-      ],
-      [
-        "an unknown message id",
-        { ids: [id], messageId: MISSING_ID, threadId: first.threadId },
-      ],
-      [
-        "an unknown thread id",
-        { ids: [id], messageId: first.messageId, threadId: MISSING_ID },
-      ],
-      [
-        "an unknown attachment id",
-        {
-          ids: [MISSING_ID],
-          messageId: first.messageId,
-          threadId: first.threadId,
-        },
-      ],
-      [
-        "an empty ids array",
-        { ids: [], messageId: first.messageId, threadId: first.threadId },
-      ],
-    ];
+    expect(status).toBe(400);
+  });
 
-    const statuses: Array<[string, number]> = [];
-    for (const [label, body] of cases) {
-      const { status } = await attachments.linkToMessage("owner", body);
-      statuses.push([label, status]);
-    }
+  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an unknown message id is a 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const { attachments, first, id } = await prepareLinkTargets(
+      apiSdk,
+      paymentsApi,
+    );
 
-    expect(
-      statuses.every(([, status]) => status !== 200),
-      JSON.stringify(statuses),
-    ).toBe(true);
+    const { status } = await attachments.linkToMessage("owner", {
+      ids: [id],
+      messageId: MISSING_ID,
+      threadId: first.threadId,
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an unknown thread id with a real message is a 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // 400 and not 404: the message exists, it just does not belong to that thread.
+    const { attachments, first, id } = await prepareLinkTargets(
+      apiSdk,
+      paymentsApi,
+    );
+
+    const { status } = await attachments.linkToMessage("owner", {
+      ids: [id],
+      messageId: first.messageId,
+      threadId: MISSING_ID,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an unknown attachment id is a 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const { attachments, first } = await prepareLinkTargets(
+      apiSdk,
+      paymentsApi,
+    );
+
+    const { status } = await attachments.linkToMessage("owner", {
+      ids: [MISSING_ID],
+      messageId: first.messageId,
+      threadId: first.threadId,
+    });
+
+    expect(status).toBe(404);
+  });
+
+  test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an empty ids array is a 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const { attachments, first } = await prepareLinkTargets(
+      apiSdk,
+      paymentsApi,
+    );
+
+    const { status } = await attachments.linkToMessage("owner", {
+      ids: [],
+      messageId: first.messageId,
+      threadId: first.threadId,
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("POST /api/2.0/ai/attachments/link-to-message - a malformed attachment id is a 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const { attachments, first } = await prepareLinkTargets(
+      apiSdk,
+      paymentsApi,
+    );
+
+    const { status } = await attachments.linkToMessage("owner", {
+      ids: ["not-a-uuid"],
+      messageId: first.messageId,
+      threadId: first.threadId,
+    });
+
+    expect(status).toBe(400);
   });
 
   test("BUG 82771: POST /api/2.0/ai/attachments/link-to-message - an empty body is refused", async ({
@@ -1480,44 +1759,19 @@ test.describe("AI Attachments - link-to-message", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG 82773: POST /api/2.0/ai/attachments/link-to-message - multiple, repeated and re-pointed links all leave every message empty", async ({
+  // The next three are the scenarios that one combined test used to cover, split
+  // so each reports on its own. They share BUG 82770's root cause: link-to-message
+  // answers 200 {success:true} and then no message ever gains an attachment. The
+  // `test.fail()` sits right before the assertion that fails, so a setup or link
+  // error is a real red failure and not an expected one.
+  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - a file and an image linked in one call both reach the message", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The scenarios that would each deserve a test of their own if linking
-    // worked: several ids at once, the same id twice, and the same id moved to a
-    // second message. They are one test because today they share a single
-    // outcome — no message ever gains an attachment — and writing five tests
-    // around one root cause only makes the same failure five times.
-    //
-    // When linking starts working this will report an unexpected pass, which is
-    // the signal to split it into the individual cases.
-    //
-    // Also blocked by BUG 83289 (open 2026-08-20): save-image answers 500 for
-    // everyone, and this test's setup makes several image drafts.
-    test.fail();
-
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
-    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-
-    const profileId = await aiChat.defaultProfileId("owner");
-    const agentId = await aiChat.createAgentId("owner", {
-      title: "Autotest Attachments Agent",
-      profileId,
-    });
-    const first = await createThreadWithUserMessage(aiChat, "owner", {
-      profileId,
-      agentId,
-      title: "Autotest link scenarios A",
-    });
-    const second = await createThreadWithUserMessage(aiChat, "owner", {
-      profileId,
-      agentId,
-      title: "Autotest link scenarios B",
-    });
-
+    const { attachments, aiChat, first } = await prepareLinkTargets(
+      apiSdk,
+      paymentsApi,
+    );
     const fileId = await attachments.saveFileId("owner", {
       title: "Autotest multi-1.docx",
       content: "one",
@@ -1530,63 +1784,64 @@ test.describe("AI Attachments - link-to-message", () => {
     await attachments.expectStored("owner", fileId, "file draft");
     await attachments.expectStored("owner", imageId, "image draft");
 
-    const outcomes: Array<[string, unknown]> = [];
-
-    await test.step("a file and an image in one call", async () => {
-      const { status } = await attachments.linkToMessage("owner", {
-        ids: [fileId, imageId],
-        messageId: first.messageId,
-        threadId: first.threadId,
-      });
-      expect(status).toBe(200);
-      const message = await readMessageById(
-        aiChat,
-        "owner",
-        first.threadId,
-        first.messageId,
-      );
-      outcomes.push(["two ids at once", message?.attachments]);
+    const { status } = await attachments.linkToMessage("owner", {
+      ids: [fileId, imageId],
+      messageId: first.messageId,
+      threadId: first.threadId,
     });
-
-    await test.step("the same ids again", async () => {
-      const { status } = await attachments.linkToMessage("owner", {
-        ids: [fileId, imageId],
-        messageId: first.messageId,
-        threadId: first.threadId,
-      });
-      expect(status).toBe(200);
-      const message = await readMessageById(
-        aiChat,
-        "owner",
-        first.threadId,
-        first.messageId,
-      );
-      outcomes.push(["a repeated link", message?.attachments]);
-    });
-
-    await test.step("the same draft pointed at a second message", async () => {
-      const { status } = await attachments.linkToMessage("owner", {
-        ids: [fileId],
-        messageId: second.messageId,
-        threadId: second.threadId,
-      });
-      expect(status).toBe(200);
-      const message = await readMessageById(
-        aiChat,
-        "owner",
-        second.threadId,
-        second.messageId,
-      );
-      outcomes.push(["a re-pointed link", message?.attachments]);
-    });
+    expect(status).toBe(200);
+    const onMessage = await attachmentIdsOnMessage(aiChat, first);
 
     test.fail();
-    expect(
-      outcomes
-        .filter(([, value]) => value === undefined)
-        .map(([label]) => label),
-      "linking scenarios that left the message with no attachments at all",
-    ).toEqual([]);
+    expect(onMessage).toEqual(expect.arrayContaining([fileId, imageId]));
+  });
+
+  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - linking the same draft twice puts it on the message once", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const { attachments, aiChat, first, id } = await prepareLinkTargets(
+      apiSdk,
+      paymentsApi,
+    );
+
+    // `prepareLinkTargets` already linked `id` once; this is the second link.
+    const { status } = await attachments.linkToMessage("owner", {
+      ids: [id],
+      messageId: first.messageId,
+      threadId: first.threadId,
+    });
+    expect(status).toBe(200);
+    const onMessage = await attachmentIdsOnMessage(aiChat, first);
+
+    test.fail();
+    expect(onMessage?.filter((attachmentId) => attachmentId === id)).toEqual([
+      id,
+    ]);
+  });
+
+  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - a draft linked to a second message reaches that message", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // What happens to the first message is deliberately not asserted: whether a
+    // draft may be re-pointed, and whether it then leaves the first message, is
+    // not a contract anyone has stated.
+    const { attachments, aiChat, second, id } = await prepareLinkTargets(
+      apiSdk,
+      paymentsApi,
+    );
+
+    const { status } = await attachments.linkToMessage("owner", {
+      ids: [id],
+      messageId: second.messageId,
+      threadId: second.threadId,
+    });
+    expect(status).toBe(200);
+    const onMessage = await attachmentIdsOnMessage(aiChat, second);
+
+    test.fail();
+    expect(onMessage).toContain(id);
   });
 });
 
@@ -1723,6 +1978,36 @@ test.describe("AI Attachments - delete", () => {
     ]).toEqual([true, true, true]);
   });
 
+  test("DELETE /api/2.0/ai/attachments/delete - deleting a draft leaves the DocSpace file it was made from", async ({
+    apiSdk,
+  }) => {
+    // An attachment is a reference to a stored file, not a copy of it, so
+    // removing the reference must not touch the file.
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const ownerApi = apiSdk.forRole("owner");
+    const fileId = await attachments.backingFileId(
+      "owner",
+      "Autotest delete-source.docx",
+      "keep me",
+    );
+    const saved = await attachments.saveFile("owner", {
+      input: { path: String(fileId), content: "", type: FileType.Document },
+    });
+    expect(saved.status).toBe(200);
+    const id = saved.data!.id!;
+    await attachments.expectStored("owner", id, "draft before deletion");
+
+    const { status } = await attachments.deleteOne("owner", id);
+    expect(status).toBe(200);
+    // One delete is intermittent (see above); repeat until the draft is really
+    // gone so the file check below follows a completed deletion.
+    await attachments.purge("owner", id);
+
+    const file = await ownerApi.files.getFileInfo({ fileId });
+    expect(file.status, "the source file after its draft is gone").toBe(200);
+    expect(file.data.response?.id).toBe(fileId);
+  });
+
   test("DELETE /api/2.0/ai/attachments/delete - a body with no usable id is rejected and nothing is deleted", async ({
     apiSdk,
   }) => {
@@ -1816,6 +2101,47 @@ test.describe("AI Attachments - delete", () => {
 
     for (const id of ids.filter((candidate) => candidate !== removed)) {
       await attachments.expectStored("owner", id, "draft left in the composer");
+    }
+  });
+
+  test("DELETE /api/2.0/ai/attachments/delete-many - deleting drafts leaves the DocSpace files they were made from", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const ownerApi = apiSdk.forRole("owner");
+    const names = [
+      "Autotest many-source-1.docx",
+      "Autotest many-source-2.docx",
+    ];
+    const fileIds: number[] = [];
+    const ids: string[] = [];
+    for (const name of names) {
+      const fileId = await attachments.backingFileId("owner", name, name);
+      const saved = await attachments.saveFile("owner", {
+        input: { path: String(fileId), content: "", type: FileType.Document },
+      });
+      expect(saved.status).toBe(200);
+      fileIds.push(fileId);
+      ids.push(saved.data!.id!);
+    }
+    for (const id of ids) {
+      await attachments.expectStored("owner", id, "draft before deletion");
+    }
+
+    const { status } = await attachments.deleteMany("owner", ids);
+    expect(status).toBe(200);
+    // One delete is intermittent (see above); repeat until the drafts are really
+    // gone so the file checks below follow a completed deletion.
+    for (const id of ids) {
+      await attachments.purge("owner", id);
+    }
+
+    for (const fileId of fileIds) {
+      const file = await ownerApi.files.getFileInfo({ fileId });
+      expect(file.status, `source file ${fileId} after its draft is gone`).toBe(
+        200,
+      );
+      expect(file.data.response?.id).toBe(fileId);
     }
   });
 
@@ -4558,5 +4884,85 @@ test.describe("AI Attachments - suggested questions", () => {
     expect(status).toBe(200);
     expect(data?.status).toBe("unavailable");
     expect(data?.questions).toEqual([]);
+  });
+});
+
+test.describe("AI Attachments - lifecycle", () => {
+  test("POST /api/2.0/ai/attachments/save-files-many, get-many, DELETE delete-many - a saved batch reads back, is deleted and then reads as null", async ({
+    apiSdk,
+  }) => {
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const names = [
+      "Autotest lifecycle-1.docx",
+      "Autotest lifecycle-2.docx",
+      "Autotest lifecycle-3.docx",
+    ];
+    const inputs: Array<{ path: string; content: string; type: FileType }> = [];
+    for (const [index, name] of names.entries()) {
+      inputs.push({
+        path: String(
+          await attachments.backingFileId("owner", name, `lifecycle ${index}`),
+        ),
+        content: "",
+        type: FileType.Document,
+      });
+    }
+    let ids: string[] = [];
+
+    await test.step("save-files-many stores one draft per file", async () => {
+      const { status, data } = await attachments.saveFilesMany("owner", {
+        inputs,
+      });
+      expect(status).toBe(200);
+      expect(data).toHaveLength(names.length);
+      ids = data!.map((item) => item.id!);
+      expect(new Set(ids).size).toBe(names.length);
+    });
+
+    await test.step("get-many returns every draft, in order", async () => {
+      // The store is not replicated between instances, so poll until one call
+      // resolves every position.
+      let resolved: Array<{ id?: string; title?: unknown } | null> | undefined;
+      for (let attempt = 0; attempt < READ_ATTEMPTS && !resolved; attempt++) {
+        const { status, data } = await attachments.getMany("owner", ids);
+        expect(status).toBe(200);
+        if (data?.every(Boolean)) {
+          resolved = data;
+        }
+      }
+
+      expect(resolved, "a get-many call resolving every draft").toBeTruthy();
+      expect(resolved!.map((item) => item?.id)).toEqual(ids);
+      expect(resolved!.map((item) => item?.title)).toEqual(names);
+    });
+
+    await test.step("delete-many removes them all", async () => {
+      // One call is not enough to be sure on every instance, so it is repeated;
+      // each round must still be accepted.
+      for (let round = 0; round < PURGE_ROUNDS; round++) {
+        const { status, data } = await attachments.deleteMany("owner", ids);
+        expect(status, `delete-many round ${round + 1}`).toBe(200);
+        expect(data?.success).toBe(true);
+      }
+    });
+
+    await test.step("get-many reads every deleted id as null", async () => {
+      const stillThere: string[] = [];
+      for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
+        const { status, data } = await attachments.getMany("owner", ids);
+        expect(status).toBe(200);
+        expect(data, "the batch keeps every position").toHaveLength(ids.length);
+        data!.forEach((item, position) => {
+          if (item) {
+            stillThere.push(ids[position]);
+          }
+        });
+      }
+
+      expect(
+        stillThere,
+        `drafts still readable after delete-many, over ${READ_ATTEMPTS} reads`,
+      ).toEqual([]);
+    });
   });
 });
