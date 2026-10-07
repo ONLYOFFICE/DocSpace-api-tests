@@ -399,7 +399,7 @@ test.describe("AI Preferences - tool permission mode, role access", () => {
   // as open to a Guest (a Viewer's own preference), so refusing the preferences
   // routes alone would not hide it; which of the two conventions this setting
   // follows is for the developers to say.
-  test("BUG XXXXX: GET|PUT /api/2.0/ai/preferences/*-tool-permission-mode - a Guest cannot read or change the tool permission mode", async ({
+  test("BUG 84303: GET|PUT /api/2.0/ai/preferences/*-tool-permission-mode - a Guest cannot read or change the tool permission mode", async ({
     apiSdk,
     paymentsApi,
   }) => {

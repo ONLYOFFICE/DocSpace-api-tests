@@ -4477,7 +4477,7 @@ test.describe("AI Messages - one-shot inference", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-custom - a missing systemPrompt crashes with 500 instead of a validation error", async ({
+  test("BUG 84299: POST /api/2.0/ai/ai/send-custom - a missing systemPrompt crashes with 500 instead of a validation error", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4501,7 +4501,7 @@ test.describe("AI Messages - one-shot inference", () => {
     ).toBe(400);
   });
 
-  test('BUG XXXXX: POST /api/2.0/ai/ai/send-custom - isStream as the string "false" is accepted, and streams', async ({
+  test('BUG 84300: POST /api/2.0/ai/ai/send-custom - isStream as the string "false" is accepted, and streams', async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4697,7 +4697,7 @@ test.describe("AI Messages - one-shot inference", () => {
     expect(listed.data, "neither call created a thread").toEqual([]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send - a profile restricted after being assigned to an actionType is still used", async ({
+  test("BUG 84301: POST /api/2.0/ai/ai/send - a profile restricted after being assigned to an actionType is still used", async ({
     apiSdk,
     paymentsApi,
   }) => {

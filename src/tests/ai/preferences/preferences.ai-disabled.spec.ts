@@ -19,7 +19,7 @@ import { AiSettings } from "@/src/helpers/ai-settings";
 // to say, and the BUG number below is a placeholder until it is filed.
 
 test.describe("AI Preferences - tool permission mode with AI disabled", () => {
-  test("BUG XXXXX: GET|PUT /api/2.0/ai/preferences/*-tool-permission-mode - both are refused when AI access is disabled", async ({
+  test("BUG 84302: GET|PUT /api/2.0/ai/preferences/*-tool-permission-mode - both are refused when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {

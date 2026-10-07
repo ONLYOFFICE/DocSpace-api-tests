@@ -175,7 +175,7 @@ function makeWebPluginsApi(apiSdk: ApiSDK, role: Role): WebpluginsApi {
 test.describe("DELETE and PUT /api/2.0/settings/webplugins/{name} - reserved name prefix", () => {
   // BUG XXXXX: DELETE /api/2.0/settings/webplugins/{name} returns 404 for plugin named 'files-*'
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/settings/webplugins/{name} - Plugin with 'files-' prefix returns 404 instead of 200",
+    "BUG 84321: DELETE /api/2.0/settings/webplugins/{name} - Plugin with 'files-' prefix returns 404 instead of 200",
     async ({ apiSdk }) => {
       const pluginName = "files-autotest";
 

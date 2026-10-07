@@ -1916,7 +1916,7 @@ test.describe("AI Web Search - permissions", () => {
     ).toBe(403);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - Guest reaches config validation instead of being rejected with 403", async ({
+  test("BUG 84312: PUT /api/2.0/ai/web-search/configure - Guest reaches config validation instead of being rejected with 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1952,7 +1952,7 @@ test.describe("AI Web Search - permissions", () => {
     ).toBe(403);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - Guest still isn't blocked for a malformed body, reaches validation instead of 403", async ({
+  test("BUG 84312: PUT /api/2.0/ai/web-search/configure - Guest still isn't blocked for a malformed body, reaches validation instead of 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2005,7 +2005,7 @@ test.describe("AI Web Search - AI Disabled", () => {
     expect((await webSearch.clear("owner", {})).status).toBe(403);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - the portal AI switch does not gate configure, request reaches validation instead of 403", async ({
+  test("BUG 84313: PUT /api/2.0/ai/web-search/configure - the portal AI switch does not gate configure, request reaches validation instead of 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2030,7 +2030,7 @@ test.describe("AI Web Search - AI Disabled", () => {
     ).toBe(403);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/configure - the portal AI switch still isn't checked for a malformed body, reaches validation instead of 403", async ({
+  test("BUG 84313: PUT /api/2.0/ai/web-search/configure - the portal AI switch still isn't checked for a malformed body, reaches validation instead of 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
