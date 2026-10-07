@@ -100,7 +100,9 @@ test.describe("AI Preferences - deep mode state", () => {
     expect(enabled?.success).toBe(true);
     expect((await preferences.getDeepMode("owner")).data).toBe(true);
 
-    const cleared = await preferences.clearDeepMode("owner", {});
+    const cleared = await preferences.clearDeepMode("owner", {
+      entityId: null,
+    });
     expect(cleared.status).toBe(200);
     expect(cleared.data?.success).toBe(true);
 
@@ -108,7 +110,7 @@ test.describe("AI Preferences - deep mode state", () => {
     expect((await preferences.isDeepModeSet("owner")).data).toBe(false);
 
     // Clearing an already-clear setting is accepted rather than 404.
-    const again = await preferences.clearDeepMode("owner", {});
+    const again = await preferences.clearDeepMode("owner", { entityId: null });
     expect(again.status).toBe(200);
     expect(again.data?.success).toBe(true);
   });

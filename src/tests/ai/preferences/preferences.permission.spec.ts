@@ -100,7 +100,9 @@ test.describe("AI Preferences - role access", () => {
       expect(data?.success).toBe(true);
 
       expect((await preferences.getDeepMode(role)).data).toBe(true);
-      expect((await preferences.clearDeepMode(role, {})).status).toBe(200);
+      expect(
+        (await preferences.clearDeepMode(role, { entityId: null })).status,
+      ).toBe(200);
       expect((await preferences.getDeepMode(role)).data).toBe(false);
     });
   }
@@ -124,7 +126,9 @@ test.describe("AI Preferences - role access", () => {
     expect(
       (await preferences.setDeepMode("guest", { value: true })).status,
     ).toBe(403);
-    expect((await preferences.clearDeepMode("guest", {})).status).toBe(403);
+    expect(
+      (await preferences.clearDeepMode("guest", { entityId: null })).status,
+    ).toBe(403);
   });
 });
 
@@ -309,7 +313,10 @@ test.describe("AI Preferences - AI Disabled", () => {
       ["get-deep-mode", preferences.getDeepMode("owner")],
       ["is-deep-mode-set", preferences.isDeepModeSet("owner")],
       ["set-deep-mode", preferences.setDeepMode("owner", { value: false })],
-      ["clear-deep-mode", preferences.clearDeepMode("owner", {})],
+      [
+        "clear-deep-mode",
+        preferences.clearDeepMode("owner", { entityId: null }),
+      ],
     ];
 
     for (const [label, call] of calls) {

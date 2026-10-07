@@ -239,9 +239,11 @@ export function expectAbsenceAcknowledged(
   text: string,
   label = "absence acknowledgement",
 ): void {
+  // Markdown emphasis splits phrases: "There is **no Home_Address column**".
+  const plain = text.replace(/[*`]/g, "");
   expect
     .soft(
-      ABSENCE_PATTERNS.some((pattern) => pattern.test(text)),
+      ABSENCE_PATTERNS.some((pattern) => pattern.test(plain)),
       `${label} — expected the model to say the data is missing, got:\n${text}`,
     )
     .toBe(true);
