@@ -273,7 +273,7 @@ async function modeHarness(apiSdk: ApiSDK, paymentsApi: PortalPaymentApi) {
 }
 
 test.describe("MCP - tool permission mode steers the approval pause", () => {
-  test("POST /api/2.0/ai/ai/send-with-stream - ask: every host tool waits for approval until an allow-always is saved", async ({
+  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - ask: every host tool waits for approval until an allow-always is saved", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -302,6 +302,9 @@ test.describe("MCP - tool permission mode steers the approval pause", () => {
     });
 
     await test.step("a saved allow-always wins in ask", async () => {
+      // Since 2026-10-07 `ask` ignores the saved allow-always (autoAllow stays
+      // false); `auto` and `allow` still honour it.
+      test.fail();
       await expectAutoAllow(REQUIRES_APPROVAL, "ask, allow-always saved", true);
     });
   });

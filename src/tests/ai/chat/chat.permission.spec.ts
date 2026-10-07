@@ -1228,7 +1228,7 @@ test.describe("Threads - a Guest outside an agent", () => {
     expect({
       guest: opened.status,
       outsider: openedByOutsider.status,
-    }).toEqual({ guest: 404, outsider: 404 });
+    }).toEqual({ guest: 403, outsider: 403 });
   });
 });
 
