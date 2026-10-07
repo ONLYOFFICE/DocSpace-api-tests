@@ -262,7 +262,7 @@ test.describe("AI Prompts - content validation", () => {
     expect((await prompts.listPrompts("owner")).data).toEqual([]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/prompts/create - a taken name is refused with 200, not the 400 its neighbours use", async ({
+  test("BUG 84307: POST /api/2.0/ai/prompts/create - a taken name is refused with 200, not the 400 its neighbours use", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -937,7 +937,7 @@ test.describe("AI Prompt folders - validation", () => {
     expect((await prompts.listFolders("owner")).data).toEqual([]);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/prompts/create-folder - a taken folder name is refused with 200, not 400/409", async ({
+  test("BUG 84308: POST /api/2.0/ai/prompts/create-folder - a taken folder name is refused with 200, not 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1044,7 +1044,7 @@ test.describe("AI Prompt folders - validation", () => {
     ).toEqual(["Autotest keeper"]);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/prompts/rename-folder - renaming onto an existing folder's name is refused with 200, not 400/409", async ({
+  test("BUG 84309: PUT /api/2.0/ai/prompts/rename-folder - renaming onto an existing folder's name is refused with 200, not 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1294,7 +1294,7 @@ test.describe("AI Prompt folders - moving prompts", () => {
   // were). What's left is BUG XXXXX: the refusal itself answers 200, the same
   // soft shape as every other name-conflict in this family, instead of the 400
   // `create` uses for its own hard validations on the same resource.
-  test("BUG 83122 (fixed), BUG XXXXX: PUT /api/2.0/ai/prompts/move - moving onto a taken name is refused, but with 200 not 400/409", async ({
+  test("BUG 83122 (fixed), BUG 84310: PUT /api/2.0/ai/prompts/move - moving onto a taken name is refused, but with 200 not 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1352,7 +1352,7 @@ test.describe("AI Prompt folders - moving prompts", () => {
   // per-folder uniqueness rule. What's left is the same BUG XXXXX as `move` and
   // `create` — the refusal answers 200, not the 400 this family's hard
   // validations use.
-  test("BUG 83122 (fixed), BUG XXXXX: PUT /api/2.0/ai/prompts/update - moving onto a taken name through update is refused, but with 200 not 400/409", async ({
+  test("BUG 83122 (fixed), BUG 84311: PUT /api/2.0/ai/prompts/update - moving onto a taken name through update is refused, but with 200 not 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1404,7 +1404,7 @@ test.describe("AI Prompt folders - moving prompts", () => {
     expect([400, 409]).toContain(status);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/prompts/update - renaming a prompt onto a sibling's name is refused with 200, not 400/409", async ({
+  test("BUG 84311: PUT /api/2.0/ai/prompts/update - renaming a prompt onto a sibling's name is refused with 200, not 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {

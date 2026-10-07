@@ -2216,7 +2216,7 @@ test.describe("AI Threads - started by the first message", () => {
     );
   });
 
-  test('BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - the thread the first question opened is renamed from "New chat"', async ({
+  test('POST /api/2.0/ai/ai/send-with-stream - the thread the first question opened is renamed from "New chat"', async ({
     apiSdk,
     paymentsApi,
   }) => {

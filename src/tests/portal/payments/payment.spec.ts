@@ -1670,7 +1670,7 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
   // route should either refuse the write outright (403/409, "enable AITools
   // first") or actually persist it. Answering 200 with an echo of the request
   // while silently doing nothing is neither.
-  test("BUG XXXXX: PUT /api/2.0/portal/payment/ai-model/restrictions - without the AITools wallet service, a 200 write does not persist", async ({
+  test("BUG 84316: PUT /api/2.0/portal/payment/ai-model/restrictions - without the AITools wallet service, a 200 write does not persist", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2170,7 +2170,7 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
   // Filed as BUG XXXXX: the failure mode is "your restrictions got cleared
   // with no error", not corruption or a crash, but it is still a validation
   // gap — `[null]` should be rejected the same way `[123]`/`[true]`/`[{}]` are.
-  test("BUG XXXXX: PUT /api/2.0/portal/payment/ai-model/restrictions - a null array element is accepted and silently clears the list", async ({
+  test("BUG 84317: PUT /api/2.0/portal/payment/ai-model/restrictions - a null array element is accepted and silently clears the list", async ({
     apiSdk,
     paymentsApi,
   }) => {

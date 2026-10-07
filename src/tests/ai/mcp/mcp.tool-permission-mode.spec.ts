@@ -273,7 +273,7 @@ async function modeHarness(apiSdk: ApiSDK, paymentsApi: PortalPaymentApi) {
 }
 
 test.describe("MCP - tool permission mode steers the approval pause", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - ask: every host tool waits for approval until an allow-always is saved", async ({
+  test("BUG 84298: POST /api/2.0/ai/ai/send-with-stream - ask: every host tool waits for approval until an allow-always is saved", async ({
     apiSdk,
     paymentsApi,
   }) => {

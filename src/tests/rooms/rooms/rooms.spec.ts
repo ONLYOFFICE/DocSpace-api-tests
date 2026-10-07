@@ -8649,7 +8649,7 @@ test.describe("API rooms methods", () => {
     // lookup (ArgumentNullException) instead of resolving to 404 like every
     // other invalid id shape above.
     test.fail(
-      "BUG XXXXX: GET /files/rooms/:id/share - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes",
+      "BUG 84318: GET /files/rooms/:id/share - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes",
       async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
         const { status } = await ownerApi.rooms.getRoomSecurityInfo({
@@ -16203,7 +16203,7 @@ test.describe("PUT /files/tags - Update tag", () => {
   // field now return ASP.NET's ProblemDetails shape instead
   // ({response:{errors:{NewName:[...]}}), so error.message is gone.
   test.fail(
-    "BUG XXXXX: PUT /files/tags - Empty newName returns 400 but the error body no longer includes error.message",
+    "BUG 84319: PUT /files/tags - Empty newName returns 400 but the error body no longer includes error.message",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -16348,7 +16348,7 @@ test.describe("PUT /files/tags - Update tag", () => {
   // Same envelope change as the empty-newName case above: error?.message is
   // no longer present in the 400 body for null-field validation failures.
   test.fail(
-    "BUG XXXXX: PUT /files/tags - null oldName returns 400 but the error body no longer includes error.message",
+    "BUG 84319: PUT /files/tags - null oldName returns 400 but the error body no longer includes error.message",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -16365,7 +16365,7 @@ test.describe("PUT /files/tags - Update tag", () => {
   );
 
   test.fail(
-    "BUG XXXXX: PUT /files/tags - null newName returns 400 but the error body no longer includes error.message",
+    "BUG 84319: PUT /files/tags - null newName returns 400 but the error body no longer includes error.message",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -16391,7 +16391,7 @@ test.describe("PUT /files/tags - Update tag", () => {
   );
 
   test.fail(
-    "BUG XXXXX: PUT /files/tags - Both oldName and newName null returns 400 but the error body no longer includes error.message",
+    "BUG 84319: PUT /files/tags - Both oldName and newName null returns 400 but the error body no longer includes error.message",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
@@ -19221,7 +19221,7 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
   // thirdparty selector's regex lookup (ArgumentNullException) instead of
   // resolving to a clean "not found".
   test.fail(
-    "BUG XXXXX: DELETE /files/rooms/:id/tags - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes",
+    "BUG 84320: DELETE /files/rooms/:id/tags - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { status } = await ownerApi.rooms.deleteRoomTags({

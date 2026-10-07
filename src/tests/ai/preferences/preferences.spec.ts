@@ -1146,7 +1146,7 @@ test.describe("AI Preferences - reasoning level is per entity", () => {
   // what gives it away. The request looks successful and overwrites another
   // scope's setting.
   for (const kind of ["room", "folder", "nonexistent id"] as const) {
-    test(`BUG XXXXX: PUT /api/2.0/ai/preferences/set-reasoning-level - a ${kind} scope is stored separately from the portal-wide level`, async ({
+    test(`BUG 84306: PUT /api/2.0/ai/preferences/set-reasoning-level - a ${kind} scope is stored separately from the portal-wide level`, async ({
       apiSdk,
       paymentsApi,
     }) => {
