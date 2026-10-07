@@ -1287,7 +1287,6 @@ test.describe("AI Web Search - room and folder scope", () => {
     const own = await webSearch.isConfigured("user");
     expect(own.status, "the caller's own scope is readable").toBe(200);
 
-    test.fail();
     expect(configured.status).toBe(403);
     expect(active.status).toBe(403);
   });
@@ -1707,7 +1706,6 @@ test.describe("AI Web Search - configure crashes instead of refusing", () => {
     expect((await webSearch.isConfigured("owner")).data).toBe(false);
     expect((await webSearch.getActiveConfig("owner")).data).toBeNull();
 
-    test.fail();
     for (const [label, status] of results) {
       expect(status, `configure with ${label}`).toBe(400);
     }

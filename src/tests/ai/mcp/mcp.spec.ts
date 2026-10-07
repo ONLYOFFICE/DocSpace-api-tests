@@ -3083,7 +3083,6 @@ test.describe("MCP - custom servers scoped to a room", () => {
     expect(survivor.status).toBe(200);
     expect(survivor.data).toEqual(SERVER_CONFIG);
 
-    test.fail();
     expect(outsiderAdd.status).toBe(403);
   });
 });
