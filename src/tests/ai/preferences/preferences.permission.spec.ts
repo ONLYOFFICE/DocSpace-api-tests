@@ -5,7 +5,7 @@ import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import { AiPreferences } from "@/src/helpers/ai-preferences";
 import { AiSettings } from "@/src/helpers/ai-settings";
 import { AiProfiles, AI_CAPS } from "@/src/helpers/ai-profiles";
-import { AiAgentChat } from "@/src/helpers/ai-agent-chat";
+import { AiAgentChat, inviteToAgent } from "@/src/helpers/ai-agent-chat";
 import { AgentRole } from "@/src/helpers/ai-http";
 import { UserType } from "@/src/services/api-sdk";
 
@@ -35,6 +35,11 @@ test.describe("AI Preferences - anonymous access", () => {
       ["is-deep-mode-set", preferences.isDeepModeSet("anonymous")],
       ["set-deep-mode", preferences.setDeepMode("anonymous", { value: true })],
       ["clear-deep-mode", preferences.clearDeepMode("anonymous", {})],
+      ["get-reasoning-level", preferences.getReasoningLevel("anonymous")],
+      [
+        "set-reasoning-level",
+        preferences.setReasoningLevel("anonymous", { value: "high" }),
+      ],
     ];
 
     for (const [label, call] of calls) {
@@ -45,6 +50,7 @@ test.describe("AI Preferences - anonymous access", () => {
     // The refused write left the owner's own preference untouched.
     await apiSdk.authenticateOwner();
     expect((await preferences.isDeepModeSet("owner")).data).toBe(false);
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("off");
   });
 });
 
@@ -128,6 +134,10 @@ test.describe("AI Preferences - role access", () => {
     ).toBe(403);
     expect(
       (await preferences.clearDeepMode("guest", { entityId: null })).status,
+    ).toBe(403);
+    expect((await preferences.getReasoningLevel("guest")).status).toBe(403);
+    expect(
+      (await preferences.setReasoningLevel("guest", { value: "high" })).status,
     ).toBe(403);
   });
 });
@@ -286,6 +296,163 @@ test.describe("AI Preferences - per-user isolation", () => {
   });
 });
 
+test.describe("AI Preferences - reasoning level on an agent the caller cannot see", () => {
+  test("GET|PUT|DELETE /api/2.0/ai/preferences/* - a member outside the agent is refused on the level and clear routes and changes nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Private Level Agent",
+      profileId: await aiChat.defaultProfileId("owner"),
+    });
+
+    const seeded = await preferences.setReasoningLevel("owner", {
+      value: "high",
+      entityId: String(agentId),
+    });
+    expect(seeded.status).toBe(200);
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await preferences.expectActingAs("user", memberData.response!.id!, "User");
+
+    // Control: the member's own portal-wide scope works, so the 403s below are
+    // about the agent, not the route or the user type.
+    expect(
+      (await preferences.setReasoningLevel("user", { value: "low" })).status,
+    ).toBe(200);
+
+    const entityId = String(agentId);
+    expect(
+      (await preferences.setReasoningLevel("user", { value: "max", entityId }))
+        .status,
+      "set-reasoning-level",
+    ).toBe(403);
+    expect(
+      (await preferences.clearDeepMode("user", { entityId })).status,
+      "clear-deep-mode",
+    ).toBe(403);
+    expect(
+      (await preferences.getReasoningLevel("user", agentId)).status,
+      "get-reasoning-level",
+    ).toBe(403);
+    expect(
+      (await preferences.isDeepModeSet("user", agentId)).status,
+      "is-deep-mode-set",
+    ).toBe(403);
+
+    await apiSdk.authenticateOwner();
+    expect(
+      await Promise.all([
+        preferences.getReasoningLevel("owner", agentId),
+        preferences.getDeepMode("owner", agentId),
+        preferences.isDeepModeSet("owner", agentId),
+      ]).then(([level, deep, isSet]) => [level.data, deep.data, isSet.data]),
+      "the owner's value for the agent survived both refused calls",
+    ).toEqual(["high", true, true]);
+  });
+
+  test("GET|PUT|DELETE /api/2.0/ai/preferences/* - two members of one agent each keep their own value", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Shared Level Agent",
+      profileId: await aiChat.defaultProfileId("owner"),
+    });
+
+    // Both members exist, and both are invited, before either is authenticated:
+    // an `addMember` after the first login is refused with 403. The two are
+    // different member types so that each has its own credential slot.
+    const first = await apiSdk.addMember("owner", "User");
+    const second = await apiSdk.addMember("owner", "RoomAdmin");
+    const firstId = first.data.response!.id!;
+    const secondId = second.data.response!.id!;
+    await inviteToAgent(ownerApi.rooms, agentId, firstId);
+    await inviteToAgent(ownerApi.rooms, agentId, secondId);
+
+    const entityId = String(agentId);
+    const stateOf = async (role: "user" | "roomAdmin") => ({
+      level: (await preferences.getReasoningLevel(role, agentId)).data,
+      deep: (await preferences.getDeepMode(role, agentId)).data,
+      isSet: (await preferences.isDeepModeSet(role, agentId)).data,
+    });
+    const actAs = async (who: "first" | "second") => {
+      if (who === "first") {
+        await apiSdk.authenticateMember(first.userData, "User");
+        await preferences.expectActingAs("user", firstId, "the first member");
+        return "user" as const;
+      }
+      await apiSdk.authenticateMember(second.userData, "RoomAdmin");
+      await preferences.expectActingAs(
+        "roomAdmin",
+        secondId,
+        "the second member",
+      );
+      return "roomAdmin" as const;
+    };
+    const unset = { level: "off", deep: false, isSet: false };
+
+    // The first member writes; the second still reads the unset default, which
+    // is what separates "stored per user" from "stored per agent".
+    let role = await actAs("first");
+    const write = await preferences.setReasoningLevel(role, {
+      value: "high",
+      entityId,
+    });
+    expect(write.status, "the invited member may write").toBe(200);
+    expect(await stateOf(role)).toEqual({
+      level: "high",
+      deep: true,
+      isSet: true,
+    });
+
+    role = await actAs("second");
+    expect(await stateOf(role), "the other member's view").toEqual(unset);
+    expect(
+      (await preferences.setReasoningLevel(role, { value: "max", entityId }))
+        .status,
+    ).toBe(200);
+    expect(await stateOf(role)).toEqual({
+      level: "max",
+      deep: true,
+      isSet: true,
+    });
+
+    // The second member's write did not overwrite the first member's value.
+    role = await actAs("first");
+    expect(await stateOf(role), "the first member's value").toEqual({
+      level: "high",
+      deep: true,
+      isSet: true,
+    });
+
+    // A clear by one member leaves the other's value in place.
+    const clear = await preferences.clearDeepMode(role, { entityId });
+    expect(clear.status).toBe(200);
+    expect(await stateOf(role)).toEqual(unset);
+
+    role = await actAs("second");
+    expect(await stateOf(role), "the second member's value").toEqual({
+      level: "max",
+      deep: true,
+      isSet: true,
+    });
+  });
+});
+
 test.describe("AI Preferences - AI Disabled", () => {
   test("GET|PUT|DELETE /api/2.0/ai/preferences/* - the whole surface returns 403 when AI access is disabled", async ({
     apiSdk,
@@ -317,6 +484,11 @@ test.describe("AI Preferences - AI Disabled", () => {
         "clear-deep-mode",
         preferences.clearDeepMode("owner", { entityId: null }),
       ],
+      ["get-reasoning-level", preferences.getReasoningLevel("owner")],
+      [
+        "set-reasoning-level",
+        preferences.setReasoningLevel("owner", { value: "max" }),
+      ],
     ];
 
     for (const [label, call] of calls) {
@@ -328,6 +500,9 @@ test.describe("AI Preferences - AI Disabled", () => {
     const on = await setPortalAiAccess(ownerApi, true);
     expect(on.enabled).toBe(true);
     expect((await preferences.getDeepMode("owner")).data).toBe(true);
+    // Seeded as `true` on an unset scope, so `medium`; the refused `max` and the
+    // refused clear changed neither.
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("medium");
   });
 });
 

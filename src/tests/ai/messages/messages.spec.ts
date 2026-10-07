@@ -1718,6 +1718,16 @@ const INVALID_TEXT_BODIES: Array<{ name: string; body: InvalidTextBody }> = [
   { name: "null content", body: { title: "T", content: null } },
   { name: "missing content", body: { title: "T" } },
   { name: "an empty body", body: {} },
+  // A title or content of the wrong JSON type is the same refusal as a missing
+  // one — not a 500 from a failed cast, and not a coerced "123".
+  { name: "a numeric title", body: { title: 123, content: "hello" } },
+  { name: "a boolean title", body: { title: true, content: "hello" } },
+  { name: "an array title", body: { title: ["T"], content: "hello" } },
+  { name: "an object title", body: { title: { a: 1 }, content: "hello" } },
+  { name: "numeric content", body: { title: "T", content: 123 } },
+  { name: "boolean content", body: { title: "T", content: true } },
+  { name: "array content", body: { title: "T", content: ["hello"] } },
+  { name: "object content", body: { title: "T", content: { a: 1 } } },
 ];
 
 test.describe("AI Messages - text-to-docx validation", () => {
@@ -1941,6 +1951,372 @@ test.describe("AI Messages - text-to-docx validation", () => {
       await waitForExportedFile(ownerApi, folderId, `${title} big.docx`),
     ).toBeDefined();
   });
+});
+
+// The request body is capped at 15 MiB, counted in BYTES over the whole JSON
+// body (measured 2026-10-07 by bisection: 15 728 640 passes, one more is refused;
+// an ASCII content tops out at 15 728 602 characters, a Cyrillic one — two bytes
+// each — at 7 864 301). The old 128 KB limit is gone. The refusal is a bare 413
+// with an HTML page, the answer of the layer in front of the application, so the
+// tests assert the status and nothing about its body.
+//
+// The boundary is probed with an EMPTY title on purpose: that body is invalid, so
+// anything under the cap answers 400 "title and content are required" and nothing
+// over it gets that far — and no 15 MiB document is ever built.
+const BODY_LIMIT_BYTES = 15 * 1024 * 1024;
+
+async function sendSizedBody(
+  apiSdk: ApiSDK,
+  content: string,
+  folderId: number,
+) {
+  const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+  const body = { title: "", content, folderId };
+  const result = await aiSettings.textToDocx("owner", body);
+  return { ...result, bodyBytes: Buffer.byteLength(JSON.stringify(body)) };
+}
+
+test.describe("AI Messages - text-to-docx size limit", () => {
+  test("POST /api/2.0/ai/text-to-docx - a body of exactly 15 MiB reaches validation and one byte more is refused with a 413", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const overhead = Buffer.byteLength(
+      JSON.stringify({ title: "", content: "", folderId }),
+    );
+
+    const atLimit = await sendSizedBody(
+      apiSdk,
+      "x".repeat(BODY_LIMIT_BYTES - overhead),
+      folderId,
+    );
+    expect(atLimit.bodyBytes).toBe(BODY_LIMIT_BYTES);
+    expect(atLimit.error).toBe("title and content are required");
+    expect(atLimit.status).toBe(400);
+
+    const over = await sendSizedBody(
+      apiSdk,
+      "x".repeat(BODY_LIMIT_BYTES - overhead + 1),
+      folderId,
+    );
+    expect(over.bodyBytes).toBe(BODY_LIMIT_BYTES + 1);
+    expect(over.status).toBe(413);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - the limit counts bytes, not characters", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const overhead = Buffer.byteLength(
+      JSON.stringify({ title: "", content: "", folderId }),
+    );
+
+    // The same number of characters, one passes and one does not.
+    const SAME_CHARS = 10_000_000;
+    const ascii = await sendSizedBody(apiSdk, "x".repeat(SAME_CHARS), folderId);
+    expect(ascii.status).toBe(400);
+    const cyrillic = await sendSizedBody(
+      apiSdk,
+      "я".repeat(SAME_CHARS),
+      folderId,
+    );
+    expect(cyrillic.bodyBytes).toBeGreaterThan(BODY_LIMIT_BYTES);
+    expect(cyrillic.status).toBe(413);
+
+    // And the edge itself, in two-byte characters: the largest content that fits
+    // is refused one character later.
+    const fits = Math.floor((BODY_LIMIT_BYTES - overhead) / 2);
+    const atLimit = await sendSizedBody(apiSdk, "я".repeat(fits), folderId);
+    expect(atLimit.bodyBytes).toBeLessThanOrEqual(BODY_LIMIT_BYTES);
+    expect(atLimit.error).toBe("title and content are required");
+    expect(atLimit.status).toBe(400);
+    const over = await sendSizedBody(apiSdk, "я".repeat(fits + 1), folderId);
+    expect(over.bodyBytes).toBeGreaterThan(BODY_LIMIT_BYTES);
+    expect(over.status).toBe(413);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - a 1 MiB answer is exported whole, first line to last", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const title = `Exported big ${apiSdk.faker.generateString(8)}`;
+
+    const paragraphs = Array.from(
+      { length: 27000 },
+      (_, i) =>
+        `Paragraph ${String(i).padStart(6, "0")} lorem ipsum dolor sit.`,
+    );
+    const content = `BEGINMARK\n\n${paragraphs.join("\n\n")}\n\nENDMARK`;
+    expect(Buffer.byteLength(content)).toBeGreaterThan(1024 * 1024);
+
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content,
+      folderId,
+    });
+    expect(status).toBe(202);
+
+    const exported = await waitForExportedFile(
+      ownerApi,
+      folderId,
+      `${title}.docx`,
+      120000,
+    );
+    expect(exported, `no "${title}.docx" for a 1 MiB answer`).toBeDefined();
+    const text = await readExportedDocxText(apiSdk, "owner", exported!.id);
+    expect(text).toContain("BEGINMARK");
+    expect(text).toContain("Paragraph 000000");
+    expect(text).toContain("Paragraph 026999");
+    expect(text).toContain("ENDMARK");
+  });
+});
+
+test.describe("AI Messages - text-to-docx naming and concurrency", () => {
+  test("POST /api/2.0/ai/text-to-docx - the same title three times gives (1) and (2), nothing overwritten", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const title = `Exported ${apiSdk.faker.generateString(8)}`;
+
+    const expected = [
+      `${title}.docx`,
+      `${title} (1).docx`,
+      `${title} (2).docx`,
+    ];
+    for (const [i, fileTitle] of expected.entries()) {
+      const { status } = await aiSettings.textToDocx("owner", {
+        title,
+        content: `Export number ${i}.`,
+        folderId,
+      });
+      expect(status).toBe(202);
+      expect(
+        await waitForExportedFile(ownerApi, folderId, fileTitle),
+        `expected "${fileTitle}"`,
+      ).toBeDefined();
+    }
+
+    // Each document keeps its own text: the first one was not replaced.
+    for (const [i, fileTitle] of expected.entries()) {
+      const file = (await listFolderFiles(ownerApi, folderId)).find(
+        (f) => f.title === fileTitle,
+      );
+      expect(await readExportedDocxText(apiSdk, "owner", file!.id)).toContain(
+        `Export number ${i}.`,
+      );
+    }
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - one successful export creates exactly one file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    // The sample documents are still arriving on a fresh portal, so the baseline
+    // waits for the folder to stop changing.
+    const before = (await waitForStableFolderFiles(ownerApi, folderId)).map(
+      (f) => f.id,
+    );
+    const title = `Exported ${apiSdk.faker.generateString(8)}`;
+
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content: "hello",
+      folderId,
+    });
+    expect(status).toBe(202);
+    expect(
+      await waitForExportedFile(ownerApi, folderId, `${title}.docx`),
+    ).toBeDefined();
+
+    // Long enough for a stray second job to land too.
+    await waitForExportToSettle();
+    const added = (await listFolderFiles(ownerApi, folderId))
+      .filter((f) => !before.includes(f.id))
+      .map((f) => f.title);
+    expect(added).toEqual([`${title}.docx`]);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - a backslash in a title is replaced the way the Files API replaces it", async ({
+    apiSdk,
+  }) => {
+    // The slash case is BUG 82711. A lone backslash is checked on its own because
+    // the cases there mix both separators with other forbidden characters, so a
+    // fix for one could hide the other. Measured 2026-10-07: the backslash alone
+    // is already normalised like the Files API does it — every title in 82711
+    // that loses its beginning contains a "/", so the defect is the slash.
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const { data: controlFolder } = await ownerApi.folders.createFolder({
+      folderId,
+      createFolder: { title: "Autotest TextToDocx Control" },
+    });
+    const controlFolderId = controlFolder.response!.id!;
+
+    const title = `Notes ${apiSdk.faker.generateString(4)}\\31`;
+    const expected = await filesApiTitleFor(ownerApi, controlFolderId, title);
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content: "hello",
+      folderId,
+    });
+    expect(status).toBe(202);
+
+    const landed = await waitForStableFolderFiles(ownerApi, folderId);
+    expect(landed.map((f) => f.title)).toContain(expected);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - two simultaneous exports with the same title both survive", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const before = (await waitForStableFolderFiles(ownerApi, folderId)).map(
+      (f) => f.id,
+    );
+    const title = `Exported ${apiSdk.faker.generateString(8)}`;
+
+    const [first, second] = await Promise.all([
+      aiSettings.textToDocx("owner", {
+        title,
+        content: "ALPHA text of the first export.",
+        folderId,
+      }),
+      aiSettings.textToDocx("owner", {
+        title,
+        content: "BRAVO text of the second export.",
+        folderId,
+      }),
+    ]);
+    expect(first.status).toBe(202);
+    expect(second.status).toBe(202);
+
+    const names = [`${title}.docx`, `${title} (1).docx`];
+    for (const name of names) {
+      expect(
+        await waitForExportedFile(ownerApi, folderId, name, 60000),
+        `expected "${name}" — one of the two simultaneous exports was lost or collided`,
+      ).toBeDefined();
+    }
+    const added = (await waitForStableFolderFiles(ownerApi, folderId)).filter(
+      (f) => !before.includes(f.id),
+    );
+    expect(added.map((f) => f.title).sort()).toEqual([...names].sort());
+
+    const texts = await Promise.all(
+      added.map((f) => readExportedDocxText(apiSdk, "owner", f.id)),
+    );
+    expect(texts.some((t) => t.includes("ALPHA"))).toBe(true);
+    expect(texts.some((t) => t.includes("BRAVO"))).toBe(true);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - simultaneous exports with different titles each land in their own folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const myId = myFolder.response!.current!.id!;
+    const { data: a } = await ownerApi.folders.createFolder({
+      folderId: myId,
+      createFolder: { title: "Autotest Parallel A" },
+    });
+    const { data: b } = await ownerApi.folders.createFolder({
+      folderId: myId,
+      createFolder: { title: "Autotest Parallel B" },
+    });
+    const folders = [a.response!.id!, b.response!.id!];
+
+    const jobs = Array.from({ length: 6 }, (_, i) => ({
+      title: `Exported ${i} ${apiSdk.faker.generateString(6)}`,
+      content: `CONTENT-${i}-ONLY`,
+      folderId: folders[i % 2],
+    }));
+    const results = await Promise.all(
+      jobs.map((job) => aiSettings.textToDocx("owner", job)),
+    );
+    expect(results.map((r) => r.status)).toEqual(jobs.map(() => 202));
+
+    for (const job of jobs) {
+      expect(
+        await waitForExportedFile(
+          ownerApi,
+          job.folderId,
+          `${job.title}.docx`,
+          60000,
+        ),
+        `"${job.title}.docx" missing from its folder`,
+      ).toBeDefined();
+    }
+    for (const folderId of folders) {
+      const expected = jobs
+        .filter((j) => j.folderId === folderId)
+        .map((j) => `${j.title}.docx`)
+        .sort();
+      const titles = (await waitForStableFolderFiles(ownerApi, folderId))
+        .map((f) => f.title)
+        .sort();
+      expect(
+        titles,
+        "a folder holds its own exports and nobody else's",
+      ).toEqual(expected);
+    }
+    const mine = await listFolderFiles(ownerApi, folders[0]);
+    const first = mine.find((f) => f.title === `${jobs[0].title}.docx`)!;
+    const text = await readExportedDocxText(apiSdk, "owner", first.id);
+    expect(text).toContain("CONTENT-0-ONLY");
+    expect(text).not.toContain("CONTENT-1-ONLY");
+  });
+});
+
+test.describe("AI Messages - text-to-docx format shapes", () => {
+  // The spelling cases ("pdf", "docx", "md", "bogus") are covered above. A format
+  // of the wrong JSON type — or an explicit null, which is not the same as no
+  // format at all — is the same refusal, with the same message.
+  for (const { name, format } of [
+    { name: "null", format: null },
+    { name: "an empty string", format: "" },
+    { name: "a number", format: 123 },
+    { name: "a boolean", format: true },
+    { name: "an array", format: ["Docx"] },
+    { name: "upper case", format: "DOCX" },
+    { name: "a padded name", format: " Docx" },
+  ] as Array<{ name: string; format: unknown }>) {
+    test(`POST /api/2.0/ai/text-to-docx - format as ${name} is rejected`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+      const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+      const folderId = myFolder.response!.current!.id!;
+
+      const { status, error } = await aiSettings.textToDocx("owner", {
+        title: `Exported invalid format ${apiSdk.faker.generateString(8)}`,
+        content: "The assistant said hello.",
+        format,
+        folderId,
+      });
+
+      expect(error).toBe("format must be one of Docx, Pdf, Md");
+      expect(status).toBe(400);
+    });
+  }
 });
 
 // Per-message routes: read one, rewrite one, remove one.
