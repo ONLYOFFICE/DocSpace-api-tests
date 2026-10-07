@@ -317,7 +317,7 @@ test.describe("GET /files/rooms/{id}/ai - the room's skills folder listing", () 
   }
 
   test.fail(
-    "BUG XXXXX: GET /files/rooms/{id}/ai - a room with no .ai folder yet returns 404 instead of an empty listing",
+    "BUG 84329: GET /files/rooms/{id}/ai - a room with no .ai folder yet returns 404 instead of an empty listing",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
