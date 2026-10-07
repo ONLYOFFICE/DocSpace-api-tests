@@ -74,6 +74,7 @@ import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/
 import { QuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/quota-api";
 import { PrivacyRoomApi } from "@onlyoffice/docspace-api-sdk/dist/api/rooms/privacy-room-api";
 import { DocsCloudApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/docs-cloud-api";
+import { RebrandingApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/rebranding-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -283,6 +284,7 @@ export class ApiSDK {
       owner: new OwnerApi(config, undefined, axiosInstance),
       privacyroom: new PrivacyRoomApi(config, undefined, axiosInstance),
       docsCloud: new DocsCloudApi(config, undefined, axiosInstance),
+      rebranding: new RebrandingApi(config, undefined, axiosInstance),
     };
   }
 
@@ -408,6 +410,7 @@ export class ApiSDK {
       privacyroom: new PrivacyRoomApi(config, undefined, axiosInstance),
       tfaSettings: new TFASettingsApi(config, undefined, axiosInstance),
       docsCloud: new DocsCloudApi(config, undefined, axiosInstance),
+      rebranding: new RebrandingApi(config, undefined, axiosInstance),
     };
   }
 
