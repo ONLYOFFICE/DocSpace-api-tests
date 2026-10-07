@@ -811,13 +811,6 @@ test.describe("saveThirdParty with providerId - updating an existing connection"
   test("BUG 83303: POST /files/thirdparty - Re-saving with an existing providerId returns 200 but does not rename the account", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 83303: saveThirdParty called again with providerId set and a new " +
-        "customerTitle returns 200 (implying success) but getThirdPartyAccounts " +
-        "still shows the original title - the update is silently a no-op",
-    );
-
     const ownerApi = apiSdk.forRole("owner");
     const { providerId } = await connectNextcloud(
       apiSdk,
