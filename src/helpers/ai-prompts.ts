@@ -1,4 +1,8 @@
+import { expect } from "@playwright/test";
+import type { ApiSDK } from "../services/api-sdk";
+import type { PaymentApi } from "../services/payment-api";
 import { AiHttp, AgentRole } from "./ai-http";
+import { enableAiGateway } from "./wallet-services";
 
 // Saved prompts and prompt folders — verified against a live portal 2026-08-04.
 //
@@ -88,6 +92,42 @@ export type AiImportResult = {
   }>;
   error?: { field?: string; message?: string };
 };
+
+/** Well-formed ids that no library holds. */
+export const UNKNOWN_PROMPT_ID = "019fcc1d-2c4d-7557-b8d2-6b4f1be1b212";
+export const UNKNOWN_FOLDER_ID = "019fcc1d-2ccd-7274-974a-cc335f583f58";
+
+/** Switches the owner's AI gateway on and hands back a client for the library. */
+export async function ownerPrompts(apiSdk: ApiSDK, paymentsApi: PaymentApi) {
+  await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+  return new AiPrompts(apiSdk.request, apiSdk.tokenStore);
+}
+
+/** A whole library as plain data, for "nothing changed" comparisons. */
+export type LibrarySnapshot = {
+  folders: AiPromptFolder[];
+  prompts: Array<Omit<AiPrompt, "folderId"> & { folderId: string | null }>;
+};
+
+/**
+ * The library without its ids: one `folder/name: text` line per prompt plus the
+ * folder names. What survives an export/import round trip, since the import
+ * issues fresh ids.
+ */
+export function libraryShape(snapshot: LibrarySnapshot) {
+  const folderName = new Map(
+    snapshot.folders.map((folder) => [folder.id, folder.name]),
+  );
+  return {
+    folders: snapshot.folders.map((folder) => folder.name).sort(),
+    prompts: snapshot.prompts
+      .map(
+        (prompt) =>
+          `${prompt.folderId ? folderName.get(prompt.folderId) : "<root>"}/${prompt.name}: ${prompt.text}`,
+      )
+      .sort(),
+  };
+}
 
 export class AiPrompts extends AiHttp {
   // ----------------------------------------------------------------- prompts
@@ -209,6 +249,25 @@ export class AiPrompts extends AiHttp {
   }
 
   // ----------------------------------------------------------------- helpers
+
+  /**
+   * Everything the caller owns, read through `export`, ordered by id so two
+   * snapshots compare with `toEqual`. Timestamps are included on purpose: a
+   * refused write that still touched a row would show up as a changed
+   * `updatedAt`.
+   */
+  async snapshot(role: AgentRole): Promise<LibrarySnapshot> {
+    const { status, data } = await this.exportBundle(role);
+    expect(status, `export as ${role}`).toBe(200);
+    const byId = (a: { id?: string }, b: { id?: string }) =>
+      (a.id ?? "").localeCompare(b.id ?? "");
+    return {
+      folders: [...(data?.folders ?? [])].sort(byId),
+      prompts: [...(data?.prompts ?? [])]
+        .map((prompt) => ({ ...prompt, folderId: prompt.folderId ?? null }))
+        .sort(byId),
+    };
+  }
 
   /** Setup-only: throws unless the prompt was really created. */
   async createPromptId(

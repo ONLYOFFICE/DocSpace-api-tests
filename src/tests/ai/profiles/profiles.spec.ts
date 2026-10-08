@@ -246,7 +246,7 @@ test.describe("AI Profiles - catalogue", () => {
 });
 
 test.describe("AI Profiles - catalogue bugs", () => {
-  test("BUG 82818: GET /api/2.0/ai/profiles/get-by-id - an unknown profile id is a 404", async ({
+  test("BUG 82818 FIXED: GET /api/2.0/ai/profiles/get-by-id - an unknown profile id is a 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -292,7 +292,7 @@ test.describe("AI Profiles - catalogue bugs", () => {
     ).toBe(listed.baseUrl);
   });
 
-  test("BUG 82823: GET /api/2.0/ai/profiles/list-models - a valid profile id no longer crashes", async ({
+  test("BUG 82823 FIXED: GET /api/2.0/ai/profiles/list-models - a valid profile id no longer crashes", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1241,7 +1241,7 @@ test.describe("AI Profiles - which field the model picker blames", () => {
     expect(error?.toLowerCase()).not.toContain("api key");
   });
 
-  test("BUG 83116: POST /api/2.0/ai/profiles/list-provider-models - a missing base URL and a missing provider type get the same two-field message", async ({
+  test("BUG 83116 FIXED: POST /api/2.0/ai/profiles/list-provider-models - a missing base URL and a missing provider type get the same two-field message", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1356,7 +1356,7 @@ test.describe("AI Profiles - local providers need no key", () => {
     }
   });
 
-  test("BUG 83118: POST /api/2.0/ai/profiles/list-provider-models - gpt4all reports an unreachable server as an empty model list", async ({
+  test("BUG 83118 FIXED: POST /api/2.0/ai/profiles/list-provider-models - gpt4all reports an unreachable server as an empty model list", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1439,7 +1439,7 @@ test.describe("AI Profiles - the transport is not checked against the host", () 
     }
   });
 
-  test("BUG 83119: POST /api/2.0/ai/profiles/list-provider-models - the anthropic transport returns models with no display name", async ({
+  test("BUG 83119 FIXED: POST /api/2.0/ai/profiles/list-provider-models - the anthropic transport returns models with no display name", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1704,5 +1704,532 @@ test.describe("AI Profiles - reasoningSupport", () => {
 
     expect(created.status, "create").toBe(403);
     expect(updated.status, "update").toBe(403);
+  });
+});
+
+// ===========================================================================
+// Id boundaries, catalogue integrity and request validation.
+//
+// Measured 2026-10-08 on a gateway portal. The read routes bind the id as a
+// GUID: anything that is not one is a generic 400 `Bad Request`, a missing one is
+// a 400 naming the parameter. The routes then disagree about a well-formed id
+// nobody owns: get-by-id says 404, list-models and test-connection do not (the
+// two BUG XXXXX tests below).
+// ===========================================================================
+
+const GUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A well-formed id that no portal ever issued (UUIDv7 from another run). */
+const UNKNOWN_PROFILE_ID = "019fcc1d-2c4d-7557-b8d2-6b4f1be1b212";
+const ZERO_GUID = "00000000-0000-0000-0000-000000000000";
+
+/** Not a GUID in any spelling the binder accepts. `not-a-guid` and `""` are covered above. */
+const MALFORMED_PROFILE_IDS: Array<[string, string]> = [
+  ["a truncated GUID", "019fcc1d-2c4d-7557"],
+  ["a GUID with non-hex characters", "zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz"],
+  ["a 2000-character value", "a".repeat(2000)],
+  ["an injection-shaped value", "' OR 1=1 --"],
+];
+
+/** A key that is not one, and that no response or catalogue may ever echo. */
+const LEAK_PROBE_KEY = "sk-autotest-leakprobe-7f3a9c1e5b2d4a68";
+
+const catalogueSnapshot = async (profiles: AiProfiles) =>
+  JSON.stringify(
+    (await profiles.catalogue("owner")).sort((a, b) =>
+      (a.id ?? "").localeCompare(b.id ?? ""),
+    ),
+  );
+
+test.describe("AI Profiles - catalogue integrity", () => {
+  test("GET /api/2.0/ai/profiles/list - every profile has a unique GUID id and a complete description", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    for (const profile of catalogue) {
+      const label = profile.modelId;
+      expect(GUID_PATTERN.test(profile.id ?? ""), `${label} id`).toBe(true);
+      expect(profile.name, `${label} name`).toBeTruthy();
+      expect(profile.providerType, `${label} providerType`).toBeTruthy();
+      expect(profile.modelId, "modelId").toBeTruthy();
+      expect(
+        () => new URL(profile.baseUrl ?? ""),
+        `${label} baseUrl is an absolute URL`,
+      ).not.toThrow();
+
+      // A capability mask is a set of known bits and says something: an
+      // arbitrary number or an all-zero mask draws no icons.
+      const capabilities = profile.capabilities ?? 0;
+      expect(capabilities, `${label} capabilities`).toBeGreaterThan(0);
+      expect(
+        capabilities & ~AI_CAP_KNOWN_BITS,
+        `${label} carries bits outside the known set`,
+      ).toBe(0);
+    }
+
+    const ids = catalogue.map((profile) => profile.id);
+    expect(new Set(ids).size, "profile ids are unique").toBe(ids.length);
+  });
+
+  test("GET /api/2.0/ai/profiles/list - the catalogue is stable between reads and reading it changes nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    const first = await catalogueSnapshot(profiles);
+    // Reading one profile by id and testing its connection are reads too.
+    const [any] = JSON.parse(first) as Array<{ id: string }>;
+    await profiles.getProfileById("owner", any.id);
+    await profiles.testConnection("owner", any.id);
+    const second = await catalogueSnapshot(profiles);
+
+    expect(second).toBe(first);
+  });
+
+  test("GET /api/2.0/ai/profiles/list, get-by-id - the two surfaces describe every profile identically", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    for (const listed of catalogue) {
+      const { status, data } = await profiles.getProfileById(
+        "owner",
+        listed.id!,
+      );
+      expect(status, `${listed.modelId} get-by-id`).toBe(200);
+      // `key` is deliberately absent: get-by-id omits it (see the permission suite).
+      for (const field of [
+        "id",
+        "name",
+        "providerType",
+        "baseUrl",
+        "modelId",
+        "capabilities",
+        "reasoning",
+        "canUseTool",
+        "useResponsesApi",
+      ] as const) {
+        expect(data?.[field], `${listed.modelId}.${field}`).toEqual(
+          listed[field],
+        );
+      }
+    }
+  });
+});
+
+test.describe("AI Profiles - id boundaries on the read routes", () => {
+  test("GET /api/2.0/ai/profiles/get-by-id - malformed or missing ids are 400, unknown ones are 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    for (const [label, id] of MALFORMED_PROFILE_IDS) {
+      const { status } = await profiles.getProfileById("owner", id);
+      expect(status, label).toBe(400);
+    }
+
+    const missing = await profiles.rawGet(
+      "owner",
+      "/api/2.0/ai/profiles/get-by-id",
+    );
+    expect(missing.status, "no id parameter at all").toBe(400);
+    expect(missing.error).toBe("id required");
+
+    // Positive control: a real id is a 200 through the same route, so the 404s
+    // below are about the id and not about the route being unavailable.
+    const [real] = await profiles.catalogue("owner");
+    expect((await profiles.getProfileById("owner", real.id!)).status).toBe(200);
+
+    for (const [label, id] of [
+      ["a well-formed id nobody owns", UNKNOWN_PROFILE_ID],
+      ["the all-zero GUID", ZERO_GUID],
+    ]) {
+      const { status, error } = await profiles.getProfileById("owner", id);
+      expect(status, label).toBe(404);
+      expect(error, label).toBe("Profile not found");
+    }
+  });
+
+  test("GET /api/2.0/ai/profiles/list-models - malformed or missing ids are 400", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    for (const [label, id] of MALFORMED_PROFILE_IDS) {
+      const { status } = await profiles.listModels("owner", id);
+      expect(status, label).toBe(400);
+    }
+
+    const empty = await profiles.rawGet(
+      "owner",
+      "/api/2.0/ai/profiles/list-models?profileId=",
+    );
+    expect(empty.status, "an empty profileId").toBe(400);
+    expect(empty.error).toBe("profileId required");
+
+    const missing = await profiles.rawGet(
+      "owner",
+      "/api/2.0/ai/profiles/list-models",
+    );
+    expect(missing.status, "no profileId parameter at all").toBe(400);
+    expect(missing.error).toBe("profileId required");
+  });
+
+  test("BUG XXXXX: GET /api/2.0/ai/profiles/list-models - an unknown profile id is a 404, not a 502 from the provider", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // Control: get-by-id already answers this exact id correctly, so the
+    // contract exists on this controller.
+    const sibling = await profiles.getProfileById("owner", UNKNOWN_PROFILE_ID);
+    expect(sibling.status, "get-by-id says the profile does not exist").toBe(
+      404,
+    );
+
+    const outcomes: Array<{ id: string; status: number; error?: string }> = [];
+    for (const id of [UNKNOWN_PROFILE_ID, ZERO_GUID]) {
+      const { status, error } = await profiles.listModels("owner", id);
+      outcomes.push({ id, status, error });
+    }
+
+    // Measured: 502 "Failed to list provider models" for both, a gateway error
+    // for a profile that does not exist, which a caller cannot tell from an outage.
+    test.fail();
+    expect(
+      outcomes.map((outcome) => outcome.status),
+      "a profile that does not exist is a 404",
+    ).toEqual([404, 404]);
+  });
+});
+
+test.describe("AI Profiles - test-connection request and response shape", () => {
+  test("POST /api/2.0/ai/profiles/test-connection - a malformed id is a 400 and a body without an id is 'profileId required'", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    for (const [label, id] of [
+      ["not-a-guid", "not-a-guid"],
+      ...MALFORMED_PROFILE_IDS,
+    ]) {
+      const { status } = await profiles.testConnection("owner", id);
+      expect(status, label).toBe(400);
+    }
+
+    for (const [label, body] of [
+      ["null", null],
+      ["an empty object", {}],
+      ["an empty string", ""],
+      ["a number", 5],
+    ] as Array<[string, unknown]>) {
+      const { status, error } = await profiles.testConnection("owner", body);
+      expect(status, label).toBe(400);
+      expect(error, label).toBe("profileId required");
+    }
+  });
+
+  test("POST /api/2.0/ai/profiles/test-connection - the verdict is a flat {field, message} pair that leaks nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+
+    // One text profile and the image-only one: both classes must answer in the
+    // same shape.
+    for (const capabilities of [AI_CAPS.textTools, AI_CAPS.imageOnly]) {
+      const profile = AiProfiles.byCapabilities(catalogue, capabilities);
+      const { status, data, text } = await profiles.testConnection(
+        "owner",
+        profile.id,
+      );
+      expect(status, profile.modelId).toBe(200);
+      expect(Object.keys(data ?? {}).sort(), `${profile.modelId} keys`).toEqual(
+        ["field", "message"],
+      );
+      expect(data?.field, `${profile.modelId} field`).toBe("key");
+      expect(typeof data?.message).toBe("string");
+
+      // No credential, no stack trace and no internal address in the verdict.
+      expect(text ?? "", `${profile.modelId} body`).not.toMatch(
+        /sk-[A-Za-z0-9_-]{8,}|Exception|StackTrace|\sat\s\S+\(|http:\/\/ai:/i,
+      );
+    }
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/profiles/test-connection - an unknown profile id is a 404, not a 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    const sibling = await profiles.getProfileById("owner", UNKNOWN_PROFILE_ID);
+    expect(sibling.status, "get-by-id says the profile does not exist").toBe(
+      404,
+    );
+
+    const bare = await profiles.testConnection("owner", UNKNOWN_PROFILE_ID);
+    const wrapped = await profiles.testConnection("owner", {
+      profileId: UNKNOWN_PROFILE_ID,
+    });
+    const zero = await profiles.testConnection("owner", ZERO_GUID);
+
+    // Measured: an unhandled "Internal server error" for all three.
+    test.fail();
+    expect(
+      [bare.status, wrapped.status, zero.status],
+      "a profile that does not exist is a 404",
+    ).toEqual([404, 404, 404]);
+  });
+});
+
+test.describe("AI Profiles - list-provider-models request validation", () => {
+  /** Reachable host, key that cannot work, so any key complaint is the key's own. */
+  const BODY = {
+    providerType: AiBuiltinProviderType.Deepseek,
+    baseUrl: "https://api.deepseek.com",
+    apiKey: "sk-autotest-not-a-real-key",
+  };
+
+  type DiscoveryBody = Parameters<AiProfiles["listProviderModels"]>[1];
+  type Flat = { error?: string; field?: string };
+
+  test("POST /api/2.0/ai/profiles/list-provider-models - a missing or empty providerType or baseUrl names exactly that field", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    const cases: Array<[string, Record<string, unknown>, string]> = [
+      ["providerType omitted", { providerType: undefined }, "providerType"],
+      ["providerType null", { providerType: null }, "providerType"],
+      ["providerType empty", { providerType: "" }, "providerType"],
+      ["baseUrl omitted", { baseUrl: undefined }, "baseUrl"],
+      ["baseUrl null", { baseUrl: null }, "baseUrl"],
+      ["baseUrl empty", { baseUrl: "" }, "baseUrl"],
+    ];
+
+    for (const [label, patch, field] of cases) {
+      const { status, data, error } = await profiles.listProviderModels(
+        "owner",
+        { ...BODY, ...patch } as DiscoveryBody,
+      );
+      expect(status, label).toBe(400);
+      expect((data as unknown as Flat).field, `${label}: field`).toBe(field);
+      expect(error, `${label}: message`).toBe(`${field} required`);
+    }
+
+    const empty = await profiles.listProviderModels("owner", {});
+    expect(empty.status, "an empty body").toBe(400);
+  });
+
+  test("POST /api/2.0/ai/profiles/list-provider-models - a base URL that cannot be parsed is refused before any connection", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    const cases: Array<[string, string, string]> = [
+      ["no scheme", "api.deepseek.com", "baseUrl is not a valid URL"],
+      [
+        "a space in the host",
+        "https://api.deep seek.com",
+        "baseUrl is not a valid URL",
+      ],
+      [
+        "an out-of-range port",
+        "https://api.deepseek.com:99999",
+        "baseUrl is not a valid URL",
+      ],
+      [
+        "embedded credentials",
+        "https://user:pass@api.deepseek.com",
+        "baseUrl must not contain credentials",
+      ],
+    ];
+
+    for (const [label, baseUrl, message] of cases) {
+      const { status, error } = await profiles.listProviderModels("owner", {
+        ...BODY,
+        baseUrl,
+      });
+      expect(status, label).toBe(400);
+      expect(error, label).toBe(message);
+    }
+  });
+
+  test("POST /api/2.0/ai/profiles/list-provider-models - a provider type that is not an identifier is a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // Positive control: the spelled-out identifier gets through to the key check.
+    const control = await profiles.listProviderModels("owner", BODY);
+    expect(control.status, "deepseek reaches the key check").toBe(400);
+    expect(control.error).toBe("Invalid API key for the AI provider");
+
+    for (const [label, providerType] of [
+      ["whitespace only", "   "],
+      ["the right name in another case", "DEEPSEEK"],
+      ["a number", 5],
+    ] as Array<[string, unknown]>) {
+      const { status, error } = await profiles.listProviderModels("owner", {
+        ...BODY,
+        providerType,
+      } as DiscoveryBody);
+      expect(status, label).toBe(400);
+      expect(error, label).toContain("Unknown provider type");
+    }
+  });
+
+  // The same guard as the loopback / metadata / 10.x cases above, for the other
+  // spellings of "this machine or this network" that can be written as a literal
+  // without an alternative number base (whose normalisation stays out of reach,
+  // see the fixme above). Every one is refused with an address complaint before
+  // a socket is opened.
+  for (const { name, url } of [
+    { name: "localhost", url: "http://localhost/v1" },
+    { name: "IPv6 loopback", url: "http://[::1]/v1" },
+    { name: "IPv4-mapped IPv6 loopback", url: "http://[::ffff:127.0.0.1]/v1" },
+    { name: "private 192.168.x", url: "http://192.168.1.1/v1" },
+    { name: "IPv6 link-local", url: "http://[fe80::1]/v1" },
+  ]) {
+    test(`POST /api/2.0/ai/profiles/list-provider-models - ${name} is refused as a host`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+      const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+      const { status, error, data } = await profiles.listProviderModels(
+        "owner",
+        { ...BODY, baseUrl: url },
+      );
+      expect(status, `${name} must not be dialled`).toBe(400);
+      expect(error).toBe("baseUrl host is not allowed");
+      expect(Array.isArray(data)).toBe(false);
+    });
+  }
+
+  test("POST /api/2.0/ai/profiles/list-provider-models - the key is never echoed back and no profile is stored", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const before = await catalogueSnapshot(profiles);
+
+    // A rejected key, and a request refused on its URL while carrying the key:
+    // both are answers that could plausibly quote their input.
+    const rejected = await profiles.listProviderModels("owner", {
+      ...BODY,
+      apiKey: LEAK_PROBE_KEY,
+    });
+    const refused = await profiles.listProviderModels("owner", {
+      ...BODY,
+      baseUrl: "http://127.0.0.1:11434/v1",
+      apiKey: LEAK_PROBE_KEY,
+    });
+    expect(rejected.status, "the key reached the provider check").toBe(400);
+    expect(rejected.error).toBe("Invalid API key for the AI provider");
+    expect(refused.status, "the URL was refused").toBe(400);
+
+    for (const [label, result] of [
+      ["rejected key", rejected],
+      ["refused URL", refused],
+    ] as const) {
+      expect(result.text ?? "", `${label} response`).not.toContain(
+        LEAK_PROBE_KEY,
+      );
+    }
+
+    const after = await catalogueSnapshot(profiles);
+    expect(after, "discovery stores nothing").toBe(before);
+    expect(after, "and the key is not in the catalogue").not.toContain(
+      LEAK_PROBE_KEY,
+    );
+  });
+
+  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - a key that cannot be sent as an HTTP header is a 400, on every transport", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // `ollama` is in the list on purpose: it does not need a key at all, yet is
+    // refused the same way. Only the status is pinned; the message is not agreed.
+    const transports: string[] = [
+      AiBuiltinProviderType.Deepseek,
+      AiBuiltinProviderType.Openai,
+      AiBuiltinProviderType.Anthropic,
+      AiBuiltinProviderType.Genai,
+      AiBuiltinProviderType.Ollama,
+    ];
+    const unsendableKeys: Array<[string, string]> = [
+      ["Cyrillic", "\u043a\u043b\u044e\u0447-abc"],
+      ["CJK", "\u5bc6\u94a5-abc"],
+      ["an emoji", "k-\u{1F511}"],
+      ["a byte-order mark", "\ufeffsk-abc"],
+      ["a NUL character", "sk-abc\u0000def"],
+      ["a line break", "sk-abc\nX-A: b"],
+    ];
+
+    // Control, per transport: a header-safe key that cannot work is the ordinary
+    // 400 on this host, so the failures below are about the key's characters.
+    for (const providerType of transports) {
+      const control = await profiles.listProviderModels("owner", {
+        ...BODY,
+        providerType,
+      });
+      expect(control.status, `${providerType} with an ASCII bogus key`).toBe(
+        400,
+      );
+    }
+
+    const outcomes: string[] = [];
+    for (const providerType of transports) {
+      for (const [label, apiKey] of unsendableKeys) {
+        const { status } = await profiles.listProviderModels("owner", {
+          ...BODY,
+          providerType,
+          apiKey,
+        });
+        if (status !== 400) {
+          outcomes.push(`${providerType} + ${label}: ${status}`);
+        }
+      }
+    }
+
+    // Measured: 502 for every combination, in ~100 ms and without a connection:
+    // the portal cannot build the outbound request, and the caller is told it
+    // is the provider's fault.
+    test.fail();
+    expect(outcomes, "combinations that are not a 400").toEqual([]);
   });
 });

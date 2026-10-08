@@ -2,7 +2,11 @@ import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
-import { AiPrompts } from "@/src/helpers/ai-prompts";
+import {
+  AiPrompts,
+  libraryShape,
+  ownerPrompts,
+} from "@/src/helpers/ai-prompts";
 import { AgentRole } from "@/src/helpers/ai-http";
 import { UserType } from "@/src/services/api-sdk";
 
@@ -494,5 +498,498 @@ test.describe("AI Prompts - AI Disabled", () => {
     expect((await prompts.listPrompts("owner")).data.map((p) => p.id)).toEqual([
       promptId,
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Isolation, second half: folders, the library-wide routes, and proof that a
+// refused call leaves the owner's data exactly as it was. Every "unchanged"
+// below is a full `export` snapshot with timestamps, not a spot check of one
+// field, and the owner's snapshot is taken before the second user exists (the
+// shared context's cookie would otherwise answer as the wrong person).
+
+type SoftAnswer = {
+  data?: { success?: boolean; error?: { message?: string } };
+};
+
+test.describe("AI Prompts - cross-user isolation (folders and library-wide routes)", () => {
+  test("POST create, PUT move, update - a prompt cannot be put into, or pulled out of, another user's folder", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const prompts = await ownerPrompts(apiSdk, paymentsApi);
+    const ownerFolder = await prompts.createFolderId("owner", "Autotest owner");
+    const ownerPrompt = await prompts.createPromptId("owner", {
+      name: "Autotest owner prompt",
+      text: "Owner body",
+      folderId: ownerFolder,
+    });
+    const ownerBefore = await prompts.snapshot("owner");
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await prompts.expectActingAs("user", memberData.response!.id!, "User");
+    await prompts.createFolderId("user", "Autotest member");
+    const memberPrompt = await prompts.createPromptId("user", {
+      name: "Autotest member prompt",
+      text: "Member body",
+    });
+    const memberBefore = await prompts.snapshot("user");
+
+    const noFolder = `Folder not found: ${ownerFolder}`;
+    const noPrompt = `Prompt not found: ${ownerPrompt}`;
+    const refusals: Array<[string, () => Promise<SoftAnswer>, string]> = [
+      [
+        "create a prompt in the owner's folder",
+        () =>
+          prompts.createPrompt("user", {
+            name: "Autotest planted",
+            text: "x",
+            folderId: ownerFolder,
+          }),
+        noFolder,
+      ],
+      [
+        "move the member's own prompt into the owner's folder",
+        () =>
+          prompts.movePrompt("user", {
+            id: memberPrompt,
+            folderId: ownerFolder,
+          }),
+        noFolder,
+      ],
+      [
+        "update{folderId} of the member's prompt to the owner's folder",
+        () =>
+          prompts.updatePrompt("user", {
+            id: memberPrompt,
+            updates: { folderId: ownerFolder },
+          }),
+        noFolder,
+      ],
+      [
+        "update{name, folderId} of the member's prompt to the owner's folder",
+        () =>
+          prompts.updatePrompt("user", {
+            id: memberPrompt,
+            updates: { name: "Autotest renamed", folderId: ownerFolder },
+          }),
+        noFolder,
+      ],
+      [
+        "move the owner's prompt out to the member's root",
+        () => prompts.movePrompt("user", { id: ownerPrompt, folderId: null }),
+        noPrompt,
+      ],
+      [
+        "update{folderId: null} of the owner's prompt",
+        () =>
+          prompts.updatePrompt("user", {
+            id: ownerPrompt,
+            updates: { folderId: null },
+          }),
+        noPrompt,
+      ],
+    ];
+
+    for (const [label, call, message] of refusals) {
+      const { data } = await call();
+      expect.soft(data?.success, label).toBe(false);
+      expect.soft(data?.error?.message, label).toBe(message);
+    }
+
+    // Reads aimed at the owner's folder find nothing — the folder is not
+    // "empty", it is not there as far as this user can tell.
+    expect((await prompts.getFolder("user", ownerFolder)).data).toBeNull();
+    expect((await prompts.listPrompts("user", ownerFolder)).data).toEqual([]);
+
+    expect(
+      await prompts.snapshot("user"),
+      "the member's own library is untouched",
+    ).toEqual(memberBefore);
+    await apiSdk.authenticateOwner();
+    expect(
+      await prompts.snapshot("owner"),
+      "so is the owner's, with the prompt still inside its folder",
+    ).toEqual(ownerBefore);
+    expect(
+      (await prompts.listPrompts("owner", ownerFolder)).data.map((p) => p.id),
+      "positive control: the folder the member could not see is really there",
+    ).toEqual([ownerPrompt]);
+  });
+
+  test("POST create, create-folder, GET export - two users may use the same names, and each export holds only its own library", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const prompts = await ownerPrompts(apiSdk, paymentsApi);
+    const ownerSecret = `OWNER-${apiSdk.faker.generateString(8)}`;
+    const ownerFolder = await prompts.createFolderId(
+      "owner",
+      "Autotest shared",
+    );
+    const ownerPrompt = await prompts.createPromptId("owner", {
+      name: "Autotest shared",
+      text: ownerSecret,
+      folderId: ownerFolder,
+    });
+    const ownerBefore = await prompts.snapshot("owner");
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await prompts.expectActingAs("user", memberData.response!.id!, "User");
+    const memberSecret = `MEMBER-${apiSdk.faker.generateString(8)}`;
+
+    // Same folder name and same prompt name: no conflict across users.
+    const memberFolder = await prompts.createFolderId(
+      "user",
+      "Autotest shared",
+    );
+    const memberPrompt = await prompts.createPromptId("user", {
+      name: "Autotest shared",
+      text: memberSecret,
+      folderId: memberFolder,
+    });
+    expect(memberFolder).not.toBe(ownerFolder);
+    expect(memberPrompt).not.toBe(ownerPrompt);
+
+    const memberExport = await prompts.exportBundle("user");
+    expect(memberExport.data?.prompts?.map((p) => p.id)).toEqual([
+      memberPrompt,
+    ]);
+    expect(memberExport.data?.folders?.map((f) => f.id)).toEqual([
+      memberFolder,
+    ]);
+    expect(JSON.stringify(memberExport.data)).not.toContain(ownerSecret);
+
+    await apiSdk.authenticateOwner();
+    const ownerExport = await prompts.exportBundle("owner");
+    expect(ownerExport.data?.prompts?.map((p) => p.id)).toEqual([ownerPrompt]);
+    expect(JSON.stringify(ownerExport.data)).not.toContain(memberSecret);
+    expect(
+      await prompts.snapshot("owner"),
+      "the member's writes did not touch the owner's library",
+    ).toEqual(ownerBefore);
+  });
+
+  test("POST import-bundle, DELETE delete-folder - a member's replace-import and deletes change only the member's library, and bundle ids cannot name the owner's rows", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const prompts = await ownerPrompts(apiSdk, paymentsApi);
+    const ownerFolder = await prompts.createFolderId("owner", "Autotest owner");
+    const ownerPrompt = await prompts.createPromptId("owner", {
+      name: "Autotest owner prompt",
+      text: "Owner body",
+      folderId: ownerFolder,
+    });
+    await prompts.createPromptId("owner", {
+      name: "Autotest owner root",
+      text: "Owner root body",
+    });
+    const ownerBefore = await prompts.snapshot("owner");
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await prompts.expectActingAs("user", memberData.response!.id!, "User");
+    const memberOldFolder = await prompts.createFolderId(
+      "user",
+      "Autotest old",
+    );
+    await prompts.createPromptId("user", {
+      name: "Autotest old prompt",
+      text: "Old",
+      folderId: memberOldFolder,
+    });
+
+    // The bundle reuses the owner's own ids. They are ignored: the member's
+    // rows get fresh ids and the owner's rows are not written through them.
+    const { status, data } = await prompts.importBundle("user", {
+      bundle: {
+        version: 1,
+        folders: [{ id: ownerFolder, name: "Autotest imported" }],
+        prompts: [
+          {
+            id: ownerPrompt,
+            name: "Autotest imported prompt",
+            text: "Imported body",
+            folderId: ownerFolder,
+          },
+        ],
+      },
+      options: { mode: "replace" },
+    });
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
+    expect(data?.imported).toEqual({ folders: 1, prompts: 1 });
+
+    const memberAfter = await prompts.snapshot("user");
+    expect(libraryShape(memberAfter)).toEqual({
+      folders: ["Autotest imported"],
+      prompts: ["Autotest imported/Autotest imported prompt: Imported body"],
+    });
+    expect(
+      memberAfter.folders.map((folder) => folder.id),
+      "the member's new folder id is not the owner's",
+    ).not.toContain(ownerFolder);
+    expect(
+      memberAfter.prompts.map((prompt) => prompt.id),
+      "the member's new prompt id is not the owner's",
+    ).not.toContain(ownerPrompt);
+
+    // And the member's own cleanup stays inside their library too.
+    const newFolder = memberAfter.folders[0].id!;
+    expect((await prompts.deleteFolder("user", newFolder)).data?.success).toBe(
+      true,
+    );
+    expect((await prompts.deleteFolder("user", ownerFolder)).status).toBe(404);
+
+    await apiSdk.authenticateOwner();
+    expect(
+      await prompts.snapshot("owner"),
+      "the owner's library is byte-identical after all of it",
+    ).toEqual(ownerBefore);
+  });
+});
+
+test.describe("AI Prompts - the rest of the surface for each member role", () => {
+  for (const { label, type, role } of MEMBER_ROLES) {
+    test(`PUT update, rename-folder, DELETE delete-folder, GET get-folder-by-id, list-folders, POST import-bundle - ${label} manages their own library`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const prompts = await ownerPrompts(apiSdk, paymentsApi);
+      await prompts.createPromptId("owner", {
+        name: "Autotest owner prompt",
+        text: "Owner body",
+      });
+      const ownerBefore = await prompts.snapshot("owner");
+
+      const { data: memberData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        type,
+      );
+      await prompts.expectActingAs(role, memberData.response!.id!, label);
+
+      const folderId = await prompts.createFolderId(role, `Autotest ${label}`);
+      const promptId = await prompts.createPromptId(role, {
+        name: `Autotest ${label}`,
+        text: "Body",
+        folderId,
+      });
+
+      const updated = await prompts.updatePrompt(role, {
+        id: promptId,
+        updates: { text: "Edited body" },
+      });
+      expect(updated.status).toBe(200);
+      expect(updated.data?.success).toBe(true);
+      expect((await prompts.getPrompt(role, promptId)).data?.text).toBe(
+        "Edited body",
+      );
+
+      const renamed = await prompts.renameFolder(role, {
+        id: folderId,
+        name: `Autotest ${label} renamed`,
+      });
+      expect(renamed.status).toBe(200);
+      expect(renamed.data?.success).toBe(true);
+      expect((await prompts.getFolder(role, folderId)).data?.name).toBe(
+        `Autotest ${label} renamed`,
+      );
+      expect(
+        (await prompts.listFolders(role)).data.map((folder) => folder.id),
+      ).toEqual([folderId]);
+
+      const imported = await prompts.importBundle(role, {
+        bundle: {
+          version: 1,
+          folders: [],
+          prompts: [{ id: "x", name: `Autotest ${label} imported`, text: "t" }],
+        },
+        options: { mode: "merge" },
+      });
+      expect(imported.status).toBe(200);
+      expect(imported.data?.success).toBe(true);
+      expect(imported.data?.imported).toEqual({ folders: 0, prompts: 1 });
+
+      const removed = await prompts.deleteFolder(role, folderId);
+      expect(removed.status).toBe(200);
+      expect(removed.data?.success).toBe(true);
+      expect(
+        (await prompts.getPrompt(role, promptId)).data,
+        "the prompt went with its folder",
+      ).toBeNull();
+      expect(
+        (await prompts.listPrompts(role)).data.map((prompt) => prompt.name),
+      ).toEqual([`Autotest ${label} imported`]);
+
+      await apiSdk.authenticateOwner();
+      expect(
+        await prompts.snapshot("owner"),
+        "none of it reached the owner's library",
+      ).toEqual(ownerBefore);
+    });
+  }
+});
+
+// A caller who is refused must also leave the library alone. The calls are the
+// writes with the widest reach: create, rename, move, both deletes and — the
+// dangerous one — a replace-import, which would empty the library if it got
+// through. The statuses are the ones the tests above already pin for each state;
+// what is new is the byte-for-byte comparison afterwards.
+
+type RefusedCall = [string, () => Promise<{ status: number }>];
+
+function writesAimedAt(
+  prompts: AiPrompts,
+  role: AgentRole,
+  ids: { promptId: string; folderId: string },
+): RefusedCall[] {
+  return [
+    [
+      "create",
+      () => prompts.createPrompt(role, { name: "Autotest planted", text: "x" }),
+    ],
+    [
+      "create in the folder",
+      () =>
+        prompts.createPrompt(role, {
+          name: "Autotest planted",
+          text: "x",
+          folderId: ids.folderId,
+        }),
+    ],
+    ["create-folder", () => prompts.createFolder(role, "Autotest planted")],
+    [
+      "update",
+      () =>
+        prompts.updatePrompt(role, {
+          id: ids.promptId,
+          updates: { name: "Autotest hijacked", text: "Hijacked" },
+        }),
+    ],
+    [
+      "move to the root",
+      () => prompts.movePrompt(role, { id: ids.promptId, folderId: null }),
+    ],
+    [
+      "rename-folder",
+      () =>
+        prompts.renameFolder(role, {
+          id: ids.folderId,
+          name: "Autotest hijacked",
+        }),
+    ],
+    ["delete", () => prompts.deletePrompt(role, ids.promptId)],
+    ["delete-folder", () => prompts.deleteFolder(role, ids.folderId)],
+    [
+      "import-bundle merge",
+      () =>
+        prompts.importBundle(role, {
+          bundle: {
+            version: 1,
+            folders: [{ id: "f", name: "Autotest planted" }],
+            prompts: [{ id: "p", name: "Autotest planted", text: "x" }],
+          },
+          options: { mode: "merge" },
+        }),
+    ],
+    [
+      "import-bundle replace",
+      () =>
+        prompts.importBundle(role, {
+          bundle: {
+            version: 1,
+            folders: [],
+            prompts: [{ id: "p", name: "Autotest planted", text: "x" }],
+          },
+          options: { mode: "replace" },
+        }),
+    ],
+  ];
+}
+
+async function seedForRefusals(prompts: AiPrompts) {
+  const folderId = await prompts.createFolderId("owner", "Autotest owner");
+  const promptId = await prompts.createPromptId("owner", {
+    name: "Autotest owner prompt",
+    text: "Owner body",
+    folderId,
+  });
+  await prompts.createPromptId("owner", {
+    name: "Autotest owner root",
+    text: "Owner root body",
+  });
+  return { folderId, promptId };
+}
+
+test.describe("AI Prompts - refused callers leave the library byte-identical", () => {
+  test("GET|POST|PUT|DELETE /api/2.0/ai/prompts/* - Anonymous: every write, replace-import included, is 401 and changes nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const prompts = await ownerPrompts(apiSdk, paymentsApi);
+    const ids = await seedForRefusals(prompts);
+    const before = await prompts.snapshot("owner");
+    expect(
+      before.prompts,
+      "something a replace-import could wipe",
+    ).toHaveLength(2);
+
+    for (const [label, call] of writesAimedAt(prompts, "anonymous", ids)) {
+      expect.soft((await call()).status, label).toBe(401);
+    }
+
+    await apiSdk.authenticateOwner();
+    expect(await prompts.snapshot("owner")).toEqual(before);
+  });
+
+  test("GET|POST|PUT|DELETE /api/2.0/ai/prompts/* - Guest: every write, replace-import included, is 403 and changes nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const prompts = await ownerPrompts(apiSdk, paymentsApi);
+    const ids = await seedForRefusals(prompts);
+    const before = await prompts.snapshot("owner");
+
+    const { data: guestData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+    await prompts.expectActingAs("guest", guestData.response!.id!, "Guest");
+
+    for (const [label, call] of writesAimedAt(prompts, "guest", ids)) {
+      expect.soft((await call()).status, label).toBe(403);
+    }
+
+    await apiSdk.authenticateOwner();
+    expect(await prompts.snapshot("owner")).toEqual(before);
+  });
+
+  test("GET|POST|PUT|DELETE /api/2.0/ai/prompts/* - AI disabled: every write, replace-import included, is 403 and changes nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const prompts = await ownerPrompts(apiSdk, paymentsApi);
+    const ids = await seedForRefusals(prompts);
+    const before = await prompts.snapshot("owner");
+
+    const off = await setPortalAiAccess(apiSdk.forRole("owner"), false);
+    expect(off.enabled).toBe(false);
+
+    for (const [label, call] of writesAimedAt(prompts, "owner", ids)) {
+      expect.soft((await call()).status, label).toBe(403);
+    }
+
+    const on = await setPortalAiAccess(apiSdk.forRole("owner"), true);
+    expect(on.enabled).toBe(true);
+    expect(await prompts.snapshot("owner")).toEqual(before);
   });
 });

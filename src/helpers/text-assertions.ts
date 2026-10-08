@@ -52,23 +52,103 @@ export function isNegatedClause(clause: string): boolean {
   return NEGATION_RE.test(clause);
 }
 
+type BlockIds = { block: string; positive: Set<string>; all: Set<string> };
+
+function analyseBlock(block: string, pattern: RegExp): BlockIds {
+  const positive = new Set<string>();
+  const all = new Set<string>();
+  for (const clause of splitClauses(block)) {
+    const negated = isNegatedClause(clause);
+    for (const match of clause.matchAll(pattern)) {
+      const id = match[0].toUpperCase();
+      all.add(id);
+      if (!negated) positive.add(id);
+    }
+  }
+  return { block, positive, all };
+}
+
+const LIST_OR_TABLE_LINE_RE = /^\s*(?:[-*•]\s|\d+[.)]\s|\|)/;
+
+/** A bullet/numbered list, a table or a fenced code block — the shapes a model uses for "the answer". */
+function isStructuredBlock(block: string): boolean {
+  if (block.startsWith("```")) return true;
+  const lines = block.split("\n").filter((line) => line.trim() !== "");
+  return lines.length > 0 && lines.every((l) => LIST_OR_TABLE_LINE_RE.test(l));
+}
+
+const EXCLUSIVITY_RE = /\b(?:only|sole|solely|just|single|exactly one)\b/i;
+
 /**
- * Returns the last double-newline-separated paragraph that contains at least
- * one match for `pattern`. Falls back to the full text when none match
- * (shouldn't happen for well-formed model output, but avoids silent breakage).
+ * Picks the block of `text` that holds the model's final answer for an
+ * id-selection question, so a row-by-row analysis earlier in the reply does not
+ * count as a claim.
+ *
+ * Default: the last double-newline-separated block with a NON-negated id. A
+ * block whose ids are all negated ("X009 and X014 are close but not zero") is
+ * trailing commentary, never the answer — the old "last block with any id"
+ * rule picked it and reported the real answer as missing.
+ *
+ * Override: when that last block is prose that merely restates a SUBSET of the
+ * structured block IMMEDIATELY before it (a table, list or code block — "Both records have
+ * negative net pay … (including X014)" after the table of X008 and X014), the
+ * structured block is the answer. The override is withheld when
+ *  - the prose makes an exclusivity claim ("the only record is X007"), because
+ *    then it is the model narrowing its own list, and
+ *  - the structured block lists more than `maxStructuredIds` ids, because that
+ *    is a scan of every row, not an answer.
+ *
+ * Known gap: a small structured list directly followed by exclusivity-free prose
+ * naming a subset is read as "the list is the answer". Only the adjacent block
+ * is considered: a candidate list further up (before other prose) once swallowed
+ * a correct final answer as a false "extra" id.
+ *
+ * Falls back to the last block with any id, then to the whole text.
  */
-function extractLastBlockWithIds(text: string, pattern: RegExp): string {
-  // Use a fresh RegExp so we don't advance the caller's lastIndex.
-  const probe = new RegExp(pattern.source, pattern.flags);
+function extractAnswerBlock(
+  text: string,
+  pattern: RegExp,
+  maxStructuredIds = Infinity,
+): string {
+  const probe = new RegExp(
+    pattern.source,
+    pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`,
+  );
   const blocks = text
     .split(/\n\s*\n/)
     .map((b) => b.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((b) => analyseBlock(b, probe));
+
+  let lastPositive = -1;
   for (let i = blocks.length - 1; i >= 0; i--) {
-    probe.lastIndex = 0;
-    if (probe.test(blocks[i])) return blocks[i];
+    if (blocks[i].positive.size > 0) {
+      lastPositive = i;
+      break;
+    }
   }
-  return text;
+  if (lastPositive === -1) {
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      if (blocks[i].all.size > 0) return blocks[i].block;
+    }
+    return text;
+  }
+
+  const last = blocks[lastPositive];
+  if (isStructuredBlock(last.block) || EXCLUSIVITY_RE.test(last.block)) {
+    return last.block;
+  }
+  const candidate = blocks[lastPositive - 1];
+  if (
+    candidate &&
+    candidate.positive.size > 0 &&
+    candidate.all.size <= maxStructuredIds &&
+    isStructuredBlock(candidate.block) &&
+    [...last.positive].every((id) => candidate.positive.has(id))
+  ) {
+    return candidate.block;
+  }
+  return last.block;
 }
 
 /**
@@ -158,37 +238,23 @@ export function expectMatchesAny(
 }
 
 /**
- * Asserts the answer's positively-claimed ids matching `idPattern` are
- * EXACTLY `expectedIds` — not a superset, not a subset. This is the set-exact
- * check a filter/selection question needs: "Return every record where X" is
- * wrong both when it drops a real match and when it pads the list with one
- * that does not belong (the concrete case: {X008, X014, X007} for a question
- * whose true answer is {X008, X014}).
- *
- * `idPattern` should be a non-global RegExp matching one id, e.g. /\bX\d{3}\b/i
- * — the "g" flag is added internally to walk every match per clause.
- *
- * `lastBlockOnly` (default false): when true, only the last double-newline-
- * separated paragraph of `text` is scanned for IDs. Use this when the model
- * shows a row-by-row analysis (listing every ID with its value) before giving
- * a concise final answer — the analysis enumerates all IDs in non-negated
- * clauses, which would otherwise make every ID look like a positive claim.
- * Errors still show the full text so failures are debuggable.
+ * Computes the diff between the ids positively claimed in a model answer and
+ * `expectedIds`. Split from `expectExactIdSet` so the parsing is unit-testable
+ * (src/tests/helpers/text-assertions.unit.spec.ts).
  */
-export function expectExactIdSet(
+export function diffExactIdSet(
   text: string,
   idPattern: RegExp,
   expectedIds: string[],
-  label = "id set",
   { lastBlockOnly = false }: { lastBlockOnly?: boolean } = {},
-): void {
+): { missing: string[]; extra: string[] } {
   const globalPattern = new RegExp(
     idPattern.source,
     idPattern.flags.includes("g") ? idPattern.flags : `${idPattern.flags}g`,
   );
 
   const textToScan = lastBlockOnly
-    ? extractLastBlockWithIds(text, globalPattern)
+    ? extractAnswerBlock(text, globalPattern, expectedIds.length + 3)
     : text;
 
   const positive = new Set<string>();
@@ -202,6 +268,40 @@ export function expectExactIdSet(
   const expectedSet = new Set(expectedIds.map((id) => id.toUpperCase()));
   const missing = expectedIds.filter((id) => !positive.has(id.toUpperCase()));
   const extra = Array.from(positive).filter((id) => !expectedSet.has(id));
+  return { missing, extra };
+}
+
+/**
+ * Asserts the answer's positively-claimed ids matching `idPattern` are
+ * EXACTLY `expectedIds` — not a superset, not a subset. This is the set-exact
+ * check a filter/selection question needs: "Return every record where X" is
+ * wrong both when it drops a real match and when it pads the list with one
+ * that does not belong (the concrete case: {X008, X014, X007} for a question
+ * whose true answer is {X008, X014}).
+ *
+ * `idPattern` should be a non-global RegExp matching one id, e.g. /\bX\d{3}\b/i
+ * — the "g" flag is added internally to walk every match per clause.
+ *
+ * `lastBlockOnly` (default false): when true, only the block that holds the
+ * model's final answer is scanned — see `extractAnswerBlock`. Use this when the
+ * model shows a row-by-row analysis (listing every ID with its value) before
+ * giving a concise final answer; the analysis enumerates all IDs in non-negated
+ * clauses, which would otherwise make every ID look like a positive claim.
+ * Errors still show the full text so failures are debuggable.
+ */
+export function expectExactIdSet(
+  text: string,
+  idPattern: RegExp,
+  expectedIds: string[],
+  label = "id set",
+  options: { lastBlockOnly?: boolean } = {},
+): void {
+  const { missing, extra } = diffExactIdSet(
+    text,
+    idPattern,
+    expectedIds,
+    options,
+  );
 
   expect
     .soft(missing, `${label} — missing [${missing.join(", ")}] in:\n${text}`)
