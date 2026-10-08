@@ -162,6 +162,14 @@ export class AiProfiles extends AiHttp {
     );
   }
 
+  /**
+   * A GET with no id at all — the typed helpers above always send one, so the
+   * "parameter missing" case needs the path spelled out.
+   */
+  rawGet(role: AgentRole, path: string) {
+    return this.call<unknown>(role, "get", path);
+  }
+
   listModels(role: AgentRole, profileId: string) {
     return this.call<unknown>(
       role,

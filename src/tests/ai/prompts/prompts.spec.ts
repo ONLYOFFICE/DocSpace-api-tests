@@ -683,7 +683,7 @@ test.describe("AI Prompts - export and import", () => {
     ).toEqual(["Autotest replacement"]);
   });
 
-  test("BUG 83130: POST /api/2.0/ai/prompts/import-bundle - a bundle entry that collides with an existing name overwrites it silently", async ({
+  test("BUG 83130 FIXED: POST /api/2.0/ai/prompts/import-bundle - a bundle entry that collides with an existing name is reported and nothing is written", async ({
     apiSdk,
     paymentsApi,
   }) => {

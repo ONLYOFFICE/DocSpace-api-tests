@@ -170,3 +170,142 @@ test.describe("AI Profiles - AI Disabled", () => {
     ).toBe(403);
   });
 });
+
+test.describe("AI Profiles - AI Disabled, ordering and side effects", () => {
+  test("GET|POST /api/2.0/ai/profiles/* - the AI switch is checked before a malformed id is rejected", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+
+    // Control, with AI on: the same id is a 400 for the Owner, so a 403 below
+    // can only come from the switch.
+    expect((await profiles.getProfileById("owner", "not-a-guid")).status).toBe(
+      400,
+    );
+
+    const { enabled } = await setPortalAiAccess(ownerApi, false);
+    expect(enabled).toBe(false);
+
+    for (const [label, call] of [
+      ["get-by-id", profiles.getProfileById("owner", "not-a-guid")],
+      ["list-models", profiles.listModels("owner", "not-a-guid")],
+      ["test-connection", profiles.testConnection("owner", "not-a-guid")],
+    ] as Array<[string, Promise<{ status: number }>]>) {
+      const { status } = await call;
+      expect(status, `${label} with AI access disabled`).toBe(403);
+    }
+  });
+
+  test("GET|POST /api/2.0/ai/profiles/* - a missing required parameter is still a 400 while AI is off, a well-formed request is a 403", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The accepted convention of /ai/*: required-parameter checks run before the
+    // AI switch (ai/assignments does the same), and unlike BUG 82971 they open no
+    // outbound connection. What must never change is that a well-formed request
+    // is refused.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    // Control: with AI on, the missing id is the same 400, so the 400s below
+    // are the validation answer and not an artefact of the switch.
+    const control = await profiles.rawGet(
+      "owner",
+      "/api/2.0/ai/profiles/get-by-id",
+    );
+    expect(control.status, "AI is on").toBe(400);
+
+    const { enabled } = await setPortalAiAccess(ownerApi, false);
+    expect(enabled).toBe(false);
+
+    const refused: Array<[string, Promise<{ status: number }>]> = [
+      ["get-by-id", profiles.getProfileById("owner", profile.id)],
+      ["list-models", profiles.listModels("owner", profile.id)],
+      ["test-connection", profiles.testConnection("owner", profile.id)],
+    ];
+    for (const [label, call] of refused) {
+      const { status } = await call;
+      expect(status, `${label} with a real id and AI access disabled`).toBe(
+        403,
+      );
+    }
+
+    const invalid: Array<[string, Promise<{ status: number }>]> = [
+      [
+        "get-by-id without an id",
+        profiles.rawGet("owner", "/api/2.0/ai/profiles/get-by-id"),
+      ],
+      [
+        "list-models without a profileId",
+        profiles.rawGet("owner", "/api/2.0/ai/profiles/list-models"),
+      ],
+      ["test-connection without an id", profiles.testConnection("owner", {})],
+    ];
+    for (const [label, call] of invalid) {
+      const { status } = await call;
+      expect(status, `${label} with AI access disabled`).toBe(400);
+    }
+  });
+
+  test("POST|PUT|DELETE /api/2.0/ai/profiles/* - writes refused while AI is off leave the catalogue exactly as it was", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const before = JSON.stringify(
+      (await profiles.catalogue("owner")).sort((a, b) =>
+        (a.id ?? "").localeCompare(b.id ?? ""),
+      ),
+    );
+    const profile = AiProfiles.byCapabilities(
+      JSON.parse(before),
+      AI_CAPS.textVisionTools,
+    );
+
+    const { enabled } = await setPortalAiAccess(ownerApi, false);
+    expect(enabled).toBe(false);
+
+    const created = await profiles.createProfile("owner", {
+      name: "Autotest while off",
+      providerType: "onlyoffice",
+      baseUrl: profile.baseUrl,
+      modelId: profile.modelId,
+    });
+    const updated = await profiles.updateProfile("owner", {
+      id: profile.id,
+      name: "Autotest renamed while off",
+      providerType: "onlyoffice",
+      baseUrl: profile.baseUrl,
+      modelId: profile.modelId,
+    });
+    const deleted = await profiles.deleteProfile("owner", profile.id);
+
+    // The catalogue can only be read with the switch back on, so look afterwards.
+    const { enabled: reEnabled } = await setPortalAiAccess(ownerApi, true);
+    expect(reEnabled).toBe(true);
+    const after = JSON.stringify(
+      (await profiles.catalogue("owner")).sort((a, b) =>
+        (a.id ?? "").localeCompare(b.id ?? ""),
+      ),
+    );
+    expect(after, "nothing changed while AI was off").toBe(before);
+
+    expect(created.status, "create").toBe(403);
+    expect(updated.status, "update").toBe(403);
+    expect(deleted.status, "delete").toBe(403);
+  });
+});

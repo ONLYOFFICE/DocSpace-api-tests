@@ -3369,6 +3369,56 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
     },
   );
 
+  // BUG XXXXX: PUT /api/2.0/files/fileops/copy - non-existent folderId returns 500 (NullReferenceException)
+  test(
+    "BUG XXXXX: PUT /api/2.0/files/fileops/copy - Non-existent folderId" +
+      " returns 404, not 500",
+    async ({ apiSdk }) => {
+      // Catches: unhandled NullReferenceException for an unknown folder in folderIds
+      const ownerApi = apiSdk.forRole("owner");
+      const myDocsFolderId = await getMyDocsFolderId(ownerApi);
+
+      const { data: destData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest CopyBatch GhostFolder Dest" },
+      });
+      const destFolderId = destData.response!.id!;
+
+      // Control: the same destination answers an unknown fileId with a client
+      // error, so the destination itself is accepted.
+      const { status: fileStatus } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          fileIds: [999999999],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+      expect(fileStatus, "unknown fileId is a client error").toBeLessThan(500);
+
+      const { data, status } = await ownerApi.operations.copyBatchItems({
+        batchRequestDto: {
+          folderIds: [999999999 as any],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      const { data: destAfter } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      expect(destAfter.response?.files ?? []).toHaveLength(0);
+      expect(destAfter.response?.folders ?? []).toHaveLength(0);
+
+      test.fail();
+      expect(
+        status,
+        `unknown folderId answered ${status} ${JSON.stringify(data)}`,
+      ).toBe(404);
+    },
+  );
+
   test("PUT /api/2.0/files/fileops/copy - Copy to non-existent destFolderId returns 404", async ({
     apiSdk,
   }) => {
@@ -8868,6 +8918,149 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       });
 
       expect(status).toBe(404);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/fileops/move - non-existent folderId returns 500 (NullReferenceException)
+  test(
+    "BUG XXXXX: PUT /api/2.0/files/fileops/move - Non-existent folderId" +
+      " returns 404, not 500",
+    async ({ apiSdk }) => {
+      // Catches: unhandled NullReferenceException for an unknown folder in folderIds
+      const ownerApi = apiSdk.forRole("owner");
+      const myDocsFolderId = await getMyDocsFolderId(ownerApi);
+
+      const { data: destData } = await ownerApi.folders.createFolder({
+        folderId: myDocsFolderId,
+        createFolder: { title: "Autotest MoveBatch GhostFolder Dest" },
+      });
+      const destFolderId = destData.response!.id!;
+
+      // Control: the same destination answers an unknown fileId with a client
+      // error, so the destination itself is accepted.
+      const { status: fileStatus } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [999999999],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+      expect(fileStatus, "unknown fileId is a client error").toBeLessThan(500);
+
+      const { data, status } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          folderIds: [999999999 as any],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+
+      const { data: destAfter } = await ownerApi.folders.getFolderByFolderId({
+        folderId: destFolderId,
+      });
+      expect(destAfter.response?.files ?? []).toHaveLength(0);
+      expect(destAfter.response?.folders ?? []).toHaveLength(0);
+
+      test.fail();
+      expect(
+        status,
+        `unknown folderId answered ${status} ${JSON.stringify(data)}`,
+      ).toBe(404);
+    },
+  );
+
+  // BUG XXXXX: PUT /api/2.0/files/fileops/move - Duplicate leaves two files with the same name in the destination
+  test(
+    "BUG XXXXX: PUT /api/2.0/files/fileops/move - Move with conflictResolveType" +
+      " Duplicate gives the moved file a new name",
+    async ({ apiSdk }) => {
+      // Catches: a same-name move "succeeds" and the destination ends up with two
+      // entries titled alike. The contract for Duplicate is "places it beside that
+      // entry under a name with a numeric suffix"; the copy operation honours it,
+      // move does not.
+      const ownerApi = apiSdk.forRole("owner");
+      const myDocsFolderId = await getMyDocsFolderId(ownerApi);
+      const title = "same.docx";
+
+      const newFolder = async (name: string) => {
+        const { data } = await ownerApi.folders.createFolder({
+          folderId: myDocsFolderId,
+          createFolder: { title: name },
+        });
+        return data.response!.id!;
+      };
+      const newFile = async (folderId: number) => {
+        const { data } = await ownerApi.files.createFile({
+          folderId,
+          createFileJsonElement: { title },
+        });
+        return data.response!.id!;
+      };
+      const filesOf = async (folderId: number) => {
+        const { data } = await ownerApi.folders.getFolderByFolderId({
+          folderId,
+        });
+        return (data.response?.files ?? []) as FileDto[];
+      };
+
+      const srcFolderId = await newFolder("Autotest MoveBatch NameClash Src");
+      const destFolderId = await newFolder("Autotest MoveBatch NameClash Dest");
+      const copyDestId = await newFolder("Autotest MoveBatch NameClash Copy");
+      const srcFileId = await newFile(srcFolderId);
+      const destFileId = await newFile(destFolderId);
+      const copyOriginalId = await newFile(copyDestId);
+
+      expect(
+        (await filesOf(destFolderId)).map((f) => f.id),
+        "the destination holds its own same.docx",
+      ).toEqual([destFileId]);
+
+      await test.step("control: copy with Duplicate renames the incoming file", async () => {
+        const { status } = await ownerApi.operations.copyBatchItems({
+          batchRequestDto: {
+            fileIds: [srcFileId],
+            destFolderId: copyDestId,
+            conflictResolveType: FileConflictResolveType.Duplicate,
+            deleteAfter: false,
+          },
+        });
+        expect(status).toBe(200);
+        await waitForOperation(ownerApi.operations);
+
+        const copied = await filesOf(copyDestId);
+        expect(copied).toHaveLength(2);
+        expect(copied.find((f) => f.id === copyOriginalId)?.title).toBe(title);
+        expect(new Set(copied.map((f) => f.title)).size).toBe(2);
+      });
+
+      const { status } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          fileIds: [srcFileId],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Duplicate,
+          deleteAfter: false,
+        },
+      });
+      expect(status).toBe(200);
+      await waitForOperation(ownerApi.operations);
+
+      const destFiles = await filesOf(destFolderId);
+      const srcIds = (await filesOf(srcFolderId)).map((f) => f.id);
+
+      // Both files are in the destination and the source is empty, so the
+      // move itself worked; only the naming is in question.
+      expect(destFiles.map((f) => f.id).sort()).toEqual(
+        [destFileId, srcFileId].sort(),
+      );
+      expect(srcIds).not.toContain(srcFileId);
+
+      test.fail();
+      expect(
+        destFiles.map((f) => f.title),
+        "titles in the destination after the move",
+      ).toHaveLength(new Set(destFiles.map((f) => f.title)).size);
     },
   );
 
