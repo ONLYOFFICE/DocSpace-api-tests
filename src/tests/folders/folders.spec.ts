@@ -8400,53 +8400,54 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
     expect(entry!.initiator.displayName).toBe(ownerDisplayName);
   });
 
-  // BUG 81640: RoomIndexExportSaved event is not written to room history after index export completes via API
-  test.fail(
-    "BUG 81640: GET /api/2.0/files/folder/{folderId}/log - History contains RoomIndexExportSaved after room index export is completed",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: profileData } = await ownerApi.profiles.getSelfProfile();
-      const ownerDisplayName = profileData.response!.displayName!;
+  test("BUG 81640: GET /api/2.0/files/folder/{folderId}/log - History contains RoomIndexExportSaved after room index export is completed", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: profileData } = await ownerApi.profiles.getSelfProfile();
+    const ownerDisplayName = profileData.response!.displayName!;
 
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Folder History RoomIndexExportSaved",
-          roomType: RoomType.VirtualDataRoom,
-          indexing: true,
-        },
-      });
-      const roomId = roomData.response!.id!;
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Folder History RoomIndexExportSaved",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+    const { data: beforeData } = await ownerApi.folders.getFolderHistory({
+      folderId: roomId,
+    });
+    expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
+      MessageAction.RoomIndexExportSaved,
+    );
+
+    await ownerApi.folders.getMyFolder();
+
+    const { status: exportStatus } = await ownerApi.rooms.startRoomIndexExport({
+      id: roomId,
+    });
+    expect(exportStatus).toBe(200);
+
+    await expect(async () => {
+      const { data: exportData } = await ownerApi.rooms.getRoomIndexExport();
+      expect(exportData.response!.isCompleted).toBe(true);
+    }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
+
+    let entry: any;
+    await expect(async () => {
+      const { data, status } = await ownerApi.folders.getFolderHistory({
         folderId: roomId,
       });
-      expect(beforeData.response!.map((e) => e.action?.id)).not.toContain(
-        MessageAction.RoomIndexExportSaved,
+      expect(status).toBe(200);
+      entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.RoomIndexExportSaved,
       );
-
-      const { status: exportStatus } =
-        await ownerApi.rooms.startRoomIndexExport({ id: roomId });
-      expect(exportStatus).toBe(200);
-
-      await expect(async () => {
-        const { data: exportData } = await ownerApi.rooms.getRoomIndexExport();
-        expect(exportData.response!.isCompleted).toBe(true);
-      }).toPass({ intervals: [2_000, 5_000, 10_000], timeout: 30_000 });
-
-      let entry: any;
-      await expect(async () => {
-        const { data, status } = await ownerApi.folders.getFolderHistory({
-          folderId: roomId,
-        });
-        expect(status).toBe(200);
-        entry = data.response!.find(
-          (e) => e.action?.id === MessageAction.RoomIndexExportSaved,
-        );
-        expect(entry).toBeDefined();
-      }).toPass({ intervals: [2_000, 5_000, 10_000, 15_000], timeout: 60_000 });
-      expect(entry!.initiator.displayName).toBe(ownerDisplayName);
-    },
-  );
+      expect(entry).toBeDefined();
+    }).toPass({ intervals: [2_000, 5_000, 10_000, 15_000], timeout: 60_000 });
+    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+  });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomWatermarkSet after watermark is enabled in room", async ({
     apiSdk,
@@ -9433,6 +9434,8 @@ test.describe("POST /api/2.0/files/@my/upload - Upload file to My Documents via 
 });
 
 test.describe("GET /api/2.0/files/filesusedspace - Get files used space statistics", () => {
+  test.describe.configure({ mode: "serial" });
+
   // Catches: if the statistics endpoint fails for an authenticated owner (broken handler, wrong route)
   test("GET /api/2.0/files/filesusedspace - Owner gets used space statistics returns 200", async ({
     apiSdk,
