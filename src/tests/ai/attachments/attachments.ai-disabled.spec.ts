@@ -444,3 +444,31 @@ test.describe("AI Attachments - AI Tools wallet service not paid for", () => {
     });
   });
 });
+
+test.describe("AI Attachments - suggested questions with AI access disabled", () => {
+  test("POST /api/2.0/ai/attachments/suggested-questions - returns 403 when AI access is disabled", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
+    const draftId = await attachments.saveFileId("owner", {
+      title: "Autotest before-off suggested questions.docx",
+      content: "x",
+      type: FileType.Document,
+    });
+    // Control: answered while the switch is on.
+    const before = await attachments.suggestedQuestions("owner", {
+      id: draftId,
+    });
+    expect(before.status).toBe(200);
+
+    const off = await setPortalAiAccess(ownerApi, false);
+    expect(off.writeStatus).toBe(200);
+    expect(off.enabled).toBe(false);
+
+    await expectRefusedOnceSettled(
+      () => attachments.suggestedQuestions("owner", { id: draftId }),
+      "suggested-questions",
+    );
+  });
+});

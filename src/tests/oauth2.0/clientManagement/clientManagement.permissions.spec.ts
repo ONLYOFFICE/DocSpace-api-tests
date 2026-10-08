@@ -21,9 +21,8 @@ test.describe("POST /api/2.0/clients - permissions", () => {
       .forAnonymous()
       .clientManagement.createClient({
         createClientRequest: {
+          ...fullClientRequest,
           name: "Test OAuth Client",
-          redirect_uris: new Set(["https://example.com/callback"]),
-          allowed_origins: new Set(["https://example.com"]),
         },
       });
 
@@ -39,9 +38,8 @@ test.describe("POST /api/2.0/clients - permissions", () => {
       .forRole("guest")
       .clientManagement.createClient({
         createClientRequest: {
+          ...fullClientRequest,
           name: "Test OAuth Client",
-          redirect_uris: new Set(["https://example.com/callback"]),
-          allowed_origins: new Set(["https://example.com"]),
         },
       });
 
@@ -320,7 +318,7 @@ test.describe("POST /api/2.0/clients - permissions", () => {
         createClientRequest: {
           ...fullClientRequest,
           name: "Test OAuth Client",
-          logo: undefined,
+          logo: undefined as unknown as string,
         },
       },
       { headers: { "x-signature": signature } },
@@ -414,7 +412,7 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
       .forAnonymous()
       .clientManagement.updateClient({
         clientId: "00000000-0000-0000-0000-000000000000",
-        updateClientRequest: { name: "Updated Client" },
+        updateClientRequest: { ...fullClientRequest, name: "Updated Client" },
       });
 
     expect(status).toBe(403);
@@ -429,7 +427,7 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
       .forRole("guest")
       .clientManagement.updateClient({
         clientId: "00000000-0000-0000-0000-000000000000",
-        updateClientRequest: { name: "Updated Client" },
+        updateClientRequest: { ...fullClientRequest, name: "Updated Client" },
       });
 
     expect(status).toBe(403);
@@ -459,7 +457,7 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
         updateClientRequest: {
           ...fullClientRequest,
           name: "Hacked Name",
-        } as any,
+        },
       },
       { headers: { "x-signature": userSignature } },
     );
@@ -485,7 +483,7 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
         updateClientRequest: {
           ...fullClientRequest,
           name: "a".repeat(257),
-        } as any,
+        },
       },
       { headers: { "x-signature": signature } },
     );
@@ -512,7 +510,7 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
     const { data, status } = await api.clientManagement.updateClient(
       {
         clientId,
-        updateClientRequest: { ...fullClientRequest, name: "ab" } as any,
+        updateClientRequest: { ...fullClientRequest, name: "ab" },
       },
       { headers: { "x-signature": signature } },
     );
@@ -543,7 +541,7 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
           ...fullClientRequest,
           name: "Test Client",
           allowed_origins: new Set(["not-a-url"]),
-        } as any,
+        },
       },
       { headers: { "x-signature": signature } },
     );
@@ -560,12 +558,12 @@ test.describe("PUT /api/2.0/clients/{clientId} - permissions", () => {
     const { status } = await api.clientManagement.updateClient(
       {
         clientId: "00000000-0000-0000-0000-000000000000",
-        updateClientRequest: { name: "Updated Client" },
+        updateClientRequest: { ...fullClientRequest, name: "Updated Client" },
       },
       { headers: { "x-signature": signature } },
     );
 
-    expect(status).toBe(400);
+    expect(status).toBe(404);
   });
 });
 

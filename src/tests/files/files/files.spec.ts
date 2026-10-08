@@ -795,7 +795,7 @@ test.describe("POST /files/file/:id/saveaspdf - Save file as PDF", () => {
 
     const { data, status } = await ownerApi.files.saveFileAsPdf({
       id: fileId,
-      saveAsPdfInteger: { folderId, title: "Autotest Saved As PDF" },
+      saveAsPdf: { folderId, title: "Autotest Saved As PDF" },
     });
 
     expect(status).toBe(200);
@@ -3292,7 +3292,7 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
     const { data, status } = await ownerApi.files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId },
+      getReferenceDataDto: { fileKey, instanceId },
     });
 
     expect(status).toBe(200);
@@ -3328,7 +3328,7 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
     const { data, status } = await ownerApi.files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId },
+      getReferenceDataDto: { fileKey, instanceId },
     });
 
     expect(status).toBe(200);
@@ -3364,7 +3364,7 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
     const { data, status } = await ownerApi.files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId, sourceFileId: fileId },
+      getReferenceDataDto: { fileKey, instanceId, sourceFileId: fileId },
     });
 
     expect(status).toBe(200);
@@ -3409,7 +3409,7 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     const instanceId = openData.response!.document!.referenceData!.instanceId!;
 
     const { data, status } = await userApi.files.getReferenceData({
-      getReferenceDataDtoInteger: { fileKey, instanceId },
+      getReferenceDataDto: { fileKey, instanceId },
     });
 
     expect(status).toBe(200);
@@ -3447,7 +3447,7 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     const linkUrl = linkData.response!.sharedLink!.shareLink!;
 
     const { data, status } = await ownerApi.files.getReferenceData({
-      getReferenceDataDtoInteger: {
+      getReferenceDataDto: {
         fileKey,
         instanceId,
         sourceFileId: fileId,
@@ -3468,7 +3468,7 @@ test.describe("POST /files/file/referencedata - Get reference data", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .files.getReferenceData({
-        getReferenceDataDtoInteger: {
+        getReferenceDataDto: {
           fileKey: "totally-fake-file-key-12345",
           instanceId: "fake-instance-id",
         },
@@ -4252,7 +4252,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const fileId = fileData.response!.id!;
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 5 }],
       },
     });
@@ -4287,7 +4287,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const folderId = folderData.response!.id!;
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [
           { entryId: folderId, entryType: FileEntryType.Folder, order: 3 },
         ],
@@ -4327,7 +4327,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const fileId2 = file2Data.response!.id!;
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [
           { entryId: fileId1, entryType: FileEntryType.File, order: 1 },
           { entryId: fileId2, entryType: FileEntryType.File, order: 2 },
@@ -4369,7 +4369,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const folderId = folderData.response!.id!;
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [
           { entryId: fileId, entryType: FileEntryType.File, order: 1 },
           { entryId: folderId, entryType: FileEntryType.Folder, order: 2 },
@@ -4409,13 +4409,13 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 3 }],
       },
     });
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 7 }],
       },
     });
@@ -4431,7 +4431,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: { items: [] },
+      ordersRequestDto: { items: [] },
     });
 
     expect(status).toBe(200);
@@ -4460,7 +4460,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const fileId = fileData.response!.id!;
 
     const { data } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 0 }],
       },
     });
@@ -4490,7 +4490,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const fileId = fileData.response!.id!;
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 1 }],
       },
     });
@@ -4521,7 +4521,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const fileId = fileData.response!.id!;
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [
           {
             entryId: fileId,
@@ -4563,7 +4563,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const fileId2 = file2Data.response!.id!;
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [
           { entryId: fileId1, entryType: FileEntryType.File, order: 5 },
           { entryId: fileId2, entryType: FileEntryType.File, order: 5 },
@@ -4582,7 +4582,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [
           {
             entryId: 999999999,
@@ -4618,7 +4618,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const fileId = fileData.response!.id!;
 
     const { status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.Folder, order: 1 }],
       },
     });
@@ -4649,7 +4649,7 @@ test.describe("PUT /files/order - Set files order in bulk", () => {
     const fileId = fileData.response!.id!;
 
     const { data, status } = await ownerApi.files.setFilesOrder({
-      ordersRequestDtoInteger: {
+      ordersRequestDto: {
         items: [{ entryId: fileId, entryType: FileEntryType.File, order: 4 }],
       },
     });
@@ -5556,7 +5556,7 @@ test.describe("GET /files/file/:fileId/isformpdf", () => {
 
     const { data: pdfData } = await ownerApi.files.saveFileAsPdf({
       id: sourceFileId,
-      saveAsPdfInteger: { folderId, title: "Autotest IsFormPDF Converted PDF" },
+      saveAsPdf: { folderId, title: "Autotest IsFormPDF Converted PDF" },
     });
     const pdfFileId = pdfData.response!.id!;
 
@@ -5969,7 +5969,7 @@ test.describe("PUT /files/file/:fileId/startfilling - Start filling file", () =>
 
     await ownerApi.files.manageFormFilling({
       fileId: String(fillingRoomId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Start,
       },
@@ -6169,7 +6169,7 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
 
     await ownerApi.files.manageFormFilling({
       fileId: String(roomId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Start,
       },
@@ -6208,7 +6208,7 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
 
     await ownerApi.files.manageFormFilling({
       fileId: String(roomId),
-      manageFormFillingDtoInteger: {
+      manageFormFillingDto: {
         formId,
         action: FormFillingManageAction.Start,
       },

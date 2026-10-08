@@ -41,7 +41,7 @@ const DISABLED_CONFIG = { url: "https://mcp-written-while-off.invalid/sse" };
  * naming them is accepted and dropped, so it can no longer stand for "there is
  * state here to be refused". Not an invented name either — `serverType` used
  * to be an open vocabulary but is now validated against a fixed list (see "the
- * server type used to be an open vocabulary" in mcp.spec.ts, BUG XXXXX), so
+ * server type used to be an open vocabulary" in mcp.spec.ts), so
  * this uses one of the valid values instead.
  */
 const DISABLE_SERVER = "web-search";

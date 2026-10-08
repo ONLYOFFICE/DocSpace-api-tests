@@ -1,6 +1,10 @@
 import { test } from "@/src/fixtures";
 import { expect } from "@playwright/test";
-import { TenantWalletService } from "@onlyoffice/docspace-api-sdk";
+import {
+  TenantWalletService,
+  type PaymentApi,
+  type ServicePriceInfo,
+} from "@onlyoffice/docspace-api-sdk";
 import {
   topUpDeposit,
   enableWalletService,
@@ -703,11 +707,11 @@ test.describe("GET /api/2.0/portal/payment/ai-prices", () => {
     expect(data.response?.embedding?.[0].alias).toBeDefined();
     expect(data.response?.embedding?.[0].provider).toBeDefined();
     expect(data.response?.embedding?.[0].price.prompt).toBeDefined();
-    expect((data.response?.search as any)?.length).toBeGreaterThan(0);
-    expect((data.response?.search as any)?.[0].id).toBeDefined();
-    expect((data.response?.search as any)?.[0].alias).toBeDefined();
-    expect((data.response?.search as any)?.[0].provider).toBeDefined();
-    expect((data.response?.search as any)?.[0].price).toBeDefined();
+    expect((data.response?.webSearch as any)?.length).toBeGreaterThan(0);
+    expect((data.response?.webSearch as any)?.[0].id).toBeDefined();
+    expect((data.response?.webSearch as any)?.[0].alias).toBeDefined();
+    expect((data.response?.webSearch as any)?.[0].provider).toBeDefined();
+    expect((data.response?.webSearch as any)?.[0].price).toBeDefined();
     expect(data.response?.currency?.code).toBe("USD");
     expect(data.response?.currency?.symbol).toBe("$");
   });
@@ -748,11 +752,11 @@ test.describe("GET /api/2.0/portal/payment/ai-prices", () => {
     expect(data.response?.embedding?.[0].alias).toBeDefined();
     expect(data.response?.embedding?.[0].provider).toBeDefined();
     expect(data.response?.embedding?.[0].price.prompt).toBeDefined();
-    expect((data.response?.search as any)?.length).toBeGreaterThan(0);
-    expect((data.response?.search as any)?.[0].id).toBeDefined();
-    expect((data.response?.search as any)?.[0].alias).toBeDefined();
-    expect((data.response?.search as any)?.[0].provider).toBeDefined();
-    expect((data.response?.search as any)?.[0].price).toBeDefined();
+    expect((data.response?.webSearch as any)?.length).toBeGreaterThan(0);
+    expect((data.response?.webSearch as any)?.[0].id).toBeDefined();
+    expect((data.response?.webSearch as any)?.[0].alias).toBeDefined();
+    expect((data.response?.webSearch as any)?.[0].provider).toBeDefined();
+    expect((data.response?.webSearch as any)?.[0].price).toBeDefined();
     expect(data.response?.currency?.code).toBe("USD");
     expect(data.response?.currency?.symbol).toBe("$");
   });
@@ -1666,7 +1670,7 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
   // route should either refuse the write outright (403/409, "enable AITools
   // first") or actually persist it. Answering 200 with an echo of the request
   // while silently doing nothing is neither.
-  test("BUG XXXXX: PUT /api/2.0/portal/payment/ai-model/restrictions - without the AITools wallet service, a 200 write does not persist", async ({
+  test("BUG 84316: PUT /api/2.0/portal/payment/ai-model/restrictions - without the AITools wallet service, a 200 write does not persist", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2166,7 +2170,7 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
   // Filed as BUG XXXXX: the failure mode is "your restrictions got cleared
   // with no error", not corruption or a crash, but it is still a validation
   // gap — `[null]` should be rejected the same way `[123]`/`[true]`/`[{}]` are.
-  test("BUG XXXXX: PUT /api/2.0/portal/payment/ai-model/restrictions - a null array element is accepted and silently clears the list", async ({
+  test("BUG 84317: PUT /api/2.0/portal/payment/ai-model/restrictions - a null array element is accepted and silently clears the list", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -3100,5 +3104,237 @@ test.describe("POST /api/2.0/portal/payment/subscription/movetowallet", () => {
       });
 
     expect(status).toBe(403);
+  });
+});
+
+// GET /api/2.0/portal/payment/accounting/prices/{serviceName}[?active=] reads one
+// service's price history from the billing accounting service. Measured
+// 2026-10-06:
+//
+//   * the name is the `serviceName` of `walletservices`, case-sensitive; five of
+//     the six listed services have prices (`backup` is listed but answers an
+//     empty 404);
+//   * `active=true` leaves the price in force now, `active=false` equals leaving
+//     it out (the retired rows too);
+//   * the SDK says an unpriced name "yields an empty list rather than an error" —
+//     the backend answers 500 with the accounting service's own 404 text, so that
+//     case is reported as a contract mismatch and is not asserted here;
+//   * `servicePrice` is `costPrice` plus the `extraCharge` percent on every row
+//     that has a cost; a row with no cost (`ai-tools`, `docscloud-*`) carries its
+//     price on its own, so the arithmetic is only asserted where there is a cost.
+const PRICE_TOLERANCE = 1e-6;
+
+async function getPricedServices(payment: PaymentApi) {
+  const { data: services } = await payment.getWalletServices();
+  const priced = new Map<
+    string,
+    { all: ServicePriceInfo[]; active: ServicePriceInfo[]; walletPrice: number }
+  >();
+  for (const service of services.response ?? []) {
+    const name = service.serviceName!;
+    const all = await payment.getAccountingServicePrices({ serviceName: name });
+    if (all.status !== 200) continue;
+    const active = await payment.getAccountingServicePrices({
+      serviceName: name,
+      active: true,
+    });
+    priced.set(name, {
+      all: all.data.response ?? [],
+      active: active.data.response ?? [],
+      walletPrice: service.price?.value ?? Number.NaN,
+    });
+  }
+  return priced;
+}
+
+test.describe("GET /api/2.0/portal/payment/accounting/prices/{serviceName}", () => {
+  test("GET /api/2.0/portal/payment/accounting/prices - Owner gets a well-formed price list for the priced wallet services", async ({
+    apiSdk,
+  }) => {
+    const priced = await getPricedServices(apiSdk.forRole("owner").payment);
+
+    expect([...priced.keys()]).toEqual(
+      expect.arrayContaining(["ai-tools", "disk-storage-1-hour"]),
+    );
+    for (const [name, { all }] of priced) {
+      expect(all.length, `${name} has prices`).toBeGreaterThan(0);
+      for (const price of all) {
+        const label = `${name} price ${price.id}`;
+        expect(typeof price.id, `${label} id`).toBe("number");
+        expect(typeof price.serviceId, `${label} serviceId`).toBe("number");
+        expect(typeof price.accountNumber, `${label} accountNumber`).toBe(
+          "number",
+        );
+        expect(typeof price.timeUnit, `${label} timeUnit`).toBe("string");
+        for (const field of [
+          "costPrice",
+          "extraCharge",
+          "servicePrice",
+        ] as const) {
+          expect(typeof price[field], `${label} ${field}`).toBe("number");
+          expect(price[field]!, `${label} ${field}`).toBeGreaterThanOrEqual(0);
+        }
+        expect(typeof price.status, `${label} status`).toBe("string");
+        expect(
+          Number.isNaN(Date.parse(price.created!)),
+          `${label} created`,
+        ).toBe(false);
+        expect(
+          Number.isNaN(Date.parse(price.timeBound!.startDate!)),
+          `${label} startDate`,
+        ).toBe(false);
+      }
+      expect(
+        new Set(all.map((price) => price.id)).size,
+        `${name} ids are unique`,
+      ).toBe(all.length);
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/accounting/prices - active=true returns only prices in force now, a subset of the full list", async ({
+    apiSdk,
+  }) => {
+    const priced = await getPricedServices(apiSdk.forRole("owner").payment);
+    const now = Date.now();
+
+    let narrowed = 0;
+    for (const [name, { all, active }] of priced) {
+      const allIds = new Set(all.map((price) => price.id));
+      expect(active.length, `${name} has a price in force`).toBeGreaterThan(0);
+      for (const price of active) {
+        expect(
+          allIds,
+          `${name} price ${price.id} is in the full list`,
+        ).toContain(price.id);
+        expect(
+          Date.parse(price.timeBound!.startDate!),
+          `${name} price ${price.id} has started`,
+        ).toBeLessThanOrEqual(now);
+        const end = price.timeBound!.endDate;
+        if (end) {
+          expect(
+            Date.parse(end),
+            `${name} price ${price.id} has not ended`,
+          ).toBeGreaterThan(now);
+        }
+      }
+      if (active.length < all.length) narrowed++;
+    }
+    // Control: the filter really removes something somewhere, so a service whose
+    // list is all in force cannot make the subset check vacuous everywhere.
+    expect(narrowed, "a service with retired prices").toBeGreaterThan(0);
+  });
+
+  test("GET /api/2.0/portal/payment/accounting/prices - active=false is the same list as leaving it out", async ({
+    apiSdk,
+  }) => {
+    const payment = apiSdk.forRole("owner").payment;
+    for (const serviceName of ["ai-tools", "disk-storage-1-hour"]) {
+      const omitted = await payment.getAccountingServicePrices({ serviceName });
+      const explicit = await payment.getAccountingServicePrices({
+        serviceName,
+        active: false,
+      });
+      expect(omitted.status).toBe(200);
+      expect(explicit.status).toBe(200);
+      expect(explicit.data.response?.map((price) => price.id)).toEqual(
+        omitted.data.response?.map((price) => price.id),
+      );
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/accounting/prices - the price in force is the one walletservices advertises", async ({
+    apiSdk,
+  }) => {
+    const priced = await getPricedServices(apiSdk.forRole("owner").payment);
+
+    for (const [name, { active, walletPrice }] of priced) {
+      expect(Number.isNaN(walletPrice), `${name} has a wallet price`).toBe(
+        false,
+      );
+      expect(
+        active.some(
+          (price) =>
+            Math.abs(price.servicePrice! - walletPrice) < PRICE_TOLERANCE,
+        ),
+        `${name}: walletservices says ${walletPrice}, in force: ${active
+          .map((price) => price.servicePrice)
+          .join(", ")}`,
+      ).toBe(true);
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/accounting/prices - servicePrice is costPrice plus the extra charge percent wherever there is a cost", async ({
+    apiSdk,
+  }) => {
+    const priced = await getPricedServices(apiSdk.forRole("owner").payment);
+
+    const withCost = [...priced].flatMap(([name, { all }]) =>
+      all
+        .filter((price) => price.costPrice! > 0)
+        .map((price) => ({ name, price })),
+    );
+    // Control: disk storage carries a cost on every row.
+    expect(withCost.length, "rows with a cost").toBeGreaterThan(0);
+    for (const { name, price } of withCost) {
+      expect(price.servicePrice!, `${name} price ${price.id}`).toBeCloseTo(
+        price.costPrice! * (1 + price.extraCharge! / 100),
+        6,
+      );
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/accounting/prices - DocSpaceAdmin gets the same price list as the Owner", async ({
+    apiSdk,
+  }) => {
+    const ownerList = await apiSdk
+      .forRole("owner")
+      .payment.getAccountingServicePrices({ serviceName: "ai-tools" });
+    expect(ownerList.status).toBe(200);
+
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    const adminList = await apiSdk
+      .forRole("docSpaceAdmin")
+      .payment.getAccountingServicePrices({ serviceName: "ai-tools" });
+
+    expect(adminList.status).toBe(200);
+    expect(adminList.data.response?.map((price) => price.id)).toEqual(
+      ownerList.data.response?.map((price) => price.id),
+    );
+  });
+
+  test("GET /api/2.0/portal/payment/accounting/prices - an active flag that is not a boolean is a 400", async ({
+    apiSdk,
+  }) => {
+    const token = apiSdk.tokenStore.getToken("owner");
+    const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/portal/payment/accounting/prices/ai-tools`;
+
+    // Control: the same route with a real boolean answers.
+    const ok = await apiSdk.request.get(`${url}?active=true`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(ok.status()).toBe(200);
+
+    for (const query of ["abc", "1", ""]) {
+      const response = await apiSdk.request.get(`${url}?active=${query}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(response.status(), `active=${JSON.stringify(query)}`).toBe(400);
+      expect(
+        (await response.json()).response?.errors?.active,
+        `active=${JSON.stringify(query)} is blamed on the flag`,
+      ).toBeDefined();
+    }
+  });
+
+  test("GET /api/2.0/portal/payment/accounting/prices - a service name over 255 characters is a 400 naming the field", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .payment.getAccountingServicePrices({ serviceName: "a".repeat(256) });
+
+    expect(status).toBe(400);
+    expect((data as any).response?.errors?.serviceName?.[0]).toContain("255");
   });
 });

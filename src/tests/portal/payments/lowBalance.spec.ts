@@ -263,7 +263,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds",
     expect(settings?.minBalance).toBe(100);
   });
 
-  test("BUG XXXXX: POST /api/2.0/portal/payment/topupsettings - Owner cannot top up to less than the trigger", async ({
+  test("BUG 84314: POST /api/2.0/portal/payment/topupsettings - Owner cannot top up to less than the trigger", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -273,7 +273,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds",
     // refill the wallet into a state that immediately triggers another refill.
     test.fail(
       true,
-      "BUG XXXXX: topupsettings accepts upToBalance below minBalance",
+      "BUG 84314: topupsettings accepts upToBalance below minBalance",
     );
 
     await paymentsApi.makeWalletTopUp();

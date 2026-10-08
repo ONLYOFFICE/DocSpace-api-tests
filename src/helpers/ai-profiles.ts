@@ -1,5 +1,5 @@
 import { AiHttp, AgentRole } from "./ai-http";
-import { AiProfile } from "./ai-agent-chat";
+import { AiProfile, AiReasoningSupport } from "./ai-agent-chat";
 
 // The AI profile catalogue and the per-action model assignments — verified
 // against a live portal on 2026-08-04.
@@ -80,7 +80,11 @@ export const AI_CAP_KNOWN_BITS =
  */
 export const AI_CAP_VISION = AI_CAP_BITS.vision;
 
-/** Every action type the assignment API accepts. */
+/**
+ * Every action type the assignment API accepts. `FormAnalysis` is served by the
+ * backend (seeded on a fresh portal, measured 2026-10-02) but is missing from
+ * the SDK 4.0.0 `AiActionType` enum and from its parameter docs.
+ */
 export const AI_ACTION_TYPES = [
   "Default",
   "Chat",
@@ -91,6 +95,7 @@ export const AI_ACTION_TYPES = [
   "ImageGeneration",
   "OCR",
   "Vision",
+  "FormAnalysis",
 ] as const;
 
 /**
@@ -139,12 +144,7 @@ export type AiProviderModel = {
   provider?: string;
   reasoning?: boolean;
   capabilities?: number;
-  reasoningSupport?: {
-    canDisable?: boolean;
-    defaultDepth?: string;
-    depths?: string[];
-    thinks?: boolean;
-  };
+  reasoningSupport?: AiReasoningSupport;
 };
 
 export class AiProfiles extends AiHttp {

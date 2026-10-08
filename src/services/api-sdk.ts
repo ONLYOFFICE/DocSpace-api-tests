@@ -39,11 +39,12 @@ import {
   UsersApi,
 } from "@onlyoffice/docspace-api-sdk";
 import { ProfilesApi as ProvidersApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/profiles-api";
+import { OpenAIPassthroughApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/open-aipassthrough-api";
 import { ThreadsApi as ChatApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/threads-api";
-import { AISettingsApi as AiSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/aisettings-api";
+import { SettingsApi as AiSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/settings-api";
 import { VectorizationApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/vectorization-api";
 import { ToolsApi as MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/tools-api";
-import { SettingsApi as FilesSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/settings-api";
+import { FilesSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/files-settings-api";
 import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { ApiKeysApi } from "@onlyoffice/docspace-api-sdk/dist/api/api-keys/api-keys-api";
 import { AuthenticationApi } from "@onlyoffice/docspace-api-sdk/dist/api/authentication/authentication-api";
@@ -73,6 +74,7 @@ import { PortalSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/
 import { QuotaApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/quota-api";
 import { PrivacyRoomApi } from "@onlyoffice/docspace-api-sdk/dist/api/rooms/privacy-room-api";
 import { DocsCloudApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/docs-cloud-api";
+import { RebrandingApi } from "@onlyoffice/docspace-api-sdk/dist/api/settings/rebranding-api";
 import { createPlaywrightAdapter } from "../utils/playwright-axios-adapter";
 import { parseResponse } from "../utils/parse-response";
 import config from "../../config";
@@ -214,6 +216,11 @@ export class ApiSDK {
       security: new SecurityApi(config, undefined, axiosInstance),
       agents: new AgentsApi(config, undefined, axiosInstance),
       providers: new ProvidersApi(config, undefined, axiosInstance),
+      openaiPassthrough: new OpenAIPassthroughApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
       payment: new SdkPaymentApi(config, undefined, axiosInstance),
@@ -277,6 +284,7 @@ export class ApiSDK {
       owner: new OwnerApi(config, undefined, axiosInstance),
       privacyroom: new PrivacyRoomApi(config, undefined, axiosInstance),
       docsCloud: new DocsCloudApi(config, undefined, axiosInstance),
+      rebranding: new RebrandingApi(config, undefined, axiosInstance),
     };
   }
 
@@ -329,6 +337,11 @@ export class ApiSDK {
       security: new SecurityApi(config, undefined, axiosInstance),
       agents: new AgentsApi(config, undefined, axiosInstance),
       providers: new ProvidersApi(config, undefined, axiosInstance),
+      openaiPassthrough: new OpenAIPassthroughApi(
+        config,
+        undefined,
+        axiosInstance,
+      ),
       chat: new ChatApi(config, undefined, axiosInstance),
       settingsQuota: new SettingsQuotaApi(config, undefined, axiosInstance),
       settingsMessages: new MessagesApi(config, undefined, axiosInstance),
@@ -397,6 +410,7 @@ export class ApiSDK {
       privacyroom: new PrivacyRoomApi(config, undefined, axiosInstance),
       tfaSettings: new TFASettingsApi(config, undefined, axiosInstance),
       docsCloud: new DocsCloudApi(config, undefined, axiosInstance),
+      rebranding: new RebrandingApi(config, undefined, axiosInstance),
     };
   }
 

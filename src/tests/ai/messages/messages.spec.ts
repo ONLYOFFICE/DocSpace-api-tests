@@ -655,7 +655,7 @@ test.describe("AI Messages - text-to-docx export", () => {
 //
 // The two rooms below take documents; the form-filling room does not, and it
 // gets a test of its own further down because the two surfaces disagree there.
-// The agent room, whose export lands in Result Storage rather than in the root,
+// The agent room, whose export lands in Chat outputs rather than in the root,
 // is covered by the transcript block above.
 
 const EXPORT_ROOM_TYPES: Array<{ label: string; roomType: RoomType }> = [
@@ -784,15 +784,21 @@ test.describe("AI Messages - text-to-docx into every room type", () => {
   });
 });
 
-test.describe("AI Messages - .docx is the only format an answer can be saved as", () => {
-  test("POST /api/2.0/ai/text-to-* - there is no pdf, txt or markdown export, and a requested format is ignored", async ({
+test.describe("AI Messages - text-to-docx's format takes Docx, Pdf or Md", () => {
+  // Was "the .docx is the only format an answer can be saved as": measured
+  // 2026-09-29, `format` is no longer decoration. It is a case-sensitive enum
+  // — "Docx" | "Pdf" | "Md" — and the extension of the written file follows it:
+  // request "Pdf" and DocSpace holds a .pdf, not a .docx with the wrong name.
+  // `extension` remains what it always was, an undocumented field with no
+  // effect — sent alongside a valid `format` it changes nothing, the format
+  // alone decides the file DocSpace ends up holding.
+  //
+  // There is still exactly one export route: the sibling paths a client might
+  // reasonably try (`/text-to-pdf`, `/text-to-txt`, …) remain 404, so `format`
+  // on `/text-to-docx` is the only way to ask for anything but a .docx.
+  test("POST /api/2.0/ai/text-to-*, /text-to-docx - sibling export routes are 404, and format decides the extension", async ({
     apiSdk,
   }) => {
-    // "Save the answer as a file" is one format wide. Worth pinning both ways:
-    // the sibling routes a client might reasonably try do not exist, and the
-    // one route there is does not take a format — it accepts the field and
-    // still writes a .docx, so a client that thinks it asked for a PDF gets a
-    // document with the wrong extension and no error to show for it.
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
@@ -819,32 +825,95 @@ test.describe("AI Messages - .docx is the only format an answer can be saved as"
       expect(response.status(), `POST ${route}`).toBe(404);
     }
 
-    const title = `Exported format ${apiSdk.faker.generateString(8)}`;
-    const { status } = await aiSettings.textToDocx("owner", {
-      title,
+    for (const [format, extension] of [
+      ["Docx", ".docx"],
+      ["Pdf", ".pdf"],
+      ["Md", ".md"],
+    ] as const) {
+      const title = `Exported format ${format} ${apiSdk.faker.generateString(8)}`;
+      const { status } = await aiSettings.textToDocx("owner", {
+        title,
+        content: "The assistant said hello.",
+        format,
+        folderId,
+      });
+      expect(status, `format: "${format}"`).toBe(202);
+
+      const exported = await waitForExportedFile(
+        ownerApi,
+        folderId,
+        `${title}${extension}`,
+        60000,
+      );
+      expect(
+        exported,
+        `no "${title}${extension}" for format "${format}"`,
+      ).toBeDefined();
+      expect(exported!.fileExst).toBe(extension);
+    }
+
+    // No format at all defaults to a .docx, same as before this contract
+    // existed — the default is the one behavior every other test in this file
+    // relies on.
+    const defaultTitle = `Exported default format ${apiSdk.faker.generateString(8)}`;
+    const { status: defaultStatus } = await aiSettings.textToDocx("owner", {
+      title: defaultTitle,
       content: "The assistant said hello.",
-      format: "pdf",
+      folderId,
+    });
+    expect(defaultStatus).toBe(202);
+    expect(
+      await waitForExportedFile(ownerApi, folderId, `${defaultTitle}.docx`),
+    ).toBeDefined();
+
+    // `extension` alongside a valid `format` changes nothing — `format` alone
+    // decides the file that lands in DocSpace.
+    const overrideTitle = `Exported format override ${apiSdk.faker.generateString(8)}`;
+    const { status: overrideStatus } = await aiSettings.textToDocx("owner", {
+      title: overrideTitle,
+      content: "The assistant said hello.",
+      format: "Pdf",
       extension: ".txt",
       folderId,
     });
-    expect(status).toBe(202);
-
-    const exported = await waitForExportedFile(
+    expect(overrideStatus).toBe(202);
+    const overridden = await waitForExportedFile(
       ownerApi,
       folderId,
-      `${title}.docx`,
+      `${overrideTitle}.pdf`,
+      60000,
     );
     expect(
-      exported,
-      `no "${title}.docx" — a requested format should be ignored, not honoured`,
+      overridden,
+      `"extension" must not override "format": expected a .pdf for format "Pdf"`,
     ).toBeDefined();
-    expect(exported!.fileExst).toBe(".docx");
-
     const titles = (await listFolderFiles(ownerApi, folderId)).map(
       (file) => file.title,
     );
-    expect(titles).not.toContain(`${title}.pdf`);
-    expect(titles).not.toContain(`${title}.txt`);
+    expect(titles).not.toContain(`${overrideTitle}.txt`);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - an unrecognised format is rejected, not silently ignored", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+
+    for (const format of ["pdf", "docx", "md", "bogus"]) {
+      const { status, error } = await aiSettings.textToDocx("owner", {
+        title: `Exported invalid format ${apiSdk.faker.generateString(8)}`,
+        content: "The assistant said hello.",
+        format,
+        folderId,
+      });
+      expect(status, `format: "${format}"`).toBe(400);
+      expect(error, `format: "${format}"`).toBe(
+        "format must be one of Docx, Pdf, Md",
+      );
+    }
   });
 });
 
@@ -880,7 +949,7 @@ test.describe("AI Messages - text-to-docx and the room storage quota", () => {
 
     const { data: quotaData, status: quotaStatus } =
       await ownerApi.roomQuota.updateRoomsQuota({
-        updateRoomsQuotaRequestDtoInteger: {
+        updateRoomsQuotaRequestDto: {
           roomIds: [roomId] as unknown as number[],
           quota: 1024,
         },
@@ -1106,15 +1175,15 @@ test.describe("AI Messages - exporting a thread", () => {
     );
   });
 
-  test("POST /api/2.0/ai/text-to-docx - a transcript exported to an agent lands in its Result Storage, not in the room root", async ({
+  test("POST /api/2.0/ai/text-to-docx - a transcript exported to an agent lands in its Chat outputs, not in the room root", async ({
     apiSdk,
     paymentsApi,
   }) => {
     // The other half of "save this chat": keeping it next to the agent rather
     // than in personal documents. An agent is a room, so its id is a legal
     // export target — but not the folder the document ends up in. An agent room
-    // ships with "Knowledge" and "Result Storage" subfolders and everything the
-    // agent produces is filed under Result Storage, exports included. A caller
+    // ships with "Knowledge" and "Chat outputs" subfolders and everything the
+    // agent produces is filed under Chat outputs, exports included. A caller
     // that polls the id it passed in never sees its own document.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
@@ -1163,22 +1232,19 @@ test.describe("AI Messages - exporting a thread", () => {
     const { data: room, status: roomStatus } =
       await ownerApi.folders.getFolderByFolderId({ folderId: agentId });
     expect(roomStatus).toBe(200);
-    const resultStorage = (room.response?.folders ?? []).find(
-      (folder) => (folder as { title?: string }).title === "Result Storage",
+    const chatOutputs = (room.response?.folders ?? []).find(
+      (folder) => (folder as { title?: string }).title === "Chat outputs",
     ) as { id?: number } | undefined;
-    expect(
-      resultStorage?.id,
-      "the agent's Result Storage folder",
-    ).toBeDefined();
+    expect(chatOutputs?.id, "the agent's Chat outputs folder").toBeDefined();
 
     const exported = await waitForExportedFile(
       ownerApi,
-      resultStorage!.id!,
+      chatOutputs!.id!,
       `${title}.docx`,
     );
     expect(
       exported,
-      `no "${title}.docx" in the agent's Result Storage`,
+      `no "${title}.docx" in the agent's Chat outputs`,
     ).toBeDefined();
 
     // Nothing was left in the room root the export was addressed to.
@@ -1652,6 +1718,16 @@ const INVALID_TEXT_BODIES: Array<{ name: string; body: InvalidTextBody }> = [
   { name: "null content", body: { title: "T", content: null } },
   { name: "missing content", body: { title: "T" } },
   { name: "an empty body", body: {} },
+  // A title or content of the wrong JSON type is the same refusal as a missing
+  // one — not a 500 from a failed cast, and not a coerced "123".
+  { name: "a numeric title", body: { title: 123, content: "hello" } },
+  { name: "a boolean title", body: { title: true, content: "hello" } },
+  { name: "an array title", body: { title: ["T"], content: "hello" } },
+  { name: "an object title", body: { title: { a: 1 }, content: "hello" } },
+  { name: "numeric content", body: { title: "T", content: 123 } },
+  { name: "boolean content", body: { title: "T", content: true } },
+  { name: "array content", body: { title: "T", content: ["hello"] } },
+  { name: "object content", body: { title: "T", content: { a: 1 } } },
 ];
 
 test.describe("AI Messages - text-to-docx validation", () => {
@@ -1875,6 +1951,372 @@ test.describe("AI Messages - text-to-docx validation", () => {
       await waitForExportedFile(ownerApi, folderId, `${title} big.docx`),
     ).toBeDefined();
   });
+});
+
+// The request body is capped at 15 MiB, counted in BYTES over the whole JSON
+// body (measured 2026-10-07 by bisection: 15 728 640 passes, one more is refused;
+// an ASCII content tops out at 15 728 602 characters, a Cyrillic one — two bytes
+// each — at 7 864 301). The old 128 KB limit is gone. The refusal is a bare 413
+// with an HTML page, the answer of the layer in front of the application, so the
+// tests assert the status and nothing about its body.
+//
+// The boundary is probed with an EMPTY title on purpose: that body is invalid, so
+// anything under the cap answers 400 "title and content are required" and nothing
+// over it gets that far — and no 15 MiB document is ever built.
+const BODY_LIMIT_BYTES = 15 * 1024 * 1024;
+
+async function sendSizedBody(
+  apiSdk: ApiSDK,
+  content: string,
+  folderId: number,
+) {
+  const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+  const body = { title: "", content, folderId };
+  const result = await aiSettings.textToDocx("owner", body);
+  return { ...result, bodyBytes: Buffer.byteLength(JSON.stringify(body)) };
+}
+
+test.describe("AI Messages - text-to-docx size limit", () => {
+  test("POST /api/2.0/ai/text-to-docx - a body of exactly 15 MiB reaches validation and one byte more is refused with a 413", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const overhead = Buffer.byteLength(
+      JSON.stringify({ title: "", content: "", folderId }),
+    );
+
+    const atLimit = await sendSizedBody(
+      apiSdk,
+      "x".repeat(BODY_LIMIT_BYTES - overhead),
+      folderId,
+    );
+    expect(atLimit.bodyBytes).toBe(BODY_LIMIT_BYTES);
+    expect(atLimit.error).toBe("title and content are required");
+    expect(atLimit.status).toBe(400);
+
+    const over = await sendSizedBody(
+      apiSdk,
+      "x".repeat(BODY_LIMIT_BYTES - overhead + 1),
+      folderId,
+    );
+    expect(over.bodyBytes).toBe(BODY_LIMIT_BYTES + 1);
+    expect(over.status).toBe(413);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - the limit counts bytes, not characters", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const overhead = Buffer.byteLength(
+      JSON.stringify({ title: "", content: "", folderId }),
+    );
+
+    // The same number of characters, one passes and one does not.
+    const SAME_CHARS = 10_000_000;
+    const ascii = await sendSizedBody(apiSdk, "x".repeat(SAME_CHARS), folderId);
+    expect(ascii.status).toBe(400);
+    const cyrillic = await sendSizedBody(
+      apiSdk,
+      "я".repeat(SAME_CHARS),
+      folderId,
+    );
+    expect(cyrillic.bodyBytes).toBeGreaterThan(BODY_LIMIT_BYTES);
+    expect(cyrillic.status).toBe(413);
+
+    // And the edge itself, in two-byte characters: the largest content that fits
+    // is refused one character later.
+    const fits = Math.floor((BODY_LIMIT_BYTES - overhead) / 2);
+    const atLimit = await sendSizedBody(apiSdk, "я".repeat(fits), folderId);
+    expect(atLimit.bodyBytes).toBeLessThanOrEqual(BODY_LIMIT_BYTES);
+    expect(atLimit.error).toBe("title and content are required");
+    expect(atLimit.status).toBe(400);
+    const over = await sendSizedBody(apiSdk, "я".repeat(fits + 1), folderId);
+    expect(over.bodyBytes).toBeGreaterThan(BODY_LIMIT_BYTES);
+    expect(over.status).toBe(413);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - a 1 MiB answer is exported whole, first line to last", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const title = `Exported big ${apiSdk.faker.generateString(8)}`;
+
+    const paragraphs = Array.from(
+      { length: 27000 },
+      (_, i) =>
+        `Paragraph ${String(i).padStart(6, "0")} lorem ipsum dolor sit.`,
+    );
+    const content = `BEGINMARK\n\n${paragraphs.join("\n\n")}\n\nENDMARK`;
+    expect(Buffer.byteLength(content)).toBeGreaterThan(1024 * 1024);
+
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content,
+      folderId,
+    });
+    expect(status).toBe(202);
+
+    const exported = await waitForExportedFile(
+      ownerApi,
+      folderId,
+      `${title}.docx`,
+      120000,
+    );
+    expect(exported, `no "${title}.docx" for a 1 MiB answer`).toBeDefined();
+    const text = await readExportedDocxText(apiSdk, "owner", exported!.id);
+    expect(text).toContain("BEGINMARK");
+    expect(text).toContain("Paragraph 000000");
+    expect(text).toContain("Paragraph 026999");
+    expect(text).toContain("ENDMARK");
+  });
+});
+
+test.describe("AI Messages - text-to-docx naming and concurrency", () => {
+  test("POST /api/2.0/ai/text-to-docx - the same title three times gives (1) and (2), nothing overwritten", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const title = `Exported ${apiSdk.faker.generateString(8)}`;
+
+    const expected = [
+      `${title}.docx`,
+      `${title} (1).docx`,
+      `${title} (2).docx`,
+    ];
+    for (const [i, fileTitle] of expected.entries()) {
+      const { status } = await aiSettings.textToDocx("owner", {
+        title,
+        content: `Export number ${i}.`,
+        folderId,
+      });
+      expect(status).toBe(202);
+      expect(
+        await waitForExportedFile(ownerApi, folderId, fileTitle),
+        `expected "${fileTitle}"`,
+      ).toBeDefined();
+    }
+
+    // Each document keeps its own text: the first one was not replaced.
+    for (const [i, fileTitle] of expected.entries()) {
+      const file = (await listFolderFiles(ownerApi, folderId)).find(
+        (f) => f.title === fileTitle,
+      );
+      expect(await readExportedDocxText(apiSdk, "owner", file!.id)).toContain(
+        `Export number ${i}.`,
+      );
+    }
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - one successful export creates exactly one file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    // The sample documents are still arriving on a fresh portal, so the baseline
+    // waits for the folder to stop changing.
+    const before = (await waitForStableFolderFiles(ownerApi, folderId)).map(
+      (f) => f.id,
+    );
+    const title = `Exported ${apiSdk.faker.generateString(8)}`;
+
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content: "hello",
+      folderId,
+    });
+    expect(status).toBe(202);
+    expect(
+      await waitForExportedFile(ownerApi, folderId, `${title}.docx`),
+    ).toBeDefined();
+
+    // Long enough for a stray second job to land too.
+    await waitForExportToSettle();
+    const added = (await listFolderFiles(ownerApi, folderId))
+      .filter((f) => !before.includes(f.id))
+      .map((f) => f.title);
+    expect(added).toEqual([`${title}.docx`]);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - a backslash in a title is replaced the way the Files API replaces it", async ({
+    apiSdk,
+  }) => {
+    // The slash case is BUG 82711. A lone backslash is checked on its own because
+    // the cases there mix both separators with other forbidden characters, so a
+    // fix for one could hide the other. Measured 2026-10-07: the backslash alone
+    // is already normalised like the Files API does it — every title in 82711
+    // that loses its beginning contains a "/", so the defect is the slash.
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const { data: controlFolder } = await ownerApi.folders.createFolder({
+      folderId,
+      createFolder: { title: "Autotest TextToDocx Control" },
+    });
+    const controlFolderId = controlFolder.response!.id!;
+
+    const title = `Notes ${apiSdk.faker.generateString(4)}\\31`;
+    const expected = await filesApiTitleFor(ownerApi, controlFolderId, title);
+    const { status } = await aiSettings.textToDocx("owner", {
+      title,
+      content: "hello",
+      folderId,
+    });
+    expect(status).toBe(202);
+
+    const landed = await waitForStableFolderFiles(ownerApi, folderId);
+    expect(landed.map((f) => f.title)).toContain(expected);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - two simultaneous exports with the same title both survive", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const folderId = myFolder.response!.current!.id!;
+    const before = (await waitForStableFolderFiles(ownerApi, folderId)).map(
+      (f) => f.id,
+    );
+    const title = `Exported ${apiSdk.faker.generateString(8)}`;
+
+    const [first, second] = await Promise.all([
+      aiSettings.textToDocx("owner", {
+        title,
+        content: "ALPHA text of the first export.",
+        folderId,
+      }),
+      aiSettings.textToDocx("owner", {
+        title,
+        content: "BRAVO text of the second export.",
+        folderId,
+      }),
+    ]);
+    expect(first.status).toBe(202);
+    expect(second.status).toBe(202);
+
+    const names = [`${title}.docx`, `${title} (1).docx`];
+    for (const name of names) {
+      expect(
+        await waitForExportedFile(ownerApi, folderId, name, 60000),
+        `expected "${name}" — one of the two simultaneous exports was lost or collided`,
+      ).toBeDefined();
+    }
+    const added = (await waitForStableFolderFiles(ownerApi, folderId)).filter(
+      (f) => !before.includes(f.id),
+    );
+    expect(added.map((f) => f.title).sort()).toEqual([...names].sort());
+
+    const texts = await Promise.all(
+      added.map((f) => readExportedDocxText(apiSdk, "owner", f.id)),
+    );
+    expect(texts.some((t) => t.includes("ALPHA"))).toBe(true);
+    expect(texts.some((t) => t.includes("BRAVO"))).toBe(true);
+  });
+
+  test("POST /api/2.0/ai/text-to-docx - simultaneous exports with different titles each land in their own folder", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+    const myId = myFolder.response!.current!.id!;
+    const { data: a } = await ownerApi.folders.createFolder({
+      folderId: myId,
+      createFolder: { title: "Autotest Parallel A" },
+    });
+    const { data: b } = await ownerApi.folders.createFolder({
+      folderId: myId,
+      createFolder: { title: "Autotest Parallel B" },
+    });
+    const folders = [a.response!.id!, b.response!.id!];
+
+    const jobs = Array.from({ length: 6 }, (_, i) => ({
+      title: `Exported ${i} ${apiSdk.faker.generateString(6)}`,
+      content: `CONTENT-${i}-ONLY`,
+      folderId: folders[i % 2],
+    }));
+    const results = await Promise.all(
+      jobs.map((job) => aiSettings.textToDocx("owner", job)),
+    );
+    expect(results.map((r) => r.status)).toEqual(jobs.map(() => 202));
+
+    for (const job of jobs) {
+      expect(
+        await waitForExportedFile(
+          ownerApi,
+          job.folderId,
+          `${job.title}.docx`,
+          60000,
+        ),
+        `"${job.title}.docx" missing from its folder`,
+      ).toBeDefined();
+    }
+    for (const folderId of folders) {
+      const expected = jobs
+        .filter((j) => j.folderId === folderId)
+        .map((j) => `${j.title}.docx`)
+        .sort();
+      const titles = (await waitForStableFolderFiles(ownerApi, folderId))
+        .map((f) => f.title)
+        .sort();
+      expect(
+        titles,
+        "a folder holds its own exports and nobody else's",
+      ).toEqual(expected);
+    }
+    const mine = await listFolderFiles(ownerApi, folders[0]);
+    const first = mine.find((f) => f.title === `${jobs[0].title}.docx`)!;
+    const text = await readExportedDocxText(apiSdk, "owner", first.id);
+    expect(text).toContain("CONTENT-0-ONLY");
+    expect(text).not.toContain("CONTENT-1-ONLY");
+  });
+});
+
+test.describe("AI Messages - text-to-docx format shapes", () => {
+  // The spelling cases ("pdf", "docx", "md", "bogus") are covered above. A format
+  // of the wrong JSON type — or an explicit null, which is not the same as no
+  // format at all — is the same refusal, with the same message.
+  for (const { name, format } of [
+    { name: "null", format: null },
+    { name: "an empty string", format: "" },
+    { name: "a number", format: 123 },
+    { name: "a boolean", format: true },
+    { name: "an array", format: ["Docx"] },
+    { name: "upper case", format: "DOCX" },
+    { name: "a padded name", format: " Docx" },
+  ] as Array<{ name: string; format: unknown }>) {
+    test(`POST /api/2.0/ai/text-to-docx - format as ${name} is rejected`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+      const { data: myFolder } = await ownerApi.folders.getMyFolder({});
+      const folderId = myFolder.response!.current!.id!;
+
+      const { status, error } = await aiSettings.textToDocx("owner", {
+        title: `Exported invalid format ${apiSdk.faker.generateString(8)}`,
+        content: "The assistant said hello.",
+        format,
+        folderId,
+      });
+
+      expect(error).toBe("format must be one of Docx, Pdf, Md");
+      expect(status).toBe(400);
+    });
+  }
 });
 
 // Per-message routes: read one, rewrite one, remove one.
@@ -2279,13 +2721,25 @@ test.describe("AI Messages - per-message routes with AI Disabled", () => {
 //
 //   POST /ai/ai/regenerate-stream       { threadId, entityId?, profileId? }
 //   POST /ai/ai/send                    { actionType, userMessage, entityId? }
-//   POST /ai/ai/send-custom             { isStream, systemPrompt, userMessage }
+//   POST /ai/ai/send-custom             { isStream, systemPrompt, userMessage, actionArgs? }
 //   POST /ai/ai/send-with-stream-openai same body as send-with-stream
 //
-// `regenerate-stream` is the regenerate of section 9.4 and it works. `send` and
-// `send-custom` are the one-shot, non-threaded paths and they do not: the model
-// call comes back with an `auth` error even on a portal where the streaming path
-// answers normally, so section 11's per-error-type matrix cannot be built on them.
+// `send` and `send-custom` used to come back with an `auth` error even on a
+// portal where the streaming path answered normally (BUG 82833/82835/82836,
+// fixed) — both now reach the model. Neither persists anything: no thread, no
+// history, confirmed both by the SDK's own operation docs and, in "AI Messages
+// - one-shot inference" below, by the live response carrying no thread-side
+// `id` at all and by `GET /ai/threads/list` staying empty after calling them.
+//
+// `send-custom` has no `profileId` field anywhere it can actually be sent —
+// **not a product bug, an SDK documentation/schema mismatch**: the operation's
+// own description claims "The profile is the explicit `profileId` when it
+// resolves, otherwise the `Default` assignment slot", but `AiAiSendCustomRequest`
+// is `{isStream, systemPrompt, userMessage, actionArgs?}` and `AiAiActionArgs`
+// is `{tools?, isReasoning?, prompt?}` — no `profileId` in either, and the
+// latter's own comment says the engine's `profile` is "never sent by the
+// caller". So there is deliberately no profileId/fallback/ACL-bypass test
+// below for this route: there is no such parameter to test.
 //
 // Two protocol notes, because they differ per route:
 //   * send-with-stream / regenerate-stream stream newline-delimited JSON frames
@@ -2317,66 +2771,85 @@ test.describe("AI Messages - per-message routes with AI Disabled", () => {
 //                       "reason":"cancelled"},"content":""}
 //
 // So the hang-up now reaches the generation: it is cancelled, and the thread
-// keeps a placeholder reply carrying that status. Two consequences for the
-// assertions below — the status is what tells "cancelled" apart from "not
-// written yet", and the five seconds of text that had already streamed are
-// discarded rather than kept as a truncated answer, so the stored reply is
-// empty and its length cannot carry the check on its own.
+// keeps the reply with that status. Whatever had already streamed is KEPT as
+// the stored reply, the same as when Stop is pressed in the composer — the
+// developers' answer on BUG 84028 (until 2026-10 the contract here was "the
+// partial text is discarded", which is no longer the expectation). The status
+// is what tells "cancelled" apart from "not written yet", and the text, which
+// must stay unfinished and stop growing, is what shows the generation ended.
 //
 // The sentinel is what makes completeness checkable without guessing at
-// lengths: the model is told to end with FINISHED, so the control run proves
-// the marker arrives on a finished answer and its absence long after an abort
-// means the answer never ran to its end.
+// lengths: the model is told to end with FINISHED, so its absence long after
+// an abort means the answer never ran to its end.
 //
-// The wait is calibrated on the control rather than fixed: "no sentinel yet"
-// only means something once more time has passed than a whole answer takes.
+// "hanging up mid-stream" used to mean racing a fixed `STOP_AFTER_MS` against
+// however fast the model happened to answer that run, calibrated against a
+// control request measuring the whole uninterrupted answer. That stopped being
+// reliable: measured 2026-09-23, two uninterrupted control runs of the same
+// prompt finished in 8.4s and 9.5s, inside what the 5s cut assumed was a safe
+// margin, so the "cut" landed on an already-finished reply as often as it
+// landed mid-generation — a coin flip, not a test of the cancellation itself.
+// The model got faster; the fixed delay did not.
+//
+// `sendAndAbortOnFirstDelta` replaces the race with an event: it reads the
+// stream chunk by chunk (`apiSdk.request`/Playwright's `APIRequestContext`
+// cannot — `response.text()` buffers the whole body) and cuts the connection
+// on the first `message-delta` frame that carries real text, i.e. the instant
+// generation is demonstrably under way. No control run, no calibrated wait —
+// a 600-word-essay prompt cannot have finished in the one to two seconds that
+// frame takes to arrive, which `streamedText` below confirms directly instead
+// of inferring it from timing.
 
 const LONG_ANSWER_PROMPT =
   "Write a detailed essay of at least 600 words about the history of typography. " +
-  "Number every paragraph. When the whole essay is done, end your answer with the exact word FINISHED.";
+  "Number every paragraph. When the whole essay is done, end your answer with the exact word FINISHED. " +
+  "Answer from your own knowledge and do not call any tools.";
 
 const SENTINEL = "FINISHED";
 
-/** How long the reply is allowed to stream before the connection is cut. */
-const STOP_AFTER_MS = 5000;
+/**
+ * A completed answer ENDS with the sentinel. "Contains" is not enough: the
+ * model sometimes restates the instruction in its opening line ("...and ending
+ * with FINISHED"), which would read a fragment as a finished answer.
+ */
+const ENDS_WITH_SENTINEL = /FINISHED\W*$/;
 
 /** No growth for this long counts as "the backend has finished with it". */
 const QUIET_MS = 20000;
-
-/**
- * Head-room on top of a whole uninterrupted answer before a stopped reply that
- * is still empty counts as never resumed.
- */
-const QUIET_MARGIN_MS = 30000;
 
 type SettledReply = Awaited<
   ReturnType<AiAgentChat["waitForStableAssistantText"]>
 >;
 
 /**
- * What a hung-up-on turn leaves behind now that the abort is a real stop: one
- * placeholder reply, empty and marked cancelled. The two recovery tests below
- * need it only as their premise — they are about what happens NEXT, so they
- * assert the placeholder is there and settled rather than re-testing the
- * cancellation itself.
+ * What a hung-up-on turn leaves behind: one reply marked cancelled that keeps
+ * the part already generated (intended, as with Stop in the composer). The two
+ * recovery tests below need it only as their premise — they are about what
+ * happens NEXT, so they assert the reply is there, cancelled, not an error and
+ * still unfinished rather than re-testing the cancellation itself.
  */
-function expectCancelledPlaceholder(settled: SettledReply): void {
+function expectCancelledPartial(settled: SettledReply): void {
   expect(
     settled.message,
     "the abandoned turn left a reply behind",
   ).toBeDefined();
+  const status = AiAgentChat.messageStatus(settled.message!);
+  expect(status?.type, "the abandoned reply is marked incomplete").toBe(
+    "incomplete",
+  );
+  expect(status?.reason, "…because it was cancelled").toBe("cancelled");
+  expect(status?.error, "a cancellation is not an error").toBeUndefined();
   expect(
-    AiAgentChat.messageStatus(settled.message!)?.reason,
-    "the abandoned reply is marked cancelled",
-  ).toBe("cancelled");
-  expect(
-    settled.text,
-    `the cancelled reply holds no text; lengths seen: ${settled.lengths.join(" -> ")}`,
-  ).toBe("");
+    settled.text.length,
+    `the part generated before the hang-up is kept; lengths seen: ${settled.lengths.join(" -> ")}`,
+  ).toBeGreaterThan(0);
+  expect(settled.text, "the kept text is an unfinished answer").not.toMatch(
+    ENDS_WITH_SENTINEL,
+  );
 }
 
 test.describe("AI Messages - stopping a stream", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream cancels the generation", async ({
+  test("BUG 84028: POST /api/2.0/ai/ai/send-with-stream - hanging up mid-stream cancels the generation", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2390,110 +2863,63 @@ test.describe("AI Messages - stopping a stream", () => {
       title: "Autotest Stop Agent",
       profileId,
     });
-
-    // The positive control first. Without it the sentinel proves nothing — the
-    // model might simply never write it — and there is no evidence that the
-    // request is long enough to still be running at the cut-off.
-    let controlMs = 0;
-    await test.step("a stream nobody interrupts runs to the sentinel", async () => {
-      const threadId = await aiChat.createThreadId("owner", {
-        title: "Autotest control thread",
-        profileId,
-        agentId,
-      });
-      const startedAt = Date.now();
-      const sent = await aiChat.sendMessage("owner", {
-        threadId,
-        profileId,
-        agentId,
-        message: LONG_ANSWER_PROMPT,
-      });
-      expect(sent.status).toBe(200);
-      expect(sent.streamError).toBeUndefined();
-
-      const messages = await aiChat.waitForAssistantReply("owner", threadId);
-      expectHealthyAssistantReply(messages);
-      expect(
-        AiAgentChat.assistantText(messages),
-        "the uninterrupted answer reaches its end",
-      ).toContain(SENTINEL);
-      controlMs = Date.now() - startedAt;
-      expect(
-        controlMs,
-        `the answer took ${controlMs} ms — too fast to be interrupted at ${STOP_AFTER_MS} ms`,
-      ).toBeGreaterThan(STOP_AFTER_MS * 2);
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest stopped thread",
+      profileId,
+      agentId,
     });
 
-    await test.step("the same stream, hung up on after 5 s", async () => {
-      const threadId = await aiChat.createThreadId("owner", {
-        title: "Autotest stopped thread",
-        profileId,
-        agentId,
-      });
-
-      const { aborted } = await aiChat.sendAndAbort("owner", {
-        threadId,
-        profileId,
-        agentId,
-        message: LONG_ANSWER_PROMPT,
-        afterMs: STOP_AFTER_MS,
-      });
-      expect(
-        aborted,
-        `the connection was still open at ${STOP_AFTER_MS} ms — nothing was stopped`,
-      ).toBe(true);
-
-      // What the thread holds the moment the client is gone. The control needed
-      // far longer than the cap, so this cannot be the finished answer.
-      const atStop = await aiChat.readMessages("owner", threadId);
-      expect(atStop.status).toBe(200);
-      const partial = AiAgentChat.assistantText(atStop.data);
-      test.fail();
-      expect(partial, "the answer was still being written").not.toContain(
-        SENTINEL,
-      );
-
-      // Watched for longer than a whole answer takes, so "still not finished"
-      // cannot be "not finished yet".
-      const quietMs = controlMs + QUIET_MARGIN_MS;
-      const settled = await aiChat.waitForStableAssistantText(
-        "owner",
-        threadId,
-        quietMs,
-        quietMs + 60000,
-      );
-
-      expect(
-        settled.text,
-        `a generation the user stopped must not run to its end; the stored reply over ${quietMs} ms: ${settled.lengths.join(" -> ")}`,
-      ).not.toContain(SENTINEL);
-
-      // What makes that absence a cancellation rather than a reply the backend
-      // is still writing: the thread says so. Without this the assertion above
-      // would also pass on a build that simply lost the answer.
-      //
-      // Was reliable per BUG 82898 (closed 2026-08-18: cancelled + emptied).
-      // Re-measured 2026-08-24, 4 runs: only 1 came back marked
-      // `{"type":"incomplete","reason":"cancelled"}` with content discarded: the
-      // other 3 stored `status: undefined` with the partial answer LEFT IN
-      // PLACE (228 and 708 chars observed, unchanged over 60s of re-reads) —
-      // i.e. worse than "not marked cancelled", the text is not being discarded
-      // either, which is the pre-08-18 behaviour BUG 82898 was filed against.
-      // Reads as that fix regressing, not a race a longer wait would clear.
-      test.fail();
-      const status = AiAgentChat.messageStatus(settled.message!);
-      expect(status?.type, "the stopped reply is marked incomplete").toBe(
-        "incomplete",
-      );
-      expect(status?.reason, "…because it was cancelled").toBe("cancelled");
-      expect(status?.error, "a cancellation is not an error").toBeUndefined();
-
-      // The question is kept, so the turn can be retried.
-      expect(AiAgentChat.userMessages(atStop.data)).toHaveLength(1);
+    const cut = await aiChat.sendAndAbortOnFirstDelta("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: LONG_ANSWER_PROMPT,
     });
+    const { aborted, streamedText, elapsedMs } = cut;
+    expect(
+      aborted,
+      `the connection was cut right after real content started streaming — HTTP ${cut.status}, frames ${cut.framesSeen.join(",")}, head ${JSON.stringify(cut.rawHead)}`,
+    ).toBe(true);
+    // Proof the cut landed mid-generation rather than on an already-finished
+    // reply, without guessing at timing: what had streamed by the cut is a
+    // fragment of a 600-word essay, not the whole thing.
+    expect(
+      streamedText,
+      `the cut arrived after the answer already finished — ${JSON.stringify(streamedText)} at ${elapsedMs}ms`,
+    ).not.toMatch(ENDS_WITH_SENTINEL);
+
+    // What the thread holds the moment the client is gone.
+    const atStop = await aiChat.readMessages("owner", threadId);
+    expect(atStop.status).toBe(200);
+    const partial = AiAgentChat.assistantText(atStop.data);
+    expect(partial, "the answer was still being written").not.toMatch(
+      ENDS_WITH_SENTINEL,
+    );
+
+    // Watched for longer than a whole answer takes, so "still not finished"
+    // cannot be "not finished yet".
+    const settled = await aiChat.waitForStableAssistantText(
+      "owner",
+      threadId,
+      QUIET_MS,
+      QUIET_MS + 60000,
+    );
+
+    expect(
+      settled.text,
+      `a generation the user stopped must not run to its end; the stored reply over ${QUIET_MS}ms: ${settled.lengths.join(" -> ")}`,
+    ).not.toMatch(ENDS_WITH_SENTINEL);
+
+    // What makes that absence a cancellation rather than a reply the backend
+    // is still writing: the thread says so, and keeps the text generated so far
+    // (intended, same as Stop in the composer).
+    expectCancelledPartial(settled);
+
+    // The question is kept, so the turn can be retried.
+    expect(AiAgentChat.userMessages(atStop.data)).toHaveLength(1);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/send-with-stream - the thread works again after the client hangs up", async ({
+  test("BUG 84028: POST /api/2.0/ai/ai/send-with-stream - the thread works again after the client hangs up", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2516,14 +2942,19 @@ test.describe("AI Messages - stopping a stream", () => {
       agentId,
     });
 
-    const { aborted } = await aiChat.sendAndAbort("owner", {
+    const cut = await aiChat.sendAndAbortOnFirstDelta("owner", {
       threadId,
       profileId,
       agentId,
       message: LONG_ANSWER_PROMPT,
-      afterMs: STOP_AFTER_MS,
     });
-    expect(aborted).toBe(true);
+    expect(
+      cut.aborted,
+      `the connection was cut — HTTP ${cut.status}, frames ${cut.framesSeen.join(",")}, head ${JSON.stringify(cut.rawHead)}`,
+    ).toBe(true);
+    // Proof the cut landed mid-generation, the same way the "hanging up
+    // mid-stream" test above establishes it.
+    expect(cut.streamedText).not.toMatch(ENDS_WITH_SENTINEL);
 
     // The cancellation is allowed to settle before the next turn — sending into
     // a thread the backend is still writing to is a different test.
@@ -2532,10 +2963,7 @@ test.describe("AI Messages - stopping a stream", () => {
       threadId,
       QUIET_MS,
     );
-    // Same regression as the "hanging up mid-stream" test above (BUG XXXXX):
-    // the abandoned placeholder is not reliably marked cancelled any more.
-    test.fail();
-    expectCancelledPlaceholder(abandoned);
+    expectCancelledPartial(abandoned);
 
     const resumed = await aiChat.sendMessage("owner", {
       threadId,
@@ -2561,8 +2989,8 @@ test.describe("AI Messages - stopping a stream", () => {
     expect(second.id).not.toBe(abandoned.message?.id);
 
     // The cancelled turn is left as it was: still its own message, still marked
-    // cancelled. Comparing the text alone would now be ""==="" and pass on a
-    // build that reused the placeholder for the new answer.
+    // cancelled. Comparing the text alone would miss a build that reused the abandoned
+    // message for the new answer, so id and status are what is checked.
     expect(replies[0].id, "the abandoned reply is still there").toBe(
       abandoned.message?.id,
     );
@@ -2572,7 +3000,7 @@ test.describe("AI Messages - stopping a stream", () => {
     ).toBe("cancelled");
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/ai/regenerate-stream - regenerating after a hang-up replaces the abandoned reply", async ({
+  test("BUG 84028: POST /api/2.0/ai/ai/regenerate-stream - regenerating after a hang-up replaces the abandoned reply", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2593,23 +3021,25 @@ test.describe("AI Messages - stopping a stream", () => {
       agentId,
     });
 
-    const { aborted } = await aiChat.sendAndAbort("owner", {
+    const cut = await aiChat.sendAndAbortOnFirstDelta("owner", {
       threadId,
       profileId,
       agentId,
       message: LONG_ANSWER_PROMPT,
-      afterMs: STOP_AFTER_MS,
     });
-    expect(aborted).toBe(true);
+    expect(
+      cut.aborted,
+      `the connection was cut — HTTP ${cut.status}, frames ${cut.framesSeen.join(",")}, head ${JSON.stringify(cut.rawHead)}`,
+    ).toBe(true);
+    // Proof the cut landed mid-generation, the same way the "hanging up
+    // mid-stream" test above establishes it.
+    expect(cut.streamedText).not.toMatch(ENDS_WITH_SENTINEL);
     const abandoned = await aiChat.waitForStableAssistantText(
       "owner",
       threadId,
       QUIET_MS,
     );
-    // Same regression as the "hanging up mid-stream" test above (BUG XXXXX):
-    // the abandoned placeholder is not reliably marked cancelled any more.
-    test.fail();
-    expectCancelledPlaceholder(abandoned);
+    expectCancelledPartial(abandoned);
 
     const { status, streamError } = await aiChat.regenerateStream("owner", {
       threadId,
@@ -3656,6 +4086,22 @@ test.describe("AI Messages - regenerate with AI Disabled", () => {
   });
 });
 
+const OPENAI_WEATHER_TOOL = {
+  name: "get_weather",
+  description: "Get the current weather for a city.",
+  inputSchema: {
+    type: "object",
+    properties: { city: { type: "string", description: "City name" } },
+    required: ["city"],
+    additionalProperties: false,
+  },
+  enabled: true,
+  requireApproval: true,
+};
+
+const OPENAI_ASK_FOR_TOOL =
+  "What is the weather in Paris? Call the get_weather tool.";
+
 test.describe("AI Messages - the OpenAI-compatible stream", () => {
   test("POST /api/2.0/ai/ai/send-with-stream-openai - streams OpenAI chunks and terminates with [DONE]", async ({
     apiSdk,
@@ -3723,6 +4169,466 @@ test.describe("AI Messages - the OpenAI-compatible stream", () => {
 
     // The text assembled from the chunks is a real answer, not an empty stream.
     expect(assembled.length).toBeGreaterThan(0);
+  });
+
+  // The tests below do not re-run send-with-stream's whole business matrix —
+  // that lives in chat/chat.spec.ts and above it in this file. What is worth
+  // proving here is narrower: that re-encoding the same chat round as an
+  // OpenAI-compatible stream does not change what it DOES — thread creation,
+  // persistence, profile resolution, the prompt override and the pause on a
+  // tool call all have to behave the same way, just wearing a different wire
+  // format.
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - a new thread is created and both messages are persisted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest OpenAI Thread Agent",
+      profileId,
+    });
+
+    const question = "Reply with the single word OK.";
+    const { status, text } = await aiChat.sendWithStreamOpenAi("owner", {
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: question }],
+      },
+    });
+    expect(status).toBe(200);
+    const { done, text: assembled } = AiAgentChat.openAiStreamChunks(text);
+    expect(done).toBe(true);
+    expect(assembled.length).toBeGreaterThan(0);
+
+    // No threadId went out, so the route had to open one of its own — the same
+    // contract send-with-stream has.
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.status).toBe(200);
+    expect(listed.data).toHaveLength(1);
+    const threadId = listed.data[0].threadId!;
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    expectHealthyAssistantReply(messages.data);
+    const asked = AiAgentChat.userMessages(messages.data);
+    expect(asked, "the question is stored once").toHaveLength(1);
+    expect(AiAgentChat.messageText(asked[0])).toBe(question);
+    expect(AiAgentChat.assistantText(messages.data)).toBe(assembled);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - continuing an existing thread carries its context forward", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Two independent questions would pass on a backend that starts a fresh
+    // conversation every turn, so the second question can only be answered
+    // from the first one's context — same technique chat.spec.ts uses for the
+    // plain endpoint.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { aiChat, profileId, agentId, threadId } = await setupThread(apiSdk);
+
+    const first = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Remember the code word TANGERINE. Reply with just: OK.",
+          },
+        ],
+      },
+    });
+    expect(first.status).toBe(200);
+
+    const second = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "What code word did I ask you to remember? Reply with just that word.",
+          },
+        ],
+      },
+    });
+    expect(second.status).toBe(200);
+    const { text: secondAnswer } = AiAgentChat.openAiStreamChunks(second.text);
+    expect(secondAnswer.toUpperCase()).toContain("TANGERINE");
+
+    // One conversation, not two — the second call reused the given threadId
+    // rather than opening its own.
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.data.map((thread) => thread.threadId)).toEqual([threadId]);
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    expect(AiAgentChat.userMessages(messages.data)).toHaveLength(2);
+    expect(AiAgentChat.assistantMessages(messages.data)).toHaveLength(2);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - a message with no profileId keeps the thread's model, and an explicit one moves it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // A room, not an agent: an agent fixes its own model and neither profileId
+    // nor omitting it changes that — see "AI Chat - the model of an agent
+    // room" in chat/chat.spec.ts. This route's parity claim is about the
+    // thread's own model, the same precedence "the profile sent with a
+    // message becomes the thread's model" pins for the plain endpoint.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [profileA, profileB] = twoTextProfiles(catalogue);
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest OpenAI Precedence Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest openai precedence thread",
+      profileId: profileA.id,
+      agentId: roomId,
+    });
+
+    const viaEntity = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+    expect(viaEntity.status).toBe(200);
+    const entityChunks = AiAgentChat.openAiStreamChunks(viaEntity.text).chunks;
+    expect(
+      entityChunks[0]?.model,
+      "no profileId keeps the thread on the model it was created with",
+    ).toBe(profileA.modelId);
+
+    const viaExplicit = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId: profileB.id,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+    expect(viaExplicit.status).toBe(200);
+    const explicitChunks = AiAgentChat.openAiStreamChunks(
+      viaExplicit.text,
+    ).chunks;
+    expect(
+      explicitChunks[0]?.model,
+      "an explicit profileId moves the thread's model, same precedence as send-with-stream",
+    ).toBe(profileB.modelId);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - actionArgs.prompt.replace applies for one request and does not stick", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // A room rather than an agent — chat.spec.ts's BUG 83236 documents that an
+    // agent's own stored instructions currently beat a per-request replace, so
+    // an agent entity would be testing that open bug, not this route's parity
+    // with the plain endpoint.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest OpenAI Prompt Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest openai prompt thread",
+      profileId,
+      agentId: roomId,
+    });
+
+    const marker = "ZZOPENAIPROMPTZZ";
+    const withOverride = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId,
+      actionArgs: {
+        prompt: {
+          mode: "replace",
+          text: `You are a helpful test assistant. Keep answers very short. Formatting rule: finish every reply with the exact token ${marker}.`,
+        },
+      },
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Hi there!" }],
+      },
+    });
+    expect(withOverride.status).toBe(200);
+    const { text: firstAnswer } = AiAgentChat.openAiStreamChunks(
+      withOverride.text,
+    );
+    expect(firstAnswer, "the per-request prompt reached the model").toMatch(
+      new RegExp(`\\b${marker}\\b`),
+    );
+
+    const withoutOverride = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Hi again!" }],
+      },
+    });
+    expect(withoutOverride.status).toBe(200);
+    const { text: secondAnswer } = AiAgentChat.openAiStreamChunks(
+      withoutOverride.text,
+    );
+    expect(
+      secondAnswer,
+      "the override does not persist to the next request",
+    ).not.toMatch(new RegExp(`\\b${marker}\\b`));
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - a tool call surfaces as OpenAI tool_calls, closes with finish_reason tool_calls, and leaks no internal frame type", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { aiChat, profileId, agentId, threadId } = await setupThread(apiSdk);
+
+    const { status, text } = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      actionArgs: { tools: [OPENAI_WEATHER_TOOL] },
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: OPENAI_ASK_FOR_TOOL }],
+      },
+    });
+    expect(status).toBe(200);
+
+    const { chunks, done } = AiAgentChat.openAiStreamChunks(text);
+    expect(done, "the stream still ends with [DONE] on a pause").toBe(true);
+
+    // Nothing from the NDJSON vocabulary — `send-with-stream`'s own frame
+    // types — is meant to be visible through this wire shape at all.
+    for (const chunk of chunks) {
+      expect(JSON.stringify(chunk)).not.toMatch(
+        /tool-call-pending|message-start|message-end|message-delta|user-message-stored/,
+      );
+    }
+
+    const finishReasons = chunks.flatMap((chunk) => {
+      const choices = chunk.choices as Array<{
+        finish_reason?: string | null;
+      }>;
+      return choices.map((choice) => choice.finish_reason);
+    });
+    expect(
+      finishReasons,
+      `the stream closes on the tool call; finish reasons were ${JSON.stringify(finishReasons)}`,
+    ).toContain("tool_calls");
+
+    const toolCallDeltas = chunks.flatMap((chunk) => {
+      const choices = chunk.choices as Array<{
+        delta?: { tool_calls?: Array<Record<string, unknown>> };
+      }>;
+      return choices.flatMap((choice) => choice.delta?.tool_calls ?? []);
+    });
+    expect(
+      toolCallDeltas.length,
+      "the model's tool call is represented in the stream",
+    ).toBeGreaterThan(0);
+    const names = toolCallDeltas
+      .map((call) => (call.function as { name?: string } | undefined)?.name)
+      .filter((name): name is string => Boolean(name));
+    expect(names).toContain("get_weather");
+
+    // The pause is stored through the same mechanism as the plain endpoint's,
+    // so it resumes through the shared approve/deny routes.
+    const messages = await aiChat.readMessages("owner", threadId);
+    const reply = AiAgentChat.assistantMessages(messages.data)[0];
+    expect(reply, "the paused reply is stored").toBeDefined();
+    expect(AiAgentChat.toolCalls(reply!)).toHaveLength(1);
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - a model that cannot serve the request reports the failure inside the stream, not as an HTTP error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // Mirrors chat.spec.ts's "a model that cannot serve the request" control:
+    // an image-generation profile asked to hold a conversation. The plain
+    // endpoint answers 200 and carries the failure as a `message-incomplete`
+    // frame with `status.error.code:"bad_request"` — this proves the OpenAI
+    // adapter reports the same failure rather than crashing or hanging.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const imageProfile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.imageOnly,
+    );
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest OpenAI Provider Failure Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest openai failure thread",
+      profileId: imageProfile.id,
+      agentId: roomId,
+    });
+
+    const { status, text } = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId: imageProfile.id,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+    expect(status, "the refusal is reported inside the stream").toBe(200);
+
+    const failedTurn = await aiChat.waitForAssistantReply("owner", threadId);
+    const failure = AiAgentChat.assistantStatus(failedTurn);
+    expect(failure?.type).toBe("incomplete");
+    expect(failure?.error?.code, JSON.stringify(failure)).toBe("bad_request");
+
+    // The wire shape is neither a `chat.completion.chunk` nor the plain
+    // endpoint's NDJSON `{"type":"error"}` — this is a documented contract, not
+    // just what the live portal happened to answer: the SDK's generated
+    // `AiOpenAIStreamError` DTO (ai-open-aistream-error.d.ts) says so in words —
+    // "When the upstream request fails mid-stream the OpenAI API emits a single
+    // `data:` line carrying an `error` object (no `choices`), then closes the
+    // stream [...] Mirrors that shape so a host exposing an OpenAI-compatible
+    // endpoint stays wire-compatible" — and its sibling `AiOpenAIStreamErrorError`
+    // pins the field set this asserts on: `message`, `type`, `code`, `param`.
+    // Measured live, matching that DTO exactly: `data: {"error":
+    // {"message":"400 model is not a chat model","type":"invalid_request_error",
+    // "code":"bad_request","param":null}}`.
+    const dataLines = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trim());
+    expect(
+      dataLines[dataLines.length - 1],
+      "the stream still ends cleanly",
+    ).toBe("[DONE]");
+    const errorFrames = dataLines
+      .filter((line) => line !== "[DONE]")
+      .map((line) => JSON.parse(line) as { error?: Record<string, unknown> })
+      .filter((frame) => frame.error !== undefined);
+    expect(
+      errorFrames,
+      `the refusal must be readable as an OpenAI error frame; body was ${text.slice(0, 500)}`,
+    ).toHaveLength(1);
+    expect(errorFrames[0].error?.code).toBe("bad_request");
+    expect(errorFrames[0].error?.type).toBe("invalid_request_error");
+    expect(errorFrames[0].error?.message).toContain("not a chat model");
+    // The DTO declares `param` required (nullable, not optional) — absent
+    // would mean this frame drifted from its own documented shape.
+    expect(errorFrames[0].error).toHaveProperty("param");
+  });
+
+  test("POST /api/2.0/ai/ai/send-with-stream-openai - hanging up mid-stream cancels the generation and the thread stays usable", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const { aiChat, profileId, agentId, threadId } = await setupThread(apiSdk);
+
+    let aborted = false;
+    try {
+      await aiChat.sendWithStreamOpenAi(
+        "owner",
+        {
+          threadId,
+          entityId: String(agentId),
+          profileId,
+          userMessage: {
+            role: "user",
+            content: [{ type: "text", text: LONG_ANSWER_PROMPT }],
+          },
+        },
+        { timeoutMs: 5000 },
+      );
+    } catch {
+      // The request context threw on its own timeout — the connection is
+      // gone, which is the event under test.
+      aborted = true;
+    }
+    expect(aborted, "the client hung up before the reply finished").toBe(true);
+
+    // A cancelled reply is left behind, the same as the plain endpoint's —
+    // see the "stopping a stream" block above for the exact shape, including
+    // its `status` and the partial text it keeps.
+    const abandoned = await aiChat.waitForStableAssistantText(
+      "owner",
+      threadId,
+      QUIET_MS,
+    );
+    expect(
+      abandoned.message,
+      "the abandoned turn left a reply behind",
+    ).toBeDefined();
+
+    const resumed = await aiChat.sendWithStreamOpenAi("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+    expect(resumed.status).toBe(200);
+    const { text: assembled } = AiAgentChat.openAiStreamChunks(resumed.text);
+    expect(assembled.length).toBeGreaterThan(0);
+
+    const messages = await aiChat.readMessages("owner", threadId);
+    const replies = AiAgentChat.assistantMessages(messages.data);
+    expect(replies, "two turns, two replies").toHaveLength(2);
+    expect(
+      replies[1].id,
+      "the new answer is its own message, not a reuse of the abandoned one",
+    ).not.toBe(abandoned.message?.id);
   });
 });
 
@@ -3889,6 +4795,410 @@ test.describe("AI Messages - one-shot inference", () => {
       JSON.stringify(last?.responseMessage?.content),
       "the model's answer, streamed",
     ).toMatch(/\b(4|four)\b/i);
+  });
+
+  test("BUG 84294: POST /api/2.0/ai/ai/send - a malformed request crashes with 500 instead of a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Validation Agent",
+      profileId,
+    });
+    await profiles.assign("owner", { actionType: "Chat", profileId });
+
+    const userMessage = {
+      role: "user",
+      content: [{ type: "text", text: "Reply with the single word OK." }],
+    };
+
+    const cases: Array<[string, Record<string, unknown>]> = [
+      ["a missing actionType", { entityId: String(agentId), userMessage }],
+      [
+        "an unknown actionType",
+        { actionType: "Bogus", entityId: String(agentId), userMessage },
+      ],
+      [
+        "an empty actionType",
+        { actionType: "", entityId: String(agentId), userMessage },
+      ],
+      [
+        "a missing userMessage",
+        { actionType: "Chat", entityId: String(agentId) },
+      ],
+    ];
+
+    const results: Array<[string, number]> = [];
+    for (const [label, body] of cases) {
+      const { status } = await aiChat.send("owner", body);
+      results.push([label, status]);
+    }
+
+    // `send` has no thread of its own to corrupt, but this rules out the crash
+    // having created one behind the scenes regardless.
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.data).toEqual([]);
+
+    test.fail();
+    for (const [label, status] of results) {
+      // AiAiSendRequest declares both `actionType` and `userMessage` required —
+      // a caller violating that is a validation error, not a server crash.
+      expect(status, `send with ${label}`).toBe(400);
+    }
+  });
+
+  test("BUG 84299: POST /api/2.0/ai/ai/send-custom - a missing systemPrompt crashes with 500 instead of a validation error", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const { status } = await aiChat.sendCustom("owner", {
+      isStream: false,
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+
+    test.fail();
+    // AiAiSendCustomRequest declares `systemPrompt` required.
+    expect(
+      status,
+      "a missing required field is a validation error, not a crash",
+    ).toBe(400);
+  });
+
+  test('BUG 84300: POST /api/2.0/ai/ai/send-custom - isStream as the string "false" is accepted, and streams', async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    // Measured live: this does not fail closed on the wrong type — a non-empty
+    // string is truthy, so "false" is read as isStream:true and the response
+    // comes back as the NDJSON stream shape instead of one JSON object.
+    const { status } = await aiChat.sendCustom("owner", {
+      isStream: "false",
+      systemPrompt: "Answer briefly.",
+      userMessage: {
+        role: "user",
+        content: [
+          { type: "text", text: "What is 2+2? Reply with just the number." },
+        ],
+      },
+    });
+
+    test.fail();
+    // AiAiSendCustomRequest declares `isStream` a boolean.
+    expect(
+      status,
+      "a value outside the declared boolean type is a validation error",
+    ).toBe(400);
+  });
+
+  test("POST /api/2.0/ai/ai/send - an empty userMessage is accepted, unlike send-with-stream", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // send-with-stream refuses this with 400 (BUG 82720, fixed). `send` is a
+    // separate, stateless, one-shot route, and nothing in its own contract
+    // documents the same requirement — this pins its current, looser behavior
+    // rather than assuming the sibling route's rule carries over unverified.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Empty Content Agent",
+      profileId,
+    });
+    await profiles.assign("owner", { actionType: "Chat", profileId });
+
+    const emptyArray = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: { role: "user", content: [] },
+    });
+    expect(emptyArray.status).toBe(200);
+    expect(emptyArray.data?.role).toBe("assistant");
+    expect(emptyArray.data?.status?.error).toBeUndefined();
+
+    const emptyText = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: { role: "user", content: [{ type: "text", text: "" }] },
+    });
+    expect(emptyText.status).toBe(200);
+    expect(emptyText.data?.role).toBe("assistant");
+    expect(emptyText.data?.status?.error).toBeUndefined();
+  });
+
+  test("POST /api/2.0/ai/ai/send - entityId: nonexistent falls back to the portal-wide assignment, an accessible entity is used, an inaccessible one is refused", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Entity Scope Agent",
+      profileId: profile.id,
+    });
+    await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: profile.id,
+    });
+
+    const userMessage = {
+      role: "user",
+      content: [{ type: "text", text: "Reply with the single word OK." }],
+    };
+
+    const nonexistent = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: "019f0000-0000-7000-8000-000000000000",
+      userMessage,
+    });
+    expect(
+      nonexistent.status,
+      "an entityId that resolves to nothing degrades to the portal-wide assignment rather than failing",
+    ).toBe(200);
+    expect(nonexistent.data?.status?.error).toBeUndefined();
+
+    const accessible = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage,
+    });
+    expect(accessible.status, "the caller's own agent is a valid scope").toBe(
+      200,
+    );
+    expect(accessible.data?.status?.error).toBeUndefined();
+
+    const { data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    await aiChat.expectActingAs("user", memberData.response!.id!, "the User");
+
+    const inaccessible = await aiChat.send("user", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage,
+    });
+    expect(
+      inaccessible.status,
+      "an entity that exists but the caller cannot see is refused, not silently ignored",
+    ).toBe(403);
+  });
+
+  test("POST /api/2.0/ai/ai/send - creates no thread, and two calls do not share history", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Persistence Agent",
+      profileId,
+    });
+    await profiles.assign("owner", { actionType: "Chat", profileId });
+
+    const first = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Remember the code word ORANGE. Reply with just: OK.",
+          },
+        ],
+      },
+    });
+    expect(first.status).toBe(200);
+    // No thread-side identity comes back at all — matching the operation's own
+    // "nothing is persisted, no thread, no title generation, no storage
+    // writes" description.
+    expect(
+      first.data?.id,
+      "the response carries no thread-side identity",
+    ).toBeUndefined();
+
+    const second = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "What code word did I ask you to remember? Reply with just that word, or say you don't know.",
+          },
+        ],
+      },
+    });
+    expect(second.status).toBe(200);
+    expect(
+      JSON.stringify(second.data?.content).toUpperCase(),
+      "the second call has no memory of the first — send keeps no history between calls",
+    ).not.toContain("ORANGE");
+
+    const listed = await aiChat.listThreads("owner", agentId);
+    expect(listed.data, "neither call created a thread").toEqual([]);
+  });
+
+  test("BUG 84301: POST /api/2.0/ai/ai/send - a profile restricted after being assigned to an actionType is still used", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const profile = AiProfiles.byCapabilities(
+      catalogue,
+      AI_CAPS.textVisionTools,
+    );
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Send Restricted Agent",
+      profileId: profile.id,
+    });
+    await profiles.assign("owner", {
+      actionType: "Chat",
+      profileId: profile.id,
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set([profile.modelId!]) },
+    });
+
+    const restrictedCatalogue = await profiles.catalogue("owner");
+    expect(
+      restrictedCatalogue.some((p) => p.id === profile.id),
+      "the restriction really took effect",
+    ).toBe(false);
+
+    const { status, data } = await aiChat.send("owner", {
+      actionType: "Chat",
+      entityId: String(agentId),
+      userMessage: {
+        role: "user",
+        content: [{ type: "text", text: "Reply with the single word OK." }],
+      },
+    });
+
+    await ownerApi.payment.setRestrictedAiModels({
+      setRestrictedAiModelsRequestDto: { models: new Set() },
+    });
+
+    // send-with-stream already enforces this at inference time — a restricted
+    // model's own thread gets `400 "unknown profileId: <id>"` (see "a model
+    // restricted mid-conversation" above). A portal-wide restriction is a
+    // billing/compliance control; a second route resolving the same restricted
+    // profile through its own assignment and still answering defeats it.
+    test.fail();
+    expect(status, "the restricted model must not still answer").toBe(400);
+    expect(data?.status?.error?.message).toBe(
+      `unknown profileId: ${profile.id}`,
+    );
+  });
+
+  test("POST /api/2.0/ai/ai/send-custom - a different systemPrompt produces a verifiably different answer", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+
+    const markerA = await aiChat.sendCustom("owner", {
+      isStream: false,
+      systemPrompt: "Finish every reply with the exact token ZZPROMPTAZZ.",
+      userMessage: { role: "user", content: [{ type: "text", text: "Hi." }] },
+    });
+    expect(markerA.status).toBe(200);
+    // The real text, not `JSON.stringify` of it — stringifying re-escapes a
+    // literal newline as the two characters `\`+`n`, and `n` is a word
+    // character, so a `\b`-bounded marker straight after a line break fails to
+    // match its own JSON encoding even though the marker is right there.
+    const textA = AiAgentChat.messageText(markerA.data!);
+    expect(textA).toMatch(/\bZZPROMPTAZZ\b/);
+
+    const markerB = await aiChat.sendCustom("owner", {
+      isStream: false,
+      systemPrompt: "Finish every reply with the exact token ZZPROMPTBZZ.",
+      userMessage: { role: "user", content: [{ type: "text", text: "Hi." }] },
+    });
+    expect(markerB.status).toBe(200);
+    const textB = AiAgentChat.messageText(markerB.data!);
+    expect(textB).toMatch(/\bZZPROMPTBZZ\b/);
+    expect(textB).not.toMatch(/\bZZPROMPTAZZ\b/);
+  });
+
+  test("POST /api/2.0/ai/ai/send-custom - neither isStream mode persists a thread", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // send-custom has no entityId/agentId of its own to scope a
+    // GET /threads/list check against (see the block comment above this
+    // describe) — the response shape itself is the available proof: neither
+    // form carries a thread-side `id`, matching the operation's own "No
+    // thread, no history and no persistence" description.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const userMessage = {
+      role: "user",
+      content: [{ type: "text", text: "Reply with the single word OK." }],
+    };
+
+    const nonStreaming = await aiChat.sendCustom("owner", {
+      isStream: false,
+      systemPrompt: "Answer briefly.",
+      userMessage,
+    });
+    expect(nonStreaming.status).toBe(200);
+    expect(nonStreaming.data?.id).toBeUndefined();
+
+    const streaming = await aiChat.sendCustom("owner", {
+      isStream: true,
+      systemPrompt: "Answer briefly.",
+      userMessage,
+    });
+    expect(streaming.status).toBe(200);
+    const frames = AiAgentChat.sendCustomFrames(streaming.text);
+    for (const frame of frames) {
+      expect(frame.id).toBeUndefined();
+      expect(frame.responseMessage?.id).toBeUndefined();
+    }
   });
 });
 
@@ -5246,14 +6556,14 @@ test.describe("AI Messages - markdown in the .docx export", () => {
 // live 2026-08-21 to NOT reach inference — a thread already talking to a
 // model kept talking to it after that model got restricted mid-conversation.
 //
-// BUG XXXXX: no longer true. `send-with-stream` on an already-open thread now
-// answers 400 `"unknown profileId: <id>"` once the thread's model is
-// restricted — same error shape as an unresolvable profileId elsewhere (see
-// the Guest and AI-switch-off cases in chat.spec.ts / chat.ai-disabled.spec.ts).
-// Restriction now reaches live inference too, not just the catalogue and
-// agent updates.
+// No longer true — re-measured live 2026-09-24. `send-with-stream` on an
+// already-open thread now answers 400 `"unknown profileId: <id>"` once the
+// thread's model is restricted, the same error shape as an unresolvable
+// profileId elsewhere (see the Guest and AI-switch-off cases in
+// chat.spec.ts / chat.ai-disabled.spec.ts). Restriction reaches live
+// inference too, not just the catalogue and agent updates.
 test.describe("POST /api/2.0/ai/ai/send-with-stream - a model restricted mid-conversation", () => {
-  test("BUG XXXXX: send-with-stream - a thread keeps answering normally after its model gets restricted", async ({
+  test("send-with-stream - an existing thread cannot use a model after it becomes restricted", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -5298,14 +6608,10 @@ test.describe("POST /api/2.0/ai/ai/send-with-stream - a model restricted mid-con
       setRestrictedAiModelsRequestDto: { models: new Set() },
     });
 
-    test.fail();
-    expect(after.status, "after restricting the agent's model").toBe(200);
+    expect(after.status, "after restricting the agent's model").toBe(400);
     expect(
-      after.streamError,
-      "restriction does not gate inference, only the catalogue and agent updates",
-    ).toBeUndefined();
-
-    const messages = await aiChat.waitForAssistantReplies("owner", threadId, 2);
-    expectHealthyAssistantReply(messages, 2);
+      after.error,
+      "restriction now rejects the thread's resolved profileId outright",
+    ).toBe(`unknown profileId: ${profile.id}`);
   });
 });

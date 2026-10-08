@@ -348,21 +348,23 @@ export async function getServiceOperations(
 
 /**
  * When an operation was booked — a bare ISO string
- * (`"2026-08-19T10:02:26.5444310+01:00"`).
+ * (`"2026-08-19T10:02:26.5444310+01:00"`), confirmed live on 2026-10-06.
  *
- * Up to SDK 3.7.0 this was typed as an `ApiDateTime` wrapper the service never
- * actually sent, so reading `date.utcTime` always gave undefined — which quietly
- * dropped the timestamp out of `operationKey` and let two charges of the same
- * size collide. SDK 4.0.0 types it as the string it always was.
+ * The SDK has typed this as an `ApiDateTime` wrapper (`{ utcTime, ... }`) in
+ * 3.7.0 and again in the rebuilt 4.0.0, but the service never sends one.
+ * Reading `date.utcTime` always gave undefined — which quietly dropped the
+ * timestamp out of `operationKey` and let two charges of the same size
+ * collide — so the field is read as the string it really is.
  */
 export function operationDate(operation: OperationDto): string | undefined {
-  return operation.date ?? undefined;
+  return (operation.date as unknown as string | undefined) ?? undefined;
 }
 
 /**
  * What a billed operation is attributed to — the wallet report's Source
- * column. The SDK still types `OperationDto` with `agentId`/`agentTitle` (both
- * SDK 3.7.0 and 4.0.0), but the accounting service no longer sends those:
+ * column. SDK 4.0.0 (rebuilt 2026-10-06) types `OperationDto` with
+ * `sourceType`/`sourceId`/`sourceTitle`; before that it had `agentId`/`agentTitle`,
+ * but the accounting service no longer sends those:
  * measured 2026-09-17, a vectorization charge inside an agent comes back with
  * `sourceType: "Agent"`, `sourceId`, `sourceTitle` instead, and a charge with no
  * attribution (e.g. AI Chat opened from the portal header, no entityId) omits
@@ -404,7 +406,7 @@ export function operationKey(operation: OperationDto): string {
     operation.quantity,
     operation.debit,
     operation.credit,
-    operation.agentId,
+    operation.sourceId,
   ].join("|");
 }
 

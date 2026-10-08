@@ -14,10 +14,19 @@ import {
 } from "@/src/helpers/ai-agent-chat";
 import { AiTools, EMPTY_TOOL_CATALOGUE } from "@/src/helpers/ai-tools";
 import {
+  ASK_FOR_TOOL,
+  WEATHER_TOOL,
+  setupChat,
+} from "@/src/helpers/ai-host-tool";
+import {
   agentStorageFolderId,
   downloadFile,
 } from "@/src/helpers/device-upload";
-import { extractDocxText, listDocxEntries } from "@/src/helpers/docx";
+import {
+  extractDocxText,
+  extractPptxSlideTexts,
+  listDocxEntries,
+} from "@/src/helpers/docx";
 import {
   listFolderFiles,
   waitForExportToSettle,
@@ -381,14 +390,16 @@ test.describe("MCP - Disabling individual tools", () => {
     expect(cleared).toBe(false);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - the disabled list is scoped per agent", async ({
+  test("PUT /api/2.0/ai/tools/set-disabled - the disabled list is scoped per agent", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // `DISABLE_TARGET_SERVER` is an invented serverType, which set-disabled
-    // used to accept — see "the server type used to be an open vocabulary" in
-    // the block below. Now it answers 400 `unknown serverType`, so the write
-    // this test measures never lands at all, on either agent.
+    // `DISABLE_TARGET_SERVER` is a real custom MCP server, registered for the
+    // first agent only — so its name is a valid `serverType` there, and the
+    // second agent never even claims it exists. This is what makes it a valid
+    // `serverType` per "serverType must be a built-in or a registered custom
+    // server" below: an unregistered/invented name 400s instead of
+    // round-tripping.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -404,36 +415,48 @@ test.describe("MCP - Disabling individual tools", () => {
       profileId,
     });
 
+    await aiTools.addCustomServer("owner", {
+      name: DISABLE_TARGET_SERVER,
+      config: SERVER_CONFIG,
+      agentId: firstAgent,
+    });
+
+    const { data: before } = await aiTools.getDisabledTools(
+      "owner",
+      secondAgent,
+    );
+    expect(before, "second agent starts with nothing disabled").toEqual({});
+
     const written = await aiTools.setDisabledTools("owner", {
       serverType: DISABLE_TARGET_SERVER,
       toolNames: ["calculate"],
       agentId: firstAgent,
     });
+    expect(written.status).toBe(200);
+    expect(written.data?.success).toBe(true);
 
-    const { data: other } = await aiTools.isToolDisabled("owner", {
+    // The write is reflected for the agent it was made for...
+    const { data: ownDisabled } = await aiTools.isToolDisabled("owner", {
+      serverType: DISABLE_TARGET_SERVER,
+      toolName: "calculate",
+      agentId: firstAgent,
+    });
+    expect(ownDisabled, "the agent the write was made for").toBe(true);
+    expect((await aiTools.getDisabledTools("owner", firstAgent)).data).toEqual({
+      [DISABLE_TARGET_SERVER]: ["calculate"],
+    });
+
+    // ...and does not leak to the second agent, which never registered this
+    // server and never had anything disabled on it.
+    const { data: otherDisabled } = await aiTools.isToolDisabled("owner", {
       serverType: DISABLE_TARGET_SERVER,
       toolName: "calculate",
       agentId: secondAgent,
     });
-
-    test.fail();
-    expect(written.status, "an invented serverType is still accepted").toBe(
-      200,
+    expect(otherDisabled, "the other agent stays unaffected").toBe(false);
+    expect((await aiTools.getDisabledTools("owner", secondAgent)).data).toEqual(
+      {},
     );
-
-    // The write landed in the first agent's scope and nowhere else. Both halves
-    // are asserted: an unstored write would leave the second agent `false` too.
-    expect(
-      (
-        await aiTools.isToolDisabled("owner", {
-          serverType: DISABLE_TARGET_SERVER,
-          toolName: "calculate",
-          agentId: firstAgent,
-        })
-      ).data,
-      "the agent it was written for",
-    ).toBe(true);
-    expect(other).toBe(false);
   });
 });
 
@@ -1023,35 +1046,32 @@ test.describe("MCP - tool-call confirmation with AI Disabled", () => {
 // here asserts the pause arrived before it asserts anything about it — a missing
 // pause is a failed test, never a silently skipped one.
 
-const WEATHER_TOOL: HostTool = {
-  name: "get_weather",
-  description: "Get the current weather for a city.",
+/** A second tool whose input depends on the first's result — for forcing a
+ *  genuine two-hop call rather than two calls the model could batch at once. */
+const RECOMMENDATION_TOOL: HostTool = {
+  name: "get_recommendation",
+  description:
+    "Get a clothing recommendation for a given temperature in Celsius. Must be called AFTER get_weather, using the exact temperature it returned.",
   inputSchema: {
     type: "object",
-    properties: { city: { type: "string", description: "City name" } },
-    required: ["city"],
+    properties: {
+      temperatureCelsius: {
+        type: "number",
+        description: "The temperature returned by get_weather, in Celsius",
+      },
+    },
+    required: ["temperatureCelsius"],
     additionalProperties: false,
   },
   enabled: true,
   requireApproval: true,
 };
 
-const ASK_FOR_TOOL = "What is the weather in Paris? Call the get_weather tool.";
-
-/** Fresh agent + thread on a text profile, ready to be sent a message. */
-async function setupChat(
-  aiChat: AiAgentChat,
-  title = "Autotest Host Tools Agent",
-) {
-  const profileId = await aiChat.defaultProfileId("owner");
-  const agentId = await aiChat.createAgentId("owner", { title, profileId });
-  const threadId = await aiChat.createThreadId("owner", {
-    title: "Autotest host tool thread",
-    profileId,
-    agentId,
-  });
-  return { profileId, agentId, threadId };
-}
+const ASK_FOR_TWO_HOP_TOOLS =
+  "First call get_weather for Paris. Once you get the temperature, call " +
+  "get_recommendation with that exact temperature value. Do not skip either " +
+  "call, and do not call them at the same time — call get_weather first, wait " +
+  "for its result, then call get_recommendation.";
 
 test.describe("MCP - the tool-call pause", () => {
   test("POST /api/2.0/ai/ai/send-with-stream - a client-supplied tool pauses the stream at tool-call-pending", async ({
@@ -1254,6 +1274,838 @@ test.describe("MCP - the tool-call pause", () => {
       "User deny tool call",
     );
     expect(AiAgentChat.messageText(replies[0]).length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Multi-hop: a second tool call that only makes sense once the first one's
+// result is known, forcing genuinely sequential pending -> approve -> pending
+// -> approve rather than two calls the model could have batched into one turn.
+//
+// There is no formal schema for what a tool-call content part contains
+// (`AiThreadMessageLikeContent` is `{}`, deliberately "open-ended by content
+// type" per its own doc comment) — what is asserted below about `toolName`,
+// `args`, `result` and array position is the same shape the tests above
+// already rely on, cross-checked live rather than against a spec that does not
+// exist. The one part of this that IS formally documented is the addressing
+// scheme: `AiAiToolCallData.idx` is described as "Index of the tool-call
+// content part inside `message.content`" — which is exactly what the second
+// half of the test below pins.
+test.describe("MCP - a genuine two-hop tool call", () => {
+  test("POST /api/2.0/ai/ai/send-with-stream, approve-tool-call - pending A -> approve A -> pending B -> approve B -> final, with both calls, results and the final answer in order", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Two-Hop Agent",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TWO_HOP_TOOLS,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+    });
+    expect(sent.status).toBe(200);
+
+    const pendingA = AiAgentChat.pendingToolCall(sent.text);
+    expect(
+      pendingA,
+      `no first pause; frames were ${AiAgentChat.frameTypes(sent.text).join(", ")}`,
+    ).toBeDefined();
+    const contentA = pendingA!.message!.content as AiMessageContentPart[];
+    expect(contentA[pendingA!.idx!]?.toolName).toBe("get_weather");
+
+    const approveA = await aiChat.approvePendingToolCall("owner", pendingA!, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+      result: "14",
+    });
+    expect(approveA.status).toBe(200);
+
+    // The resume paused again rather than finishing — the second tool is
+    // genuinely a second hop, not folded into the first response.
+    const pendingB = AiAgentChat.pendingToolCall(approveA.text);
+    expect(
+      pendingB,
+      `no second pause; frames were ${AiAgentChat.frameTypes(approveA.text).join(", ")}`,
+    ).toBeDefined();
+    expect(pendingB!.messageId).toBe(pendingA!.messageId);
+    expect(pendingB!.idx).not.toBe(pendingA!.idx);
+
+    // Both calls now live in ONE message's content array, at their own
+    // indices. A's result is filled in; B is present but still unresolved —
+    // approving A must not have reached into B at all.
+    const midway = pendingB!.message!.content as AiMessageContentPart[];
+    const partA = midway[pendingA!.idx!];
+    const partB = midway[pendingB!.idx!];
+    expect(partA.toolName).toBe("get_weather");
+    expect(partA.result).toBe("14");
+    expect(partB.toolName).toBe("get_recommendation");
+    expect(
+      partB.result,
+      "B is untouched until it is approved itself",
+    ).toBeUndefined();
+    // The temperature A resolved to is what the model fed into B's arguments.
+    expect(partB.args).toMatchObject({ temperatureCelsius: 14 });
+
+    const approveB = await aiChat.approvePendingToolCall("owner", pendingB!, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+      result: "wear a light jacket",
+    });
+    expect(approveB.status).toBe(200);
+    expect(AiAgentChat.frameTypes(approveB.text)).toContain("message-end");
+    expect(AiAgentChat.frameTypes(approveB.text)).not.toContain(
+      "tool-call-pending",
+    );
+
+    // One thread, one assistant message, everything folded into it: both tool
+    // calls, both results, and the final prose — in that order, nothing lost
+    // or duplicated.
+    const final = await aiChat.readMessages("owner", threadId);
+    expect(AiAgentChat.userMessages(final.data)).toHaveLength(1);
+    const replies = AiAgentChat.assistantMessages(final.data);
+    expect(replies, "still one assistant message, not two").toHaveLength(1);
+    expect(replies[0].id).toBe(pendingA!.messageId);
+    expect(replies[0].status?.error).toBeUndefined();
+
+    const content = replies[0].content as AiMessageContentPart[];
+    // At least the text/toolA/text/toolB skeleton; a trailing wrap-up after B
+    // is common but not guaranteed by anything asserted above, so it is not
+    // required here — `messageText` below covers "there is real prose".
+    expect(content.length).toBeGreaterThanOrEqual(4);
+    const finalA = content[pendingA!.idx!];
+    const finalB = content[pendingB!.idx!];
+    expect(finalA.toolName).toBe("get_weather");
+    expect(finalA.result, "A's result from the first approve survived").toBe(
+      "14",
+    );
+    expect(finalB.toolName).toBe("get_recommendation");
+    expect(finalB.result).toBe("wear a light jacket");
+
+    // Something was written after B — the wrap-up the model gives once both
+    // calls are resolved.
+    const toolCalls = AiAgentChat.toolCalls(replies[0]);
+    expect(toolCalls).toHaveLength(2);
+    expect(AiAgentChat.messageText(replies[0]).length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The lifecycle of one pending call once it has already been resolved.
+//
+// Section 3/4's "странные 200" precedent (an unknown messageId/idx being
+// accepted with a no-op 200) does not carry over here. That case mutates
+// nothing — there is no pending call at that address, so nothing to write.
+// This one is different and worse: (threadId, messageId, idx) still points at
+// a REAL, already-resolved tool call, and a second decision on it is not
+// refused and not a no-op — it is measured live to silently REPLAY: the
+// stored `result` is overwritten with whatever the new call carries, and the
+// content that followed it is thrown away and regenerated from that point.
+// Filed as a bug rather than folded into the documented "no validation"
+// contract, because unlike the earlier case this one destroys already-settled
+// history rather than merely ignoring a bad address.
+//
+// The expected contract asserted below is deliberately about absence of
+// mutation, not a specific status code: nothing here documents what the
+// correct HTTP response should be (400? 409? a no-op 200?), only that a
+// second decision on an already-resolved call must not rewrite its stored
+// result or erase/regenerate what already followed it.
+//
+// `createdAt` looked like the obvious "was this rewritten" signal and turned
+// out not to be one: measured live across 6 runs (3 repeat-denies, 3 stale
+// approves), it never moves even though the stored `result` and/or the
+// generated text demonstrably do, every single time. So the assertions below
+// read the field that actually changes instead — the tool call's `result`
+// where a fresh one is supplied, the message's rendered text where it is not
+// (a repeat deny always answers with the same canned "User deny tool call"
+// result, so only the regenerated prose around it shows the replay).
+test.describe("MCP - a decision replayed on an already-resolved tool call", () => {
+  test("BUG 84283: POST /api/2.0/ai/ai/approve-tool-call - a second approve with a different result overwrites the first", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Approve-Approve Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    const firstApprove = await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+    expect(firstApprove.status).toBe(200);
+    const settled = await aiChat.readMessages("owner", threadId);
+    const settledReply = AiAgentChat.assistantMessages(settled.data)[0];
+    const settledResult = AiAgentChat.toolCalls(settledReply)[0].result;
+    expect(settledResult).toBe("14C and sunny");
+
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "DIFFERENT RESULT SECOND CALL",
+    });
+
+    const after = await aiChat.readMessages("owner", threadId);
+    const afterReply = AiAgentChat.assistantMessages(after.data)[0];
+
+    test.fail();
+    expect(
+      AiAgentChat.toolCalls(afterReply)[0].result,
+      "the first decision's result must survive a stale second approve",
+    ).toBe("14C and sunny");
+  });
+
+  test("BUG 84285: POST /api/2.0/ai/ai/deny-tool-call - denying an already-approved call overwrites its result", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Approve-Deny Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+    const settled = await aiChat.readMessages("owner", threadId);
+    const settledReply = AiAgentChat.assistantMessages(settled.data)[0];
+    expect(AiAgentChat.toolCalls(settledReply)[0].result).toBe("14C and sunny");
+
+    await aiChat.denyPendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+    });
+
+    const after = await aiChat.readMessages("owner", threadId);
+    const afterReply = AiAgentChat.assistantMessages(after.data)[0];
+
+    test.fail();
+    expect(
+      AiAgentChat.toolCalls(afterReply)[0].result,
+      "an approved result must survive a stale deny",
+    ).toBe("14C and sunny");
+  });
+
+  test("BUG 84287: POST /api/2.0/ai/ai/approve-tool-call - approving an already-denied call overwrites its result", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Deny-Approve Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    await aiChat.denyPendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+    });
+    const settled = await aiChat.readMessages("owner", threadId);
+    const settledReply = AiAgentChat.assistantMessages(settled.data)[0];
+    expect(AiAgentChat.toolCalls(settledReply)[0].result).toBe(
+      "User deny tool call",
+    );
+
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+
+    const after = await aiChat.readMessages("owner", threadId);
+    const afterReply = AiAgentChat.assistantMessages(after.data)[0];
+
+    test.fail();
+    expect(
+      AiAgentChat.toolCalls(afterReply)[0].result,
+      "a denial must survive a stale approve",
+    ).toBe("User deny tool call");
+  });
+
+  test("BUG 84288: POST /api/2.0/ai/ai/deny-tool-call - a second deny regenerates the follow-up text even though the result is unchanged", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Deny-Deny Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    await aiChat.denyPendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+    });
+    const settled = await aiChat.readMessages("owner", threadId);
+    const settledReply = AiAgentChat.assistantMessages(settled.data)[0];
+
+    await aiChat.denyPendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+    });
+
+    const after = await aiChat.readMessages("owner", threadId);
+    const afterReply = AiAgentChat.assistantMessages(after.data)[0];
+
+    // The canned deny result reads the same both times, so it cannot tell a
+    // replay apart from a true no-op here — the generated prose around it can:
+    // measured live across 3 runs, a repeat deny always re-answers with
+    // differently-worded text even though nothing about the situation changed.
+    test.fail();
+    expect(
+      AiAgentChat.messageText(afterReply),
+      "an already-denied call must not trigger a fresh generation on a repeat deny",
+    ).toBe(AiAgentChat.messageText(settledReply));
+  });
+
+  // The escalated version of the same bug: the stale call is no longer even
+  // the thread's last message — a real later turn already exists. Measured
+  // live: the mutation stayed CONTAINED to the stale message itself (its
+  // result and trailing text were overwritten with garbled output) and did
+  // NOT cascade into deleting or altering the later turn. That containment is
+  // asserted as a real, reassuring fact before `test.fail()` — it is what
+  // keeps this a "wrong message got rewritten" bug rather than a "the whole
+  // thread can be rolled back" one.
+  test("BUG 84291: POST /api/2.0/ai/ai/approve-tool-call - a stale approve reaches back into an earlier, already-superseded message", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Replay Stale Escalated Agent",
+    );
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+    const afterApprove = await aiChat.readMessages("owner", threadId);
+    const firstReply = AiAgentChat.assistantMessages(afterApprove.data)[0];
+
+    // A whole new, unrelated turn on top of it.
+    const second = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: "Now tell me a fun fact about giraffes, in one sentence.",
+    });
+    expect(second.status).toBe(200);
+    const afterSecondTurn = await aiChat.readMessages("owner", threadId);
+    expect(
+      afterSecondTurn.data,
+      "user1, assistant1(tool), user2, assistant2",
+    ).toHaveLength(4);
+    const secondReply = AiAgentChat.assistantMessages(afterSecondTurn.data)[1];
+    expect(secondReply.status?.error).toBeUndefined();
+    expect(AiAgentChat.messageText(secondReply).length).toBeGreaterThan(0);
+
+    // The stale decision, made against a message that is no longer the
+    // thread's last one at all.
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "STALE REPLAY RESULT",
+    });
+
+    const final = await aiChat.readMessages("owner", threadId);
+
+    // The later turn survives untouched regardless of how the bug above is
+    // fixed — this is not itself in question here.
+    expect(
+      final.data.length,
+      "the later turn was not deleted by the stale decision",
+    ).toBe(4);
+    const finalSecondReply = AiAgentChat.assistantMessages(final.data)[1];
+    expect(finalSecondReply.id).toBe(secondReply.id);
+    expect(AiAgentChat.messageText(finalSecondReply)).toBe(
+      AiAgentChat.messageText(secondReply),
+    );
+
+    const finalFirstReply = AiAgentChat.assistantMessages(final.data)[0];
+    test.fail();
+    expect(
+      AiAgentChat.toolCalls(finalFirstReply)[0]?.result,
+      "a message that is no longer the thread's last turn must not be reopened by a stale decision on it",
+    ).toBe(AiAgentChat.toolCalls(firstReply)[0]?.result);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regenerate over a resolved tool-call history.
+//
+// The operation's own doc comment (aiapi.d.ts, aiAiRegenerateStream) already
+// specifies the contract this section pins: "every message after the last
+// user message (the previous reply plus any tool-call hops) is dropped and a
+// fresh reply is streamed against the unchanged prompt [...] no title is
+// generated." That is a documented guarantee, not just what the live portal
+// happened to do — measured live below to confirm the implementation matches
+// it rather than assuming it does.
+//
+// One live mechanic worth spelling out because it is not obvious from the
+// route's own body shape: `AiAiRegenerateStreamRequest` carries no
+// `userMessage`, but it does carry `actionArgs`, so a caller controls whether
+// the model has any TOOL to call again by whether it re-sends `tools` on the
+// regenerate call itself — exactly as it would on send-with-stream. Without
+// `tools`, the model has no way to redo the call at all and answers in plain
+// text instead ("I don't have a get_weather tool available"); the "no
+// mutation, per-request-only" contract still holds regardless of which one a
+// caller does.
+//
+// Per lifecycle-bug lesson above: `createdAt` does not reliably show a
+// rewrite happened on these routes, so it is not used as a signal here either
+// — the assertions read message ids, tool-call ids/results and content shape
+// directly.
+
+/** No `date.now()`-style timestamp check — waits for the specific old id to
+ *  disappear and a replacement assistant message to exist, per the same
+ *  polling shape "AI Messages - regenerate" in messages.spec.ts uses. */
+async function waitForRegenerateReplacement(
+  aiChat: AiAgentChat,
+  threadId: string,
+  oldReplyId: string,
+  timeoutMs = 90000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const messages = await aiChat.readMessages("owner", threadId);
+    const replies = AiAgentChat.assistantMessages(messages.data);
+    if (replies.length >= 1 && !replies.some((r) => r.id === oldReplyId)) {
+      return messages.data;
+    }
+    if (Date.now() >= deadline) {
+      return messages.data;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+}
+
+test.describe("MCP - regenerate over a resolved tool call", () => {
+  test("POST /api/2.0/ai/ai/regenerate-stream - the old tool call and its result are replaced whole, not orphaned or duplicated", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Regen Basic Agent",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "14C and sunny",
+    });
+
+    const before = await aiChat.readMessages("owner", threadId);
+    const question = AiAgentChat.userMessages(before.data)[0];
+    const oldReply = AiAgentChat.assistantMessages(before.data)[0];
+    const oldToolCallId = AiAgentChat.toolCalls(oldReply)[0].toolCallId;
+    expect(oldToolCallId).toBeTruthy();
+
+    // No `tools` re-offered: the model cannot redo the call at all, which is
+    // the cleanest way to see whether the OLD call and result survive
+    // anywhere they should not — there is no legitimate new tool-call for
+    // them to be confused with.
+    const regen = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+    });
+    expect(regen.status).toBe(200);
+    expect(regen.streamError).toBeUndefined();
+    expect(
+      AiAgentChat.frameTypes(regen.text),
+      "regenerate never generates a title",
+    ).not.toContain("thread-title");
+
+    const after = await waitForRegenerateReplacement(
+      aiChat,
+      threadId,
+      oldReply.id,
+    );
+
+    // The question survives untouched.
+    const questions = AiAgentChat.userMessages(after);
+    expect(questions).toHaveLength(1);
+    expect(questions[0].id).toBe(question.id);
+
+    // Exactly one assistant message, replaced rather than appended to.
+    const replies = AiAgentChat.assistantMessages(after);
+    expect(replies).toHaveLength(1);
+    expect(replies[0].id).not.toBe(oldReply.id);
+    expect(replies[0].status?.error).toBeUndefined();
+
+    // No tool call at all this time — nothing to confuse the old one with —
+    // and specifically the old call's own id/result do not resurface.
+    expect(AiAgentChat.toolCalls(replies[0])).toHaveLength(0);
+    const serialized = JSON.stringify(after);
+    expect(
+      serialized.includes(oldToolCallId as string),
+      "the old tool call's id does not survive the regenerate",
+    ).toBe(false);
+    expect(
+      serialized.includes("14C and sunny"),
+      "the old tool call's result does not survive the regenerate",
+    ).toBe(false);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream - a two-hop tool chain is replaced whole, not just its last call", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Regen Multihop Agent",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TWO_HOP_TOOLS,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+    });
+    const pendingA = AiAgentChat.pendingToolCall(sent.text)!;
+    const approveA = await aiChat.approvePendingToolCall("owner", pendingA, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+      result: "14",
+    });
+    const pendingB = AiAgentChat.pendingToolCall(approveA.text)!;
+    await aiChat.approvePendingToolCall("owner", pendingB, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL, RECOMMENDATION_TOOL],
+      result: "wear a light jacket",
+    });
+
+    const before = await aiChat.readMessages("owner", threadId);
+    const oldReply = AiAgentChat.assistantMessages(before.data)[0];
+    const oldToolCalls = AiAgentChat.toolCalls(oldReply);
+    expect(
+      oldToolCalls,
+      "both hops resolved before the regenerate",
+    ).toHaveLength(2);
+    const [oldIdA, oldIdB] = oldToolCalls.map((call) => call.toolCallId);
+
+    const regen = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+    });
+    expect(regen.status).toBe(200);
+    expect(regen.streamError).toBeUndefined();
+
+    const after = await waitForRegenerateReplacement(
+      aiChat,
+      threadId,
+      oldReply.id,
+    );
+    const replies = AiAgentChat.assistantMessages(after);
+    expect(replies).toHaveLength(1);
+    expect(replies[0].id).not.toBe(oldReply.id);
+
+    // Neither hop survives — this is the case that would catch a regenerate
+    // that only rewinds as far as the LAST tool call and leaves the first one
+    // (and its result) sitting orphaned ahead of the new content.
+    expect(AiAgentChat.toolCalls(replies[0])).toHaveLength(0);
+    const serialized = JSON.stringify(after);
+    expect(serialized.includes(oldIdA as string)).toBe(false);
+    expect(serialized.includes(oldIdB as string)).toBe(false);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream, approve-tool-call - a regenerated reply that itself calls a tool starts a clean new chain", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(
+      aiChat,
+      "Autotest Regen New Chain Agent",
+    );
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text)!;
+    await aiChat.approvePendingToolCall("owner", pending, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "OLD RESULT 14C and sunny",
+    });
+
+    const before = await aiChat.readMessages("owner", threadId);
+    const oldReply = AiAgentChat.assistantMessages(before.data)[0];
+    const oldToolCallId = AiAgentChat.toolCalls(oldReply)[0].toolCallId;
+
+    // `tools` IS re-offered this time, so the model can redo the call — and,
+    // measured live, reliably does: the original question still asks for it.
+    const regen = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(agentId),
+      profileId,
+      actionArgs: { tools: [WEATHER_TOOL] },
+    });
+    expect(regen.status).toBe(200);
+
+    const newPending = AiAgentChat.pendingToolCall(regen.text);
+    expect(
+      newPending,
+      `regenerate did not re-trigger the tool; frames were ${AiAgentChat.frameTypes(regen.text).join(", ")}`,
+    ).toBeDefined();
+    expect(newPending!.messageId).not.toBe(oldReply.id);
+
+    const newToolCallId = (
+      newPending!.message!.content as AiMessageContentPart[]
+    )[newPending!.idx!].toolCallId;
+    expect(
+      newToolCallId,
+      "the regenerated chain gets its own, different tool-call id",
+    ).not.toBe(oldToolCallId);
+
+    const approveNew = await aiChat.approvePendingToolCall(
+      "owner",
+      newPending!,
+      {
+        threadId,
+        profileId,
+        agentId,
+        tools: [WEATHER_TOOL],
+        result: "NEW RESULT 20C and windy",
+      },
+    );
+    expect(approveNew.status).toBe(200);
+    expect(AiAgentChat.frameTypes(approveNew.text)).toContain("message-end");
+
+    const final = await aiChat.readMessages("owner", threadId);
+    const replies = AiAgentChat.assistantMessages(final.data);
+    expect(replies, "one message, the regenerated one").toHaveLength(1);
+    expect(replies[0].id).toBe(newPending!.messageId);
+
+    const finalToolCalls = AiAgentChat.toolCalls(replies[0]);
+    expect(finalToolCalls, "only the new chain's call, not both").toHaveLength(
+      1,
+    );
+    expect(finalToolCalls[0].toolCallId).toBe(newToolCallId);
+    expect(finalToolCalls[0].result).toBe("NEW RESULT 20C and windy");
+
+    const serialized = JSON.stringify(final.data);
+    expect(
+      serialized.includes(oldToolCallId as string),
+      "the old chain's call id does not leak into the new one",
+    ).toBe(false);
+    expect(
+      serialized.includes("OLD RESULT 14C and sunny"),
+      "the old chain's result does not leak into the new one",
+    ).toBe(false);
+  });
+
+  test("POST /api/2.0/ai/ai/regenerate-stream - actionArgs.prompt.replace applies to the regenerate and does not stick to the next ordinary turn", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.setTimeout(180000);
+    // A room, not an agent — same reason as the OpenAI-stream parity test in
+    // messages.spec.ts: an agent's own stored instructions currently beat a
+    // per-request replace (BUG 83236), so an agent entity would be testing
+    // that open bug instead of this route's own prompt-override contract.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Regen Prompt Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
+    const threadId = await aiChat.createThreadId("owner", {
+      title: "Autotest regen prompt thread",
+      profileId,
+      agentId: roomId,
+    });
+
+    await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Hi there!",
+    });
+    const before = await aiChat.waitForAssistantReply("owner", threadId);
+    const firstReply = AiAgentChat.assistantMessages(before)[0];
+
+    const marker = "ZZREGENPROMPTZZ";
+    const regen = await aiChat.regenerateStream("owner", {
+      threadId,
+      entityId: String(roomId),
+      profileId,
+      actionArgs: {
+        prompt: {
+          mode: "replace",
+          text: `You are a helpful test assistant. Keep answers very short. Formatting rule: finish every reply with the exact token ${marker}.`,
+        },
+      },
+    });
+    expect(regen.status).toBe(200);
+    expect(regen.streamError).toBeUndefined();
+
+    const afterRegen = await waitForRegenerateReplacement(
+      aiChat,
+      threadId,
+      firstReply.id,
+    );
+    const regenReply = AiAgentChat.assistantMessages(afterRegen)[0];
+    expect(
+      AiAgentChat.messageText(regenReply),
+      "the per-request prompt reached the regenerate",
+    ).toMatch(new RegExp(`\\b${marker}\\b`));
+
+    const second = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId: roomId,
+      message: "Say hi again.",
+    });
+    expect(second.status).toBe(200);
+    const afterSecond = await aiChat.waitForAssistantReplies(
+      "owner",
+      threadId,
+      2,
+    );
+    const secondReply = AiAgentChat.assistantMessages(afterSecond)[1];
+    expect(
+      AiAgentChat.messageText(secondReply),
+      "the override does not persist into the next ordinary turn",
+    ).not.toMatch(new RegExp(`\\b${marker}\\b`));
   });
 });
 
@@ -1513,7 +2365,7 @@ test.describe("MCP - the tool call announces itself", () => {
 });
 
 test.describe("MCP - always-allow drives the pause", () => {
-  test("PUT /api/2.0/ai/tools/set-allow-always - a listed tool comes back autoAllow and delisting it prompts again", async ({
+  test("BUG 84292: PUT /api/2.0/ai/tools/set-allow-always - a listed tool comes back autoAllow and delisting it prompts again", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1568,6 +2420,11 @@ test.describe("MCP - always-allow drives the pause", () => {
     expect(isSet.status).toBe(200);
     expect(isSet.data).toBe(true);
 
+    // The settings route files the grant as "host_get_weather" (the read agrees),
+    // but the engine looks a client tool up under the bare name the model called
+    // it by, so the dialog still comes up. The dialog's own checkbox writes the
+    // bare name and does work — see the next test.
+    test.fail();
     expect(await askAndGetAutoAllow("after"), "after allow-always").toBe(true);
 
     const unset = await aiTools.setAllowAlways("owner", {
@@ -1664,12 +2521,6 @@ test.describe("MCP - always-allow drives the pause", () => {
     const stored = await aiTools.getAllowAlways("owner", agentId);
     expect(stored.status).toBe(200);
     expect(stored.data ?? []).toContain(WEATHER_TOOL.name);
-    const isSet = await aiTools.isAllowAlways("owner", {
-      serverType: "host",
-      toolName: WEATHER_TOOL.name,
-      agentId,
-    });
-    expect(isSet.data).toBe(true);
 
     // The requirement itself: next time the model reaches for the tool there is
     // no dialog left to show. A fresh thread, so nothing but the stored decision
@@ -1694,6 +2545,59 @@ test.describe("MCP - always-allow drives the pause", () => {
     expect(
       nextPending!.autoAllow,
       "the tool was pre-approved from the dialog",
+    ).toBe(true);
+  });
+
+  test("BUG 84293: GET /api/2.0/ai/tools/is-allow-always - a client tool pre-approved through the dialog is not found under its own key", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // The mirror of the settings-route test above: the dialog files the bare
+    // call name and the engine honours it (previous test), but the read is keyed
+    // on "host_get_weather", so the settings screen would show the tool as not
+    // pre-approved while it demonstrably is.
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const aiTools = new AiTools(apiSdk.request, apiSdk.tokenStore);
+    const { profileId, agentId, threadId } = await setupChat(aiChat);
+
+    const sent = await aiChat.sendMessage("owner", {
+      threadId,
+      profileId,
+      agentId,
+      message: ASK_FOR_TOOL,
+      tools: [WEATHER_TOOL],
+    });
+    const pending = AiAgentChat.pendingToolCall(sent.text);
+    expect(
+      pending,
+      `the model did not ask for the tool; frames were ${AiAgentChat.frameTypes(sent.text).join(", ")}`,
+    ).toBeDefined();
+    const approve = await aiChat.approvePendingToolCall("owner", pending!, {
+      threadId,
+      profileId,
+      agentId,
+      tools: [WEATHER_TOOL],
+      result: "21C and sunny",
+      allowAlways: true,
+    });
+    expect(approve.status).toBe(200);
+
+    const stored = await aiTools.getAllowAlways("owner", agentId);
+    expect(stored.status).toBe(200);
+    expect(stored.data ?? []).toContain(WEATHER_TOOL.name);
+
+    test.fail();
+    const isSet = await aiTools.isAllowAlways("owner", {
+      serverType: "host",
+      toolName: WEATHER_TOOL.name,
+      agentId,
+    });
+    expect(
+      isSet.data,
+      `is-allow-always(host, ${WEATHER_TOOL.name}) — the list holds ${JSON.stringify(stored.data)}`,
     ).toBe(true);
   });
 
@@ -2084,7 +2988,7 @@ test.describe("MCP - custom servers scoped to a room", () => {
     );
   });
 
-  test("BUG XXXXX: POST|GET /api/2.0/ai/tools/*-custom-server - a room member reads the room's tools but cannot register any", async ({
+  test("BUG 83998: POST|GET /api/2.0/ai/tools/*-custom-server - a room member reads the room's tools but cannot register any", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2179,7 +3083,6 @@ test.describe("MCP - custom servers scoped to a room", () => {
     expect(survivor.status).toBe(200);
     expect(survivor.data).toEqual(SERVER_CONFIG);
 
-    test.fail();
     expect(outsiderAdd.status).toBe(403);
   });
 });
@@ -2742,22 +3645,30 @@ test.describe("MCP - concurrent writes to one scope", () => {
 });
 
 test.describe("MCP - server types", () => {
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - the server type used to be an open vocabulary, now a fixed list", async ({
+  test("PUT /api/2.0/ai/tools/set-disabled - serverType must be a built-in or a registered custom server", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // Was: no enum behind `serverType` — the store took any string and reported
-    // it back. `editor`/`document`/`form`/`presentation` (the editor's tool
-    // groups) and an invented name all stored the same way.
+    // `serverType` used to accept any string and simply echo it back — but
+    // `editor`/`document`/`form`/`presentation` were never real DocSpace editor
+    // tool groups; they were arbitrary probe strings picked specifically to
+    // show the vocabulary was unvalidated (this file used to say so directly: a
+    // test that read them as validated names "would pass for the wrong
+    // reason"). The SDK's own doc for `serverType` backs that up — it is "MCP
+    // server name / host tool group id", nothing about editor/document/form/
+    // presentation groups.
     //
-    // Now: `set-disabled` answers 400 `{"error":"unknown serverType \"<name>\";
-    // valid values: docspace, docspace-integration,
-    // docspace-integration-approval, image-generation, web-search"}` for every
-    // one of them — none of the five are on that list either. This is not just
-    // a stricter test-data problem: a *custom* MCP server's own name is its
-    // `serverType` for this route (see the "server names as map keys" block
-    // above), so the practical loss is that a custom server's individual tools
-    // can no longer be disabled at all, only the five built-ins.
+    // Now `set-disabled` validates the value: a request names either one of the
+    // five built-ins (`docspace`, `docspace-integration`,
+    // `docspace-integration-approval`, `image-generation`, `web-search`) or a
+    // custom server actually registered for that scope (see "Owner disables and
+    // re-enables a tool of a registered server" above — that still works fine),
+    // and 400s `unknown serverType "<name>"` otherwise. That is the correct,
+    // current contract, not a lost feature — `set-allow-always`/`is-allow-always`
+    // were deliberately left open (see "a pre-approval granted for one server
+    // type answers for every other type" above, still accepts any string), so
+    // the validation added here is a deliberate, scoped tightening of this one
+    // route rather than accidental breakage.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2769,7 +3680,7 @@ test.describe("MCP - server types", () => {
       profileId,
     });
 
-    const serverTypes = [
+    const unknownServerTypes = [
       "editor",
       "document",
       "form",
@@ -2777,43 +3688,38 @@ test.describe("MCP - server types", () => {
       "autotest-not-a-server-type",
     ];
 
-    const results: Array<[string, number]> = [];
-    for (const serverType of serverTypes) {
+    for (const serverType of unknownServerTypes) {
       const set = await aiTools.setDisabledTools("owner", {
         serverType,
         toolNames: ["autotest_tool"],
         agentId,
       });
-      results.push([serverType, set.status]);
+      expect(set.status, `set-disabled for ${serverType}`).toBe(400);
     }
 
-    test.fail();
-    for (const [serverType, status] of results) {
-      expect(status, `set-disabled for ${serverType}`).toBe(200);
-    }
-
+    // None of the rejected writes landed.
     const disabled = await aiTools.getDisabledTools("owner", agentId);
     expect(disabled.status).toBe(200);
-    expect(Object.keys(disabled.data ?? {}).sort()).toEqual(
-      [...serverTypes].sort(),
-    );
+    expect(disabled.data).toEqual({});
 
-    for (const serverType of serverTypes) {
-      const isDisabled = await aiTools.isToolDisabled("owner", {
-        serverType,
-        toolName: "autotest_tool",
-        agentId,
-      });
-      expect(isDisabled.status, serverType).toBe(200);
-      expect(isDisabled.data, serverType).toBe(true);
-    }
-
-    // Invented server types are stored as disabled-tool keys and nothing more:
-    // the catalogue is unaffected by any of it (it publishes nothing at all —
-    // see the system tools block at the top of this file).
-    const system = await aiTools.listSystemTools("owner");
-    expect(system.status).toBe(200);
-    expect(system.data).toEqual(EMPTY_TOOL_CATALOGUE);
+    // Positive control: a real, registered custom server's own name is not
+    // "unknown" and still round-trips — so the 400s above are the validation
+    // rule at work, not a write path that is broken outright.
+    await aiTools.addCustomServer("owner", {
+      name: "autotest-valid-server-type",
+      config: SERVER_CONFIG,
+      agentId,
+    });
+    const validSet = await aiTools.setDisabledTools("owner", {
+      serverType: "autotest-valid-server-type",
+      toolNames: ["autotest_tool"],
+      agentId,
+    });
+    expect(validSet.status).toBe(200);
+    expect(validSet.data?.success).toBe(true);
+    expect((await aiTools.getDisabledTools("owner", agentId)).data).toEqual({
+      "autotest-valid-server-type": ["autotest_tool"],
+    });
   });
 });
 
@@ -3881,7 +4787,10 @@ test.describe("MCP - server names as map keys", () => {
  */
 const NO_TOOL_SENTINEL = "NO SUCH TOOL";
 
-const ASK_CALCULATOR = `Call the tool named calculator_calculate (or any tool whose name starts with 'calculator') with the operation multiply, a=8231 and b=7, then report the result. If you truly have no such tool, reply exactly: ${NO_TOOL_SENTINEL}`;
+// The model sees a registered server's tool under the bare name the server
+// advertises ("calculate"), not a "calculator_"-prefixed one — a prompt that
+// insisted on the prefix made it answer the sentinel even with the tool in hand.
+const ASK_CALCULATOR = `Call the tool named calculate (it belongs to the "calculator" MCP server) with the operation multiply, a=8231 and b=7, then report the result. If you truly have no such tool, reply exactly: ${NO_TOOL_SENTINEL}`;
 
 /** A tool the calculator server itself advertises, cross-checked against its own tools/list. */
 const CALCULATOR_TOOL = "calculate";
@@ -4068,7 +4977,9 @@ test.describe("MCP - a registered server and the conversation", () => {
       .map((call) => call.toolName ?? "");
     const reply = AiAgentChat.assistantText(messages);
 
-    test.fail();
+    // BUG 82990 is closed in the tracker: the product side works in the UI.
+    // The tool still doesn't reach the model on every turn here, so this stays
+    // a plain (flaky) assertion rather than test.fail().
     expect(
       calledTools.length > 0 || !reply.includes(NO_TOOL_SENTINEL),
       `portal-wide registration offered no tool either; called [${calledTools.join(", ") || "nothing"}]`,
@@ -4106,7 +5017,7 @@ test.describe("MCP - a registered server and the conversation", () => {
 const ASK_CALCULATOR_TIME = `Call the tool named get_time (it belongs to the "calculator" MCP server) to get the current time, then report it. If you truly have no such tool, reply exactly: ${NO_TOOL_SENTINEL}`;
 
 test.describe("MCP - allow-always for a custom server's own tool", () => {
-  test(`BUG XXXXX: GET /api/2.0/ai/tools/is-allow-always - a custom MCP server's tool pre-approved through the dialog is not found under its own key`, async ({
+  test(`BUG 84009: GET /api/2.0/ai/tools/is-allow-always - a custom MCP server's tool pre-approved through the dialog is not found under its own key`, async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -4199,12 +5110,17 @@ test.describe("MCP - allow-always for a custom server's own tool", () => {
     // look up at all.
     const stored = await aiTools.getAllowAlways("owner", agentId);
     expect(stored.status).toBe(200);
+    // The checkbox now files the grant under the server-qualified key
+    // ("calculator_get_time") rather than the bare call name it used to store.
+    // Either spelling is a write that landed; the question below is whether the
+    // read finds it.
     expect(
-      stored.data ?? [],
+      (stored.data ?? []).filter(
+        (name) => name === toolName || name.endsWith(`_${toolName}`),
+      ),
       `the pre-approval list holds ${JSON.stringify(stored.data)}`,
-    ).toContain(toolName);
+    ).not.toEqual([]);
 
-    test.fail();
     const isSet = await aiTools.isAllowAlways("owner", {
       serverType: serverName,
       toolName: toolName!,
@@ -4212,7 +5128,7 @@ test.describe("MCP - allow-always for a custom server's own tool", () => {
     });
     expect(
       isSet.data,
-      `is-allow-always(serverType=${serverName}, toolName=${toolName}) — the checkbox saved "${toolName}" but the read is keyed on "${serverName}_${toolName}"`,
+      `is-allow-always(serverType=${serverName}, toolName=${toolName}) — the pre-approval list holds ${JSON.stringify(stored.data)}`,
     ).toBe(true);
   });
 });
@@ -5048,10 +5964,10 @@ test.describe("MCP - a registered server in the tool list", () => {
 //   entityId = the agent room id      -> generators only; the model states it
 //                                        has no folder tools, and "create a file
 //                                        in Files" is served by generate_docx
-//                                        into Result Storage
+//                                        into Chat outputs
 //   entityId = any folder or room id  -> the REST family is offered as well, and
 //                                        that includes the agent's OWN Knowledge
-//                                        and Result Storage folders
+//                                        and Chat outputs folders
 //
 // So a chat that looks like it is "inside the agent room" reaches the 401 as
 // soon as the client scopes it to a folder of that room instead of to the room.
@@ -5380,10 +6296,10 @@ async function generateFile(
     title: agentTitle,
     profileId,
   });
-  const resultStorageId = await agentStorageFolderId(
+  const chatOutputsId = await agentStorageFolderId(
     ownerApi,
     agentId,
-    FolderType.ResultStorage,
+    FolderType.ChatOutputs,
   );
   const threadId = await aiChat.createThreadId("owner", {
     title: `Autotest ${generator.toolName} thread`,
@@ -5410,12 +6326,12 @@ async function generateFile(
     expect.any(Number),
   );
 
-  return { agentId, profileId, threadId, resultStorageId, driven, created };
+  return { agentId, profileId, threadId, chatOutputsId, driven, created };
 }
 
 test.describe("MCP - the server-executed DocSpace tools", () => {
   for (const generator of GENERATORS) {
-    test(`POST /api/2.0/ai/ai/approve-tool-call - an agent's ${generator.toolName} writes ${generator.label} into Result Storage, and it opens`, async ({
+    test(`POST /api/2.0/ai/ai/approve-tool-call - an agent's ${generator.toolName} writes ${generator.label} into Chat outputs, and it opens`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -5424,7 +6340,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       // the created file's id, that file is then read back out of DocSpace, and
       // the editor configuration a client would open it with is built from it.
       //
-      // Result Storage, not "the Files section the user asked for": the agent room
+      // Chat outputs, not "the Files section the user asked for": the agent room
       // root takes no files at all, so an agent-scoped chat has exactly one place
       // to put what it produces. The model's own sentence about where the file went
       // is deliberately not asserted — it is prose, and on the measured runs it
@@ -5438,10 +6354,10 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
         aiChat,
         "Autotest Server Tool Agent",
       );
-      const resultStorageId = await agentStorageFolderId(
+      const chatOutputsId = await agentStorageFolderId(
         ownerApi,
         agentId,
-        FolderType.ResultStorage,
+        FolderType.ChatOutputs,
       );
       const threadId = await aiChat.createThreadId("owner", {
         title: `Autotest ${generator.toolName} thread`,
@@ -5487,14 +6403,14 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       );
       expect(
         created.parentId,
-        `${generator.label} is filed in the agent's Result Storage`,
-      ).toBe(resultStorageId);
+        `${generator.label} is filed in the agent's Chat outputs`,
+      ).toBe(chatOutputsId);
 
       // And DocSpace really has it — the tool result alone would only prove the
       // engine claimed a file id.
       const { data: storage, status } =
         await ownerApi.folders.getFolderByFolderId({
-          folderId: resultStorageId,
+          folderId: chatOutputsId,
         });
       expect(status).toBe(200);
       const stored = (storage.response?.files ?? []) as Array<{
@@ -5541,9 +6457,16 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
   // writes a real `.pptx` (BUG 83232) and the form generator a real PDF with
   // `isForm: true` (BUG 83233, confirmed across 2 of 3 measured runs — the
   // third run failed earlier because the model did not call the tool at all,
-  // an unrelated flakiness). Only the plain-docx-is-blank claim (BUG 83231)
-  // still holds, so it is the only one still `test.fail` on the CORRECT
-  // expectation rather than green on today's answer.
+  // an unrelated flakiness). The plain-docx-is-blank claim (BUG 83231) still
+  // holds.
+  //
+  // BUG 83232 fixed the CONTAINER — a real `.pptx` instead of a `.docx` — but
+  // not the CONTENT. Measured 2026-09-25: asked for three slides about the
+  // water cycle, the file that comes back has exactly one slide, a bare
+  // "Title + Subtitle" layout with both placeholders empty — no title text,
+  // no water-cycle content, nothing in the slide's notes either. Filed as
+  // BUG 84063, its own `test.fail` right after BUG 83232's (now green)
+  // container test.
 
   test("BUG 83231: POST /api/2.0/ai/ai/approve-tool-call - the document generator writes a blank document", async ({
     apiSdk,
@@ -5619,6 +6542,40 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     });
   });
 
+  test("BUG 84063: POST /api/2.0/ai/ai/approve-tool-call - the presentation generator writes blank slides", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    // BUG 83232 fixed the container (a real .pptx). This is the content half:
+    // the ask named three slides and a topic (the water cycle); what comes
+    // back has one slide, and it carries no text at all — title, subtitle and
+    // notes are all empty placeholders. Same shape of defect as BUG 83231's
+    // blank docx, just not caught by BUG 83232's test, which only checks that
+    // a `ppt/slides/*.xml` entry exists, not how many or what is in them.
+    test.setTimeout(300000);
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const generator = GENERATORS[1];
+    const { created } = await generateFile(
+      apiSdk,
+      aiChat,
+      generator,
+      "Autotest Blank Presentation Agent",
+    );
+
+    // Read everything before the verdict, same discipline as BUG 83231.
+    const opened = await expectGeneratedFileOpens(apiSdk, "owner", created.id!);
+    const slideTexts = extractPptxSlideTexts(opened.bytes);
+
+    test.fail();
+    expect(
+      { slideCount: slideTexts.length, hasText: slideTexts.some((t) => t) },
+      "the presentation has the three requested slides, and at least one carries text about the water cycle",
+    ).not.toEqual({ slideCount: 1, hasText: false });
+  });
+
   test("POST /api/2.0/ai/ai/approve-tool-call - the form generator writes a real form", async ({
     apiSdk,
     paymentsApi,
@@ -5663,7 +6620,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     // does: the engine, not the client, would run it, so "the user said no" has
     // to mean the document was never written.
     //
-    // Both decisions are taken in one test on purpose. "Result Storage is empty"
+    // Both decisions are taken in one test on purpose. "Chat outputs is empty"
     // is also what a portal where the tool never ran at all would report, so the
     // approve leg below is the positive control that makes the empty read mean
     // something — the same agent, the same request, one thread apart.
@@ -5676,17 +6633,17 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       aiChat,
       "Autotest Denied Generator Agent",
     );
-    const resultStorageId = await agentStorageFolderId(
+    const chatOutputsId = await agentStorageFolderId(
       ownerApi,
       agentId,
-      FolderType.ResultStorage,
+      FolderType.ChatOutputs,
     );
 
     const storedFiles = async () => {
       const { data, status } = await ownerApi.folders.getFolderByFolderId({
-        folderId: resultStorageId,
+        folderId: chatOutputsId,
       });
-      expect(status, "the agent's Result Storage is readable").toBe(200);
+      expect(status, "the agent's Chat outputs is readable").toBe(200);
       return (data.response?.files ?? []) as Array<{
         id?: number;
         title?: string;
@@ -5695,7 +6652,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
 
     // Setup premise: nothing is in there before the conversation, or the
     // assertions below would be measuring the portal's seed data.
-    expect(await storedFiles(), "Result Storage starts empty").toEqual([]);
+    expect(await storedFiles(), "Chat outputs starts empty").toEqual([]);
 
     await test.step("the refused call", async () => {
       const threadId = await aiChat.createThreadId("owner", {
@@ -5786,7 +6743,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       );
       expect(
         (await storedFiles()).map((file) => file.id),
-        "an approved call does write into Result Storage",
+        "an approved call does write into Chat outputs",
       ).toContain(created.id);
     });
   });
@@ -5880,14 +6837,18 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     expect(approve.status).toBe(200);
 
     // Persisted where the settings screen reads it, or the checkbox was
-    // decoration. Both spellings are accepted answers: the model is offered
-    // `onlyoffice_generate_docx` and the pair the setting is keyed on is
-    // (`docspace`, `generate_docx`).
+    // decoration. The spelling is not pinned: the model is offered
+    // `onlyoffice_generate_docx`, the pair the setting is keyed on is
+    // (`docspace`, `generate_docx`), and the checkbox currently files the grant
+    // under a server-qualified key ending in the model's name
+    // ("docspace-integration-approval_onlyoffice_generate_docx").
     const stored = await aiTools.getAllowAlways("owner", agentId);
     expect(stored.status).toBe(200);
     expect(
-      (stored.data ?? []).filter((name) =>
-        [BUILT_IN_DOC_TOOL, BUILT_IN_DOC_TOOL_TOKEN].includes(name),
+      (stored.data ?? []).filter(
+        (name) =>
+          [BUILT_IN_DOC_TOOL, BUILT_IN_DOC_TOOL_TOKEN].includes(name) ||
+          name.endsWith(`_${BUILT_IN_DOC_TOOL_TOKEN}`),
       ),
       `the pre-approval list holds ${JSON.stringify(stored.data)}`,
     ).not.toEqual([]);
@@ -5913,7 +6874,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     // can write anywhere. A member cannot: ContentCreator is the lowest level
     // that may use an agent at all, and the file lands in a folder the member
     // does not own. Two things are worth pinning because the UI has no other
-    // outcome to offer — the document is filed in the agent's Result Storage the
+    // outcome to offer — the document is filed in the agent's Chat outputs the
     // same way, and the member who asked for it can open it.
     test.setTimeout(300000);
     const ownerApi = apiSdk.forRole("owner");
@@ -5924,10 +6885,10 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
       aiChat,
       "Autotest Member Generator Agent",
     );
-    const resultStorageId = await agentStorageFolderId(
+    const chatOutputsId = await agentStorageFolderId(
       ownerApi,
       agentId,
-      FolderType.ResultStorage,
+      FolderType.ChatOutputs,
     );
 
     const { data: memberData } = await apiSdk.addAuthenticatedMember(
@@ -5973,8 +6934,8 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     );
     expect(
       created.parentId,
-      "a member's document is filed in the agent's Result Storage too",
-    ).toBe(resultStorageId);
+      "a member's document is filed in the agent's Chat outputs too",
+    ).toBe(chatOutputsId);
 
     // The member's own read, which is the one the requirement is about: they
     // confirmed the call, so the finished file has to open for them.
@@ -6257,7 +7218,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
     /** Which of the agent's folders to scope to; a plain folder when absent. */
     folder?: FolderType;
   }> = [
-    { label: "the agent's Result Storage", folder: FolderType.ResultStorage },
+    { label: "the agent's Chat outputs", folder: FolderType.ChatOutputs },
     { label: "the agent's Knowledge Base", folder: FolderType.Knowledge },
     { label: "an ordinary folder in Files" },
   ];
@@ -6442,9 +7403,19 @@ test.describe("MCP - the DocSpace tools and another tenant's data", () => {
       `no REST tool was called; the model answered "${driven.reply.slice(0, 200)}"`,
     ).toContain("get_my_folder");
 
-    const answered = restCalls.find(
+    // The tool validates its arguments, and the model sometimes guesses a
+    // `filters.fields` value it does not accept ("Parsing input. … invalid_value");
+    // such a call never reached DocSpace and says nothing about whose data it
+    // would have read. The call to judge is one that was actually executed.
+    const attempts = restCalls.filter(
       (call) => call.toolName === "get_my_folder",
     );
+    const answered =
+      attempts.find(
+        (call) =>
+          call.result !== undefined &&
+          !/Parsing input|invalid_value/.test(String(call.result)),
+      ) ?? attempts.at(-1);
     expect(answered?.result, "the tool was executed").toBeDefined();
 
     const folderIds = [
@@ -6684,11 +7655,20 @@ test.describe("MCP - a tool that is not available any more", () => {
       120000,
     );
     expectHealthyAssistantReply(messages, 2);
+    // Whether the model tries the withdrawn tool again is its own choice — it
+    // sees the first turn's call in the history and sometimes repeats it. That is
+    // not a defect; what the requirement asks is that such a call is reported as
+    // unavailable instead of being run or left waiting for a dialog.
     const second = AiAgentChat.assistantMessages(messages)[1];
-    expect(
-      AiAgentChat.toolCalls(second).map((call) => call.toolName),
-      "the withdrawn tool was not called again",
-    ).not.toContain(WEATHER_TOOL.name);
+    const retried = AiAgentChat.toolCalls(second).filter(
+      (call) => call.toolName === WEATHER_TOOL.name,
+    );
+    for (const call of retried) {
+      expect(
+        String(call.result),
+        "a call to the withdrawn tool is answered as unavailable",
+      ).toMatch(/not available/i);
+    }
   });
 });
 

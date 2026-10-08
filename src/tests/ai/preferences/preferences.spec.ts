@@ -1,4 +1,6 @@
-import { expect } from "@playwright/test";
+import { expect, type APIRequestContext } from "@playwright/test";
+import type { TokenStore } from "@/src/services/token-store";
+import type { ApiSDK } from "@/src/services/api-sdk";
 import { RoomType } from "@onlyoffice/docspace-api-sdk";
 import { test } from "@/src/fixtures";
 import { enableAiGateway } from "@/src/helpers/wallet-services";
@@ -99,15 +101,18 @@ test.describe("AI Preferences - deep mode state", () => {
     expect(enabled?.success).toBe(true);
     expect((await preferences.getDeepMode("owner")).data).toBe(true);
 
-    const cleared = await preferences.clearDeepMode("owner", {});
+    const cleared = await preferences.clearDeepMode("owner", {
+      entityId: null,
+    });
     expect(cleared.status).toBe(200);
     expect(cleared.data?.success).toBe(true);
 
     expect((await preferences.getDeepMode("owner")).data).toBe(false);
     expect((await preferences.isDeepModeSet("owner")).data).toBe(false);
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("off");
 
     // Clearing an already-clear setting is accepted rather than 404.
-    const again = await preferences.clearDeepMode("owner", {});
+    const again = await preferences.clearDeepMode("owner", { entityId: null });
     expect(again.status).toBe(200);
     expect(again.data?.success).toBe(true);
   });
@@ -246,36 +251,6 @@ test.describe("AI Preferences - deep mode is per entity", () => {
       "and keeps it as an explicit choice",
     ).toBe(true);
   });
-
-  test("GET /api/2.0/ai/preferences/get-deep-mode - an entity with no value of its own inherits the portal-wide one", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    const ownerApi = apiSdk.forRole("owner");
-    await enableAiGateway(paymentsApi, ownerApi.payment);
-
-    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
-
-    const { data: portalWide } = await preferences.setDeepMode("owner", {
-      value: true,
-    });
-    expect(portalWide?.success).toBe(true);
-
-    // BOTH reads fall back to the portal-wide scope, so an entity that has never
-    // been configured — including one that does not exist — reports the
-    // portal-wide value and reports it as *set*. Two consequences worth knowing:
-    // an unknown entityId is answered rather than 404'd, and through these routes
-    // a client cannot tell an inherited value from a per-entity choice.
-    const unknown = await preferences.getDeepMode("owner", 999999);
-    expect(unknown.status).toBe(200);
-    expect(unknown.data, "the effective value for an unknown entity").toBe(
-      true,
-    );
-
-    const isSet = await preferences.isDeepModeSet("owner", 999999);
-    expect(isSet.status).toBe(200);
-    expect(isSet.data, "and it is reported as set").toBe(true);
-  });
 });
 
 // A chat is no longer something only an agent has: it opens in any room and in
@@ -283,25 +258,24 @@ test.describe("AI Preferences - deep mode is per entity", () => {
 // is in. An agent id is therefore not the only entity these routes have to key
 // on — a room or a folder id is what the client sends most of the time.
 //
-// Measured 2026-08-06: an agent id is still the only scope that works, and the
-// two location kinds fail differently.
+// BUG 82900's Expected Result is a scope of its own for a room and for a folder.
+// It is still not met; only the symptom has moved.
 //
-//   * A ROOM id is accepted, answered `{success:true}` — and dropped. Both reads
-//     then serve the portal-wide fallback, so the client sees the value it just
-//     wrote only when the portal-wide one happens to match.
-//   * A FOLDER id is refused outright with 403, on the caller's own folder.
+//   * 2026-08-06: a ROOM id was answered `{success:true}` and dropped, a FOLDER id
+//     was refused with 403.
+//   * 2026-10-07: both answer 200, and the write lands in the PORTAL-WIDE scope.
+//     The read of the same id resolves to the portal-wide scope too, so the two
+//     calls confirm each other and the value reads back as if the location had
+//     stored it. Only the portal-wide value gives it away, which is why the test
+//     seeds an explicit portal-wide `false` and checks it afterwards.
 //
 // Either way the reasoning switch cannot be turned on for a location, which is
 // what the widened chat context needs it to do. The same-shaped defect on the
-// thread surface is BUG 82855 (every non-agent entity collapses into one bucket).
+// thread surface is BUG 82855 (every non-agent entity collapses into one bucket),
+// and on set-reasoning-level it is BUG 84306.
 test.describe("AI Preferences - deep mode of a room or a folder", () => {
-  const LOCATIONS = [
-    { kind: "room", symptom: "reports success and stores nothing" },
-    { kind: "folder", symptom: "is refused with 403" },
-  ] as const;
-
-  for (const { kind, symptom } of LOCATIONS) {
-    test(`BUG 82900: PUT /api/2.0/ai/preferences/set-deep-mode - a ${kind} scope ${symptom}`, async ({
+  for (const kind of ["room", "folder"] as const) {
+    test(`BUG 82900: PUT /api/2.0/ai/preferences/set-deep-mode - a ${kind} scope is stored separately from the portal-wide value`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -330,11 +304,13 @@ test.describe("AI Preferences - deep mode of a room or a folder", () => {
         entityId = folder.response!.id!;
       }
 
-      // The portal-wide value is left unset on purpose: both reads fall back to
-      // it, so a portal-wide `true` would make "the location kept the value" and
-      // "the location inherited it" indistinguishable.
+      // A known portal-wide `false`, chosen explicitly. A location that stored
+      // its own `true` leaves it alone; a write that lands in the portal-wide
+      // scope flips it, and reading the same id back cannot tell the two apart.
+      const seeded = await preferences.setDeepMode("owner", { value: false });
+      expect(seeded.data?.success).toBe(true);
       expect((await preferences.getDeepMode("owner")).data).toBe(false);
-      expect((await preferences.isDeepModeSet("owner")).data).toBe(false);
+      expect((await preferences.isDeepModeSet("owner")).data).toBe(true);
 
       // Every call is made up front and asserted afterwards: the two locations
       // break at different points, and a test.fail test stops at its first
@@ -344,6 +320,8 @@ test.describe("AI Preferences - deep mode of a room or a folder", () => {
         value: true,
         entityId: String(entityId),
       });
+      const portalAfter = await preferences.getDeepMode("owner");
+      const portalIsSetAfter = await preferences.isDeepModeSet("owner");
       const readBack = await preferences.getDeepMode("owner", entityId);
       const readBackIsSet = await preferences.isDeepModeSet("owner", entityId);
 
@@ -369,6 +347,14 @@ test.describe("AI Preferences - deep mode of a room or a folder", () => {
         true,
       );
 
+      // BUG 82900: the Expected Result (a scope of its own) is not met. The
+      // side effect is checked before the status and the read-back, so the
+      // failure points at the portal-wide value being overwritten.
+      test.fail();
+      expect(
+        { deep: portalAfter.data, isSet: portalIsSetAfter.data },
+        `the portal-wide value must survive a write aimed at a ${kind}`,
+      ).toEqual({ deep: false, isSet: true });
       expect(written.status, `set-deep-mode on a ${kind}`).toBe(200);
       expect(written.data?.success).toBe(true);
       expect(readBack.status).toBe(200);
@@ -441,7 +427,10 @@ test.describe("AI Preferences - deep mode validation", () => {
     ).toBe(true);
   });
 
-  test("BUG 82815: DELETE /api/2.0/ai/preferences/clear-deep-mode - a bare entityId body reports success and clears nothing", async ({
+  // BUG 82815 was a bare `entityId` body (`"<id>"` instead of `{entityId}`) that
+  // answered 200 and cleared nothing. Re-measured 2026-10-06: the bare form now
+  // clears that scope — and only that scope — so the test is a plain one.
+  test("BUG 82815: DELETE /api/2.0/ai/preferences/clear-deep-mode - a bare entityId body clears that scope and leaves the others", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -461,30 +450,46 @@ test.describe("AI Preferences - deep mode validation", () => {
       title: "Autotest Reasoning Agent",
       profileId,
     });
-
-    const { data: enabled } = await preferences.setDeepMode("owner", {
-      value: true,
-      entityId: String(agentId),
+    const otherId = await aiChat.createAgentId("owner", {
+      title: "Autotest Reasoning Other Agent",
+      profileId,
     });
-    expect(enabled?.success).toBe(true);
+
+    // The portal-wide value and a second agent are set too, so a clear that
+    // reaches past its own scope cannot go unnoticed.
+    for (const entityId of [undefined, agentId, otherId]) {
+      const { data: enabled } = await preferences.setDeepMode("owner", {
+        value: true,
+        ...(entityId === undefined ? {} : { entityId: String(entityId) }),
+      });
+      expect(enabled?.success).toBe(true);
+    }
     expect((await preferences.getDeepMode("owner", agentId)).data).toBe(true);
 
     // The `{entityId}` object form works (covered above), so this is a body-shape
-    // bug rather than a broken route.
+    // question rather than a broken route.
     const { status, data } = await preferences.clearDeepMode(
       "owner",
       String(agentId),
     );
     expect(status).toBe(200);
-    expect(data?.success, "the call reports success").toBe(true);
+    expect(data?.success).toBe(true);
 
-    const still = await preferences.getDeepMode("owner", agentId);
-
-    test.fail();
     expect(
-      still.data,
+      (await preferences.getDeepMode("owner", agentId)).data,
       "a clear that reports success must actually clear the value",
     ).toBe(false);
+    expect((await preferences.isDeepModeSet("owner", agentId)).data).toBe(
+      false,
+    );
+    expect(
+      (await preferences.getDeepMode("owner", otherId)).data,
+      "another agent keeps its value",
+    ).toBe(true);
+    expect(
+      (await preferences.getDeepMode("owner")).data,
+      "the portal-wide value is untouched",
+    ).toBe(true);
   });
 });
 
@@ -733,13 +738,12 @@ test.describe("AI Preferences - deep mode and the answer", () => {
 //   * a read with one is answered 200 with the portal-wide fallback instead of
 //     being refused, the same shape as the unknown-entity read above — still
 //     the behaviour the requirement wants, asserted as a green check below.
-//   * a write with a thread id used to be a 400 (the scope has to be a numeric
-//     entity) — now it is a 200 `{success:true}` that changes nothing (BUG
-//     XXXXX, see below): confirmed live that this is not silent data
-//     corruption, just an endpoint claiming success for a write with no
-//     effect, which is its own problem.
+//   * a write with a thread id is a 400 (the scope has to be a positive integer
+//     entity). It was a 200 `{success:true}` that changed nothing for a while
+//     (BUG 84026); re-measured 2026-10-06 it is refused again and no scope
+//     moves.
 test.describe("AI Preferences - deep mode is not per thread", () => {
-  test("BUG XXXXX: GET|PUT /api/2.0/ai/preferences/set-deep-mode - a thread is not a scope of its own", async ({
+  test("BUG 84026: GET|PUT /api/2.0/ai/preferences/set-deep-mode - a thread is not a scope of its own", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -795,9 +799,7 @@ test.describe("AI Preferences - deep mode is not per thread", () => {
       entityId: first,
     });
 
-    // The write claims success but changes nothing — checked before the
-    // status assertion below, so both still run even though the status one
-    // is expected to fail.
+    // No scope moves — checked before the status assertion below.
     expect(
       (await preferences.getDeepMode("owner", agentId)).data,
       "the agent's value survives a write aimed at one of its threads",
@@ -808,12 +810,1010 @@ test.describe("AI Preferences - deep mode is not per thread", () => {
       "the other thread of the same agent reads the same fallback",
     ).toBe(false);
 
-    // BUG XXXXX: a thread id used to be refused as a write scope (400); it now
-    // answers 200 and silently does nothing instead.
-    test.fail();
+    // BUG 84026: the refusal had regressed to a silent 200; it is a 400 again.
     expect(
       threadWrite.status,
       "a thread id is not a valid scope to write to",
     ).toBe(400);
+  });
+});
+
+// The reasoning level (SDK 4.0.0) is the depth behind the deep-mode switch. Both
+// route families read and write ONE stored value per scope — measured
+// 2026-10-06:
+//
+//   * unset reads `off`, and `is-deep-mode-set` says false;
+//   * `set-reasoning-level` takes exactly off|low|medium|high|max (lower-case);
+//     anything else is a 400 that names the allowed values and changes nothing;
+//   * a depth turns deep mode on, `off` turns it off — and the old
+//     `set-deep-mode` writes into the same value: `false` stores `off`, `true`
+//     keeps a stored depth and falls back to `medium` when the stored one is `off`;
+//   * an entity does NOT inherit the portal-wide value — an agent with nothing of
+//     its own reads `off`, whatever the portal holds.
+//
+// The level is the stored setting, not what the provider is asked for: a model
+// clamps the depth it does not offer. That clamp is not observable from outside,
+// so it is not asserted here.
+async function createReasoningAgent(
+  apiSdk: { request: APIRequestContext; tokenStore: TokenStore },
+  title: string,
+) {
+  const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+  const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+  const catalogue = await profiles.catalogue("owner");
+  return aiChat.createAgentId("owner", {
+    title,
+    profileId: AiProfiles.byCapabilities(catalogue, AI_CAPS.textVisionTools).id,
+  });
+}
+
+const REASONING_LEVELS = ["off", "low", "medium", "high", "max"] as const;
+
+test.describe("AI Preferences - reasoning level state", () => {
+  test("GET /api/2.0/ai/preferences/get-reasoning-level - an unset scope reads off and unset", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    const level = await preferences.getReasoningLevel("owner");
+    expect(level.status).toBe(200);
+    expect(level.data).toBe("off");
+    expect((await preferences.getDeepMode("owner")).data).toBe(false);
+    expect((await preferences.isDeepModeSet("owner")).data).toBe(false);
+  });
+
+  test("PUT /api/2.0/ai/preferences/set-reasoning-level - every level is stored and read back", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    // Walked off -> max -> off so that each step is a change from the previous
+    // value, never a repeat of it.
+    for (const value of [...REASONING_LEVELS, "off"] as const) {
+      await test.step(`level ${value}`, async () => {
+        const write = await preferences.setReasoningLevel("owner", { value });
+        expect(write.status).toBe(200);
+        expect(write.data?.success).toBe(true);
+
+        expect((await preferences.getReasoningLevel("owner")).data).toBe(value);
+        expect(
+          (await preferences.getDeepMode("owner")).data,
+          "a depth turns deep mode on, off turns it off",
+        ).toBe(value !== "off");
+        expect(
+          (await preferences.isDeepModeSet("owner")).data,
+          "an explicit off is a stored choice too",
+        ).toBe(true);
+      });
+    }
+  });
+
+  test("PUT /api/2.0/ai/preferences/set-reasoning-level - writing the same level twice is idempotent", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    for (const attempt of [1, 2]) {
+      const write = await preferences.setReasoningLevel("owner", {
+        value: "high",
+      });
+      expect(write.status, `write ${attempt}`).toBe(200);
+      expect(write.data?.success).toBe(true);
+      expect((await preferences.getReasoningLevel("owner")).data).toBe("high");
+      expect((await preferences.getDeepMode("owner")).data).toBe(true);
+    }
+  });
+
+  test("PUT /api/2.0/ai/preferences/set-reasoning-level - a value outside the five levels is refused and changes nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    // Positive control: a stored `high` is what an accepted bad write would
+    // overwrite. On an unset scope a refusal and a silent no-op both read `off`.
+    const seed = await preferences.setReasoningLevel("owner", {
+      value: "high",
+    });
+    expect(seed.status).toBe(200);
+
+    const bodies: Array<[string, Record<string, unknown>]> = [
+      ["an unknown name", { value: "ultra" }],
+      ["a capitalised name", { value: "High" }],
+      ["an upper-case name", { value: "LOW" }],
+      ["an empty string", { value: "" }],
+      ["a number", { value: 3 }],
+      ["a boolean", { value: true }],
+      ["null", { value: null }],
+      ["a missing value", {}],
+    ];
+    for (const [label, body] of bodies) {
+      await test.step(label, async () => {
+        const write = await preferences.setReasoningLevel("owner", body);
+        expect(write.status, label).toBe(400);
+        expect((await preferences.getReasoningLevel("owner")).data).toBe(
+          "high",
+        );
+        expect((await preferences.getDeepMode("owner")).data).toBe(true);
+      });
+    }
+  });
+});
+
+test.describe("AI Preferences - reasoning level and the deep-mode switch", () => {
+  test("PUT /api/2.0/ai/preferences/set-deep-mode - turning it off stores off and a stored depth is replaced", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    await preferences.setReasoningLevel("owner", { value: "high" });
+    const off = await preferences.setDeepMode("owner", { value: false });
+    expect(off.status).toBe(200);
+
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("off");
+    expect((await preferences.getDeepMode("owner")).data).toBe(false);
+    expect((await preferences.isDeepModeSet("owner")).data).toBe(true);
+  });
+
+  test("PUT /api/2.0/ai/preferences/set-deep-mode - turning it on keeps the depth that is already stored", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    await preferences.setReasoningLevel("owner", { value: "high" });
+    const on = await preferences.setDeepMode("owner", { value: true });
+    expect(on.status).toBe(200);
+
+    expect(
+      (await preferences.getReasoningLevel("owner")).data,
+      "an on that names no depth must not reset a chosen one",
+    ).toBe("high");
+    expect((await preferences.getDeepMode("owner")).data).toBe(true);
+  });
+
+  test("PUT /api/2.0/ai/preferences/set-deep-mode - turning it on after an off lands on medium, not on the earlier depth", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    await preferences.setReasoningLevel("owner", { value: "high" });
+    await preferences.setReasoningLevel("owner", { value: "off" });
+    // Control: the off really replaced `high`, so what follows cannot be a
+    // surviving depth.
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("off");
+
+    const on = await preferences.setDeepMode("owner", { value: true });
+    expect(on.status).toBe(200);
+
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("medium");
+    expect((await preferences.getDeepMode("owner")).data).toBe(true);
+  });
+
+  test("PUT /api/2.0/ai/preferences/set-deep-mode - turning it on for a scope that never chose a depth lands on medium", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("off");
+    const on = await preferences.setDeepMode("owner", { value: true });
+    expect(on.status).toBe(200);
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("medium");
+  });
+});
+
+test.describe("AI Preferences - reasoning level is per entity", () => {
+  test("PUT /api/2.0/ai/preferences/set-reasoning-level - the portal and two agents each keep their own level", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    const agentA = await createReasoningAgent(apiSdk, "Autotest Level Agent A");
+    const agentB = await createReasoningAgent(apiSdk, "Autotest Level Agent B");
+
+    // Control: with nothing written the agent reads off and unset, and does not
+    // pick up a portal-wide value that is set later.
+    await preferences.setReasoningLevel("owner", { value: "low" });
+    expect((await preferences.getReasoningLevel("owner", agentA)).data).toBe(
+      "off",
+    );
+    expect((await preferences.isDeepModeSet("owner", agentA)).data).toBe(false);
+
+    for (const [entityId, value] of [
+      [agentA, "high"],
+      [agentB, "max"],
+    ] as const) {
+      const write = await preferences.setReasoningLevel("owner", {
+        value,
+        entityId: String(entityId),
+      });
+      expect(write.status).toBe(200);
+      expect(write.data?.success).toBe(true);
+    }
+
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("low");
+    expect((await preferences.getReasoningLevel("owner", agentA)).data).toBe(
+      "high",
+    );
+    expect((await preferences.getReasoningLevel("owner", agentB)).data).toBe(
+      "max",
+    );
+    // The old reads see the same per-entity state.
+    expect((await preferences.getDeepMode("owner", agentB)).data).toBe(true);
+    expect((await preferences.isDeepModeSet("owner", agentA)).data).toBe(true);
+  });
+
+  test("DELETE /api/2.0/ai/preferences/clear-deep-mode - clearing an agent drops its level and leaves the others", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    const agentA = await createReasoningAgent(apiSdk, "Autotest Clear Agent A");
+    const agentB = await createReasoningAgent(apiSdk, "Autotest Clear Agent B");
+    await preferences.setReasoningLevel("owner", { value: "low" });
+    await preferences.setReasoningLevel("owner", {
+      value: "high",
+      entityId: String(agentA),
+    });
+    await preferences.setReasoningLevel("owner", {
+      value: "max",
+      entityId: String(agentB),
+    });
+
+    const cleared = await preferences.clearDeepMode("owner", {
+      entityId: String(agentA),
+    });
+    expect(cleared.status).toBe(200);
+    expect(cleared.data?.success).toBe(true);
+
+    expect(
+      (await preferences.getReasoningLevel("owner", agentA)).data,
+      "the cleared agent reads the unset default, not the old depth",
+    ).toBe("off");
+    expect((await preferences.getDeepMode("owner", agentA)).data).toBe(false);
+    expect((await preferences.isDeepModeSet("owner", agentA)).data).toBe(false);
+
+    expect((await preferences.getReasoningLevel("owner", agentB)).data).toBe(
+      "max",
+    );
+    expect((await preferences.getReasoningLevel("owner")).data).toBe("low");
+  });
+
+  test("PUT /api/2.0/ai/preferences/set-reasoning-level - a malformed entityId is refused and writes nowhere", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    await preferences.setReasoningLevel("owner", { value: "low" });
+    for (const entityId of ["abc", "-5", "1.5", " "]) {
+      await test.step(`entityId ${JSON.stringify(entityId)}`, async () => {
+        const write = await preferences.setReasoningLevel("owner", {
+          value: "max",
+          entityId,
+        });
+        expect(write.status).toBe(400);
+        expect(
+          (await preferences.getReasoningLevel("owner")).data,
+          "the portal-wide value is untouched",
+        ).toBe("low");
+      });
+    }
+  });
+
+  // A room, a folder and an id that exists nowhere are not scopes of their own.
+  // Related to BUG 82900 (set-deep-mode: room = dropped, folder = 403) but a
+  // different defect: measured 2026-10-06 the reasoning-level route answers 200
+  // for all three and writes the value into the PORTAL-WIDE scope, and every read
+  // of any non-agent id serves that value back. So the write "reads back", which
+  // hides it from a check that only looks at the location — the portal value is
+  // what gives it away. The request looks successful and overwrites another
+  // scope's setting.
+  for (const kind of ["room", "folder", "nonexistent id"] as const) {
+    test(`BUG 84306: PUT /api/2.0/ai/preferences/set-reasoning-level - a ${kind} scope is stored separately from the portal-wide level`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+      const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+      let entityId: number;
+      if (kind === "room") {
+        const { data: room } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Level Room",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        entityId = room.response!.id!;
+      } else if (kind === "folder") {
+        const { data: myFolder } = await ownerApi.folders.getMyFolder();
+        const { data: folder } = await ownerApi.folders.createFolder({
+          folderId: myFolder.response!.current!.id!,
+          createFolder: { title: "Autotest Level Folder" },
+        });
+        entityId = folder.response!.id!;
+      } else {
+        entityId = 999_999_999;
+      }
+
+      // Control: the agent scope is real, so the route and the body shape work.
+      const agentId = await createReasoningAgent(apiSdk, "Autotest Control");
+      await preferences.setReasoningLevel("owner", { value: "low" });
+      await preferences.setReasoningLevel("owner", {
+        value: "high",
+        entityId: String(agentId),
+      });
+      expect((await preferences.getReasoningLevel("owner")).data).toBe("low");
+
+      const written = await preferences.setReasoningLevel("owner", {
+        value: "max",
+        entityId: String(entityId),
+      });
+      const portal = await preferences.getReasoningLevel("owner");
+      const readBack = await preferences.getReasoningLevel("owner", entityId);
+
+      test.fail();
+      expect(written.status).toBe(200);
+      expect(portal.data, "the portal-wide level is not the location's").toBe(
+        "low",
+      );
+      expect(readBack.data, `the ${kind} keeps what was written`).toBe("max");
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Coverage added 2026-10-07, measured live the same day. What these blocks rest on:
+//
+//   * `entityId` is validated on the WRITE routes only. set-deep-mode,
+//     set-reasoning-level and clear-deep-mode answer 400 for `abc`, `-5`, `1.5` and
+//     `" "`; the three READ routes answer 200 and serve the portal-wide value.
+//   * `""` and `"0"` mean the portal-wide scope on every route, reads included.
+//   * A real agent does NOT inherit the portal-wide value (deep mode, is-set and
+//     level all read unset). Only a non-agent id — room, folder, nonexistent —
+//     reads the portal, and reports it as set.
+//   * A write aimed at a room, folder or nonexistent id lands in the portal-wide
+//     scope, and so does a CLEAR: `clear-deep-mode` on such an id wipes the
+//     portal-wide value.
+//   * `clear-deep-mode` reads its body only: the same id in the query is a 400.
+const UNSET = { deep: false, isSet: false, level: "off" } as const;
+
+async function readState(
+  preferences: AiPreferences,
+  entityId?: number | string,
+) {
+  return {
+    deep: (await preferences.getDeepMode("owner", entityId)).data,
+    isSet: (await preferences.isDeepModeSet("owner", entityId)).data,
+    level: (await preferences.getReasoningLevel("owner", entityId)).data,
+  };
+}
+
+async function createAgentWithThread(
+  apiSdk: { request: APIRequestContext; tokenStore: TokenStore },
+  title: string,
+) {
+  const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+  const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+  const profileId = AiProfiles.byCapabilities(
+    await profiles.catalogue("owner"),
+    AI_CAPS.textVisionTools,
+  ).id!;
+  const agentId = await aiChat.createAgentId("owner", { title, profileId });
+  const threadId = await aiChat.createThreadId("owner", {
+    title: `${title} thread`,
+    profileId,
+    agentId,
+  });
+  return { agentId, threadId };
+}
+
+const NON_AGENT_KINDS = ["room", "folder", "nonexistent id"] as const;
+
+async function createNonAgentEntity(
+  ownerApi: ReturnType<ApiSDK["forRole"]>,
+  kind: (typeof NON_AGENT_KINDS)[number],
+): Promise<number> {
+  if (kind === "room") {
+    const { data } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Scope Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    return data.response!.id!;
+  }
+  if (kind === "folder") {
+    const { data: myFolder } = await ownerApi.folders.getMyFolder();
+    const { data } = await ownerApi.folders.createFolder({
+      folderId: myFolder.response!.current!.id!,
+      createFolder: { title: "Autotest Scope Folder" },
+    });
+    return data.response!.id!;
+  }
+  return 999_999_999;
+}
+
+const MALFORMED_ENTITY_IDS = ["abc", "-5", "1.5", " "];
+
+test.describe("AI Preferences - malformed entityId", () => {
+  test("PUT set-deep-mode | DELETE clear-deep-mode - a malformed entityId is refused and writes nowhere", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const agentId = await createReasoningAgent(apiSdk, "Autotest Malformed");
+
+    // Both scopes hold a value, so a refused call that still wrote or cleared
+    // anywhere cannot hide behind an unset default.
+    await preferences.setReasoningLevel("owner", { value: "low" });
+    await preferences.setReasoningLevel("owner", {
+      value: "high",
+      entityId: String(agentId),
+    });
+
+    for (const entityId of MALFORMED_ENTITY_IDS) {
+      await test.step(`entityId ${JSON.stringify(entityId)}`, async () => {
+        const write = await preferences.setDeepMode("owner", {
+          value: false,
+          entityId,
+        });
+        expect(write.status, "set-deep-mode").toBe(400);
+        const clear = await preferences.clearDeepMode("owner", { entityId });
+        expect(clear.status, "clear-deep-mode").toBe(400);
+
+        expect(await readState(preferences)).toEqual({
+          deep: true,
+          isSet: true,
+          level: "low",
+        });
+        expect(await readState(preferences, agentId)).toEqual({
+          deep: true,
+          isSet: true,
+          level: "high",
+        });
+      });
+    }
+  });
+
+  // The three read routes do not validate the id at all: the malformed value is
+  // answered 200 with the portal-wide state. Same defect family as the write-side
+  // validation that already works, so each reader is its own test.
+  const READERS = [
+    {
+      route: "get-deep-mode",
+      read: (p: AiPreferences, id: string) => p.getDeepMode("owner", id),
+    },
+    {
+      route: "is-deep-mode-set",
+      read: (p: AiPreferences, id: string) => p.isDeepModeSet("owner", id),
+    },
+    {
+      route: "get-reasoning-level",
+      read: (p: AiPreferences, id: string) => p.getReasoningLevel("owner", id),
+    },
+  ];
+  for (const { route, read } of READERS) {
+    test(`BUG XXXXX: GET /api/2.0/ai/preferences/${route} - a malformed entityId is refused like the write routes refuse it`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+      const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+      // Control: the portal-wide read works, so a 200 below is the route
+      // answering a bad id rather than a dead route.
+      await preferences.setReasoningLevel("owner", { value: "high" });
+      expect((await read(preferences, "0")).status).toBe(200);
+
+      const statuses: Record<string, number> = {};
+      for (const entityId of MALFORMED_ENTITY_IDS) {
+        statuses[entityId] = (await read(preferences, entityId)).status;
+      }
+
+      test.fail();
+      for (const entityId of MALFORMED_ENTITY_IDS) {
+        expect(statuses[entityId], `entityId ${JSON.stringify(entityId)}`).toBe(
+          400,
+        );
+      }
+    });
+  }
+
+  test("PUT /api/2.0/ai/preferences/set-deep-mode - a thread id is refused by every write route and moves no scope", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const { agentId, threadId } = await createAgentWithThread(
+      apiSdk,
+      "Autotest Thread Scope",
+    );
+
+    await preferences.setReasoningLevel("owner", { value: "low" });
+    await preferences.setReasoningLevel("owner", {
+      value: "high",
+      entityId: String(agentId),
+    });
+
+    // set-deep-mode with a thread id is BUG 84026's test; the other two write
+    // routes are checked here.
+    const level = await preferences.setReasoningLevel("owner", {
+      value: "max",
+      entityId: threadId,
+    });
+    expect(level.status, "set-reasoning-level").toBe(400);
+    const clear = await preferences.clearDeepMode("owner", {
+      entityId: threadId,
+    });
+    expect(clear.status, "clear-deep-mode").toBe(400);
+
+    expect((await readState(preferences)).level).toBe("low");
+    expect(await readState(preferences, agentId)).toEqual({
+      deep: true,
+      isSet: true,
+      level: "high",
+    });
+  });
+});
+
+test.describe("AI Preferences - set-deep-mode value types", () => {
+  test("PUT /api/2.0/ai/preferences/set-deep-mode - every non-boolean value is refused and the stored value stays", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    // Measured 2026-10-07: all of these are `400 value is required and must be a
+    // boolean`, including the ones a lenient binder would coerce. "yes" and the
+    // empty body are BUG 82813 / 82814 above.
+    const seed = await preferences.setReasoningLevel("owner", {
+      value: "high",
+    });
+    expect(seed.status).toBe(200);
+
+    const values: Array<[string, unknown]> = [
+      ["null", null],
+      ["0", 0],
+      ["1", 1],
+      ["an empty string", ""],
+      ['"false"', "false"],
+      ['"true"', "true"],
+      ['"TRUE"', "TRUE"],
+      ["an empty array", []],
+      ["an array holding true", [true]],
+      ["an empty object", {}],
+    ];
+    for (const [label, value] of values) {
+      await test.step(label, async () => {
+        const write = await preferences.setDeepMode("owner", { value });
+        expect(write.status, label).toBe(400);
+        // The depth survives too: an accepted `false` would have replaced it with
+        // off, an accepted truthy value would have kept it, so deep mode alone
+        // could not tell a no-op from a coercion.
+        expect(await readState(preferences)).toEqual({
+          deep: true,
+          isSet: true,
+          level: "high",
+        });
+      });
+    }
+  });
+});
+
+test.describe("AI Preferences - clear-deep-mode body contract", () => {
+  test("DELETE /api/2.0/ai/preferences/clear-deep-mode - a missing, empty or non-numeric target is refused and clears nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const agentId = await createReasoningAgent(apiSdk, "Autotest Clear Body");
+
+    await preferences.setReasoningLevel("owner", { value: "low" });
+    await preferences.setReasoningLevel("owner", {
+      value: "high",
+      entityId: String(agentId),
+    });
+
+    const calls: Array<[string, () => Promise<{ status: number }>]> = [
+      ["no body", () => preferences.clearDeepMode("owner", undefined)],
+      ["an empty object", () => preferences.clearDeepMode("owner", {})],
+      [
+        "a bare non-numeric string",
+        () => preferences.clearDeepMode("owner", "abc"),
+      ],
+      ["a bare negative number", () => preferences.clearDeepMode("owner", -5)],
+      [
+        "an empty entityId in the query",
+        () => preferences.clearDeepModeByQuery("owner", ""),
+      ],
+      // A valid id in the wrong place: the route reads its body only.
+      [
+        "the agent id in the query",
+        () => preferences.clearDeepModeByQuery("owner", agentId),
+      ],
+    ];
+    for (const [label, call] of calls) {
+      await test.step(label, async () => {
+        expect((await call()).status, label).toBe(400);
+        expect(await readState(preferences)).toEqual({
+          deep: true,
+          isSet: true,
+          level: "low",
+        });
+        expect(await readState(preferences, agentId)).toEqual({
+          deep: true,
+          isSet: true,
+          level: "high",
+        });
+      });
+    }
+  });
+
+  test("DELETE /api/2.0/ai/preferences/clear-deep-mode - a null body, null, empty and zero entityId each clear the portal-wide value and nothing else", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const agentId = await createReasoningAgent(apiSdk, "Autotest Clear Portal");
+
+    await preferences.setReasoningLevel("owner", {
+      value: "high",
+      entityId: String(agentId),
+    });
+
+    const bodies: Array<[string, unknown]> = [
+      ["a null body", null],
+      ["entityId null", { entityId: null }],
+      ['entityId ""', { entityId: "" }],
+      ['entityId "0"', { entityId: "0" }],
+    ];
+    for (const [label, body] of bodies) {
+      await test.step(label, async () => {
+        // Re-seeded every round: the previous round cleared it.
+        await preferences.setReasoningLevel("owner", { value: "low" });
+        expect((await readState(preferences)).level).toBe("low");
+
+        const clear = await preferences.clearDeepMode("owner", body);
+        expect(clear.status, label).toBe(200);
+        expect(clear.data?.success).toBe(true);
+
+        expect(await readState(preferences)).toEqual(UNSET);
+        expect(
+          (await readState(preferences, agentId)).level,
+          "the agent's own value is untouched",
+        ).toBe("high");
+      });
+    }
+  });
+
+  // BUG 82815 was a bare `entityId` body that answered 200 and cleared nothing.
+  // The string form is covered above; this is the numeric one, and like that one
+  // it must be proven by reading the state back, not by the 200.
+  test("BUG 82815: DELETE /api/2.0/ai/preferences/clear-deep-mode - a bare numeric entityId body clears that scope and leaves the others", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const agentA = await createReasoningAgent(apiSdk, "Autotest Numeric A");
+    const agentB = await createReasoningAgent(apiSdk, "Autotest Numeric B");
+
+    await preferences.setReasoningLevel("owner", { value: "low" });
+    await preferences.setReasoningLevel("owner", {
+      value: "high",
+      entityId: String(agentA),
+    });
+    await preferences.setReasoningLevel("owner", {
+      value: "max",
+      entityId: String(agentB),
+    });
+
+    const clear = await preferences.clearDeepMode("owner", agentA);
+    expect(clear.status).toBe(200);
+    expect(clear.data?.success).toBe(true);
+
+    expect(
+      await readState(preferences, agentA),
+      "a clear that reports success must actually clear",
+    ).toEqual(UNSET);
+    expect((await readState(preferences, agentB)).level).toBe("max");
+    expect((await readState(preferences)).level).toBe("low");
+  });
+
+  test("DELETE /api/2.0/ai/preferences/clear-deep-mode - clearing an agent that never had a value is accepted and changes nothing", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const untouched = await createReasoningAgent(apiSdk, "Autotest Never Set");
+    const other = await createReasoningAgent(apiSdk, "Autotest Other");
+
+    await preferences.setReasoningLevel("owner", { value: "low" });
+    await preferences.setReasoningLevel("owner", {
+      value: "high",
+      entityId: String(other),
+    });
+    expect(await readState(preferences, untouched)).toEqual(UNSET);
+
+    const clear = await preferences.clearDeepMode("owner", {
+      entityId: String(untouched),
+    });
+    expect(clear.status).toBe(200);
+    expect(clear.data?.success).toBe(true);
+
+    expect(await readState(preferences, untouched)).toEqual(UNSET);
+    expect((await readState(preferences, other)).level).toBe("high");
+    expect((await readState(preferences)).level).toBe("low");
+  });
+});
+
+test.describe("AI Preferences - portal scope tokens", () => {
+  for (const token of ["", "0"]) {
+    test(`PUT|GET|DELETE /api/2.0/ai/preferences/* - entityId ${JSON.stringify(token)} is the portal-wide scope for every route`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+      const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+      const agentId = await createReasoningAgent(apiSdk, "Autotest Token");
+
+      await preferences.setReasoningLevel("owner", {
+        value: "high",
+        entityId: String(agentId),
+      });
+      const agentBefore = await readState(preferences, agentId);
+      expect(agentBefore.level, "control: the agent holds its own value").toBe(
+        "high",
+      );
+
+      // set-reasoning-level lands in the portal, not in the agent.
+      const level = await preferences.setReasoningLevel("owner", {
+        value: "low",
+        entityId: token,
+      });
+      expect(level.status).toBe(200);
+      expect(await readState(preferences)).toEqual({
+        deep: true,
+        isSet: true,
+        level: "low",
+      });
+      expect(await readState(preferences, agentId)).toEqual(agentBefore);
+
+      // set-deep-mode too: off is stored, as a choice, in the portal.
+      const off = await preferences.setDeepMode("owner", {
+        value: false,
+        entityId: token,
+      });
+      expect(off.status).toBe(200);
+      expect(await readState(preferences)).toEqual({
+        deep: false,
+        isSet: true,
+        level: "off",
+      });
+      expect(await readState(preferences, agentId)).toEqual(agentBefore);
+
+      // All three readers resolve the token to the portal-wide value.
+      await preferences.setReasoningLevel("owner", { value: "max" });
+      expect(await readState(preferences, token)).toEqual({
+        deep: true,
+        isSet: true,
+        level: "max",
+      });
+
+      // And clear-deep-mode clears the portal, leaving the agent alone.
+      const clear = await preferences.clearDeepMode("owner", {
+        entityId: token,
+      });
+      expect(clear.status).toBe(200);
+      expect(await readState(preferences)).toEqual(UNSET);
+      expect(await readState(preferences, agentId)).toEqual(agentBefore);
+    });
+  }
+});
+
+test.describe("AI Preferences - a real agent against the portal-wide value", () => {
+  test("GET /api/2.0/ai/preferences/is-deep-mode-set - an agent with no value of its own is unset whatever the portal holds", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const agentId = await createReasoningAgent(apiSdk, "Autotest No Inherit");
+
+    // The unknown-id test above answers the opposite for a NON-agent id — that
+    // is the fallback the BUGs below are about. A real agent is its own scope.
+    await preferences.setDeepMode("owner", { value: true });
+    expect((await readState(preferences)).isSet, "control").toBe(true);
+    expect(await readState(preferences, agentId)).toEqual(UNSET);
+
+    await preferences.setReasoningLevel("owner", { value: "high" });
+    expect(await readState(preferences, agentId)).toEqual(UNSET);
+
+    // An explicit portal-wide off is a stored choice and still not the agent's.
+    await preferences.setReasoningLevel("owner", { value: "off" });
+    expect((await readState(preferences)).isSet).toBe(true);
+    expect(await readState(preferences, agentId)).toEqual(UNSET);
+  });
+});
+
+test.describe("AI Preferences - a room, a folder or an unknown id is not a scope", () => {
+  // The room and folder variants of this write are BUG 82900 (above). An id that
+  // exists nowhere has no such ticket.
+  test("BUG XXXXX: PUT /api/2.0/ai/preferences/set-deep-mode - a nonexistent id scope is stored separately from the portal-wide value", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+    const entityId = await createNonAgentEntity(ownerApi, "nonexistent id");
+
+    // Control: the agent scope is real, so the route and body shape work.
+    const agentId = await createReasoningAgent(apiSdk, "Autotest Control");
+    await preferences.setDeepMode("owner", {
+      value: true,
+      entityId: String(agentId),
+    });
+    expect((await readState(preferences, agentId)).deep).toBe(true);
+    expect(await readState(preferences)).toEqual(UNSET);
+
+    const written = await preferences.setDeepMode("owner", {
+      value: true,
+      entityId: String(entityId),
+    });
+    const portal = await readState(preferences);
+    const location = await readState(preferences, entityId);
+
+    test.fail();
+    expect(portal, "the portal-wide value is not the location's").toEqual(
+      UNSET,
+    );
+    expect(written.status).toBe(200);
+    expect(location.deep, "the id keeps what was written").toBe(true);
+    expect(location.isSet).toBe(true);
+  });
+
+  for (const kind of NON_AGENT_KINDS) {
+    test(`BUG XXXXX: DELETE /api/2.0/ai/preferences/clear-deep-mode - clearing a ${kind} leaves the portal-wide value alone`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+      const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+      const entityId = await createNonAgentEntity(ownerApi, kind);
+
+      await preferences.setReasoningLevel("owner", { value: "low" });
+      expect((await readState(preferences)).level, "control").toBe("low");
+
+      await preferences.clearDeepMode("owner", { entityId: String(entityId) });
+      const portal = await readState(preferences);
+
+      // Measured 2026-10-07: the clear answers 200 and the portal-wide value is
+      // gone (off, unset) — a call aimed at one location wipes the setting every
+      // other location falls back to. Status is not asserted: a 200 no-op and a
+      // refusal would both be a fix.
+      test.fail();
+      expect(portal, "the portal-wide value survives").toEqual({
+        deep: true,
+        isSet: true,
+        level: "low",
+      });
+    });
+
+    test(`BUG XXXXX: GET get-deep-mode | is-deep-mode-set | get-reasoning-level - a ${kind} with nothing of its own does not read the portal-wide value`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+      const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+      const entityId = await createNonAgentEntity(ownerApi, kind);
+      const agentId = await createReasoningAgent(apiSdk, "Autotest Control");
+
+      await preferences.setReasoningLevel("owner", { value: "medium" });
+      // Control: a real scope with nothing of its own reads unset, so "unset" is
+      // what a scope that is not the portal is expected to say.
+      expect(await readState(preferences, agentId)).toEqual(UNSET);
+
+      const read = await readState(preferences, entityId);
+
+      // Only "not the portal's value" is asserted — a 404/403 would be a fix too.
+      test.fail();
+      expect(read.level).not.toBe("medium");
+      expect(read.deep).not.toBe(true);
+      expect(read.isSet).not.toBe(true);
+    });
+  }
+});
+
+test.describe("AI Preferences - remaining state transitions", () => {
+  for (const level of ["low", "medium", "max"] as const) {
+    test(`PUT /api/2.0/ai/preferences/set-deep-mode - turning it on keeps a stored ${level} depth`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+      const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+      await preferences.setReasoningLevel("owner", { value: level });
+      const on = await preferences.setDeepMode("owner", { value: true });
+      expect(on.status).toBe(200);
+
+      expect(await readState(preferences)).toEqual({
+        deep: true,
+        isSet: true,
+        level,
+      });
+    });
+  }
+
+  test("PUT /api/2.0/ai/preferences/set-deep-mode - high, then off, then on through the switch lands on medium", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    await preferences.setReasoningLevel("owner", { value: "high" });
+    await preferences.setDeepMode("owner", { value: false });
+    // Control: the switch really replaced `high`, so nothing hidden survives.
+    expect(await readState(preferences)).toEqual({
+      deep: false,
+      isSet: true,
+      level: "off",
+    });
+
+    await preferences.setDeepMode("owner", { value: true });
+    expect(await readState(preferences)).toEqual({
+      deep: true,
+      isSet: true,
+      level: "medium",
+    });
+  });
+
+  test("DELETE /api/2.0/ai/preferences/clear-deep-mode - a cleared portal-wide high depth reads off, off and unset", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
+    const preferences = new AiPreferences(apiSdk.request, apiSdk.tokenStore);
+
+    await preferences.setReasoningLevel("owner", { value: "high" });
+    expect((await readState(preferences)).level, "control").toBe("high");
+
+    const clear = await preferences.clearDeepMode("owner", {
+      entityId: null,
+    });
+    expect(clear.status).toBe(200);
+    expect(await readState(preferences)).toEqual(UNSET);
   });
 });

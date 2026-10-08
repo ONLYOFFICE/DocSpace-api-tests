@@ -733,7 +733,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/checkconversion - startFileConve
 
     const { status } = await ownerApi.operations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },
@@ -763,7 +763,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/checkconversion - startFileConve
 
     const { status } = await adminApi.operations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },
@@ -807,7 +807,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/checkconversion - startFileConve
 
     const { status } = await roomAdminApi.operations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },
@@ -851,7 +851,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/checkconversion - startFileConve
 
     const { status } = await userApi.operations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },
@@ -888,7 +888,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/checkconversion - startFileConve
 
     const { status } = await userApi.operations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },
@@ -926,7 +926,7 @@ test.describe("PUT /api/2.0/files/file/{fileId}/checkconversion - startFileConve
 
     const { status } = await anonOperations.startFileConversion({
       fileId,
-      checkConversionRequestDtoInteger: {
+      checkConversionRequestDto: {
         startConvert: true,
         outputType: "pdf",
       },

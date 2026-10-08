@@ -259,8 +259,10 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
     // Web Search tab. Both off-states have to be pinned separately — the switch
     // makes this route 403 (first describe block), the wallet does not touch it.
     //
-    // The `null` is the unconfigured portal, not the wallet: no provider can be
-    // saved at all on this build (BUG 82812), which is why paying changes nothing
+    // The `null` is the unconfigured portal, not the wallet: the manual
+    // configuration path is retired and no provider can be saved through it
+    // (BUG 82812's crash is fixed, but the fixed route still only refuses or
+    // validation-errors, never saves), which is why paying changes nothing
     // here and why this is the strongest form the assertion can take today.
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);

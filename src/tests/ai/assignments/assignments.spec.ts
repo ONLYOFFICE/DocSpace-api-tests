@@ -497,6 +497,28 @@ test.describe("AI Assignments - capability validation", () => {
       label: "a text model",
       accepted: true,
     },
+    // FormAnalysis is seeded on a fresh portal, so a refusal here is checked
+    // against a real binding, not against an empty slot. Only the two accepted
+    // masks and the refused one are measured: whether the tools bit is required
+    // cannot be told apart, the catalogue has no text model without tools.
+    {
+      actionType: "FormAnalysis",
+      caps: AI_CAPS.textTools,
+      label: "a text model without vision",
+      accepted: true,
+    },
+    {
+      actionType: "FormAnalysis",
+      caps: AI_CAPS.textVisionTools,
+      label: "a vision model",
+      accepted: true,
+    },
+    {
+      actionType: "FormAnalysis",
+      caps: AI_CAPS.imageOnly,
+      label: "an image-generation model",
+      accepted: false,
+    },
   ];
 
   for (const { actionType, caps, label, accepted } of CASES) {
@@ -887,6 +909,7 @@ test.describe("AI Assignments - removing assignments", () => {
     const seeded = await profiles.bulkAssign("owner", {
       Chat: doomed.id,
       Summarization: doomed.id,
+      FormAnalysis: doomed.id,
       Vision: keeper.id,
     });
     expect(seeded.data?.success, JSON.stringify(seeded.data?.errors)).toBe(
@@ -905,6 +928,10 @@ test.describe("AI Assignments - removing assignments", () => {
       Object.values(after.data!),
       "no binding still points at the cascaded profile",
     ).not.toContain(doomed.id);
+    expect(
+      after.data!.FormAnalysis,
+      "the seeded FormAnalysis slot is cleared like any other",
+    ).toBeUndefined();
     expect(after.data!.Vision, "the other profile's binding survives").toBe(
       keeper.id,
     );
@@ -1008,6 +1035,396 @@ test.describe("AI Assignments - entity scope", () => {
       data?.Summarization,
       "and it does not answer with the portal-wide assignments",
     ).toBeUndefined();
+  });
+});
+
+// Which profile a task actually runs on: the agent's own Chat binding, then the
+// portal binding of the action, then Default. resolve-for-action and
+// try-resolve-for-action are the same lookup (measured 2026-10-02 on every state
+// below) and differ only when nothing resolves at all: resolve answers 500,
+// try answers 200 with a null body. Each `expectResolved` therefore asks both,
+// so a divergence between them shows up in whichever test hits it first.
+test.describe("AI Assignments - resolution precedence", () => {
+  const expectResolved = async (
+    profiles: AiProfiles,
+    expectedId: string,
+    actionType: string,
+    entityId?: number | string,
+  ) => {
+    const label = `${actionType}${entityId === undefined ? "" : ` @${entityId}`}`;
+    const resolved = await profiles.resolveForAction(
+      "owner",
+      actionType,
+      entityId,
+    );
+    const tried = await profiles.tryResolveForAction(
+      "owner",
+      actionType,
+      entityId,
+    );
+    expect(resolved.status, `resolve ${label}`).toBe(200);
+    expect(resolved.data?.profileId, `resolve ${label}`).toBe(expectedId);
+    expect(resolved.data?.profile?.id, `resolve ${label} expanded`).toBe(
+      expectedId,
+    );
+    expect(tried.status, `try-resolve ${label}`).toBe(200);
+    expect(tried.data, `try-resolve ${label} matches resolve`).toEqual(
+      resolved.data,
+    );
+  };
+
+  const assignOk = async (
+    profiles: AiProfiles,
+    actionType: string,
+    profileId: string,
+  ) => {
+    const { status, data } = await profiles.assign("owner", {
+      actionType,
+      profileId,
+    });
+    expect(status, `assign ${actionType}`).toBe(200);
+    expect(data?.success, `assign ${actionType}: ${data?.error?.message}`).toBe(
+      true,
+    );
+  };
+
+  /** Chat and Default both empty — the only state where resolve and try differ. */
+  const emptyChatAndDefault = async (profiles: AiProfiles) => {
+    for (const actionType of ["Chat", "Default"]) {
+      const { status, data } = await profiles.unassign("owner", {
+        actionType,
+      });
+      expect(status, `unassign ${actionType}`).toBe(200);
+      expect(data?.success, `unassign ${actionType}`).toBe(true);
+      const read = await profiles.getAssignment("owner", actionType);
+      expect(read.data, `${actionType} is empty`).toBeNull();
+    }
+  };
+
+  test("GET /api/2.0/ai/assignments/resolve-for-action - a direct Chat binding wins over Default, and unassigning it falls back to Default", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [a, b] = AiProfiles.distinctWithBit(catalogue, AI_CAPS.textTools, 2);
+
+    await assignOk(profiles, "Chat", a.id!);
+    await assignOk(profiles, "Default", b.id!);
+
+    await test.step("Chat=A, Default=B -> Chat resolves to A", async () => {
+      await expectResolved(profiles, a.id!, "Chat");
+    });
+
+    await test.step("an action with no binding of its own still gets Default", async () => {
+      await expectResolved(profiles, b.id!, "Summarization");
+    });
+
+    await test.step("unassigning Chat -> Chat resolves to Default", async () => {
+      const { data } = await profiles.unassign("owner", {
+        actionType: "Chat",
+      });
+      expect(data?.success).toBe(true);
+      const read = await profiles.getAssignment("owner", "Chat");
+      expect(read.data, "Chat is empty").toBeNull();
+      await expectResolved(profiles, b.id!, "Chat");
+      const fallback = await profiles.getAssignment("owner", "Default");
+      expect(fallback.data, "Default itself is untouched").toBe(b.id);
+    });
+  });
+
+  test("DELETE /api/2.0/ai/assignments/cascade-profile-delete - cascading the Chat profile makes Chat resolve to Default", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [a, b] = AiProfiles.distinctWithBit(catalogue, AI_CAPS.textTools, 2);
+
+    await assignOk(profiles, "Chat", a.id!);
+    await assignOk(profiles, "Default", b.id!);
+    await expectResolved(profiles, a.id!, "Chat");
+
+    const { status, data } = await profiles.cascadeProfileDelete("owner", {
+      profileId: a.id,
+    });
+    expect(status).toBe(200);
+    expect(data?.success).toBe(true);
+
+    const read = await profiles.getAssignment("owner", "Chat");
+    expect(read.data, "Chat lost its binding").toBeNull();
+    await expectResolved(profiles, b.id!, "Chat");
+  });
+
+  test("GET /api/2.0/ai/assignments/resolve-for-action - an agent's own model wins over the portal Chat and Default", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [agentModel, portalChat, portalDefault] = AiProfiles.distinctWithBit(
+      catalogue,
+      AI_CAPS.textTools,
+      3,
+    );
+
+    await assignOk(profiles, "Chat", portalChat.id!);
+    await assignOk(profiles, "Default", portalDefault.id!);
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Precedence Agent",
+      profileId: agentModel.id,
+    });
+
+    await test.step("with the agent's entityId -> the agent's model", async () => {
+      await expectResolved(profiles, agentModel.id!, "Chat", agentId);
+    });
+
+    await test.step("without entityId -> the portal Chat, the agent's binding is not consulted", async () => {
+      await expectResolved(profiles, portalChat.id!, "Chat");
+    });
+
+    await test.step("the agent keeps its model when the portal Chat is cleared", async () => {
+      const { data } = await profiles.unassign("owner", {
+        actionType: "Chat",
+      });
+      expect(data?.success).toBe(true);
+      const read = await profiles.getAssignment("owner", "Chat");
+      expect(read.data, "portal Chat is empty").toBeNull();
+
+      await expectResolved(profiles, agentModel.id!, "Chat", agentId);
+      await expectResolved(profiles, portalDefault.id!, "Chat");
+    });
+  });
+
+  test("GET /api/2.0/ai/assignments/resolve-for-action - two agents each resolve their own model and leave the portal map alone", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [first, second, portalChat] = AiProfiles.distinctWithBit(
+      catalogue,
+      AI_CAPS.textTools,
+      3,
+    );
+
+    await assignOk(profiles, "Chat", portalChat.id!);
+    const before = await profiles.getAllAssignments("owner");
+    expect(before.status).toBe(200);
+
+    const firstAgent = await aiChat.createAgentId("owner", {
+      title: "Autotest Precedence Agent 1",
+      profileId: first.id,
+    });
+    const secondAgent = await aiChat.createAgentId("owner", {
+      title: "Autotest Precedence Agent 2",
+      profileId: second.id,
+    });
+
+    await test.step("each agent resolves the model it was built on", async () => {
+      await expectResolved(profiles, first.id!, "Chat", firstAgent);
+      await expectResolved(profiles, second.id!, "Chat", secondAgent);
+    });
+
+    await test.step("each agent's scope lists only its own Chat", async () => {
+      const one = await profiles.getAllAssignments("owner", firstAgent);
+      const two = await profiles.getAllAssignments("owner", secondAgent);
+      expect(one.data).toEqual({ Chat: first.id });
+      expect(two.data).toEqual({ Chat: second.id });
+    });
+
+    await test.step("the portal map is exactly what it was before the agents existed", async () => {
+      const after = await profiles.getAllAssignments("owner");
+      expect(after.status).toBe(200);
+      expect(after.data).toEqual(before.data);
+      await expectResolved(profiles, portalChat.id!, "Chat");
+    });
+  });
+
+  test("GET /api/2.0/ai/assignments/resolve-for-action - FormAnalysis is an independent action type with its own slot and the Default fallback", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [a, b] = AiProfiles.distinctWithBit(catalogue, AI_CAPS.textTools, 2);
+
+    // A fresh portal already ships a FormAnalysis binding; a different Default
+    // keeps "falls back to Default" distinguishable from "kept its own".
+    const seeded = await profiles.getAssignment("owner", "FormAnalysis");
+    expect(
+      seeded.data,
+      "FormAnalysis is seeded on a fresh portal",
+    ).toBeTruthy();
+    await assignOk(profiles, "Default", b.id!);
+
+    await test.step("assign -> every read names the new profile", async () => {
+      await assignOk(profiles, "FormAnalysis", a.id!);
+      const read = await profiles.getAssignment("owner", "FormAnalysis");
+      expect(read.data).toBe(a.id);
+      await expectResolved(profiles, a.id!, "FormAnalysis");
+      const all = await profiles.getAllAssignments("owner");
+      expect(all.data?.FormAnalysis).toBe(a.id);
+    });
+
+    await test.step("unassign -> the slot is empty and both resolves fall back to Default", async () => {
+      const { data } = await profiles.unassign("owner", {
+        actionType: "FormAnalysis",
+      });
+      expect(data?.success).toBe(true);
+      const read = await profiles.getAssignment("owner", "FormAnalysis");
+      expect(read.data, "FormAnalysis is empty").toBeNull();
+      await expectResolved(profiles, b.id!, "FormAnalysis");
+      const fallback = await profiles.getAssignment("owner", "Default");
+      expect(fallback.data, "Default itself is untouched").toBe(b.id);
+    });
+  });
+
+  test("GET /api/2.0/ai/assignments/resolve-for-action - an agent's model does not override FormAnalysis, only Chat", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [agentModel, formModel] = AiProfiles.distinctWithBit(
+      catalogue,
+      AI_CAPS.textTools,
+      2,
+    );
+
+    await assignOk(profiles, "FormAnalysis", formModel.id!);
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest FormAnalysis Agent",
+      profileId: agentModel.id,
+    });
+
+    // Control: the agent really carries a model of its own for Chat.
+    await expectResolved(profiles, agentModel.id!, "Chat", agentId);
+
+    await expectResolved(profiles, formModel.id!, "FormAnalysis", agentId);
+    await expectResolved(profiles, formModel.id!, "FormAnalysis");
+  });
+
+  test("GET /api/2.0/ai/assignments/try-resolve-for-action - with nothing to resolve it answers 200 with a null body", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    await emptyChatAndDefault(profiles);
+
+    const { status, data } = await profiles.tryResolveForAction(
+      "owner",
+      "Chat",
+    );
+    expect(status).toBe(200);
+    expect(data).toBeNull();
+
+    const direct = await profiles.tryResolveForAction("owner", "Default");
+    expect(direct.status).toBe(200);
+    expect(direct.data).toBeNull();
+  });
+
+  test("BUG 84278: GET /api/2.0/ai/assignments/resolve-for-action - returns 500 Internal Server Error when no profile can be resolved", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.fail();
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    await emptyChatAndDefault(profiles);
+
+    // The same state try-resolve reports as a clean null: "no model is bound" is
+    // a state of the portal, not a server fault. What the right answer is (404,
+    // 204, a soft error...) is not decided — only that a 500 is wrong — so the
+    // expected status stays TBD and is pinned once the owners say.
+    const { status } = await profiles.resolveForAction("owner", "Chat");
+    expect(status, "resolve with no profile to resolve").not.toBe(500);
+  });
+
+  test("BUG 84279: GET /api/2.0/ai/assignments/resolve-for-action - an unknown entityId is a 404 instead of the portal-wide model", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.fail();
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const [chat] = AiProfiles.distinctWithBit(catalogue, AI_CAPS.textTools, 1);
+    await assignOk(profiles, "Chat", chat.id!);
+
+    // get-all-assignments already answers 404 here (BUG 82832); the lookup the
+    // chat surface actually calls still drops the scope in silence.
+    const resolved = await profiles.resolveForAction("owner", "Chat", 999999);
+    const tried = await profiles.tryResolveForAction("owner", "Chat", 999999);
+    expect(resolved.status, "resolve with an unknown entity").toBe(404);
+    expect(tried.status, "try-resolve with an unknown entity").toBe(404);
+  });
+
+  test("BUG 82830: GET /api/2.0/ai/assignments/resolve-for-action - Chat never resolves to a profile that cannot chat", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.fail();
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const imageOnly = AiProfiles.byCapabilities(catalogue, AI_CAPS.imageOnly);
+
+    const unassigned = await profiles.unassign("owner", {
+      actionType: "Chat",
+    });
+    expect(unassigned.data?.success).toBe(true);
+    const direct = await profiles.getAssignment("owner", "Chat");
+    expect(direct.data, "Chat falls through to Default").toBeNull();
+
+    const { data: assigned } = await profiles.assign("owner", {
+      actionType: "Default",
+      profileId: imageOnly.id,
+    });
+    // Refusing the profile at assign time is a valid fix too: then there is
+    // nothing left to resolve wrongly, and this test should lose test.fail.
+    if (assigned?.success !== true) {
+      return;
+    }
+
+    // Where validation lives is up to the backend; what Chat runs on is not.
+    const { status, data } = await profiles.resolveForAction("owner", "Chat");
+    expect(status).toBe(200);
+    const capabilities = data?.profile?.capabilities ?? 0;
+    expect(
+      capabilities & AI_CAP_BITS.text,
+      `Chat resolved to ${data?.profile?.modelId} (capabilities ${capabilities})`,
+    ).toBe(AI_CAP_BITS.text);
   });
 });
 
