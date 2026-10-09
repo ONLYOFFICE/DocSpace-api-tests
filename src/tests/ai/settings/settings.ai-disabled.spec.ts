@@ -306,3 +306,108 @@ test.describe("AI Settings - AI Tools wallet service not paid for", () => {
     expect(status).toBe(404);
   });
 });
+
+// Audit additions (SettingsApi, SDK 4.0.0): the switch as a CYCLE. The blocks
+// above pin the off-state; these pin what comes back when it is switched on
+// again, and that the per-user preference rides through the whole round trip.
+
+test.describe("AI Settings - switching AI off and on again", () => {
+  test("GET /api/2.0/ai/config - switching AI back on restores the flags on a paid portal", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const { data: paid } = await ownerApi.aiSettings.aiSettingsGet();
+    expect(paid.response?.aiReady, "the wallet really was paid for").toBe(true);
+
+    try {
+      const off = await setPortalAiAccess(ownerApi, false);
+      expect(off.writeStatus).toBe(200);
+      expect(off.enabled).toBe(false);
+      const { data: disabled } = await ownerApi.aiSettings.aiSettingsGet();
+      expect(disabled.response?.aiReady, "the switch really closed").toBe(
+        false,
+      );
+    } finally {
+      const on = await setPortalAiAccess(ownerApi, true);
+      expect(on.writeStatus).toBe(200);
+      expect(on.enabled).toBe(true);
+    }
+
+    const { data: restored, status } =
+      await ownerApi.aiSettings.aiSettingsGet();
+
+    expect(status).toBe(200);
+    expect(restored.response?.aiReady).toBe(true);
+    expect(restored.response?.vectorizationEnabled).toBe(true);
+    expect(restored.response?.systemAiEnabled).toBe(true);
+    expect(restored.response).toEqual(paid.response);
+  });
+
+  test("GET /api/2.0/ai/config - switching AI on does not make an unpaid portal ready", async ({
+    apiSdk,
+  }) => {
+    // The flags follow the wallet service as well as the switch. On a portal
+    // that has not paid, the switch can be turned off and on without ever
+    // reaching `true`: it is a necessary condition, not a sufficient one.
+    const ownerApi = apiSdk.forRole("owner");
+
+    try {
+      const off = await setPortalAiAccess(ownerApi, false);
+      expect(off.enabled).toBe(false);
+    } finally {
+      const on = await setPortalAiAccess(ownerApi, true);
+      expect(on.writeStatus).toBe(200);
+      expect(on.enabled).toBe(true);
+    }
+
+    const { data, status } = await ownerApi.aiSettings.aiSettingsGet();
+
+    expect(status).toBe(200);
+    expect(data.response?.aiReady).toBe(false);
+    expect(data.response?.vectorizationEnabled).toBe(false);
+    expect(data.response?.systemAiEnabled).toBe(false);
+  });
+
+  test("GET/PUT /api/2.0/ai/config/user - a preference changed while AI is off survives switching it back on", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const read = async () => {
+      const { data, status } = await ownerApi.aiSettings.aiSettingsGetUser();
+      expect(status).toBe(200);
+      return data.response?.chatRecommendedModelVisible;
+    };
+    const write = async (value: boolean) => {
+      const { status } = await ownerApi.aiSettings.aiSettingsSetUser({
+        requestBody: { chatRecommendedModelVisible: value },
+      });
+      expect(status).toBe(200);
+    };
+
+    await write(false);
+    expect(await read()).toBe(false);
+
+    try {
+      const off = await setPortalAiAccess(ownerApi, false);
+      expect(off.writeStatus).toBe(200);
+      expect(off.enabled).toBe(false);
+
+      // Written before the cycle, read while it is off: the switch must not
+      // have reset it.
+      expect(await read(), "stored value, switch off").toBe(false);
+
+      // And a write made while the switch is off must stick.
+      await write(true);
+      expect(await read(), "written while switch off").toBe(true);
+    } finally {
+      const on = await setPortalAiAccess(ownerApi, true);
+      expect(on.writeStatus).toBe(200);
+      expect(on.enabled).toBe(true);
+    }
+
+    expect(await read(), "after the switch came back on").toBe(true);
+  });
+});
