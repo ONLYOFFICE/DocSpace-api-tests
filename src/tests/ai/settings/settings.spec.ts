@@ -1,7 +1,11 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
+import type {
+  AiAiSettingsDto,
+  SettingsApi,
+} from "@onlyoffice/docspace-api-sdk";
 import { UserType } from "@/src/services/api-sdk";
-import { AiSettings } from "@/src/helpers/ai-settings";
+import { AiSettings, type AiUserConfig } from "@/src/helpers/ai-settings";
 import { setPortalAiAccess } from "@/src/helpers/ai-access";
 import {
   enableWalletService,
@@ -219,6 +223,537 @@ test.describe("AI Settings - per-user chat config", () => {
     expect(after.response?.chatRecommendedModelVisible).toBe(initial);
     expect(status).toBe(200);
   });
+});
+
+// ---------------------------------------------------------------------------
+// Audit additions (SettingsApi, SDK 4.0.0). Everything below extends the blocks
+// above rather than repeating them.
+//
+// `GET /ai/config` today also carries `toolPermissionMode`, which SDK 4.0.0's
+// AiAiSettingsDto does not declare. It is left unasserted on purpose: it is not
+// part of the documented contract, so the shape tests below pin the six
+// declared fields (and the absence of the retired ones) and nothing more.
+// ---------------------------------------------------------------------------
+
+/** Fields SDK 4.0.0's AiAiSettingsDto declares. */
+const DECLARED_CONFIG_FIELDS = [
+  "vectorizationEnabled",
+  "vectorizationNeedReset",
+  "aiReady",
+  "embeddingModel",
+  "systemAiEnabled",
+  "recommendedModelForForms",
+] as const;
+
+/**
+ * Fields the pre-rewrite body carried (see ai_config_dto_shrank). SDK 3.7.0/4.0.0
+ * dropped them from the DTO, so their absence is the published contract and not
+ * a defect — there is deliberately no `test.fail` for it.
+ */
+const RETIRED_CONFIG_FIELDS = [
+  "webSearchEnabled",
+  "webSearchNeedReset",
+  "aiReadyNeedReset",
+  "portalMcpServerId",
+  "modelAliases",
+  "knowledgeSearchToolName",
+  "webSearchToolName",
+  "webCrawlingToolName",
+  "generateDocxToolName",
+  "generateFormToolName",
+  "generatePresentationToolName",
+] as const;
+
+type UserSettingsClient = {
+  aiSettings: Pick<SettingsApi, "aiSettingsGetUser" | "aiSettingsSetUser">;
+};
+
+type ConfigClient = {
+  aiSettings: Pick<SettingsApi, "aiSettingsGet">;
+};
+
+async function readVisible(api: UserSettingsClient) {
+  const { data, status } = await api.aiSettings.aiSettingsGetUser();
+  expect(status, "GET /ai/config/user").toBe(200);
+  return data.response?.chatRecommendedModelVisible;
+}
+
+async function writeVisible(api: UserSettingsClient, value: boolean) {
+  const { status } = await api.aiSettings.aiSettingsSetUser({
+    requestBody: { chatRecommendedModelVisible: value },
+  });
+  expect(status, "PUT /ai/config/user").toBe(200);
+}
+
+test.describe("AI Settings - getAiSettings contract", () => {
+  test("GET /api/2.0/ai/config - carries every field the SDK declares and none of the retired ones", async ({
+    apiSdk,
+  }) => {
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { status, data } = await aiSettings.getAiConfig("owner");
+    expect(status).toBe(200);
+    const body = data?.response ?? {};
+
+    // Positive control first: an absence check on an empty or unparsed body
+    // would pass for the wrong reason.
+    for (const field of DECLARED_CONFIG_FIELDS) {
+      expect(body, `declared field ${field}`).toHaveProperty(field);
+    }
+    for (const field of RETIRED_CONFIG_FIELDS) {
+      expect(body, `retired field ${field}`).not.toHaveProperty(field);
+    }
+  });
+
+  test("GET /api/2.0/ai/config - repeated reads agree and reading changes nothing", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const visibleBefore = await readVisible(ownerApi);
+
+    const reads = [];
+    for (let i = 0; i < 3; i++) {
+      const { data, status } = await ownerApi.aiSettings.aiSettingsGet();
+      expect(status).toBe(200);
+      reads.push(data.response);
+    }
+
+    expect(reads[1]).toEqual(reads[0]);
+    expect(reads[2]).toEqual(reads[0]);
+    // The per-user preference lives on a sibling route; reading the portal
+    // config must not have touched it.
+    expect(await readVisible(ownerApi)).toBe(visibleBefore);
+  });
+
+  test("GET /api/2.0/ai/config - every role sees the same fields and the same portal state", async ({
+    apiSdk,
+  }) => {
+    // Members are all created before any is authenticated (see the isolation
+    // test below); the SDK clients carry their own bearer token.
+    const roomAdmin = await apiSdk.addMember("owner", "RoomAdmin");
+    const admin = await apiSdk.addMember("owner", "DocSpaceAdmin");
+    const user = await apiSdk.addMember("owner", "User");
+    const guest = await apiSdk.addMember("owner", "Guest");
+
+    const clients: Array<[string, ConfigClient]> = [
+      ["Owner", apiSdk.forRole("owner")],
+      [
+        "DocSpaceAdmin",
+        await apiSdk.authenticateMember(admin.userData, "DocSpaceAdmin"),
+      ],
+      [
+        "RoomAdmin",
+        await apiSdk.authenticateMember(roomAdmin.userData, "RoomAdmin"),
+      ],
+      ["User", await apiSdk.authenticateMember(user.userData, "User")],
+      ["Guest", await apiSdk.authenticateMember(guest.userData, "Guest")],
+    ];
+
+    const seen: Array<{ label: string; body: Record<string, unknown> }> = [];
+    for (const [label, api] of clients) {
+      const { data, status } = await api.aiSettings.aiSettingsGet();
+      expect(status, label).toBe(200);
+      seen.push({
+        label,
+        body: (data.response ?? {}) as Record<string, unknown>,
+      });
+    }
+
+    const [first, ...rest] = seen;
+    expect(Object.keys(first.body).length).toBeGreaterThanOrEqual(
+      DECLARED_CONFIG_FIELDS.length,
+    );
+    for (const { label, body } of rest) {
+      expect(Object.keys(body).sort(), `${label} fields`).toEqual(
+        Object.keys(first.body).sort(),
+      );
+      for (const field of DECLARED_CONFIG_FIELDS) {
+        expect(body[field], `${label}.${field}`).toEqual(first.body[field]);
+      }
+    }
+  });
+});
+
+test.describe("AI Settings - per-user chat config reads", () => {
+  test("GET /api/2.0/ai/config/user - repeated reads do not change the value", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    for (const stored of [true, false]) {
+      await writeVisible(ownerApi, stored);
+      for (let i = 0; i < 3; i++) {
+        expect(await readVisible(ownerApi), `read ${i} of ${stored}`).toBe(
+          stored,
+        );
+      }
+    }
+  });
+
+  test("GET /api/2.0/ai/config/user - reads follow the write in both directions and across independent clients", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    for (const stored of [false, true]) {
+      await writeVisible(ownerApi, stored);
+
+      // Two unrelated clients (axios SDK and raw request) for one token: the
+      // value has to come from storage, not from the writer's session.
+      expect(await readVisible(ownerApi)).toBe(stored);
+      const raw = await aiSettings.getUserConfig("owner");
+      expect(raw.status).toBe(200);
+      expect(raw.data?.response?.chatRecommendedModelVisible).toBe(stored);
+    }
+  });
+
+  test("GET/PUT /api/2.0/ai/config/user - each member keeps their own value through interleaved writes by other members", async ({
+    apiSdk,
+  }) => {
+    const userA = await apiSdk.addMember("owner", "User");
+    const userB = await apiSdk.addMember("owner", "User");
+    const roomAdmin = await apiSdk.addMember("owner", "RoomAdmin");
+    const guest = await apiSdk.addMember("owner", "Guest");
+
+    const members: Record<string, UserSettingsClient> = {
+      owner: apiSdk.forRole("owner"),
+      userA: await apiSdk.authenticateMember(userA.userData, "User"),
+      userB: await apiSdk.authenticateMember(userB.userData, "User"),
+      roomAdmin: await apiSdk.authenticateMember(
+        roomAdmin.userData,
+        "RoomAdmin",
+      ),
+      guest: await apiSdk.authenticateMember(guest.userData, "Guest"),
+    };
+    const expected: Record<string, boolean> = {
+      owner: true,
+      userA: true,
+      userB: true,
+      roomAdmin: true,
+      guest: true,
+    };
+
+    const expectAll = async (step: string) => {
+      for (const [name, api] of Object.entries(members)) {
+        expect(await readVisible(api), `${step}: ${name}`).toBe(expected[name]);
+      }
+    };
+
+    await test.step("every member starts at the default", async () => {
+      await expectAll("start");
+    });
+
+    // Each write is by a different member and in a different direction from the
+    // one before, so a value that leaked sideways would flip somebody else's.
+    const writes: Array<[string, boolean]> = [
+      ["guest", false],
+      ["roomAdmin", false],
+      ["userA", false],
+      ["userA", true],
+      ["owner", false],
+      ["userB", false],
+      ["userB", true],
+    ];
+    for (const [name, value] of writes) {
+      await test.step(`${name} sets ${value}`, async () => {
+        await writeVisible(members[name], value);
+        expected[name] = value;
+        await expectAll(`after ${name}=${value}`);
+      });
+    }
+  });
+
+  test("GET/PUT /api/2.0/ai/config/user - the token alone decides whose preference is read and written", async ({
+    apiSdk,
+  }) => {
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    const user = await apiSdk.addMember("owner", "User");
+    const ownerApi = apiSdk.forRole("owner");
+    // Read before the member is authenticated: the shared request context's
+    // session cookie would otherwise answer as the member.
+    const ownerId = await aiSettings.whoAmI("owner");
+    const userApi = await apiSdk.authenticateMember(user.userData, "User");
+    const userId = user.data.response!.id!;
+
+    await writeVisible(ownerApi, true);
+    await writeVisible(userApi, true);
+
+    // The User names the Owner in the body and in the query string. Neither may
+    // redirect the write, and neither may redirect the read.
+    const { status } = await userApi.aiSettings.aiSettingsSetUser(
+      {
+        requestBody: {
+          chatRecommendedModelVisible: false,
+          userId: ownerId,
+          id: ownerId,
+          targetUserId: ownerId,
+        },
+      },
+      { params: { userId: ownerId } },
+    );
+    expect(status).toBe(200);
+
+    expect(await readVisible(ownerApi), "Owner untouched").toBe(true);
+    expect(await readVisible(userApi), "the caller's own value moved").toBe(
+      false,
+    );
+
+    // Reading with the Owner's id in the query still returns the caller's own.
+    await writeVisible(ownerApi, true);
+    const { data } = await userApi.aiSettings.aiSettingsGetUser({
+      params: { userId: ownerId },
+    });
+    expect(data.response?.chatRecommendedModelVisible).toBe(false);
+    expect(userId).not.toBe(ownerId);
+  });
+});
+
+test.describe("AI Settings - per-user chat config writes", () => {
+  test("PUT /api/2.0/ai/config/user - toggles true -> false -> true and every write reads back", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    for (const value of [true, false, true]) {
+      const { data, status } = await ownerApi.aiSettings.aiSettingsSetUser({
+        requestBody: { chatRecommendedModelVisible: value },
+      });
+      expect(status).toBe(200);
+      expect(typeof data.response?.chatRecommendedModelVisible).toBe("boolean");
+      expect(data.response?.chatRecommendedModelVisible).toBe(value);
+
+      // The echo above proves nothing about storage; the read does.
+      expect(await readVisible(ownerApi)).toBe(value);
+    }
+  });
+
+  test("PUT /api/2.0/ai/config/user - writing the same value twice is idempotent", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    for (const value of [false, true]) {
+      await writeVisible(ownerApi, value);
+      await writeVisible(ownerApi, value);
+      expect(await readVisible(ownerApi)).toBe(value);
+    }
+  });
+
+  test("PUT /api/2.0/ai/config/user - the last of several writes wins", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    for (const value of [false, true, false, false, true, false]) {
+      await writeVisible(ownerApi, value);
+    }
+
+    expect(await readVisible(ownerApi)).toBe(false);
+  });
+
+  test("PUT /api/2.0/ai/config/user - never touches the portal-wide config, whatever the body claims", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const portalFields = (r: AiAiSettingsDto | undefined) =>
+      Object.fromEntries(
+        DECLARED_CONFIG_FIELDS.map((field) => [field, r?.[field]]),
+      );
+
+    const { data: before, status: beforeStatus } =
+      await ownerApi.aiSettings.aiSettingsGet();
+    expect(beforeStatus).toBe(200);
+
+    // The body tries to flip the portal's own flags next to the legitimate one.
+    const { status } = await ownerApi.aiSettings.aiSettingsSetUser({
+      requestBody: {
+        chatRecommendedModelVisible: false,
+        aiReady: true,
+        vectorizationEnabled: true,
+        vectorizationNeedReset: true,
+        systemAiEnabled: true,
+        embeddingModel: "attacker/embedding-model",
+        recommendedModelForForms: "attacker/model",
+      },
+    });
+    expect(status).toBe(200);
+    expect(await readVisible(ownerApi)).toBe(false);
+
+    const { data: after, status: afterStatus } =
+      await ownerApi.aiSettings.aiSettingsGet();
+    expect(afterStatus).toBe(200);
+    expect(portalFields(after.response)).toEqual(portalFields(before.response));
+  });
+});
+
+// Bodies the route has to refuse. `chatRecommendedModelVisible` is a boolean, so
+// every spelling of "true"/"false" that is not a JSON boolean — and every body
+// that is not an object — is a 400, and the stored value must not move. The
+// SDK's DTO cannot express any of them, hence the raw helper.
+const REJECTED_USER_CONFIG_BODIES: Array<{ label: string; body: unknown }> = [
+  { label: 'the string "true"', body: { chatRecommendedModelVisible: "true" } },
+  {
+    label: 'the string "false"',
+    body: { chatRecommendedModelVisible: "false" },
+  },
+  { label: "the number 1", body: { chatRecommendedModelVisible: 1 } },
+  { label: "the number 0", body: { chatRecommendedModelVisible: 0 } },
+  { label: "an array value", body: { chatRecommendedModelVisible: [] } },
+  { label: "an object value", body: { chatRecommendedModelVisible: {} } },
+  { label: "a JSON array as the body", body: [1, 2] },
+  // A string is sent verbatim by the raw helper, so this is malformed JSON.
+  { label: "malformed JSON", body: "{bad" },
+];
+
+// Bodies that are accepted and change nothing: "no value given" is a partial
+// update, not a reset. Measured 2026-10-09 — before BUG 82725 was fixed the
+// empty-object case wrote `false`. Each runs from a stored `true` AND a stored
+// `false`, so a missing field bound to either default would show.
+const NO_OP_USER_CONFIG_BODIES: Array<{ label: string; body: unknown }> = [
+  { label: "an empty object", body: {} },
+  { label: "no body at all", body: undefined },
+  { label: "JSON null as the body", body: "null" },
+  {
+    label: "an explicit null value",
+    body: { chatRecommendedModelVisible: null },
+  },
+  { label: "only an unknown field", body: { unknownField: 1 } },
+  {
+    label: "a 5000-character unknown field name",
+    body: { ["x".repeat(5000)]: 1 },
+  },
+  {
+    label: "500 unknown fields",
+    body: Object.fromEntries(
+      Array.from({ length: 500 }, (_, i) => [`field${i}`, i]),
+    ),
+  },
+];
+
+test.describe("AI Settings - per-user chat config body validation", () => {
+  for (const { label, body } of REJECTED_USER_CONFIG_BODIES) {
+    test(`PUT /api/2.0/ai/config/user - ${label} is rejected and changes nothing`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+      await writeVisible(ownerApi, true);
+      expect(await readVisible(ownerApi)).toBe(true);
+
+      const { status, error } = await aiSettings.setUserConfig(
+        "owner",
+        body as AiUserConfig,
+      );
+
+      // State first: the 400 is only meaningful if nothing was stored.
+      expect(await readVisible(ownerApi)).toBe(true);
+      expect(error).toBe("Bad Request");
+      expect(status).toBe(400);
+    });
+  }
+
+  for (const { label, body } of NO_OP_USER_CONFIG_BODIES) {
+    test(`PUT /api/2.0/ai/config/user - ${label} is accepted as a no-op in both directions`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+      for (const stored of [true, false]) {
+        await test.step(`stored ${stored}`, async () => {
+          await writeVisible(ownerApi, stored);
+          expect(await readVisible(ownerApi)).toBe(stored);
+
+          const { status } = await aiSettings.setUserConfig(
+            "owner",
+            body as AiUserConfig,
+          );
+
+          expect(await readVisible(ownerApi)).toBe(stored);
+          expect(status).toBe(200);
+        });
+      }
+    });
+  }
+
+  test("PUT /api/2.0/ai/config/user - a valid value next to an unknown field is applied and the unknown field is ignored", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    await writeVisible(ownerApi, true);
+
+    const { status } = await aiSettings.setUserConfig("owner", {
+      chatRecommendedModelVisible: false,
+      unknownField: "ignored",
+    } as AiUserConfig);
+
+    expect(status).toBe(200);
+    expect(await readVisible(ownerApi)).toBe(false);
+  });
+
+  test("PUT /api/2.0/ai/config/user - the field name binds case-insensitively", async ({
+    apiSdk,
+  }) => {
+    // Observed, not a documented promise: `ChatRecommendedModelVisible` is
+    // applied exactly like the camel-cased name. That is stock ASP.NET model
+    // binding, so it is pinned as the current behaviour (and as a way to notice
+    // a change), not asserted as a requirement.
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+    await writeVisible(ownerApi, true);
+    expect(await readVisible(ownerApi)).toBe(true);
+
+    const { status } = await aiSettings.setUserConfig("owner", {
+      ChatRecommendedModelVisible: false,
+    } as unknown as AiUserConfig);
+
+    expect(status).toBe(200);
+    expect(await readVisible(ownerApi)).toBe(false);
+  });
+
+  for (const { label, contentType } of [
+    { label: "text/plain", contentType: "text/plain" },
+    { label: "no Content-Type", contentType: null },
+  ]) {
+    test(`BUG XXXXX: PUT /api/2.0/ai/config/user - a valid body sent as ${label} is acknowledged with 200 but not applied`, async ({
+      apiSdk,
+    }) => {
+      // A 200 has to mean "stored". Here the body is dropped without a word:
+      // the response says success, the preference stays as it was. A 4xx (400
+      // or 415) would be fine; so would applying it. What is not fine is
+      // acknowledging a write that never happened.
+      const ownerApi = apiSdk.forRole("owner");
+      const base = apiSdk.tokenStore.portalBaseUrl;
+      await writeVisible(ownerApi, true);
+      expect(await readVisible(ownerApi)).toBe(true);
+
+      const headers: Record<string, string> = {
+        Origin: base,
+        Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+      };
+      if (contentType) {
+        headers["Content-Type"] = contentType;
+      }
+      const response = await apiSdk.request.put(
+        `${base}/api/2.0/ai/config/user`,
+        {
+          headers,
+          data: JSON.stringify({ chatRecommendedModelVisible: false }),
+        },
+      );
+
+      const after = await readVisible(ownerApi);
+
+      // Everything above is setup; only the invariant below is the bug.
+      test.fail();
+      expect(
+        response.status() !== 200 || after === false,
+        `PUT answered ${response.status()} but the stored value is ${after}`,
+      ).toBe(true);
+    });
+  }
 });
 
 // "Managing the AI services is a portal administrator's job, not only the
