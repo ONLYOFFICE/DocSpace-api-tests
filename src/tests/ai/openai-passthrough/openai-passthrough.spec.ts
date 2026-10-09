@@ -378,7 +378,7 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
 
   for (const { name, body } of IMAGE_INVALID_BODIES) {
     test.fail(
-      `BUG XXXXX: POST images/generations - ${name} answers 500 instead of 400`,
+      `BUG 84414: POST images/generations - ${name} answers 500 instead of 400`,
       async ({ apiSdk, paymentsApi }) => {
         const { imageProfileId, imageModel } = await providePassthrough(
           apiSdk,
@@ -469,7 +469,7 @@ test.describe("OpenAI passthrough - body size", () => {
     });
 
     test.fail(
-      `BUG XXXXX: POST ${endpoint} - a 31 MB body answers 500 and leaks the stack trace and the internal gateway host`,
+      `BUG 84415: POST ${endpoint} - a 31 MB body answers 500 and leaks the stack trace and the internal gateway host`,
       async ({ apiSdk, paymentsApi }) => {
         const { chatProfileId } = await providePassthrough(apiSdk, paymentsApi);
 
@@ -497,7 +497,7 @@ test.describe("OpenAI passthrough - SDK documentation vs the gateway", () => {
   // the profile's model or the SDK text is wrong; if the docs get fixed instead,
   // replace this with a plain "model is required" 400 test.
   test.fail(
-    "BUG XXXXX: POST chat/completions - the model is not taken from the profile although the SDK says it is",
+    "BUG 84416: POST chat/completions - the model is not taken from the profile although the SDK says it is",
     async ({ apiSdk, paymentsApi }) => {
       const { chatProfileId } = await providePassthrough(apiSdk, paymentsApi);
 
@@ -511,7 +511,7 @@ test.describe("OpenAI passthrough - SDK documentation vs the gateway", () => {
   );
 
   test.fail(
-    "BUG XXXXX: POST images/generations - the model is not taken from the profile although the SDK says it is",
+    "BUG 84416: POST images/generations - the model is not taken from the profile although the SDK says it is",
     async ({ apiSdk, paymentsApi }) => {
       const { imageProfileId } = await providePassthrough(apiSdk, paymentsApi);
 

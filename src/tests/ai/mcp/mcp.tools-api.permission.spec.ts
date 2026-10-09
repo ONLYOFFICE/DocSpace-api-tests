@@ -276,7 +276,7 @@ test.describe("ToolsApi permissions - a user who was never invited to the agent"
 });
 
 test.describe("ToolsApi permissions - credentials in a stored config", () => {
-  test("BUG XXXXX: GET /api/2.0/ai/tools/get-custom-server, list-custom-servers - a plain User is not handed the Authorization header an admin stored", async ({
+  test("BUG 84399: GET /api/2.0/ai/tools/get-custom-server, list-custom-servers - a plain User is not handed the Authorization header an admin stored", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -869,7 +869,7 @@ test.describe("ToolsApi - the portal AI switch off and on again", () => {
 });
 
 test.describe("ToolsApi - the order of the gate and the serverType check", () => {
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - with AI access off, a registered custom server as serverType is a 403 like every other tools write", async ({
+  test("BUG 84400: PUT /api/2.0/ai/tools/set-disabled - with AI access off, a registered custom server as serverType is a 403 like every other tools write", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -918,7 +918,7 @@ test.describe("ToolsApi - the order of the gate and the serverType check", () =>
     expect(refused.status).toBe(403);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - a Guest naming a registered custom server is a 403, not a 400 that lists the valid values", async ({
+  test("BUG 84401: PUT /api/2.0/ai/tools/set-disabled - a Guest naming a registered custom server is a 403, not a 400 that lists the valid values", async ({
     apiSdk,
     paymentsApi,
   }) => {

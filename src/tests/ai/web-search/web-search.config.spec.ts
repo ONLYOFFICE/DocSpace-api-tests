@@ -153,7 +153,7 @@ test.describe("AI Web Search - set-active-config", () => {
 
   // The route validates its body before it decides whether the caller may write
   // at all, so what a malformed body gets is a 400 naming the field. These are
-  // measured messages; the order problem itself is the BUG XXXXX pair further
+  // measured messages; the order problem itself is the BUG 84431 + BUG 84432 pair further
   // down.
   test("PUT /api/2.0/ai/web-search/set-active-config - a malformed configuration is a 400 that names the field", async ({
     apiSdk,
@@ -272,7 +272,7 @@ test.describe("AI Web Search - set-active-config", () => {
   // `set-active-config` validates the body before it checks who is asking or
   // whether AI is on, so a Guest and an AI-disabled portal reach validation and
   // get a 400 naming a field, where the read side and `clear` answer 403.
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/set-active-config - Guest reaches body validation instead of being rejected with 403", async ({
+  test("BUG 84431: PUT /api/2.0/ai/web-search/set-active-config - Guest reaches body validation instead of being rejected with 403", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -315,7 +315,7 @@ test.describe("AI Web Search - set-active-config", () => {
     ).toEqual([403, 403]);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/web-search/set-active-config - the portal AI switch does not gate the route, a malformed body reaches validation instead of 403", async ({
+  test("BUG 84432: PUT /api/2.0/ai/web-search/set-active-config - the portal AI switch does not gate the route, a malformed body reaches validation instead of 403", async ({
     apiSdk,
     paymentsApi,
   }) => {

@@ -1889,7 +1889,7 @@ test.describe("AI Profiles - id boundaries on the read routes", () => {
     expect(missing.error).toBe("profileId required");
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/profiles/list-models - an unknown profile id is a 404, not a 502 from the provider", async ({
+  test("BUG 84426: GET /api/2.0/ai/profiles/list-models - an unknown profile id is a 404, not a 502 from the provider", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1977,7 +1977,7 @@ test.describe("AI Profiles - test-connection request and response shape", () => 
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/test-connection - an unknown profile id is a 404, not a 500", async ({
+  test("BUG 84427: POST /api/2.0/ai/profiles/test-connection - an unknown profile id is a 404, not a 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2175,7 +2175,7 @@ test.describe("AI Profiles - list-provider-models request validation", () => {
     );
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/profiles/list-provider-models - a key that cannot be sent as an HTTP header is a 400, on every transport", async ({
+  test("BUG 84428: POST /api/2.0/ai/profiles/list-provider-models - a key that cannot be sent as an HTTP header is a 400, on every transport", async ({
     apiSdk,
     paymentsApi,
   }) => {

@@ -502,7 +502,7 @@ test.describe("AI Editor Tools - Guest", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/editor-tools/call - a Guest who is not offered the generators runs them anyway when a room is named", async ({
+  test("BUG 84392: POST /api/2.0/ai/editor-tools/call - a Guest who is not offered the generators runs them anyway when a room is named", async ({
     apiSdk,
   }) => {
     // The Guest's /list has no generators, and the same Guest names one with the
