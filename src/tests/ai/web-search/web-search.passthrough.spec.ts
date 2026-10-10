@@ -290,7 +290,7 @@ test.describe("AI Web Search passthrough - search", () => {
   //   {engine:"exa", query: 5}  -> 500, same shape, SearchRequest.query
   //   {engine:"exa", query: {}} -> 500, same shape
   //   {engine:"exa", query:"a", numResults:"x"} -> 500, ...numResults of type int
-  test("BUG XXXXX: POST /api/2.0/ai/websearch/v1/search - a field of the wrong type answers 400, not a 500 that names the gateway's Go structs", async ({
+  test("BUG 84433: POST /api/2.0/ai/websearch/v1/search - a field of the wrong type answers 400, not a 500 that names the gateway's Go structs", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -392,7 +392,7 @@ test.describe("AI Web Search passthrough - contents", () => {
   });
 
   // Same defect as the search one above, on the second route.
-  test("BUG XXXXX: POST /api/2.0/ai/websearch/v1/contents - urls of the wrong type answers 400, not a 500 that names the gateway's Go structs", async ({
+  test("BUG 84434: POST /api/2.0/ai/websearch/v1/contents - urls of the wrong type answers 400, not a 500 that names the gateway's Go structs", async ({
     apiSdk,
     paymentsApi,
   }) => {

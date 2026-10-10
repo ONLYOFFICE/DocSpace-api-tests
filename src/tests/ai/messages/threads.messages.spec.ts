@@ -194,7 +194,7 @@ test.describe("GET /api/2.0/ai/threads/read-messages - ThreadsApi.aiThreadsReadM
     );
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/threads/read-messages - walking forward by cursor repeats the last message of every page and never ends", async ({
+  test("BUG 84407: GET /api/2.0/ai/threads/read-messages - walking forward by cursor repeats the last message of every page and never ends", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -255,7 +255,7 @@ test.describe("GET /api/2.0/ai/threads/read-messages - ThreadsApi.aiThreadsReadM
     expect(malformed.status, "malformed id").toBe(400);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/threads/read-messages - a request with no threadId is refused like get-by-id refuses it", async ({
+  test("BUG 84408: GET /api/2.0/ai/threads/read-messages - a request with no threadId is refused like get-by-id refuses it", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -465,7 +465,7 @@ test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThrea
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/threads/append-user-message - an empty or whitespace-only message is refused", async ({
+  test("BUG 84409: POST /api/2.0/ai/threads/append-user-message - an empty or whitespace-only message is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -493,7 +493,7 @@ test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThrea
     expect(blank.status, "a whitespace text").toBe(400);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/threads/append-user-message - a message that is not a user message is refused", async ({
+  test("BUG 84410: POST /api/2.0/ai/threads/append-user-message - a message that is not a user message is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -529,7 +529,7 @@ test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThrea
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/threads/append-user-message - a message with no content, or a null message, is refused", async ({
+  test("BUG 84409: POST /api/2.0/ai/threads/append-user-message - a message with no content, or a null message, is refused", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -629,7 +629,7 @@ test.describe("GET /api/2.0/ai/threads/get-message-by-id - ThreadsApi.aiThreadsG
     expect(missing.status, "missing id").toBe(400);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/threads/get-message-by-id - a message that does not exist is a 404, not 200 null", async ({
+  test("BUG 84411: GET /api/2.0/ai/threads/get-message-by-id - a message that does not exist is a 404, not 200 null", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -825,7 +825,7 @@ test.describe("PUT /api/2.0/ai/threads/update-message - ThreadsApi.aiThreadsUpda
     }
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/threads/update-message - an empty or whitespace-only text is refused and does not wipe the message", async ({
+  test("BUG 84412: PUT /api/2.0/ai/threads/update-message - an empty or whitespace-only text is refused and does not wipe the message", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -860,7 +860,7 @@ test.describe("PUT /api/2.0/ai/threads/update-message - ThreadsApi.aiThreadsUpda
     expect(noParts.status, "an empty parts list").toBe(400);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/threads/update-message - the role of a stored message cannot be changed", async ({
+  test("BUG 84413: PUT /api/2.0/ai/threads/update-message - the role of a stored message cannot be changed", async ({
     apiSdk,
     paymentsApi,
   }) => {

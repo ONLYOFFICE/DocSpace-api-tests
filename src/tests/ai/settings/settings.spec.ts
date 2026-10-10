@@ -717,7 +717,7 @@ test.describe("AI Settings - per-user chat config body validation", () => {
     { label: "text/plain", contentType: "text/plain" },
     { label: "no Content-Type", contentType: null },
   ]) {
-    test(`BUG XXXXX: PUT /api/2.0/ai/config/user - a valid body sent as ${label} is acknowledged with 200 but not applied`, async ({
+    test(`BUG 84430: PUT /api/2.0/ai/config/user - a valid body sent as ${label} is acknowledged with 200 but not applied`, async ({
       apiSdk,
     }) => {
       // A 200 has to mean "stored". Here the body is dropped without a word:

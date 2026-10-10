@@ -416,7 +416,7 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
     ],
   );
 
-  test("BUG XXXXX: POST /api/2.0/ai/prompts/import-bundle - mode merge: an invalid entry after a valid one is a 400 but the valid one stays written", async ({
+  test("BUG 84421: POST /api/2.0/ai/prompts/import-bundle - mode merge: an invalid entry after a valid one is a 400 but the valid one stays written", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -443,7 +443,7 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
   ];
 
   for (const [label, bundle] of REPLACE_REFUSALS) {
-    test(`BUG XXXXX: POST /api/2.0/ai/prompts/import-bundle - mode replace: ${label} is a 400 but the existing library has already been deleted`, async ({
+    test(`BUG 84422: POST /api/2.0/ai/prompts/import-bundle - mode replace: ${label} is a 400 but the existing library has already been deleted`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -491,7 +491,7 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
   ];
 
   for (const [label, body] of MALFORMED) {
-    test(`BUG XXXXX: POST /api/2.0/ai/prompts/import-bundle - ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84423: POST /api/2.0/ai/prompts/import-bundle - ${label} answers 500, not a 400 validation error`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -515,7 +515,7 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
 });
 
 test.describe("AI Prompts - import must not bypass the name rules", () => {
-  test("BUG XXXXX: POST /api/2.0/ai/prompts/import-bundle - mode replace: two prompts of one name in the bundle are written as duplicates", async ({
+  test("BUG 84424: POST /api/2.0/ai/prompts/import-bundle - mode replace: two prompts of one name in the bundle are written as duplicates", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -543,7 +543,7 @@ test.describe("AI Prompts - import must not bypass the name rules", () => {
     );
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/prompts/import-bundle - mode merge: two folders of one name in the bundle are written as duplicates", async ({
+  test("BUG 84425: POST /api/2.0/ai/prompts/import-bundle - mode merge: two folders of one name in the bundle are written as duplicates", async ({
     apiSdk,
     paymentsApi,
   }) => {

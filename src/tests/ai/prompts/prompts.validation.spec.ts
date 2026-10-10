@@ -15,7 +15,7 @@ import {
 //   * a text of the wrong type or a missing text is a hard 400
 //   * a name that is missing, null or not a string is a hard **500** on create,
 //     create-folder, rename-folder and update — while the sibling field `text`
-//     answers 400 for the same kind of input. Those are the BUG XXXXX tests.
+//     answers 400 for the same kind of input. Those are the BUG 84429 tests.
 //   * names are unique per folder / per library **case-insensitively**, and are
 //     not trimmed — "Alpha " is a different name from "Alpha".
 //
@@ -50,7 +50,7 @@ const withField = (key: string, value: unknown) =>
 
 test.describe("AI Prompts - create: field validation", () => {
   for (const [label, value] of BAD_NAMES) {
-    test(`BUG XXXXX: POST /api/2.0/ai/prompts/create - a name that is ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84429: POST /api/2.0/ai/prompts/create - a name that is ${label} answers 500, not a 400 validation error`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -374,7 +374,7 @@ test.describe("AI Prompts - update: field validation", () => {
   for (const [label, value] of BAD_NAMES.filter(
     ([, value]) => typeof value !== "undefined" && value !== null,
   )) {
-    test(`BUG XXXXX: PUT /api/2.0/ai/prompts/update - a name that is ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84429: PUT /api/2.0/ai/prompts/update - a name that is ${label} answers 500, not a 400 validation error`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -540,7 +540,7 @@ test.describe("AI Prompt folders - field validation", () => {
     ["an object with a null name", { name: null }],
     ["an object with a numeric name", { name: 5 }],
   ] as Array<[string, unknown]>) {
-    test(`BUG XXXXX: POST /api/2.0/ai/prompts/create-folder - a body that is ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84429: POST /api/2.0/ai/prompts/create-folder - a body that is ${label} answers 500, not a 400 validation error`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -601,7 +601,7 @@ test.describe("AI Prompt folders - field validation", () => {
   });
 
   for (const [label, value] of BAD_NAMES) {
-    test(`BUG XXXXX: PUT /api/2.0/ai/prompts/rename-folder - a name that is ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84429: PUT /api/2.0/ai/prompts/rename-folder - a name that is ${label} answers 500, not a 400 validation error`, async ({
       apiSdk,
       paymentsApi,
     }) => {

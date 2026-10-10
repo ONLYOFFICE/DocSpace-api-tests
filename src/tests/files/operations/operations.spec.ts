@@ -3369,9 +3369,9 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
     },
   );
 
-  // BUG XXXXX: PUT /api/2.0/files/fileops/copy - non-existent folderId returns 500 (NullReferenceException)
+  // BUG 84435: PUT /api/2.0/files/fileops/copy - non-existent folderId returns 500 (NullReferenceException)
   test(
-    "BUG XXXXX: PUT /api/2.0/files/fileops/copy - Non-existent folderId" +
+    "BUG 84435: PUT /api/2.0/files/fileops/copy - Non-existent folderId" +
       " returns 404, not 500",
     async ({ apiSdk }) => {
       // Catches: unhandled NullReferenceException for an unknown folder in folderIds
@@ -8921,9 +8921,9 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
     },
   );
 
-  // BUG XXXXX: PUT /api/2.0/files/fileops/move - non-existent folderId returns 500 (NullReferenceException)
+  // BUG 84436: PUT /api/2.0/files/fileops/move - non-existent folderId returns 500 (NullReferenceException)
   test(
-    "BUG XXXXX: PUT /api/2.0/files/fileops/move - Non-existent folderId" +
+    "BUG 84436: PUT /api/2.0/files/fileops/move - Non-existent folderId" +
       " returns 404, not 500",
     async ({ apiSdk }) => {
       // Catches: unhandled NullReferenceException for an unknown folder in folderIds
@@ -8971,9 +8971,9 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
     },
   );
 
-  // BUG XXXXX: PUT /api/2.0/files/fileops/move - Duplicate leaves two files with the same name in the destination
+  // BUG 84437: PUT /api/2.0/files/fileops/move - Duplicate leaves two files with the same name in the destination
   test(
-    "BUG XXXXX: PUT /api/2.0/files/fileops/move - Move with conflictResolveType" +
+    "BUG 84437: PUT /api/2.0/files/fileops/move - Move with conflictResolveType" +
       " Duplicate gives the moved file a new name",
     async ({ apiSdk }) => {
       // Catches: a same-name move "succeeds" and the destination ends up with two

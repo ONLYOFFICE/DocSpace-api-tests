@@ -950,7 +950,7 @@ test.describe("ToolsApi - set-disabled, get-disabled, is-tool-disabled", () => {
     expect(unknownType.error).toContain("docspace");
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - a string toolNames is rejected instead of being split into single-letter tool names", async ({
+  test("BUG 84402: PUT /api/2.0/ai/tools/set-disabled - a string toolNames is rejected instead of being split into single-letter tool names", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -975,7 +975,7 @@ test.describe("ToolsApi - set-disabled, get-disabled, is-tool-disabled", () => {
     expect(status).toBe(400);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-disabled - a request with no toolNames, or null, is rejected instead of wiping the disabled list", async ({
+  test("BUG 84403: PUT /api/2.0/ai/tools/set-disabled - a request with no toolNames, or null, is rejected instead of wiping the disabled list", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1306,7 +1306,7 @@ test.describe("ToolsApi - set-allow-always, get-allow-always, is-allow-always", 
     expect(await allowedOf(aiTools, agentId)).toEqual([]);
   });
 
-  test('BUG XXXXX: PUT /api/2.0/ai/tools/set-allow-always - the string "false" does not grant a permanent approval', async ({
+  test('BUG 84404: PUT /api/2.0/ai/tools/set-allow-always - the string "false" does not grant a permanent approval', async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1332,7 +1332,7 @@ test.describe("ToolsApi - set-allow-always, get-allow-always, is-allow-always", 
     expect(data, 'the string "false" must not approve the tool').toBe(false);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/set-allow-always - a request with no toolName, or null, is a 400 and not a 500", async ({
+  test("BUG 84405: PUT /api/2.0/ai/tools/set-allow-always - a request with no toolName, or null, is a 400 and not a 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1626,7 +1626,7 @@ test.describe("ToolsApi - lifecycles across routes", () => {
     ).toBe(false);
   });
 
-  test("BUG XXXXX: PUT /api/2.0/ai/tools/replace-all-custom-servers - a server dropped by replace-all loses its disabled and allow-always entries like a removed one does", async ({
+  test("BUG 84406: PUT /api/2.0/ai/tools/replace-all-custom-servers - a server dropped by replace-all loses its disabled and allow-always entries like a removed one does", async ({
     apiSdk,
     paymentsApi,
   }) => {

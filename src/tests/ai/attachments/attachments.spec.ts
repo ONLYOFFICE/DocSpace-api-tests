@@ -595,7 +595,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(statuses).toEqual(bodies.map(([label]) => [label, 400]));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - an empty path is a 400", async ({
+  test("BUG 84389: POST /api/2.0/ai/attachments/save-file - an empty path is a 400", async ({
     apiSdk,
   }) => {
     // A missing path and a null path are both a 400 (the test above); an empty
