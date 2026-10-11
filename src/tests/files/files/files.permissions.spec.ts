@@ -4496,7 +4496,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 });
 
 test.describe("GET /files/file/:fileId/log - Get file history permissions", () => {
-  test.fail(
+  test(
     "BUG 81093: GET /files/file/:fileId/log - Guest sees owner email in profileUrl field of file history response",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");

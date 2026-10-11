@@ -2010,10 +2010,15 @@ test.describe("ToolsApi - concurrent writes", () => {
         aiTools.removeCustomServer("owner", { name, agentId }),
       ]);
       // Measured: whichever lands first decides. Update first: 200 success. Remove
-      // first: the update is a hard 404 `Not Found` (a never-registered name is a
-      // soft 200 `Server not registered` — the two spellings of "gone" differ).
+      // first: usually a hard 404 `Not Found`, but when the update slips in between
+      // the lookup and the delete it is the soft 200 `Server not registered` — the
+      // two spellings of "gone" differ and both occur in this race.
       if (updated.status === 200) {
-        expect(updated.data?.success, `round ${round}`).toBe(true);
+        if (updated.data?.success !== true) {
+          expect(updated.data?.error?.message, `round ${round}`).toBe(
+            `Server not registered: ${name}`,
+          );
+        }
       } else {
         expect(updated.status, `round ${round}`).toBe(404);
         expect(updated.error, `round ${round}`).toBe("Not Found");

@@ -6179,11 +6179,12 @@ test.describe("AI Chat - image generation", () => {
     ).toBeNull();
 
     // …and confirm that leaves the portal in the state the requirement talks
-    // about. `ImageGeneration` still resolves — through `Default` — so the
-    // question is not whether it resolves but whether what it resolves to can
-    // draw. If a drawing model were still reachable here the run below would be
-    // testing nothing.
-    const resolved = await profiles.resolveForAction(
+    // about. `ImageGeneration` falls through to `Default`, which holds a text
+    // model, so the non-throwing `try-resolve-for-action` answers a 200 `null`
+    // (the strict `resolve-for-action` answers a bare 500 there). The question is
+    // whether anything that can draw is still reachable: if one were, the run
+    // below would be testing nothing.
+    const resolved = await profiles.tryResolveForAction(
       "owner",
       "ImageGeneration",
     );
