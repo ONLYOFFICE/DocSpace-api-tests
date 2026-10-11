@@ -4496,40 +4496,39 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 });
 
 test.describe("GET /files/file/:fileId/log - Get file history permissions", () => {
-  test(
-    "BUG 81093: GET /files/file/:fileId/log - Guest sees owner email in profileUrl field of file history response",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81093: GET /files/file/:fileId/log - Guest sees owner email in profileUrl field of file history response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: {
-          title: "Autotest File History Guest Test",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest File History Guest Test",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: guestData, api: guestApi } =
-        await apiSdk.addAuthenticatedMember("owner", "Guest");
-      const guestId = guestData.response!.id!;
+    const { data: guestData, api: guestApi } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
 
-      await ownerApi.sharing.setFileSecurityInfo({
-        id: fileId,
-        securityInfoSimpleRequestDto: {
-          share: [{ shareTo: guestId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.sharing.setFileSecurityInfo({
+      id: fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { data, status } = await guestApi.files.getFileHistory({ fileId });
+    const { data, status } = await guestApi.files.getFileHistory({ fileId });
 
-      expect(status).toBe(200);
+    expect(status).toBe(200);
 
-      const historyEntries = data.response ?? [];
-      for (const entry of historyEntries) {
-        expect(entry.initiator?.profileUrl).toBeFalsy();
-      }
-    },
-  );
+    const historyEntries = data.response ?? [];
+    for (const entry of historyEntries) {
+      expect(entry.initiator?.profileUrl).toBeFalsy();
+    }
+  });
 
   test("GET /files/file/:fileId/log - DocSpaceAdmin can get file history in owner room", async ({
     apiSdk,
