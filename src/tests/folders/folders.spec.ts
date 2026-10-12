@@ -15,6 +15,7 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { uploadFileToFolder } from "@/src/helpers/upload-file";
+import { waitForUsedSpaceToMatchFiles } from "@/src/helpers/used-space";
 import { createTestImageBuffer } from "@/src/utils/test-image";
 
 function getFolderSortedByCustomOrder(folders: FoldersApi, folderId: number) {
@@ -9749,6 +9750,11 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
       createFileJsonElement: { title: "Autotest Metadata Read" },
     });
     const fileId = fileData.response!.id!;
+
+    // The counter trails the file list (sample documents are credited late), so a
+    // baseline taken at once can sit below the real total and "drift" with no read
+    // involved. Measure only once it agrees with the files actually in My Documents.
+    await waitForUsedSpaceToMatchFiles(ownerApi);
 
     const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
     const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;

@@ -2180,7 +2180,11 @@ test.describe("AI Messages - text-to-docx naming and concurrency", () => {
     expect(landed.map((f) => f.title)).toContain(expected);
   });
 
-  test("POST /api/2.0/ai/text-to-docx - two simultaneous exports with the same title both survive", async ({
+  // BUG 84459: intermittent (~1 run in 10 on a live portal) — two simultaneous exports
+  // with one title can both land as `<title>.docx`, two files with the same name in one
+  // folder, instead of `<title>.docx` + `<title> (1).docx`. Both documents are kept, so
+  // nothing is lost. No test.fail: it passes most runs, so the wrapper would flip them.
+  test("BUG 84459: POST /api/2.0/ai/text-to-docx - two simultaneous exports with the same title both survive", async ({
     apiSdk,
   }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -2207,17 +2211,29 @@ test.describe("AI Messages - text-to-docx naming and concurrency", () => {
     expect(first.status).toBe(202);
     expect(second.status).toBe(202);
 
+    const addedNow = async () =>
+      (await listFolderFiles(ownerApi, folderId))
+        .filter((f) => !before.includes(f.id))
+        .map((f) => `${f.id}:${JSON.stringify(f.title)}`)
+        .join(", ");
+
     const names = [`${title}.docx`, `${title} (1).docx`];
     for (const name of names) {
+      const found = await waitForExportedFile(ownerApi, folderId, name, 60000);
       expect(
-        await waitForExportedFile(ownerApi, folderId, name, 60000),
-        `expected "${name}" — one of the two simultaneous exports was lost or collided`,
+        found,
+        found
+          ? ""
+          : `expected "${name}" — one of the two simultaneous exports was lost or collided. Files actually added (id:title): ${await addedNow()}`,
       ).toBeDefined();
     }
     const added = (await waitForStableFolderFiles(ownerApi, folderId)).filter(
       (f) => !before.includes(f.id),
     );
-    expect(added.map((f) => f.title).sort()).toEqual([...names].sort());
+    expect(
+      added.map((f) => f.title).sort(),
+      `files added (id:title): ${added.map((f) => `${f.id}:${JSON.stringify(f.title)}`).join(", ")}`,
+    ).toEqual([...names].sort());
 
     const texts = await Promise.all(
       added.map((f) => readExportedDocxText(apiSdk, "owner", f.id)),
