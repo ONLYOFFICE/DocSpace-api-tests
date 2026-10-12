@@ -1034,3 +1034,113 @@ test.describe("GET /files/thirdparty/common - Legacy Common-section connections"
     expect(data.response).toEqual([]);
   });
 });
+
+// createAsNewFolder decides whether the room IS the connected folder or a new
+// subfolder named after the title. Established live (Nextcloud): without it
+// (or with false) the room is the folder itself and `tags` are dropped; with
+// true the room is a new subfolder (its id carries an extra path segment)
+// and `tags` are kept. `color` is applied in both modes.
+test.describe("PUT /files/rooms/thirdparty/{id} - createAsNewFolder", () => {
+  async function createTpRoom(
+    apiSdk: Parameters<typeof connectNextcloud>[0],
+    title: string,
+    extra: Record<string, unknown>,
+  ) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { folderId } = await connectNextcloud(
+      apiSdk,
+      "owner",
+      `${title} (storage)`,
+    );
+    const { data, status } = await ownerApi.rooms.createRoomThirdParty({
+      id: folderId,
+      createThirdPartyRoom: {
+        title,
+        roomType: RoomType.CustomRoom,
+        ...extra,
+      },
+    });
+    expect(status).toBe(200);
+    const roomId = (data as any).response!.id as string;
+    const { data: info } = await ownerApi.rooms.getRoomInfo({
+      id: roomId as any,
+    });
+    return { folderId, roomId, info: info.response! };
+  }
+
+  for (const [label, extra] of [
+    ["omitted", {}],
+    ["false", { createAsNewFolder: false }],
+  ] as const) {
+    test(`createAsNewFolder ${label}: the room is the connected folder and tags are dropped`, async ({
+      apiSdk,
+    }) => {
+      const { folderId, roomId, info } = await createTpRoom(
+        apiSdk,
+        `Autotest TP Same Folder ${label}`,
+        { ...extra, tags: ["tptag"], color: "123456" },
+      );
+
+      expect(roomId).toBe(folderId);
+      expect(info.title).toBe(`Autotest TP Same Folder ${label}`);
+      expect(info.tags).toEqual([]);
+      expect(info.logo?.color).toBe("123456");
+    });
+  }
+
+  test("createAsNewFolder true: the room is a new subfolder and tags are kept", async ({
+    apiSdk,
+  }) => {
+    const { folderId, roomId, info } = await createTpRoom(
+      apiSdk,
+      "Autotest TP New Folder",
+      { createAsNewFolder: true, tags: ["tptag"], color: "123456" },
+    );
+
+    expect(roomId).not.toBe(folderId);
+    expect(roomId.startsWith(`${folderId}-`)).toBe(true);
+    expect(info.title).toBe("Autotest TP New Folder");
+    expect(info.tags).toEqual(["tptag"]);
+    expect(info.logo?.color).toBe("123456");
+  });
+
+  test("BUG XXXXX: createAsNewFolder true ignores denyDownload", async ({
+    apiSdk,
+  }) => {
+    test.fail(
+      true,
+      "BUG XXXXX: PUT /files/rooms/thirdparty/{id} with createAsNewFolder=true " +
+        "keeps tags but silently drops denyDownload: true (getRoomInfo reports " +
+        "false). The API description says denyDownload is dropped only when " +
+        "createAsNewFolder is false. To be confirmed: if third-party rooms do " +
+        "not support denyDownload by design, the request should be refused or " +
+        "the description corrected.",
+    );
+    const { info } = await createTpRoom(apiSdk, "Autotest TP Deny Download", {
+      createAsNewFolder: true,
+      denyDownload: true,
+    });
+
+    expect(info.denyDownload).toBe(true);
+  });
+
+  test("createAsNewFolder true: a second room over the same account is still refused", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { folderId } = await createTpRoom(apiSdk, "Autotest TP Twice", {
+      createAsNewFolder: true,
+    });
+
+    const { status } = await ownerApi.rooms.createRoomThirdParty({
+      id: folderId,
+      createThirdPartyRoom: {
+        title: "Autotest TP Twice Second",
+        roomType: RoomType.CustomRoom,
+        createAsNewFolder: true,
+      },
+    });
+
+    expect(status).toBe(403);
+  });
+});

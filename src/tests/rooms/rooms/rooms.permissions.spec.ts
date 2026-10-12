@@ -13,6 +13,32 @@ import { waitForRoomFromTemplate } from "@/src/helpers/wait-for-room-from-templa
 import { roomAccesses, createPrivateRoom } from "@/src/helpers/rooms";
 import type { ApiSDK } from "@/src/services/api-sdk";
 
+/**
+ * Invites a member and proves the invitation took effect (200 and the member
+ * listed with exactly that access), so a 403 in a later negative request
+ * cannot come from a silently failed invite.
+ */
+async function inviteAndConfirm(
+  apiSdk: ApiSDK,
+  roomId: number,
+  userId: string,
+  access: FileShare,
+) {
+  const ownerApi = apiSdk.forRole("owner");
+  const { status } = await ownerApi.rooms.setRoomSecurity({
+    id: roomId,
+    roomInvitationRequest: {
+      invitations: [{ id: userId, access }],
+      notify: false,
+    },
+  });
+  expect(status).toBe(200);
+
+  const { data } = await ownerApi.rooms.getRoomSecurityInfo({ id: roomId });
+  const member = data.response!.find((m) => m.sharedToUser?.id === userId);
+  expect(member?.access).toBe(access);
+}
+
 test.describe("POST /files/rooms - access control", () => {
   test("Owner can create a room", async ({ apiSdk }) => {
     const ownerApi = apiSdk.forRole("owner");
@@ -2643,9 +2669,10 @@ for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
       test(`Room access: ${label}`, async ({ apiSdk }) => {
         const ownerApi = apiSdk.forRole("owner");
 
-        await ownerApi.rooms.createRoomTag({
+        const { status: tagStatus } = await ownerApi.rooms.createRoomTag({
           createTagRequestDto: { name: `Autotest Tag ${userType} ${label}` },
         });
+        expect(tagStatus).toBe(200);
 
         const { data: roomData } = await ownerApi.rooms.createRoom({
           createRoomRequestDto: {
@@ -2659,13 +2686,7 @@ for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
           await apiSdk.addAuthenticatedMember("owner", userType);
         const userId = memberData.response!.id!;
 
-        await ownerApi.rooms.setRoomSecurity({
-          id: roomId,
-          roomInvitationRequest: {
-            invitations: [{ id: userId, access }],
-            notify: false,
-          },
-        });
+        await inviteAndConfirm(apiSdk, roomId, userId, access);
 
         const { data, status } = await memberApi.rooms.addRoomTags({
           id: roomId,
@@ -2679,6 +2700,10 @@ for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
             `Autotest Tag ${userType} ${label}`,
           );
         } else {
+          const { data: after } = await ownerApi.rooms.getRoomInfo({
+            id: roomId,
+          });
+          expect((after.response!.tags ?? []) as string[]).toEqual([]);
           expect(status).toBe(403);
         }
       });
@@ -4031,22 +4056,17 @@ for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
         });
         const roomId = roomData.response!.id!;
 
-        await ownerApi.rooms.addRoomTags({
+        const { status: addStatus } = await ownerApi.rooms.addRoomTags({
           id: roomId,
           batchTagsRequestDto: { names: [tagName] },
         });
+        expect(addStatus).toBe(200);
 
         const { api: memberApi, data: memberData } =
           await apiSdk.addAuthenticatedMember("owner", userType);
         const userId = memberData.response!.id!;
 
-        await ownerApi.rooms.setRoomSecurity({
-          id: roomId,
-          roomInvitationRequest: {
-            invitations: [{ id: userId, access }],
-            notify: false,
-          },
-        });
+        await inviteAndConfirm(apiSdk, roomId, userId, access);
 
         const { data, status } = await memberApi.rooms.deleteRoomTags({
           id: roomId,
@@ -4060,6 +4080,10 @@ for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
             tagName,
           );
         } else {
+          const { data: after } = await ownerApi.rooms.getRoomInfo({
+            id: roomId,
+          });
+          expect((after.response!.tags ?? []) as string[]).toContain(tagName);
           expect(status).toBe(403);
         }
       });
@@ -5823,5 +5847,490 @@ test.describe("DELETE /files/rooms/indexexport - access control", () => {
       .rooms.terminateRoomIndexExport();
 
     expect(status).toBe(401);
+  });
+});
+
+// POST /files/rooms/fromtemplate - who may use which template. Creating a room
+// from a template follows the ordinary create-room rule (RoomAdmin may), and a
+// public template is usable by any account allowed to create rooms.
+test.describe("POST /files/rooms/fromtemplate - template ownership", () => {
+  async function buildTemplate(
+    api: ApiSDK["forRole"] extends (...a: never[]) => infer R ? R : never,
+    title: string,
+    isPublic: boolean,
+  ) {
+    const { data: room } = await api.rooms.createRoom({
+      createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+    });
+    const { status } = await api.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: room.response!.id!,
+        title: `${title} Template`,
+      },
+    });
+    expect(status).toBe(200);
+    const templateId = await waitForRoomTemplate(api.rooms);
+    if (isPublic) {
+      const { status: publicStatus } = await api.rooms.setPublicSettings({
+        setPublicDto: { id: templateId, public: true },
+      });
+      expect(publicStatus).toBe(200);
+    }
+    return templateId;
+  }
+
+  test("RoomAdmin creates a room from their own template", async ({
+    apiSdk,
+  }) => {
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const templateId = await buildTemplate(
+      api,
+      "Autotest FromTmpl RoomAdmin Own",
+      false,
+    );
+
+    const { status } = await api.rooms.createRoomFromTemplate({
+      createRoomFromTemplateDto: { templateId, title: "RoomAdmin Own Room" },
+    });
+    expect(status).toBe(200);
+
+    const roomId = await waitForRoomFromTemplate(api.rooms);
+    const { data } = await api.rooms.getRoomInfo({ id: roomId });
+    expect(data.response!.title).toBe("RoomAdmin Own Room");
+  });
+
+  test("RoomAdmin creates a room from the owner's public template", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const templateId = await buildTemplate(
+      ownerApi,
+      "Autotest FromTmpl RoomAdmin Public",
+      true,
+    );
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+
+    const { status } = await api.rooms.createRoomFromTemplate({
+      createRoomFromTemplateDto: { templateId, title: "RoomAdmin Public Room" },
+    });
+    expect(status).toBe(200);
+
+    const roomId = await waitForRoomFromTemplate(api.rooms);
+    const { data } = await api.rooms.getRoomInfo({ id: roomId });
+    expect(data.response!.title).toBe("RoomAdmin Public Room");
+  });
+
+  test("Owner creates a room from a DocSpaceAdmin's public template", async ({
+    apiSdk,
+  }) => {
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+    const templateId = await buildTemplate(
+      adminApi,
+      "Autotest FromTmpl Admin Public",
+      true,
+    );
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.rooms.createRoomFromTemplate({
+      createRoomFromTemplateDto: { templateId, title: "Owner From Admin Tpl" },
+    });
+    expect(status).toBe(200);
+
+    const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+    const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    expect(data.response!.title).toBe("Owner From Admin Tpl");
+  });
+});
+
+test.describe("Anonymous requests to room sharing and export endpoints", () => {
+  async function createRoomId(apiSdk: ApiSDK, title: string) {
+    const { data } = await apiSdk.forRole("owner").rooms.createRoom({
+      createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+    });
+    return data.response!.id!;
+  }
+
+  test("PUT /files/rooms/:id/share - Anonymous gets 401 and nobody is invited", async ({
+    apiSdk,
+  }) => {
+    const roomId = await createRoomId(apiSdk, "Autotest Anon Share");
+    const { data: member } = await apiSdk.addMember("owner", "User");
+    const userId = member.response!.id!;
+
+    const { status } = await apiSdk.forAnonymous().rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+
+    const { data: info } = await apiSdk
+      .forRole("owner")
+      .rooms.getRoomSecurityInfo({ id: roomId });
+    expect(info.response!.map((s) => s.sharedToUser?.id)).not.toContain(userId);
+    expect(status).toBe(401);
+  });
+
+  test("GET /files/rooms/:id/links - Anonymous gets 401", async ({
+    apiSdk,
+  }) => {
+    const roomId = await createRoomId(apiSdk, "Autotest Anon Links");
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .rooms.getRoomLinks({ id: roomId });
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /files/rooms/indexexport - Anonymous gets 401", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().rooms.getRoomIndexExport();
+
+    expect(status).toBe(401);
+  });
+});
+
+// Room lifecycle refusals and role gaps. Every refusal re-reads the room (and
+// the Active / Archive lists) to prove nothing changed, and every invite is
+// confirmed before the negative request.
+test.describe("Room lifecycle - role matrix with state checks", () => {
+  async function createRoom(apiSdk: ApiSDK, title: string) {
+    const { data, status } = await apiSdk.forRole("owner").rooms.createRoom({
+      createRoomRequestDto: { title, roomType: RoomType.CustomRoom },
+    });
+    expect(status).toBe(200);
+    return { roomId: data.response!.id!, title };
+  }
+
+  async function archiveAsOwner(apiSdk: ApiSDK, roomId: number) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { status } = await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    expect(status).toBe(200);
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+  }
+
+  async function areaIds(apiSdk: ApiSDK, searchArea: SearchArea) {
+    const { data } = await apiSdk
+      .forRole("owner")
+      .rooms.getRoomsFolder({ searchArea });
+    return data.response!.folders!.map((f) => (f as { id: number }).id);
+  }
+
+  async function expectUntouched(
+    apiSdk: ApiSDK,
+    roomId: number,
+    title: string,
+    archived: boolean,
+  ) {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .rooms.getRoomInfo({ id: roomId });
+    expect(status).toBe(200);
+    expect(data.response!.title).toBe(title);
+    const active = await areaIds(apiSdk, SearchArea.Active);
+    const archive = await areaIds(apiSdk, SearchArea.Archive);
+    expect(active.includes(roomId)).toBe(!archived);
+    expect(archive.includes(roomId)).toBe(archived);
+  }
+
+  const lowerAccesses = roomAccesses.filter(
+    (a) => a.access !== FileShare.RoomManager,
+  );
+
+  for (const userType of ["User", "Guest"] as const) {
+    for (const { label, access } of lowerAccesses) {
+      test(`${userType} invited as ${label} cannot update or archive the room`, async ({
+        apiSdk,
+      }) => {
+        const { roomId, title } = await createRoom(
+          apiSdk,
+          `Autotest Lifecycle ${userType} ${label}`,
+        );
+        const { api, data } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          userType,
+        );
+        await inviteAndConfirm(apiSdk, roomId, data.response!.id!, access);
+
+        const update = await api.rooms.updateRoom({
+          id: roomId,
+          updateRoomRequest: { title: "Changed By Member" },
+        });
+        const archive = await api.rooms.archiveRoom({
+          id: roomId,
+          archiveRoomRequest: { deleteAfter: false },
+        });
+
+        await expectUntouched(apiSdk, roomId, title, false);
+        expect(update.status).toBe(403);
+        expect(archive.status).toBe(403);
+      });
+    }
+  }
+
+  test("RoomAdmin invited as RoomManager can update the room and the change persists", async ({
+    apiSdk,
+  }) => {
+    const { roomId } = await createRoom(
+      apiSdk,
+      "Autotest Lifecycle Mgr Update",
+    );
+    const { api, data } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    await inviteAndConfirm(
+      apiSdk,
+      roomId,
+      data.response!.id!,
+      FileShare.RoomManager,
+    );
+
+    const { status } = await api.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { title: "Autotest Lifecycle Mgr Updated" },
+    });
+
+    const { data: info } = await apiSdk
+      .forRole("owner")
+      .rooms.getRoomInfo({ id: roomId });
+    expect(info.response!.title).toBe("Autotest Lifecycle Mgr Updated");
+    expect(status).toBe(200);
+  });
+
+  test("RoomAdmin invited as RoomManager cannot archive the room", async ({
+    apiSdk,
+  }) => {
+    const { roomId, title } = await createRoom(
+      apiSdk,
+      "Autotest Lifecycle Mgr Archive",
+    );
+    const { api, data } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    await inviteAndConfirm(
+      apiSdk,
+      roomId,
+      data.response!.id!,
+      FileShare.RoomManager,
+    );
+
+    const { status } = await api.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    await expectUntouched(apiSdk, roomId, title, false);
+    expect(status).toBe(403);
+  });
+
+  test("RoomAdmin invited as RoomManager cannot unarchive the room", async ({
+    apiSdk,
+  }) => {
+    const { roomId, title } = await createRoom(
+      apiSdk,
+      "Autotest Lifecycle Mgr Unarchive",
+    );
+    const { api, data } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    await inviteAndConfirm(
+      apiSdk,
+      roomId,
+      data.response!.id!,
+      FileShare.RoomManager,
+    );
+    await archiveAsOwner(apiSdk, roomId);
+
+    const { status } = await api.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+
+    await expectUntouched(apiSdk, roomId, title, true);
+    expect(status).toBe(403);
+  });
+
+  test("DocSpaceAdmin outside the room can archive the owner's room", async ({
+    apiSdk,
+  }) => {
+    const { roomId, title } = await createRoom(
+      apiSdk,
+      "Autotest Lifecycle Admin Archive",
+    );
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status } = await api.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(api.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    await expectUntouched(apiSdk, roomId, title, true);
+  });
+
+  // By design (confirmed): a room must be archived before it can be deleted,
+  // so a DocSpaceAdmin may delete another account's room only from the archive
+  // and an active foreign room is refused.
+  test("DocSpaceAdmin outside the room cannot delete the owner's active room", async ({
+    apiSdk,
+  }) => {
+    const { roomId, title } = await createRoom(
+      apiSdk,
+      "Autotest Lifecycle Admin Delete Active",
+    );
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status } = await api.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+
+    await expectUntouched(apiSdk, roomId, title, false);
+    expect(status).toBe(403);
+  });
+
+  test("DocSpaceAdmin outside the room can delete the owner's archived room", async ({
+    apiSdk,
+  }) => {
+    const { roomId } = await createRoom(
+      apiSdk,
+      "Autotest Lifecycle Admin Delete Archived",
+    );
+    await archiveAsOwner(apiSdk, roomId);
+    const { api } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { status } = await api.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(api.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    const { status: infoStatus } = await apiSdk
+      .forRole("owner")
+      .rooms.getRoomInfo({ id: roomId });
+    expect(infoStatus).toBe(404);
+  });
+
+  test("RoomAdmin invited as RoomManager cannot update an archived room", async ({
+    apiSdk,
+  }) => {
+    const { roomId, title } = await createRoom(
+      apiSdk,
+      "Autotest Lifecycle Mgr Update Archived",
+    );
+    const { api, data } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+    await inviteAndConfirm(
+      apiSdk,
+      roomId,
+      data.response!.id!,
+      FileShare.RoomManager,
+    );
+    await archiveAsOwner(apiSdk, roomId);
+    // positive control: the same member could update the room before it was
+    // archived, so the refusal below comes from the archive, not the role
+    // (covered by "can update the room and the change persists")
+
+    const { status } = await api.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { title: "Changed By Manager In Archive" },
+    });
+
+    await expectUntouched(apiSdk, roomId, title, true);
+    expect(status).toBe(403);
+  });
+
+  const terminatedCases = [
+    { type: "User", access: FileShare.Editing },
+    { type: "RoomAdmin", access: FileShare.RoomManager },
+  ] as const;
+
+  for (const { type, access } of terminatedCases) {
+    test(`Disabled (terminated) ${type} invited to the room cannot update, archive or unarchive it`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { roomId, title } = await createRoom(
+        apiSdk,
+        `Autotest Lifecycle Terminated ${type}`,
+      );
+      const { api, data } = await apiSdk.addAuthenticatedMember("owner", type);
+      const userId = data.response!.id!;
+      await inviteAndConfirm(apiSdk, roomId, userId, access);
+
+      const { status: statusUpdate } =
+        await ownerApi.userStatus.updateUserStatus({
+          status: EmployeeStatus.Terminated,
+          updateMembersRequestDto: { userIds: [userId], resendAll: false },
+        });
+      expect(statusUpdate).toBe(200);
+
+      const update = await api.rooms.updateRoom({
+        id: roomId,
+        updateRoomRequest: { title: "Changed By Disabled" },
+      });
+      const archive = await api.rooms.archiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await expectUntouched(apiSdk, roomId, title, false);
+
+      await archiveAsOwner(apiSdk, roomId);
+      const unarchive = await api.rooms.unarchiveRoom({
+        id: roomId,
+        archiveRoomRequest: { deleteAfter: false },
+      });
+      await expectUntouched(apiSdk, roomId, title, true);
+
+      expect(update.status).toBe(401);
+      expect(archive.status).toBe(401);
+      expect(unarchive.status).toBe(401);
+    });
+  }
+
+  test("Guest refused on POST /files/rooms leaves no room behind", async ({
+    apiSdk,
+  }) => {
+    const before = await areaIds(apiSdk, SearchArea.Active);
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status } = await api.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Lifecycle Guest Create",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+
+    const after = await areaIds(apiSdk, SearchArea.Active);
+    expect(after).toEqual(before);
+    expect(status).toBe(403);
   });
 });

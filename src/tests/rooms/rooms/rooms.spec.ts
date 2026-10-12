@@ -1117,9 +1117,16 @@ test.describe("API rooms methods", () => {
 
     // Room IDs are globally unique, so the API returns 403 instead of 404
     // to prevent enumeration of existing room IDs
-    test("PUT /files/rooms/:id - Update non-existent room", async ({
+    test("BUG XXXXX: PUT /files/rooms/:id - Update non-existent room should return 404, but API returns 403", async ({
       apiSdk,
     }) => {
+      test.fail(
+        true,
+        "BUG XXXXX: PUT /files/rooms/{id} with an id that does not exist answers 403 " +
+          "(the permission error) instead of 404 Item not found. Same defect class as " +
+          "BUG 81550 (archive) and BUG 81850 / 81862 (pin, reorder). When the API " +
+          "returns 404 this test reports an unexpected pass: remove test.fail.",
+      );
       const ownerApi = apiSdk.forRole("owner");
       const { data, status } = await ownerApi.rooms.updateRoom({
         id: 999999999,
@@ -1128,8 +1135,8 @@ test.describe("API rooms methods", () => {
         },
       });
 
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
+      expect(data.statusCode).toBe(404);
+      expect(status).toBe(404);
     });
   });
 
@@ -21837,5 +21844,546 @@ test.describe("GET /files/rooms - getRoomsFolder", () => {
       expect(secondIds).toEqual(firstIds);
       expect(second.response!.total).toBe(first.response!.total);
     });
+  });
+});
+
+// What a room created from a template takes from it. The request may also
+// carry its own tags / colour / denyDownload, which win over the template.
+// Established live: the template's tags, denyDownload and indexing reach the
+// new room; the template's colour does not (the new room gets the colour of
+// the request, or a random one); members of the source room are not copied.
+test.describe("POST /files/rooms/fromtemplate - what the new room inherits", () => {
+  async function createTemplate(
+    apiSdk: ApiSDK,
+    source: {
+      title: string;
+      tags?: string[];
+      indexing?: boolean;
+      denyDownload?: boolean;
+    },
+    templateTags?: string[],
+    beforeTemplate?: (sourceId: number) => Promise<void>,
+  ) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: room, status } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: source.title,
+        roomType: RoomType.CustomRoom,
+        tags: source.tags,
+        indexing: source.indexing,
+        denyDownload: source.denyDownload,
+      },
+    });
+    expect(status).toBe(200);
+    const sourceId = room.response!.id!;
+    await beforeTemplate?.(sourceId);
+
+    const { status: templateStatus } = await ownerApi.rooms.createRoomTemplate({
+      roomTemplateDto: {
+        roomId: sourceId,
+        title: `${source.title} Template`,
+        tags: templateTags,
+      },
+    });
+    expect(templateStatus).toBe(200);
+    const templateId = await waitForRoomTemplate(ownerApi.rooms);
+    return { sourceId, templateId };
+  }
+
+  async function createFromTemplate(
+    apiSdk: ApiSDK,
+    dto: { templateId: number; title: string } & Record<string, unknown>,
+  ) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { status } = await ownerApi.rooms.createRoomFromTemplate({
+      createRoomFromTemplateDto: dto,
+    });
+    expect(status).toBe(200);
+    const roomId = await waitForRoomFromTemplate(ownerApi.rooms);
+    const { data } = await ownerApi.rooms.getRoomInfo({ id: roomId });
+    return { roomId, info: data.response! };
+  }
+
+  test("The tags of the template are carried into the new room", async ({
+    apiSdk,
+  }) => {
+    const tag = `AutotestTplTag${Date.now()}`;
+    const { templateId } = await createTemplate(
+      apiSdk,
+      { title: "Autotest FromTpl Tags" },
+      [tag],
+    );
+
+    const { info } = await createFromTemplate(apiSdk, {
+      templateId,
+      title: "Autotest FromTpl Tags Room",
+    });
+
+    expect(info.tags).toEqual([tag]);
+  });
+
+  test("Tags in the request replace the tags of the template", async ({
+    apiSdk,
+  }) => {
+    const stamp = Date.now();
+    const { templateId } = await createTemplate(
+      apiSdk,
+      { title: "Autotest FromTpl Tags Override" },
+      [`AutotestTplOld${stamp}`],
+    );
+
+    const { info } = await createFromTemplate(apiSdk, {
+      templateId,
+      title: "Autotest FromTpl Tags Override Room",
+      tags: [`AutotestTplNew${stamp}`],
+    });
+
+    expect(info.tags).toEqual([`AutotestTplNew${stamp}`]);
+  });
+
+  test("The colour in the request is applied to the new room", async ({
+    apiSdk,
+  }) => {
+    const { templateId } = await createTemplate(apiSdk, {
+      title: "Autotest FromTpl Color",
+    });
+
+    const { info } = await createFromTemplate(apiSdk, {
+      templateId,
+      title: "Autotest FromTpl Color Room",
+      color: "123456",
+    });
+
+    expect(info.logo?.color).toBe("123456");
+  });
+
+  test("denyDownload and indexing of the source reach the new room", async ({
+    apiSdk,
+  }) => {
+    const { templateId } = await createTemplate(apiSdk, {
+      title: "Autotest FromTpl Flags",
+      denyDownload: true,
+      indexing: true,
+    });
+
+    const { info } = await createFromTemplate(apiSdk, {
+      templateId,
+      title: "Autotest FromTpl Flags Room",
+    });
+
+    expect(info.denyDownload).toBe(true);
+    expect(info.indexing).toBe(true);
+  });
+
+  test("denyDownload in the request overrides the template", async ({
+    apiSdk,
+  }) => {
+    const { templateId } = await createTemplate(apiSdk, {
+      title: "Autotest FromTpl Flags Override",
+      denyDownload: true,
+    });
+
+    const { info } = await createFromTemplate(apiSdk, {
+      templateId,
+      title: "Autotest FromTpl Flags Override Room",
+      denyDownload: false,
+    });
+
+    expect(info.denyDownload).toBe(false);
+  });
+
+  test("Members of the source room are not copied: the new room has only its creator", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: member } = await apiSdk.addMember("owner", "RoomAdmin");
+    const memberId = member.response!.id!;
+
+    // The source is invited BEFORE the template is built, so the template
+    // could copy the member; the premise is asserted before the comparison.
+    const { sourceId, templateId } = await createTemplate(
+      apiSdk,
+      { title: "Autotest FromTpl Members" },
+      undefined,
+      async (id) => {
+        const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
+          id,
+          roomInvitationRequest: {
+            invitations: [{ id: memberId, access: FileShare.Editing }],
+            notify: false,
+          },
+        });
+        expect(inviteStatus).toBe(200);
+      },
+    );
+    const { data: sourceShare } = await ownerApi.rooms.getRoomSecurityInfo({
+      id: sourceId,
+    });
+    expect(sourceShare.response!.map((s) => s.sharedToUser?.id)).toContain(
+      memberId,
+    );
+
+    const { roomId } = await createFromTemplate(apiSdk, {
+      templateId,
+      title: "Autotest FromTpl Members Room",
+    });
+
+    const { data: newShare } = await ownerApi.rooms.getRoomSecurityInfo({
+      id: roomId,
+    });
+    expect(newShare.response!.map((s) => s.sharedToUser?.id)).not.toContain(
+      memberId,
+    );
+  });
+});
+
+// Persisted state after operations and after refusals: every claim is proven
+// by re-reading the room (getRoomInfo, the Active / Archive lists, members),
+// never by the status code alone.
+test.describe("Room state after operations and refusals", () => {
+  async function roomIds(apiSdk: ApiSDK, searchArea: SearchArea) {
+    const { data } = await apiSdk
+      .forRole("owner")
+      .rooms.getRoomsFolder({ searchArea });
+    return data.response!.folders!.map((f) => (f as { id: number }).id);
+  }
+
+  async function snapshot(apiSdk: ApiSDK, roomId: number) {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .rooms.getRoomInfo({ id: roomId });
+    expect(status).toBe(200);
+    const r = data.response!;
+    return {
+      title: r.title,
+      roomType: r.roomType,
+      tags: [...(r.tags ?? [])].sort(),
+      color: r.logo?.color,
+      indexing: r.indexing,
+      denyDownload: r.denyDownload,
+    };
+  }
+
+  async function members(apiSdk: ApiSDK, roomId: number) {
+    const { data } = await apiSdk
+      .forRole("owner")
+      .rooms.getRoomSecurityInfo({ id: roomId });
+    return data
+      .response!.map((m) => `${m.sharedToUser?.id}:${m.access}`)
+      .sort();
+  }
+
+  async function archive(apiSdk: ApiSDK, roomId: number) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { status } = await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    expect(status).toBe(200);
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+  }
+
+  async function unarchive(apiSdk: ApiSDK, roomId: number) {
+    const ownerApi = apiSdk.forRole("owner");
+    const { status } = await ownerApi.rooms.unarchiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: false },
+    });
+    expect(status).toBe(200);
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(operation.finished).toBe(true);
+  }
+
+  test("A refused update (title over the limit) leaves every setting of the room unchanged", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest State Update 400",
+        roomType: RoomType.CustomRoom,
+        tags: ["AutotestStateTag"],
+        color: "123456",
+        denyDownload: true,
+      },
+    });
+    const roomId = created.response!.id!;
+    const before = await snapshot(apiSdk, roomId);
+    expect(before.tags).toEqual(["AutotestStateTag"]);
+
+    const { status } = await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { title: "L".repeat(171) },
+    });
+
+    expect(await snapshot(apiSdk, roomId)).toEqual(before);
+    expect(status).toBe(400);
+  });
+
+  test("A refused update of an archived room (403) leaves it archived and unchanged", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest State Update Archived",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = created.response!.id!;
+    await archive(apiSdk, roomId);
+    const before = await snapshot(apiSdk, roomId);
+
+    const { status } = await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: { title: "Autotest State Update Archived Changed" },
+    });
+
+    expect(await snapshot(apiSdk, roomId)).toEqual(before);
+    expect(await roomIds(apiSdk, SearchArea.Archive)).toContain(roomId);
+    expect(await roomIds(apiSdk, SearchArea.Active)).not.toContain(roomId);
+    expect(status).toBe(403);
+  });
+
+  test("An update of an unknown room changes none of the existing rooms", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest State Update 404 Bystander",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const bystander = created.response!.id!;
+    const before = await snapshot(apiSdk, bystander);
+    const idsBefore = await roomIds(apiSdk, SearchArea.Active);
+
+    const { status } = await ownerApi.rooms.updateRoom({
+      id: 999999999,
+      updateRoomRequest: { title: "Autotest State Ghost" },
+    });
+
+    expect(await snapshot(apiSdk, bystander)).toEqual(before);
+    expect(await roomIds(apiSdk, SearchArea.Active)).toEqual(idsBefore);
+    // the status itself is asserted by the BUG XXXXX test on this endpoint
+    expect(status).not.toBe(200);
+  });
+
+  test("A refused create (400) adds no room", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const before = await roomIds(apiSdk, SearchArea.Active);
+
+    const { status } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: { title: "", roomType: RoomType.CustomRoom },
+    });
+
+    expect(await roomIds(apiSdk, SearchArea.Active)).toEqual(before);
+    expect(status).toBe(400);
+  });
+
+  test("A successful update persists every changed field and keeps the others", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest State Update Persist",
+        roomType: RoomType.CustomRoom,
+        tags: ["AutotestPersistTag"],
+        color: "123456",
+        denyDownload: false,
+      },
+    });
+    const roomId = created.response!.id!;
+    const before = await snapshot(apiSdk, roomId);
+
+    const { status } = await ownerApi.rooms.updateRoom({
+      id: roomId,
+      updateRoomRequest: {
+        title: "Autotest State Update Persist Changed",
+        color: "ABCDEF",
+        denyDownload: true,
+      },
+    });
+    expect(status).toBe(200);
+
+    const after = await snapshot(apiSdk, roomId);
+    expect(after.title).toBe("Autotest State Update Persist Changed");
+    expect(after.color).toBe("ABCDEF");
+    expect(after.denyDownload).toBe(true);
+    // untouched by the request
+    expect(after.tags).toEqual(before.tags);
+    expect(after.roomType).toBe(before.roomType);
+  });
+
+  test("Archive then unarchive keeps settings, tags, members with their access and files", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest State Cycle",
+        roomType: RoomType.VirtualDataRoom,
+        indexing: true,
+        denyDownload: true,
+        color: "123456",
+        tags: ["AutotestCycleTag"],
+      },
+    });
+    const roomId = created.response!.id!;
+
+    const { data: member } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: member.response!.id!, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+    expect(inviteStatus).toBe(200);
+    const { status: fileStatus } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest State Cycle File.docx" },
+    });
+    expect(fileStatus).toBe(200);
+
+    const settingsBefore = await snapshot(apiSdk, roomId);
+    const membersBefore = await members(apiSdk, roomId);
+    expect(membersBefore.some((m) => m.endsWith(`:${FileShare.Editing}`))).toBe(
+      true,
+    );
+    expect(settingsBefore.tags).toEqual(["AutotestCycleTag"]);
+    expect(settingsBefore.indexing).toBe(true);
+    expect(settingsBefore.denyDownload).toBe(true);
+
+    await archive(apiSdk, roomId);
+    await unarchive(apiSdk, roomId);
+
+    expect(await snapshot(apiSdk, roomId)).toEqual(settingsBefore);
+    expect(await members(apiSdk, roomId)).toEqual(membersBefore);
+    expect(await roomIds(apiSdk, SearchArea.Active)).toContain(roomId);
+
+    const { data: contents } = await ownerApi.folders.getFolderByFolderId({
+      folderId: roomId,
+    });
+    const fileTitles = (contents.response!.files ?? []).map((f) => f.title);
+    expect(fileTitles).toContain("Autotest State Cycle File.docx");
+  });
+
+  test("Deleting a room leaves the neighbouring room, its tag, member and file untouched", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: a } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest State Delete Victim",
+        roomType: RoomType.CustomRoom,
+        tags: ["AutotestNeighbourTag"],
+      },
+    });
+    const { data: b } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest State Delete Neighbour",
+        roomType: RoomType.CustomRoom,
+        tags: ["AutotestNeighbourTag"],
+        color: "123456",
+      },
+    });
+    const victimId = a.response!.id!;
+    const neighbourId = b.response!.id!;
+
+    const { data: member } = await apiSdk.addMember("owner", "RoomAdmin");
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
+      id: neighbourId,
+      roomInvitationRequest: {
+        invitations: [{ id: member.response!.id!, access: FileShare.Editing }],
+        notify: false,
+      },
+    });
+    expect(inviteStatus).toBe(200);
+    await ownerApi.files.createFile({
+      folderId: neighbourId,
+      createFileJsonElement: { title: "Autotest State Neighbour File.docx" },
+    });
+    const settingsBefore = await snapshot(apiSdk, neighbourId);
+    const membersBefore = await members(apiSdk, neighbourId);
+
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: victimId,
+      deleteRoomRequest: { deleteAfter: false },
+    });
+    const operation = await waitForOperation(ownerApi.operations);
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+
+    const { status: victimStatus } = await ownerApi.rooms.getRoomInfo({
+      id: victimId,
+    });
+    expect(victimStatus).toBe(404);
+    expect(await snapshot(apiSdk, neighbourId)).toEqual(settingsBefore);
+    expect(await members(apiSdk, neighbourId)).toEqual(membersBefore);
+    const { data: contents } = await ownerApi.folders.getFolderByFolderId({
+      folderId: neighbourId,
+    });
+    expect((contents.response!.files ?? []).map((f) => f.title)).toContain(
+      "Autotest State Neighbour File.docx",
+    );
+  });
+
+  // deleteAfter on archive only drops the record of the finished job without
+  // it being read; it has no effect on the room, which still ends up archived.
+  test("archiveRoom with deleteAfter true still archives the room", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest State DeleteAfter Archive",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = created.response!.id!;
+
+    const { status } = await ownerApi.rooms.archiveRoom({
+      id: roomId,
+      archiveRoomRequest: { deleteAfter: true },
+    });
+    expect(status).toBe(200);
+
+    await expect(async () => {
+      expect(await roomIds(apiSdk, SearchArea.Archive)).toContain(roomId);
+    }).toPass({ intervals: [500, 1_000, 2_000], timeout: 30_000 });
+    expect(await roomIds(apiSdk, SearchArea.Active)).not.toContain(roomId);
+  });
+
+  // deleteAfter is documented as carried by the contract but not acted upon:
+  // the deletion behaves the same either way.
+  test("deleteRoom with deleteAfter true deletes the room exactly like false", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: created } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest State DeleteAfter Delete",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = created.response!.id!;
+
+    const { status } = await ownerApi.rooms.deleteRoom({
+      id: roomId,
+      deleteRoomRequest: { deleteAfter: true },
+    });
+    const operation = await waitForOperation(ownerApi.operations);
+
+    expect(status).toBe(200);
+    expect(operation.finished).toBe(true);
+    const { status: infoStatus } = await ownerApi.rooms.getRoomInfo({
+      id: roomId,
+    });
+    expect(infoStatus).toBe(404);
+    expect(await roomIds(apiSdk, SearchArea.Active)).not.toContain(roomId);
   });
 });
