@@ -1,7 +1,10 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 import config from "@/config";
-import { smtpSettingsDto } from "@/src/helpers/smtp-settings";
+import {
+  smtpSettingsDto,
+  waitForSmtpOperation,
+} from "@/src/helpers/smtp-settings";
 
 test.describe("POST /api/2.0/smtpsettings/smtp", () => {
   test("POST /api/2.0/smtpsettings/smtp - Owner saves SMTP settings", async ({
@@ -129,15 +132,14 @@ test.describe("GET /api/2.0/smtpsettings/smtp/test/status", () => {
 
     await apiSdk.forRole("owner").smtpSettings.testSmtpSettings();
 
-    await expect(async () => {
-      const { data, status } = await apiSdk
-        .forRole("owner")
-        .smtpSettings.getSmtpOperationStatus();
+    // The first finished answer also discards the job, so keep that very answer.
+    const operation = await waitForSmtpOperation(apiSdk.forRole("owner"));
 
-      expect(status).toBe(200);
-      expect(data.response?.completed).toBe(true);
-      expect(data.response?.error).toBe("");
-    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+    expect(operation.completed).toBe(true);
+    expect(
+      operation.error,
+      `the portal could not deliver the test message (status "${operation.status}")`,
+    ).toBe("");
   });
 
   test("GET /api/2.0/smtpsettings/smtp/test/status - DocSpaceAdmin gets SMTP operation status until completed", async ({
@@ -151,15 +153,16 @@ test.describe("GET /api/2.0/smtpsettings/smtp/test/status", () => {
 
     await apiSdk.forRole("docSpaceAdmin").smtpSettings.testSmtpSettings();
 
-    await expect(async () => {
-      const { data, status } = await apiSdk
-        .forRole("docSpaceAdmin")
-        .smtpSettings.getSmtpOperationStatus();
+    // The first finished answer also discards the job, so keep that very answer.
+    const operation = await waitForSmtpOperation(
+      apiSdk.forRole("docSpaceAdmin"),
+    );
 
-      expect(status).toBe(200);
-      expect(data.response?.completed).toBe(true);
-      expect(data.response?.error).toBe("");
-    }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 30_000 });
+    expect(operation.completed).toBe(true);
+    expect(
+      operation.error,
+      `the portal could not deliver the test message (status "${operation.status}")`,
+    ).toBe("");
   });
 });
 

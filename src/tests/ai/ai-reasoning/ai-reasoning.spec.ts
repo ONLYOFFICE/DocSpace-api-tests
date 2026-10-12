@@ -58,7 +58,11 @@ test.describe("AI Agent reasoning over employees_standard.csv", () => {
 test.describe("AI Agent reasoning over employees_edge_cases.csv", () => {
   test.setTimeout(600_000);
   for (const method of ATTACHMENT_METHODS) {
-    test(`${method.name} - agent reads and reasons over employees_edge_cases.csv`, async ({
+    // BUG 84461: intermittent — the model sometimes answers Test 14 without X001
+    // (the all-zero row). Not test.fail: it passes most runs, so the wrapper would flip them.
+    const bug =
+      method.name === "Select existing DocSpace file" ? "BUG 84461: " : "";
+    test(`${bug}${method.name} - agent reads and reasons over employees_edge_cases.csv`, async ({
       apiSdk,
       paymentsApi,
     }) => {

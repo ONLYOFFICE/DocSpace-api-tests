@@ -1982,9 +1982,22 @@ test.describe("ToolsApi - concurrent writes", () => {
       ),
     );
 
+    // Raw bodies too: a non-JSON error (proxy page, 429) leaves `data` undefined.
+    const report = results
+      .map(
+        (r, i) =>
+          `#${i} ${r.status} ${r.text.slice(0, 300)}${r.headers["retry-after"] ? ` retry-after=${r.headers["retry-after"]}` : ""}`,
+      )
+      .join("\n");
     const winners = results.filter((r) => r.data?.success === true);
-    expect(results.every((r) => r.status === 200)).toBe(true);
-    expect(winners, "exactly one registration wins").toHaveLength(1);
+    expect(
+      results.every((r) => r.status === 200),
+      `all eight answers must be 200; got:\n${report}`,
+    ).toBe(true);
+    expect(
+      winners,
+      `exactly one registration wins; got:\n${report}`,
+    ).toHaveLength(1);
     for (const loser of results.filter((r) => r.data?.success !== true)) {
       expect(loser.data?.error?.message).toContain("already registered");
     }

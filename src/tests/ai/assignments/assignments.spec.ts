@@ -595,7 +595,7 @@ test.describe("AI Assignments - capability validation", () => {
     expect(read.data, "Default was not written").not.toBe(image.id);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/assignments/resolve-for-action - an action with no usable profile is not a bare 500", async ({
+  test("BUG 84450: GET /api/2.0/ai/assignments/resolve-for-action - an action with no usable profile is not a bare 500", async ({
     apiSdk,
     paymentsApi,
   }) => {
