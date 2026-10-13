@@ -9,6 +9,22 @@ import { Role } from "../services/token-store";
 // default 128-bit minimum — relax the guardrail to match.
 const tfaGuardrails = createGuardrails({ MIN_SECRET_BYTES: 10 });
 
+/**
+ * The owner's TFA secret, remembered per test (keyed by the test's token
+ * store, so parallel tests never see each other's). DocSpace derives the secret
+ * from the account, so it is the same before and after TFA is linked - which
+ * makes it the one thing that can still recover the owner if a test dies
+ * between enabling TFA and storing the new session token. After linking, a
+ * password login no longer returns the secret, so it has to be saved from the
+ * first login step, before the code that links it is ever submitted.
+ */
+const rememberedOwnerSecrets = new WeakMap<object, string>();
+
+/** Remember the owner's TFA secret for resetTfaAfterTest. Call it as soon as the secret is known. */
+export function rememberOwnerTfaSecret(apiSdk: ApiSDK, secret: string) {
+  rememberedOwnerSecrets.set(apiSdk.tokenStore, secret);
+}
+
 /** Computes a valid TOTP code for a DocSpace TFA app secret via otplib. */
 export function totpCode(secret: string): Promise<string> {
   return generate({ secret, guardrails: tfaGuardrails });
@@ -91,6 +107,7 @@ export async function linkTfaApp(
   if (loginStatus !== 200 || !secret) {
     throw new Error(`linkTfaApp: authenticateMe failed with ${loginStatus}`);
   }
+  if (role === "owner") rememberOwnerTfaSecret(apiSdk, secret);
 
   const code = await totpCode(secret);
   await exchangeTfaCodeForToken(apiSdk, role, credentials, code);
@@ -116,7 +133,23 @@ export async function resetTfaAfterTest(apiSdk: ApiSDK) {
   const { status } = await disable().catch(() => ({ status: 0 }));
   if (status === 200) return;
 
-  await linkTfaApp(apiSdk, "owner")
+  // Recover the owner's session. A remembered secret works whether or not
+  // TFA was already linked; without one only an unlinked owner can be
+  // recovered (a linked owner's login no longer returns the secret).
+  const secret = rememberedOwnerSecrets.get(apiSdk.tokenStore);
+  const recover = secret
+    ? async () =>
+        exchangeTfaCodeForToken(
+          apiSdk,
+          "owner",
+          {
+            userName: config.DOCSPACE_OWNER_EMAIL,
+            password: config.DOCSPACE_OWNER_PASSWORD,
+          },
+          await totpCode(secret),
+        )
+    : () => linkTfaApp(apiSdk, "owner");
+  await recover()
     .then(disable)
     .catch(() => {});
 }

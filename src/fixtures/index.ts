@@ -6,6 +6,14 @@ import { PaymentApi } from "../services/payment-api";
 type TestFixtures = {
   api: API;
   apiSdk: ApiSDK;
+  /**
+   * An ApiSDK bound to its own request context (and therefore its own cookie
+   * jar). `apiSdk` shares the default context, where any login stores an auth
+   * cookie that then overrides the Bearer token of every later call - so tests
+   * that log users in must do it through this client to keep owner setup calls
+   * on `apiSdk` unaffected.
+   */
+  isolatedSdk: ApiSDK;
   paymentsApi: PaymentApi;
 };
 
@@ -37,6 +45,12 @@ export const test = base.extend<TestFixtures>({
   apiSdk: async ({ api, request }, use) => {
     const sdk = new ApiSDK(request, api.tokenStore);
     await use(sdk);
+  },
+
+  isolatedSdk: async ({ api, playwright }, use) => {
+    const context = await playwright.request.newContext({ timeout: 30000 });
+    await use(new ApiSDK(context, api.tokenStore));
+    await context.dispose();
   },
 
   paymentsApi: async ({ api }, use) => {
