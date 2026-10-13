@@ -538,12 +538,12 @@ test.describe("GET /api/2.0/authentication - invalid credentials", () => {
     }
   });
 
-  test("GET /api/2.0/authentication - A malformed Basic Authorization header is not an internal error", async ({
+  test("BUG 84500: GET /api/2.0/authentication - A malformed Basic Authorization header is not an internal error", async ({
     isolatedSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: GET /authentication with 'Authorization: Basic <value>' where the value is not " +
+      "BUG 84500: GET /authentication with 'Authorization: Basic <value>' where the value is not " +
         "valid base64 (or decodes to something without a ':') answers 500 - BasicAuthHandler throws " +
         "an unhandled FormatException / 'Unable to get password' and returns the stack trace. Every " +
         "other invalid credential on this endpoint is reported as response=false with 200, so that " +
@@ -820,12 +820,12 @@ test.describe("POST /api/2.0/authentication/confirm - invalid confirmations", ()
     expect(Object.keys(data.response?.errors ?? {})).toContain("$.type");
   });
 
-  test("POST /api/2.0/authentication/confirm - EmpInvite without an employee type does not surface an internal exception", async ({
+  test("BUG 84502: POST /api/2.0/authentication/confirm - EmpInvite without an employee type does not surface an internal exception", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: POST /authentication/confirm with type=EmpInvite and no emplType answers 403 " +
+      "BUG 84502: POST /authentication/confirm with type=EmpInvite and no emplType answers 403 " +
         "with the raw .NET message 'Nullable object must have a value.'. Cause: " +
         "EmailValidationKeyModelHelper.ValidateAsync does `(int)emplType` on a nullable with no " +
         "null check (the LinkInvite branch uses `emplType ?? default`). The correct status is " +
@@ -964,13 +964,13 @@ test.describe("POST /api/2.0/authentication/sendsms - invalid credentials", () =
     });
   });
 
-  test("POST /api/2.0/authentication/sendsms - Valid credentials while SMS is not enabled is not an internal error", async ({
+  test("BUG 84503: POST /api/2.0/authentication/sendsms - Valid credentials while SMS is not enabled is not an internal error", async ({
     apiSdk,
   }) => {
     const user = await createUser(apiSdk);
     test.fail(
       true,
-      "BUG XXXXX: POST /authentication/sendsms with valid credentials on a portal where SMS 2FA " +
+      "BUG 84503: POST /authentication/sendsms with valid credentials on a portal where SMS 2FA " +
         "is not enabled answers 500. SmsManager.PutAuthCodeAsync deliberately throws " +
         "MethodAccessException when SMS settings are not available / TFA is not enabled for the " +
         "user, and nothing maps it to a client response. The same condition is reported cleanly " +
