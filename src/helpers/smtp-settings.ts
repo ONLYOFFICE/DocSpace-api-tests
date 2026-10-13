@@ -6,12 +6,12 @@ import type { SmtpOperationStatusRequestsDto } from "@onlyoffice/docspace-api-sd
 type SmtpOperationResponse = SmtpOperationStatusRequestsDto | undefined;
 
 export const smtpSettingsDto = {
-  host: config.SMTP_HOST,
-  port: config.SMTP_PORT,
-  senderAddress: config.SMTP_HOST_LOGIN,
+  host: config.QA_MAIL_DOMAIN,
+  port: 587,
+  senderAddress: config.QA_MAIL_LOGIN,
   senderDisplayName: "DocSpace Autotest",
-  credentialsUserName: config.SMTP_HOST_LOGIN,
-  credentialsUserPassword: config.SMTP_HOST_PASSWORD,
+  credentialsUserName: config.QA_MAIL_LOGIN,
+  credentialsUserPassword: config.QA_MAIL_PASSWORD,
   enableSSL: true,
   enableAuth: true,
   useNtlm: false,

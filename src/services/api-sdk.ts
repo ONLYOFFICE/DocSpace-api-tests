@@ -419,8 +419,12 @@ export class ApiSDK {
     return waitForRoomTemplate(api.rooms);
   }
 
-  async addMember(creatorRole: Role, type: UserType): Promise<AddMemberResult> {
-    const fakeUser = this.faker.generateUser();
+  async addMember(
+    creatorRole: Role,
+    type: UserType,
+    overrides: Partial<FakeUser> = {},
+  ): Promise<AddMemberResult> {
+    const fakeUser = { ...this.faker.generateUser(), ...overrides };
     const userData = { ...fakeUser, type };
 
     const endpoint = type === "Guest" ? "people/active" : "people";
@@ -496,8 +500,9 @@ export class ApiSDK {
   async addAuthenticatedMember(
     creatorRole: Role,
     type: UserType,
+    overrides: Partial<FakeUser> = {},
   ): Promise<AddAuthenticatedMemberResult> {
-    const base = await this.addMember(creatorRole, type);
+    const base = await this.addMember(creatorRole, type, overrides);
     const api = await this.authenticateMember(base.userData, type);
 
     return { ...base, api };

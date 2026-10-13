@@ -537,7 +537,7 @@ test.describe("API room groups permissions", () => {
     // all false but a stale access value is still returned. Only the title is
     // asserted here.
     test.fail(
-      "BUG XXXXX: a group keeps exposing the live title of a room the member lost access to",
+      "BUG 84474: a group keeps exposing the live title of a room the member lost access to",
       async ({ apiSdk }) => {
         const owner = apiSdk.forRole("owner");
         const { api, data: member } = await apiSdk.addAuthenticatedMember(

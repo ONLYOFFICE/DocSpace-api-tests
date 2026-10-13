@@ -15,9 +15,9 @@ test.describe("POST /api/2.0/smtpsettings/smtp", () => {
       .smtpSettings.saveSmtpSettings({ smtpSettingsDto });
 
     expect(status).toBe(200);
-    expect(data.response?.host).toBe(config.SMTP_HOST);
-    expect(data.response?.port).toBe(config.SMTP_PORT);
-    expect(data.response?.senderAddress).toBe(config.SMTP_HOST_LOGIN);
+    expect(data.response?.host).toBe(smtpSettingsDto.host);
+    expect(data.response?.port).toBe(smtpSettingsDto.port);
+    expect(data.response?.senderAddress).toBe(smtpSettingsDto.senderAddress);
     expect(data.response?.senderDisplayName).toBe("DocSpace Autotest");
     expect(data.response?.enableAuth).toBe(true);
     expect(data.response?.enableSSL).toBe(true);
@@ -33,9 +33,9 @@ test.describe("POST /api/2.0/smtpsettings/smtp", () => {
       .smtpSettings.saveSmtpSettings({ smtpSettingsDto });
 
     expect(status).toBe(200);
-    expect(data.response?.host).toBe(config.SMTP_HOST);
-    expect(data.response?.port).toBe(config.SMTP_PORT);
-    expect(data.response?.senderAddress).toBe(config.SMTP_HOST_LOGIN);
+    expect(data.response?.host).toBe(smtpSettingsDto.host);
+    expect(data.response?.port).toBe(smtpSettingsDto.port);
+    expect(data.response?.senderAddress).toBe(smtpSettingsDto.senderAddress);
     expect(data.response?.senderDisplayName).toBe("DocSpace Autotest");
     expect(data.response?.enableAuth).toBe(true);
     expect(data.response?.enableSSL).toBe(true);
@@ -55,9 +55,9 @@ test.describe("GET /api/2.0/smtpsettings/smtp", () => {
       .smtpSettings.getSmtpSettings();
 
     expect(status).toBe(200);
-    expect(data.response?.host).toBe(config.SMTP_HOST);
-    expect(data.response?.port).toBe(config.SMTP_PORT);
-    expect(data.response?.senderAddress).toBe(config.SMTP_HOST_LOGIN);
+    expect(data.response?.host).toBe(smtpSettingsDto.host);
+    expect(data.response?.port).toBe(smtpSettingsDto.port);
+    expect(data.response?.senderAddress).toBe(smtpSettingsDto.senderAddress);
     expect(data.response?.senderDisplayName).toBe("DocSpace Autotest");
     expect(data.response?.enableAuth).toBe(true);
     expect(data.response?.enableSSL).toBe(true);
@@ -77,9 +77,9 @@ test.describe("GET /api/2.0/smtpsettings/smtp", () => {
       .smtpSettings.getSmtpSettings();
 
     expect(status).toBe(200);
-    expect(data.response?.host).toBe(config.SMTP_HOST);
-    expect(data.response?.port).toBe(config.SMTP_PORT);
-    expect(data.response?.senderAddress).toBe(config.SMTP_HOST_LOGIN);
+    expect(data.response?.host).toBe(smtpSettingsDto.host);
+    expect(data.response?.port).toBe(smtpSettingsDto.port);
+    expect(data.response?.senderAddress).toBe(smtpSettingsDto.senderAddress);
     expect(data.response?.senderDisplayName).toBe("DocSpace Autotest");
     expect(data.response?.enableAuth).toBe(true);
     expect(data.response?.enableSSL).toBe(true);
@@ -145,7 +145,11 @@ test.describe("GET /api/2.0/smtpsettings/smtp/test/status", () => {
   test("GET /api/2.0/smtpsettings/smtp/test/status - DocSpaceAdmin gets SMTP operation status until completed", async ({
     apiSdk,
   }) => {
-    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
+    // The test message goes to the acting user's own address, and the QA relay
+    // rejects the generated `@test.com` one ("Domain not found"), so use its domain.
+    await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin", {
+      email: `user_${Date.now()}_smtp@${config.QA_MAIL_DOMAIN}`,
+    });
 
     await apiSdk
       .forRole("owner")

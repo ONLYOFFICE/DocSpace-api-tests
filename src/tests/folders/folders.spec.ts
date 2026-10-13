@@ -9722,6 +9722,23 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const fileId = fileData.response!.id!;
     const fileSize = fileData.response!.pureContentLength!;
 
+    // The four sample files are seeded in the background after registration, one
+    // after another (the spreadsheet last, 76825 bytes). One landing between the
+    // two measurements below shifts the counter by its own size and hides the
+    // delete (observed: -69883 = 6942 - 76825). Wait for the whole set, then for
+    // the counter to agree with the files actually in My Documents.
+    await expect(async () => {
+      const { data: myData } = await ownerApi.folders.getMyFolder({});
+      const samples = (myData.response?.files ?? [])
+        .map((file) => file.title ?? "")
+        .filter((title) => /^ONLYOFFICE .+ Sample\./.test(title));
+      expect(
+        samples,
+        "all four sample files are seeded before the baseline is taken",
+      ).toHaveLength(4);
+    }).toPass({ intervals: [500, 1_000, 2_000], timeout: 60_000 });
+    await waitForUsedSpaceToMatchFiles(ownerApi);
+
     const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
     const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
 
