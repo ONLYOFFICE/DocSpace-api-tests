@@ -47,6 +47,7 @@ import { ToolsApi as MCPApi } from "@onlyoffice/docspace-api-sdk/dist/api/ai/too
 import { FilesSettingsApi } from "@onlyoffice/docspace-api-sdk/dist/api/files/files-settings-api";
 import { PortalGuestsApi } from "@onlyoffice/docspace-api-sdk/dist/api/portal/portal-guests-api";
 import { ApiKeysApi } from "@onlyoffice/docspace-api-sdk/dist/api/api-keys/api-keys-api";
+import { AppsApi } from "@onlyoffice/docspace-api-sdk/dist/api/apps/apps-api";
 import { AuthenticationApi } from "@onlyoffice/docspace-api-sdk/dist/api/authentication/authentication-api";
 import { CapabilitiesApi } from "@onlyoffice/docspace-api-sdk/dist/api/capabilities/capabilities-api";
 import { MigrationApi } from "@onlyoffice/docspace-api-sdk/dist/api/migration/migration-api";
@@ -232,6 +233,7 @@ export class ApiSDK {
       users: new UsersApi(config, undefined, axiosInstance),
       mcp: new MCPApi(config, undefined, axiosInstance),
       apiKeys: new ApiKeysApi(config, undefined, axiosInstance),
+      apps: new AppsApi(config, undefined, axiosInstance),
       portalQuota: new PortalQuotaApi(config, undefined, axiosInstance),
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
       authentication: new AuthenticationApi(config, undefined, axiosInstance),
@@ -352,6 +354,7 @@ export class ApiSDK {
       users: new UsersApi(config, undefined, axiosInstance),
       mcp: new MCPApi(config, undefined, axiosInstance),
       apiKeys: new ApiKeysApi(config, undefined, axiosInstance),
+      apps: new AppsApi(config, undefined, axiosInstance),
       portalQuota: new PortalQuotaApi(config, undefined, axiosInstance),
       portalSettings: new PortalSettingsApi(config, undefined, axiosInstance),
       payment: new SdkPaymentApi(config, undefined, axiosInstance),
@@ -746,6 +749,48 @@ export class ApiSDK {
       data = JSON.parse(text);
     } catch {
       // non-JSON (e.g. a proxied plain-text canary response) — keep raw text
+    }
+    return { status: response.status(), text, data };
+  }
+
+  /**
+   * Low-level request to `/api/2.0/{path}` with the body sent verbatim.
+   *
+   * The typed SDK always JSON-serialises its arguments, so malformed JSON, an
+   * empty body or a non-JSON content type cannot be produced through it.
+   * Pass role = null for an anonymous (no Authorization header) request.
+   */
+  async rawApi(
+    role: Role | null,
+    method: "GET" | "POST" | "PUT" | "DELETE",
+    path: string,
+    options?: { body?: string; contentType?: string },
+  ): Promise<{ status: number; text: string; data: any }> {
+    const headers: Record<string, string> = {
+      Origin: `http://${this.tokenStore.newTenantDomain}`,
+    };
+    if (role) {
+      headers["Authorization"] = `Bearer ${this.tokenStore.getToken(role)}`;
+    }
+    const fetchOptions: {
+      method: string;
+      headers: Record<string, string>;
+      data?: string;
+    } = { method, headers };
+    if (options?.body !== undefined) {
+      headers["Content-Type"] = options.contentType ?? "application/json";
+      fetchOptions.data = options.body;
+    }
+    const response = await this.request.fetch(
+      `${this.tokenStore.portalBaseUrl}/api/2.0/${path}`,
+      fetchOptions,
+    );
+    const text = await response.text();
+    let data: any = text;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // non-JSON body (e.g. an empty 4xx) — keep raw text
     }
     return { status: response.status(), text, data };
   }
