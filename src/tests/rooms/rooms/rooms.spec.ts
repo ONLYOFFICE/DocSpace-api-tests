@@ -1117,12 +1117,12 @@ test.describe("API rooms methods", () => {
 
     // Room IDs are globally unique, so the API returns 403 instead of 404
     // to prevent enumeration of existing room IDs
-    test("BUG XXXXX: PUT /files/rooms/:id - Update non-existent room should return 404, but API returns 403", async ({
+    test("BUG 84476: PUT /files/rooms/:id - Update non-existent room should return 404, but API returns 403", async ({
       apiSdk,
     }) => {
       test.fail(
         true,
-        "BUG XXXXX: PUT /files/rooms/{id} with an id that does not exist answers 403 " +
+        "BUG 84476: PUT /files/rooms/{id} with an id that does not exist answers 403 " +
           "(the permission error) instead of 404 Item not found. Same defect class as " +
           "BUG 81550 (archive) and BUG 81850 / 81862 (pin, reorder). When the API " +
           "returns 404 this test reports an unexpected pass: remove test.fail.",

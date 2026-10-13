@@ -116,12 +116,12 @@ test.describe("GET /files/rooms/:id/externaldbsync - status", () => {
 });
 
 test.describe("POST /files/rooms/:id/externaldbsync - start", () => {
-  test("BUG XXXXX: Owner starting a sync with no external database configured returns 500 instead of a controlled 4xx", async ({
+  test("BUG 84473: Owner starting a sync with no external database configured returns 500 instead of a controlled 4xx", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: POST /files/rooms/{id}/externaldbsync on a form filling room " +
+      "BUG 84473: POST /files/rooms/{id}/externaldbsync on a form filling room " +
         "while the portal has no external database throws " +
         'Microsoft.AspNetCore.Http.BadHttpRequestException ("Bad request.") from ' +
         "FileStorageService.StartExternalDbSyncAsync and answers 500. The " +

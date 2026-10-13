@@ -1104,12 +1104,12 @@ test.describe("PUT /files/rooms/thirdparty/{id} - createAsNewFolder", () => {
     expect(info.logo?.color).toBe("123456");
   });
 
-  test("BUG XXXXX: createAsNewFolder true ignores denyDownload", async ({
+  test("BUG 84475: createAsNewFolder true ignores denyDownload", async ({
     apiSdk,
   }) => {
     test.fail(
       true,
-      "BUG XXXXX: PUT /files/rooms/thirdparty/{id} with createAsNewFolder=true " +
+      "BUG 84475: PUT /files/rooms/thirdparty/{id} with createAsNewFolder=true " +
         "keeps tags but silently drops denyDownload: true (getRoomInfo reports " +
         "false). The API description says denyDownload is dropped only when " +
         "createAsNewFolder is false. To be confirmed: if third-party rooms do " +
