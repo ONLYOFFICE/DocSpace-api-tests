@@ -199,7 +199,7 @@ test.describe("PUT /api/2.0/apps/{id}/enabled", () => {
   });
 
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/apps/{id}/enabled - A body without the enabled field is rejected instead of silently disabling the application",
+    "BUG 84498: PUT /api/2.0/apps/{id}/enabled - A body without the enabled field is rejected instead of silently disabling the application",
     async ({ apiSdk }) => {
       const owner = apiSdk.forRole("owner");
       const [id] = await pickApps(owner, 1);
