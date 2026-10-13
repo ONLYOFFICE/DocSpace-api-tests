@@ -646,7 +646,7 @@ test.describe("keyId handling", () => {
   const UNKNOWN_ID = "00000000-0000-0000-0000-000000000000";
 
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/keys/{keyId} - Update of a well-formed unknown keyId is a client error, not a 500",
+    "BUG 84482: PUT /api/2.0/keys/{keyId} - Update of a well-formed unknown keyId is a client error, not a 500",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.forRole("owner").apiKeys.updateApiKey({
         keyId: UNKNOWN_ID,
@@ -658,7 +658,7 @@ test.describe("keyId handling", () => {
   );
 
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/keys/{keyId} - Delete of a well-formed unknown keyId is a client error, not a 500",
+    "BUG 84483: DELETE /api/2.0/keys/{keyId} - Delete of a well-formed unknown keyId is a client error, not a 500",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.forRole("owner").apiKeys.deleteApiKey({
         keyId: UNKNOWN_ID,
@@ -669,7 +669,7 @@ test.describe("keyId handling", () => {
   );
 
   test.fail(
-    "BUG XXXXX: DELETE /api/2.0/keys/{keyId} - Repeated delete of the same key is a client error, not a 500",
+    "BUG 84483: DELETE /api/2.0/keys/{keyId} - Repeated delete of the same key is a client error, not a 500",
     async ({ apiSdk }) => {
       const owner = apiSdk.forRole("owner");
       const key = await createKey(owner, { name: "Autotest twice" });
@@ -684,7 +684,7 @@ test.describe("keyId handling", () => {
   );
 
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/keys/{keyId} - Update of an already deleted key is a client error, not a 500",
+    "BUG 84482: PUT /api/2.0/keys/{keyId} - Update of an already deleted key is a client error, not a 500",
     async ({ apiSdk }) => {
       const owner = apiSdk.forRole("owner");
       const key = await createKey(owner, { name: "Autotest deleted" });
@@ -757,7 +757,7 @@ test.describe("Names with non-Latin characters", () => {
   const NAMES_ASTRAL = ["🔑", "a🔑b", "😀😀", "𠀋 𝒳"];
 
   test.fail(
-    "BUG XXXXX: POST /api/2.0/keys - Characters outside the BMP (emoji) in the name are stored unchanged",
+    "BUG 84484: POST /api/2.0/keys - Characters outside the BMP (emoji) in the name are stored unchanged",
     async ({ apiSdk }) => {
       const owner = apiSdk.forRole("owner");
       const created = [];
@@ -775,7 +775,7 @@ test.describe("Names with non-Latin characters", () => {
   );
 
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/keys/{keyId} - Characters outside the BMP (emoji) in the new name are stored unchanged",
+    "BUG 84484: PUT /api/2.0/keys/{keyId} - Characters outside the BMP (emoji) in the new name are stored unchanged",
     async ({ apiSdk }) => {
       const owner = apiSdk.forRole("owner");
       const key = await createKey(owner, { name: "Autotest original" });
@@ -793,7 +793,7 @@ test.describe("Names with non-Latin characters", () => {
 
 test.describe("Inconsistent or failing responses", () => {
   test.fail(
-    "BUG XXXXX: PUT /api/2.0/keys/{keyId} - Whitespace-only name is rejected like it is by POST",
+    "BUG 84485: PUT /api/2.0/keys/{keyId} - Whitespace-only name is rejected like it is by POST",
     async ({ apiSdk }) => {
       const owner = apiSdk.forRole("owner");
       const key = await createKey(owner, { name: "Autotest original" });
@@ -810,7 +810,7 @@ test.describe("Inconsistent or failing responses", () => {
   );
 
   test.fail(
-    "BUG XXXXX: GET /api/2.0/keys/@self - Regular login (not an API key) does not cause a server error",
+    "BUG 84486: GET /api/2.0/keys/@self - Regular login (not an API key) does not cause a server error",
     async ({ apiSdk }) => {
       const { status } = await apiSdk.forRole("owner").apiKeys.getApiKey();
 
