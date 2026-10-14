@@ -1972,22 +1972,34 @@ test.describe("ToolsApi - concurrent writes", () => {
       url: `https://race-${index}.example.invalid/sse`,
     }));
 
+    const startedAt = Date.now();
     const results = await Promise.all(
-      configs.map((config) =>
-        aiTools.addCustomServer("owner", {
+      configs.map(async (config) => ({
+        ...(await aiTools.addCustomServer("owner", {
           name: "contested",
           config,
           agentId,
-        }),
-      ),
+        })),
+        doneAtMs: Date.now() - startedAt,
+      })),
     );
 
-    // Raw bodies too: a non-JSON error (proxy page, 429) leaves `data` undefined.
+    // An intermittent 403 on this route has been seen (5 of 8 refused, 3 let
+    // through) and not yet attributed to the app or an intermediate hop. Report
+    // status, raw body, timing and an allow-list of response headers that name the
+    // hop (never Set-Cookie, Authorization or anything else not listed) so the next
+    // occurrence carries evidence. Raw bodies too: a non-JSON error (proxy page,
+    // 429) leaves `data` undefined.
+    const DIAGNOSTIC_HEADERS =
+      /^(retry-after|x-ratelimit-.*|server|via|x-powered-by|x-request-id|x-cache|x-amz-cf-.*|cf-.*|date|content-type|server-timing)$/;
     const report = results
-      .map(
-        (r, i) =>
-          `#${i} ${r.status} ${r.text.slice(0, 300)}${r.headers["retry-after"] ? ` retry-after=${r.headers["retry-after"]}` : ""}`,
-      )
+      .map((r, i) => {
+        const headers = Object.entries(r.headers)
+          .filter(([name]) => DIAGNOSTIC_HEADERS.test(name))
+          .map(([name, value]) => `${name}=${value}`)
+          .join("; ");
+        return `#${i} ${r.status} +${r.doneAtMs}ms ${r.text.slice(0, 300)}\n    headers: ${headers}`;
+      })
       .join("\n");
     const winners = results.filter((r) => r.data?.success === true);
     expect(

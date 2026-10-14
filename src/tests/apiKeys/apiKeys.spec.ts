@@ -1224,17 +1224,23 @@ test.describe("POST /api/2.0/keys - issued keys", () => {
     const owner = apiSdk.forRole("owner");
     await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
 
+    // Measured 2026-10-14: the budget is 5 per user and does not refill for 12+
+    // minutes (still 429 on every 30 s probe), so a burst cannot straddle a window
+    // boundary. A 6th 200 is a limiter failure, not test flakiness.
     const statuses: number[] = [];
+    let limitHeader: string | undefined;
     for (let i = 0; i < 6; i++) {
-      const { status } = await owner.apiKeys.createApiKey({
+      const { status, headers } = await owner.apiKeys.createApiKey({
         createApiKeyRequestDto: { name: `Autotest throttle ${i}` },
       });
       statuses.push(status);
+      if (status === 429) limitHeader = headers["x-ratelimit-limit"];
     }
 
+    expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
+    expect(limitHeader).toBe("5");
     // The rejected call creates nothing
     expect(await listKeys(owner)).toHaveLength(5);
-    expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
 
     const other = await apiSdk.forRole("roomAdmin").apiKeys.createApiKey({
       createApiKeyRequestDto: { name: "Autotest ok" },
