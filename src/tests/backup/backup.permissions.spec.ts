@@ -6,6 +6,15 @@ import {
   RoomType,
 } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
+import {
+  expectRestoreNotStarted,
+  runBackup,
+  snapshotBackups,
+  startRestoreThatCannotQueue,
+} from "@/src/helpers/backup";
+
+// Never a GUID and never a path: see assertRestoreRequestCannotQueue.
+const NOT_A_GUID = "not-a-guid";
 
 test.describe("POST /api/2.0/backup/cancelbackup - access control", () => {
   test("POST /api/2.0/backup/cancelbackup - Cancel backup without authorization", async ({
@@ -584,6 +593,176 @@ test.describe("GET /api/2.0/backup/getbackupscount - access control", () => {
   });
 });
 
+test.describe("GET /api/2.0/backup/getbackupscountbypaid - access control", () => {
+  test("GET /api/2.0/backup/getbackupscountbypaid - Get counts without authorization", async ({
+    apiSdk,
+  }) => {
+    const anonApi = apiSdk.forAnonymous();
+
+    const { status } = await anonApi.backup.getBackupsCounts();
+
+    expect(status).toBe(401);
+  });
+
+  test("GET /api/2.0/backup/getbackupscountbypaid - DocSpaceAdmin gets the counts of the portal", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await runBackup(ownerApi.backup);
+
+    const { api: adminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "DocSpaceAdmin",
+    );
+
+    const { data, status } = await adminApi.backup.getBackupsCounts();
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response).toEqual({ free: 1, paid: 0 });
+  });
+
+  for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
+    test(`GET /api/2.0/backup/getbackupscountbypaid - ${userType} gets counts`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
+
+      await test.step("the owner reads the counts: the endpoint works on this portal", async () => {
+        const { status } = await ownerApi.backup.getBackupsCounts();
+        expect(status).toBe(200);
+      });
+
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data, status } = await memberApi.backup.getBackupsCounts();
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+  }
+});
+
+// Authorization comes before the semantic validation of the controller: a caller
+// without the portal settings permission is refused with 403 whatever the body
+// holds, so nothing about the validity of the parameters leaks to them. The
+// bodies are well-formed JSON of the right types, because a malformed one is
+// refused with 400 by the framework before authorization.
+test.describe("Backup validation - access control with invalid parameters", () => {
+  const unknownGuid = "11111111-2222-3333-4444-555555555555";
+
+  test("POST /api/2.0/backup/startbackup - Anonymous caller with an invalid storageType gets 401", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forAnonymous().backup.startBackup({
+      backupDto: { storageType: 99 as BackupStorageType },
+    });
+
+    expect(status).toBe(401);
+  });
+
+  test("POST /api/2.0/backup/startrestore - Anonymous caller with a backupId that is not a GUID gets 401", async ({
+    apiSdk,
+  }) => {
+    const { status } = await startRestoreThatCannotQueue(
+      apiSdk.forAnonymous().backup,
+      { backupId: "not-a-guid" },
+    );
+
+    expect(status).toBe(401);
+  });
+
+  test("DELETE /api/2.0/backup/deletebackup - Anonymous caller with an unknown id gets 401", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forAnonymous()
+      .backup.deleteBackup({ id: unknownGuid });
+
+    expect(status).toBe(401);
+  });
+
+  for (const userType of ["RoomAdmin", "User", "Guest"] as const) {
+    test(`POST /api/2.0/backup/startbackup - ${userType} with an invalid storageType gets 403 and starts nothing`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data, status } = await memberApi.backup.startBackup({
+        backupDto: { storageType: 99 as BackupStorageType },
+      });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+
+      const snapshot = await snapshotBackups(apiSdk.forRole("owner").backup);
+      expect(snapshot.job).toBeUndefined();
+      expect(snapshot.historyIds).toEqual([]);
+    });
+
+    test(`POST /api/2.0/backup/startbackup - ${userType} with a folder that does not exist gets 403, not 404`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data, status } = await memberApi.backup.startBackup({
+        backupDto: {
+          storageType: BackupStorageType.Documents,
+          storageParams: [{ key: "folderId", value: "99999999" }],
+        },
+      });
+
+      expect(status).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+    });
+
+    test(`DELETE /api/2.0/backup/deletebackup - ${userType} with an unknown id gets 403 and deletes nothing`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
+      await runBackup(ownerApi.backup);
+      const before = await snapshotBackups(ownerApi.backup);
+
+      const { api: memberApi } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        userType,
+      );
+
+      const { data, status } = await memberApi.backup.deleteBackup({
+        id: unknownGuid,
+      });
+
+      expect(status).toBe(403);
+      expect(data.statusCode).toBe(403);
+      expect((data as any).error.message).toBe("Access denied");
+
+      expect(await snapshotBackups(ownerApi.backup)).toEqual(before);
+    });
+  }
+});
+
 test.describe("GET /api/2.0/backup/getbackupsservicestate - access control", () => {
   test("GET /api/2.0/backup/getbackupsservicestate - Get service state without authorization", async ({
     apiSdk,
@@ -816,7 +995,10 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
   }) => {
     const anonApi = apiSdk.forAnonymous();
 
-    const { status } = await anonApi.backup.startBackupRestore();
+    const { status } = await startRestoreThatCannotQueue(
+      anonApi.backup,
+      undefined,
+    );
 
     expect(status).toBe(401);
   });
@@ -830,12 +1012,10 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
     );
     const ownerApi = apiSdk.forRole("owner");
 
-    const { data, status } = await ownerApi.backup.startBackupRestore({
-      backupRestoreDto: {
-        backupId: "00000000-0000-0000-0000-000000000000",
-        storageType: BackupStorageType.DataStore,
-      },
-    });
+    const { data, status } = await startRestoreThatCannotQueue(
+      ownerApi.backup,
+      { backupId: NOT_A_GUID, storageType: BackupStorageType.DataStore },
+    );
 
     expect(status).toBe(402);
     expect(data.statusCode).toBe(402);
@@ -855,16 +1035,16 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
       "RoomAdmin",
     );
 
-    const { data, status } = await roomAdminApi.backup.startBackupRestore({
-      backupRestoreDto: {
-        backupId: "00000000-0000-0000-0000-000000000000",
-        storageType: BackupStorageType.DataStore,
-      },
-    });
+    const { data, status } = await startRestoreThatCannotQueue(
+      roomAdminApi.backup,
+      { backupId: NOT_A_GUID, storageType: BackupStorageType.DataStore },
+    );
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
+
+    await expectRestoreNotStarted(apiSdk.forRole("owner").backup);
   });
 
   test("POST /api/2.0/backup/startrestore - User starts restore", async ({
@@ -878,16 +1058,16 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
       "User",
     );
 
-    const { data, status } = await userApi.backup.startBackupRestore({
-      backupRestoreDto: {
-        backupId: "00000000-0000-0000-0000-000000000000",
-        storageType: BackupStorageType.DataStore,
-      },
+    const { data, status } = await startRestoreThatCannotQueue(userApi.backup, {
+      backupId: NOT_A_GUID,
+      storageType: BackupStorageType.DataStore,
     });
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
+
+    await expectRestoreNotStarted(apiSdk.forRole("owner").backup);
   });
 
   test("POST /api/2.0/backup/startrestore - Guest starts restore", async ({
@@ -901,16 +1081,16 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
       "Guest",
     );
 
-    const { data, status } = await guestApi.backup.startBackupRestore({
-      backupRestoreDto: {
-        backupId: "00000000-0000-0000-0000-000000000000",
-        storageType: BackupStorageType.DataStore,
-      },
-    });
+    const { data, status } = await startRestoreThatCannotQueue(
+      guestApi.backup,
+      { backupId: NOT_A_GUID, storageType: BackupStorageType.DataStore },
+    );
 
     expect(status).toBe(403);
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
+
+    await expectRestoreNotStarted(apiSdk.forRole("owner").backup);
   });
 });
 
