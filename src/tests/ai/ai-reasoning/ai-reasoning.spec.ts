@@ -62,24 +62,35 @@ test.describe("AI Agent reasoning over employees_edge_cases.csv", () => {
     // (the all-zero row). Not test.fail: it passes most runs, so the wrapper would flip them.
     const bug =
       method.name === "Select existing DocSpace file" ? "BUG 84461: " : "";
-    test(`${bug}${method.name} - agent reads and reasons over employees_edge_cases.csv`, async ({
-      apiSdk,
-      paymentsApi,
-    }) => {
-      const ctx = await method.attach(
-        apiSdk,
-        paymentsApi,
-        EDGE_CASE_PAYROLL_CSV,
-        `Autotest Edge Case Payroll (${method.name})`,
-      );
+    const flaky = bug
+      ? {
+          tag: "@flaky",
+          annotation: {
+            type: "flaky-reason",
+            description:
+              "BUG 84461: model non-determinism — on some runs the agent answers Test 14 without X001 (the all-zero row), on others it includes it; the test passes when the model happens to read the whole file",
+          },
+        }
+      : {};
+    test(
+      `${bug}${method.name} - agent reads and reasons over employees_edge_cases.csv`,
+      flaky,
+      async ({ apiSdk, paymentsApi }) => {
+        const ctx = await method.attach(
+          apiSdk,
+          paymentsApi,
+          EDGE_CASE_PAYROLL_CSV,
+          `Autotest Edge Case Payroll (${method.name})`,
+        );
 
-      for (const question of EDGE_CASE_QUESTIONS) {
-        await test.step(question.name, async () => {
-          const { text } = await ctx.ask(question.prompt);
-          question.assert(text);
-        });
-      }
-    });
+        for (const question of EDGE_CASE_QUESTIONS) {
+          await test.step(question.name, async () => {
+            const { text } = await ctx.ask(question.prompt);
+            question.assert(text);
+          });
+        }
+      },
+    );
   }
 });
 
