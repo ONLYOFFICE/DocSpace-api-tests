@@ -2501,7 +2501,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
 
   for (const { name, dto } of failsWith500) {
     test.fail(
-      `BUG XXXXX: POST /api/2.0/backup/createbackupschedule - Rejects ${name} with 400 instead of 500`,
+      `BUG 84509: POST /api/2.0/backup/createbackupschedule - Rejects ${name} with 400 instead of 500`,
       async ({ apiSdk, paymentsApi }) => {
         await paymentsApi.setupPayment();
         const ownerApi = apiSdk.forRole("owner");
@@ -2534,7 +2534,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
 
   for (const { name, dto } of acceptedButInvalid) {
     test.fail(
-      `BUG XXXXX: POST /api/2.0/backup/createbackupschedule - Rejects ${name} with 400 instead of replacing the stored schedule`,
+      `BUG 84510: POST /api/2.0/backup/createbackupschedule - Rejects ${name} with 400 instead of replacing the stored schedule`,
       async ({ apiSdk, paymentsApi }) => {
         await paymentsApi.setupPayment();
         const ownerApi = apiSdk.forRole("owner");
@@ -2549,7 +2549,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
   // folderId is not an integer, so the server looks for a third-party provider
   // and answers with a misleading 404 ("Selector '' not found").
   test.fail(
-    "BUG XXXXX: POST /api/2.0/backup/createbackupschedule - Rejects a non-numeric folderId of a Documents schedule with 400 instead of 404",
+    "BUG 84511: POST /api/2.0/backup/createbackupschedule - Rejects a non-numeric folderId of a Documents schedule with 400 instead of 404",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
       const ownerApi = apiSdk.forRole("owner");
@@ -2896,7 +2896,7 @@ test.describe("POST /api/2.0/backup/startbackup - Start backup: server-side vali
 
   for (const { name, dto } of unhandled) {
     test.fail(
-      `BUG XXXXX: POST /api/2.0/backup/startbackup - Rejects ${name} with 400 instead of 500`,
+      `BUG 84512: POST /api/2.0/backup/startbackup - Rejects ${name} with 400 instead of 500`,
       async ({ apiSdk, paymentsApi }) => {
         await paymentsApi.setupPayment();
         const ownerApi = apiSdk.forRole("owner");
@@ -3188,7 +3188,7 @@ test.describe("POST /api/2.0/backup/startrestore - Start restore: safe negative 
 
   for (const { name, dto } of noSource) {
     test.fail(
-      `BUG XXXXX: POST /api/2.0/backup/startrestore - Rejects ${name} with 400 instead of 500`,
+      `BUG 84513: POST /api/2.0/backup/startrestore - Rejects ${name} with 400 instead of 500`,
       async ({ apiSdk, paymentsApi }) => {
         await paymentsApi.setupPayment();
         const ownerApi = apiSdk.forRole("owner");
