@@ -7001,21 +7001,25 @@ test.describe("PUT /api/2.0/files/fileops/markasread - markAsRead", () => {
         "Precondition: owner sees both files as new," +
           " each in its own section",
         async () => {
-          const { data: filesNews } = await ownerApi.folders.getNewFolderItems({
-            folderId: myDocsFolderId,
-          });
-          expect(
-            (filesNews.response ?? []).some((f) => f.title === filesTitle),
-          ).toBe(true);
+          // News are recorded asynchronously: poll for both
+          await expect(async () => {
+            const { data: filesNews } =
+              await ownerApi.folders.getNewFolderItems({
+                folderId: myDocsFolderId,
+              });
+            expect(
+              (filesNews.response ?? []).some((f) => f.title === filesTitle),
+            ).toBe(true);
 
-          const { data: roomsNews } = await ownerApi.rooms.getNewRoomItems({
-            id: roomId,
-          });
-          expect(
-            (roomsNews.response ?? [])
-              .flatMap((g) => g.items ?? [])
-              .some((f) => f.title === roomsTitle),
-          ).toBe(true);
+            const { data: roomsNews } = await ownerApi.rooms.getNewRoomItems({
+              id: roomId,
+            });
+            expect(
+              (roomsNews.response ?? [])
+                .flatMap((g) => g.items ?? [])
+                .some((f) => f.title === roomsTitle),
+            ).toBe(true);
+          }).toPass({ intervals: [500, 1_000, 2_000], timeout: 15_000 });
         },
       );
 
