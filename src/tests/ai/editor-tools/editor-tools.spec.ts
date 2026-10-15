@@ -557,15 +557,14 @@ test.describe("AI Editor Tools - arguments", () => {
   test("BUG 84395: GET /api/2.0/ai/editor-tools/list - a property with a default is published as required, and the tool runs without it", async ({
     apiSdk,
   }) => {
-    // create_room lists `roomType` in `required` and gives it `default: 6`. A
-    // client that trusts `required` will always send it; one that trusts the
-    // default may leave it out. Only one of the two is true, and the call shows
-    // which: it creates the room.
+    // create_room used to list `roomType` in `required` while giving it
+    // `default: 6`, yet the call created the room without it. Fixed: `roomType`
+    // is no longer required. The tool still runs without it, and no tool may
+    // publish a property as both required and defaulted.
     const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
     const tools = await api.tools("owner");
     const createRoom = tools.find((t) => t.name === "create_room")!;
-    expect(createRoom.inputSchema.required).toContain("roomType");
-    expect(createRoom.inputSchema.properties?.roomType?.default).toBe(6);
+    expect(createRoom.inputSchema.required ?? []).not.toContain("roomType");
 
     const args = sampleArguments(createRoom.inputSchema);
     delete args.roomType;
@@ -577,7 +576,6 @@ test.describe("AI Editor Tools - arguments", () => {
         .filter((k) => t.inputSchema.properties?.[k]?.default !== undefined)
         .map((k) => `${t.name}.${k}`),
     );
-    test.fail();
     expect(
       contradictions,
       "required properties that also have a default",
@@ -620,14 +618,17 @@ test.describe("AI Editor Tools - arguments", () => {
   test("BUG 84397: POST /api/2.0/ai/editor-tools/call - a property the published schema forbids is accepted and the tool runs", async ({
     apiSdk,
   }) => {
-    // Every inputSchema says `additionalProperties:false`; the endpoint publishes
-    // it, so a client may treat it as authoritative. The call below carries one
-    // property the schema forbids — and creates the folder anyway.
+    // Every inputSchema used to say `additionalProperties:false` while the call
+    // accepted an unknown property and created the folder anyway. Fixed by the
+    // schema no longer forbidding extras. What must hold is that the published
+    // schema and the behaviour agree: forbidden means refused, not forbidden
+    // means tolerated.
     const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
     const owner = apiSdk.forRole("owner");
     const tools = await api.tools("owner");
     const createFolder = tools.find((t) => t.name === "create_folder")!;
-    expect(createFolder.inputSchema.additionalProperties).toBe(false);
+    const forbidsExtras =
+      createFolder.inputSchema.additionalProperties === false;
 
     const parentId = await myFolderId(apiSdk);
     const title = `Autotest extra ${apiSdk.faker.generateString(6)}`;
@@ -648,9 +649,13 @@ test.describe("AI Editor Tools - arguments", () => {
       (f) => f.title === title,
     );
 
-    test.fail();
-    expect(created, "the folder must not be created").toBe(false);
-    expect(outcome.isError).toBe(true);
+    expect(
+      created,
+      forbidsExtras
+        ? "the schema forbids extras, so the folder must not be created"
+        : "the schema does not forbid extras, so the folder is created",
+    ).toBe(!forbidsExtras);
+    expect(outcome.isError).toBe(forbidsExtras);
   });
 
   test("BUG 84398: GET /api/2.0/ai/editor-tools/list - filters.fields items are an enum in practice but the schema publishes a bare string", async ({
@@ -681,7 +686,6 @@ test.describe("AI Editor Tools - arguments", () => {
     });
     expect(accepted.isError, accepted.text).toBe(false);
 
-    test.fail();
     expect(
       Array.isArray(items?.enum) && items!.enum!.includes("id"),
       "the schema lists the values the tool accepts",
