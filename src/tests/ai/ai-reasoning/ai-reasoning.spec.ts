@@ -59,9 +59,13 @@ test.describe("AI Agent reasoning over employees_edge_cases.csv", () => {
   test.setTimeout(600_000);
   for (const method of ATTACHMENT_METHODS) {
     // BUG 84461: intermittent — the model sometimes answers Test 14 without X001
-    // (the all-zero row). Not test.fail: it passes most runs, so the wrapper would flip them.
-    const bug =
-      method.name === "Select existing DocSpace file" ? "BUG 84461: " : "";
+    // (the all-zero row), seen with Device attach and Select existing DocSpace
+    // file. Not test.fail: it passes most runs, so the wrapper would flip them.
+    const bug = ["Select existing DocSpace file", "Device attach"].includes(
+      method.name,
+    )
+      ? "BUG 84461: "
+      : "";
     const flaky = bug
       ? {
           tag: "@flaky",

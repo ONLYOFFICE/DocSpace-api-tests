@@ -12,7 +12,7 @@ import {
 import { readFileSync } from "fs";
 import path from "path";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
-import { createOoForm } from "@/src/helpers/files";
+import { createOoForm, startFormFilling } from "@/src/helpers/files";
 import config from "@/config";
 import { faker } from "@faker-js/faker";
 
@@ -6361,5 +6361,385 @@ test.describe("GET /files/file/:fileId/presigneduri - Get presigned URI", () => 
       .files.getPresignedUri({ fileId: 999999999 });
 
     expect(status).toBe(404);
+  });
+});
+
+const fileLinkRoomTypes = [
+  { label: "Custom", roomType: RoomType.CustomRoom },
+  { label: "Collaboration", roomType: RoomType.EditingRoom },
+  { label: "Public", roomType: RoomType.PublicRoom },
+  { label: "VDR", roomType: RoomType.VirtualDataRoom },
+] as const;
+
+test.describe("POST /files/file/:id/link - Create primary external link", () => {
+  for (const { label, roomType } of fileLinkRoomTypes) {
+    test(`POST /files/file/:id/link - ${label} room file gets its primary external link`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Create Primary Link ${label} Room`,
+          roomType,
+        },
+      });
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomData.response!.id!,
+        createFileJsonElement: { title: "Autotest Primary Link File.docx" },
+      });
+      const fileId = fileData.response!.id!;
+
+      const { data, status } =
+        await ownerApi.files.createFilePrimaryExternalLink({
+          id: fileId,
+          fileLinkRequest: { access: FileShare.Read },
+        });
+
+      expect(status).toBe(200);
+      expect(data.response!.subjectType).toBe(SubjectType.PrimaryExternalLink);
+      expect(data.response!.sharedLink!.primary).toBe(true);
+      expect(data.response!.sharedLink!.linkType).toBe(LinkType.External);
+      expect(data.response!.sharedLink!.shareLink).toBeTruthy();
+
+      const { data: got } = await ownerApi.files.getFilePrimaryExternalLink({
+        id: fileId,
+      });
+      expect(got.response!.sharedLink!.id).toBe(data.response!.sharedLink!.id);
+    });
+  }
+
+  test("POST /files/file/:id/link - File in My Documents gets a primary external link", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Primary Link My Docs.docx" },
+    });
+
+    const { data, status } = await ownerApi.files.createFilePrimaryExternalLink(
+      {
+        id: fileData.response!.id!,
+        fileLinkRequest: { access: FileShare.Read },
+      },
+    );
+
+    expect(status).toBe(200);
+    expect(data.response!.sharedLink!.primary).toBe(true);
+    expect(data.response!.sharedLink!.shareLink).toBeTruthy();
+  });
+
+  test("POST /files/file/:id/link - Repeated calls keep one primary link with the same id", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Primary Link Repeat.docx" },
+    });
+    const fileId = fileData.response!.id!;
+    const create = () =>
+      ownerApi.files.createFilePrimaryExternalLink({
+        id: fileId,
+        fileLinkRequest: { access: FileShare.Read },
+      });
+
+    const first = await create();
+    const second = await create();
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(second.data.response!.sharedLink!.id).toBe(
+      first.data.response!.sharedLink!.id,
+    );
+    const { data: links } = await ownerApi.files.getFileLinks({ id: fileId });
+    const primaryLinks = (links.response ?? []).filter(
+      (l) => l.sharedLink?.primary,
+    );
+    expect(primaryLinks).toHaveLength(1);
+  });
+
+  test("POST /files/file/:id/link - Non-existent file returns 404", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .files.createFilePrimaryExternalLink({
+        id: 999999999,
+        fileLinkRequest: { access: FileShare.Read },
+      });
+
+    expect(status).toBe(404);
+  });
+
+  // Documented: the parameters "only shape the link at the moment it is born".
+  test("POST /files/file/:id/link - First call applies access, password, denyDownload and internal", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Primary Link Birth.docx" },
+    });
+    const fileId = fileData.response!.id!;
+
+    const { data, status } = await ownerApi.files.createFilePrimaryExternalLink(
+      {
+        id: fileId,
+        fileLinkRequest: {
+          access: FileShare.Editing,
+          denyDownload: true,
+          internal: true,
+          password: "Passw0rd!x",
+        },
+      },
+    );
+
+    expect(status).toBe(200);
+    expect(data.response!.access).toBe(FileShare.Editing);
+    expect(data.response!.sharedLink!.denyDownload).toBe(true);
+    expect(data.response!.sharedLink!.internal).toBe(true);
+    expect(data.response!.sharedLink!.password).toBe("Passw0rd!x");
+
+    const { data: got } = await ownerApi.files.getFilePrimaryExternalLink({
+      id: fileId,
+    });
+    expect(got.response!.access).toBe(FileShare.Editing);
+    expect(got.response!.sharedLink!.denyDownload).toBe(true);
+  });
+
+  // Documented: "a second call with other parameters does not reconfigure the
+  // existing link".
+  test("POST /files/file/:id/link - Second call with other parameters does not reconfigure the link", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Primary Link Fixed.docx" },
+    });
+    const fileId = fileData.response!.id!;
+    const { data: first } = await ownerApi.files.createFilePrimaryExternalLink({
+      id: fileId,
+      fileLinkRequest: { access: FileShare.Editing, denyDownload: true },
+    });
+
+    const { data: second, status } =
+      await ownerApi.files.createFilePrimaryExternalLink({
+        id: fileId,
+        fileLinkRequest: { access: FileShare.Read, denyDownload: false },
+      });
+
+    expect(status).toBe(200);
+    expect(second.response!.sharedLink!.id).toBe(
+      first.response!.sharedLink!.id,
+    );
+    expect(second.response!.access).toBe(FileShare.Editing);
+    expect(second.response!.sharedLink!.denyDownload).toBe(true);
+  });
+
+  // Documented: "a link that was deliberately revoked is not recreated but
+  // answered with 404".
+  test("POST /files/file/:id/link - Revoked primary link is not recreated and answers 404", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Primary Link Revoked.docx" },
+    });
+    const fileId = fileData.response!.id!;
+    const { data: created } =
+      await ownerApi.files.createFilePrimaryExternalLink({
+        id: fileId,
+        fileLinkRequest: { access: FileShare.Read },
+      });
+    const { status: revokeStatus } = await ownerApi.files.setFileExternalLink({
+      id: fileId,
+      fileLinkRequest: {
+        linkId: created.response!.sharedLink!.id!,
+        access: FileShare.None,
+        primary: true,
+      },
+    });
+    expect(revokeStatus).toBe(200);
+
+    const { status: getStatus } =
+      await ownerApi.files.getFilePrimaryExternalLink({ id: fileId });
+    const { status: createStatus } =
+      await ownerApi.files.createFilePrimaryExternalLink({
+        id: fileId,
+        fileLinkRequest: { access: FileShare.Read },
+      });
+
+    expect(getStatus).toBe(404);
+    expect(createStatus).toBe(404);
+  });
+
+  // Documented: "a PDF form gets the rights it needs for filling out whatever
+  // was asked for". (The same paragraph says the room's link is answered; the
+  // returned link has its own id and address, so only the rights are asserted.)
+  test("POST /files/file/:id/link - Form in a form-filling room gets filling rights whatever was asked", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Primary Link Forms Room",
+        roomType: RoomType.FillingFormsRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const formId = await startFormFilling(apiSdk, "owner", roomId);
+
+    const { data, status } = await ownerApi.files.createFilePrimaryExternalLink(
+      { id: formId, fileLinkRequest: { access: FileShare.Read } },
+    );
+
+    expect(status).toBe(200);
+    expect(data.response!.access).toBe(FileShare.FillForms);
+    expect(data.response!.sharedLink!.shareLink).toBeTruthy();
+  });
+});
+
+test.describe("GET /files/file/:fileId/protectusers - Get users for document protection", () => {
+  for (const { label, roomType } of [
+    { label: "Custom", roomType: RoomType.CustomRoom },
+    { label: "Collaboration", roomType: RoomType.EditingRoom },
+    { label: "VDR", roomType: RoomType.VirtualDataRoom },
+  ] as const) {
+    test(`GET /files/file/:fileId/protectusers - ${label} room lists the other members, not the caller`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: me } = await ownerApi.profiles.getSelfProfile();
+      const { data: first } = await apiSdk.addMember("owner", "User");
+      const { data: second } = await apiSdk.addMember("owner", "RoomAdmin");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: `Autotest Protect Users ${label} Room`,
+          roomType,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
+        id: roomId,
+        roomInvitationRequest: {
+          invitations: [
+            { id: first.response!.id!, access: FileShare.Read },
+            { id: second.response!.id!, access: FileShare.RoomManager },
+          ],
+          notify: false,
+        },
+      });
+      expect(inviteStatus).toBe(200);
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Protect Users File.docx" },
+      });
+
+      const { data, status } = await ownerApi.files.getProtectedFileUsers({
+        fileId: fileData.response!.id!,
+      });
+
+      expect(status).toBe(200);
+      const ids = (data.response ?? []).map((u) => u.id);
+      expect(ids).toHaveLength(2);
+      expect(ids).toEqual(
+        expect.arrayContaining([first.response!.id, second.response!.id]),
+      );
+      expect(ids).not.toContain(me.response!.id);
+      for (const user of data.response ?? []) {
+        expect(user.name).toBeTruthy();
+        expect(user.email).toBeTruthy();
+      }
+    });
+  }
+
+  test("GET /files/file/:fileId/protectusers - Room without other members returns an empty list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Protect Users Empty Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomData.response!.id!,
+      createFileJsonElement: { title: "Autotest Protect Users File.docx" },
+    });
+
+    const { data, status } = await ownerApi.files.getProtectedFileUsers({
+      fileId: fileData.response!.id!,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toEqual([]);
+  });
+
+  test("GET /files/file/:fileId/protectusers - File in My Documents returns an empty list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Protect Users My Docs.docx" },
+    });
+
+    const { data, status } = await ownerApi.files.getProtectedFileUsers({
+      fileId: fileData.response!.id!,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response).toEqual([]);
+  });
+
+  // Documented: "a file id that resolves to nothing is refused as well instead
+  // of being reported as missing".
+  test("GET /files/file/:fileId/protectusers - Non-existent fileId returns 403", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk
+      .forRole("owner")
+      .files.getProtectedFileUsers({ fileId: 999999999 });
+
+    expect(status).toBe(403);
+  });
+
+  // Documented: the list is built from the whole access list of the file with
+  // the caller left out, so the owner shows up for a member.
+  test("GET /files/file/:fileId/protectusers - Member sees the room owner too", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: me } = await ownerApi.profiles.getSelfProfile();
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Protect Users Owner Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Protect Users File.docx" },
+    });
+    const { api, data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: memberData.response!.id!, access: FileShare.ContentCreator },
+        ],
+        notify: false,
+      },
+    });
+    expect(inviteStatus).toBe(200);
+
+    const { data, status } = await api.files.getProtectedFileUsers({
+      fileId: fileData.response!.id!,
+    });
+
+    expect(status).toBe(200);
+    expect(data.response?.map((u) => u.id)).toEqual([me.response!.id]);
   });
 });
