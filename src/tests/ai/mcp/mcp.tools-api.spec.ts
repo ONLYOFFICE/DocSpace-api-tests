@@ -954,7 +954,6 @@ test.describe("ToolsApi - set-disabled, get-disabled, is-tool-disabled", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const { aiTools, agentId } = await setup(apiSdk, paymentsApi);
     await register(aiTools, "srv", HTTP_CONFIG, agentId);
     await aiTools.setDisabledTools("owner", {
@@ -979,7 +978,6 @@ test.describe("ToolsApi - set-disabled, get-disabled, is-tool-disabled", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const { aiTools, agentId } = await setup(apiSdk, paymentsApi);
     await register(aiTools, "srv", HTTP_CONFIG, agentId);
     const entity = String(agentId);
@@ -1310,7 +1308,6 @@ test.describe("ToolsApi - set-allow-always, get-allow-always, is-allow-always", 
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const { aiTools, agentId } = await setup(apiSdk, paymentsApi);
     await register(aiTools, "srv", HTTP_CONFIG, agentId);
 
@@ -1336,7 +1333,6 @@ test.describe("ToolsApi - set-allow-always, get-allow-always, is-allow-always", 
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const { aiTools, agentId } = await setup(apiSdk, paymentsApi);
     await register(aiTools, "srv", HTTP_CONFIG, agentId);
     await aiTools.setAllowAlways("owner", {
@@ -1630,7 +1626,6 @@ test.describe("ToolsApi - lifecycles across routes", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const { aiTools, agentId } = await setup(apiSdk, paymentsApi);
     await register(aiTools, "kept", HTTP_CONFIG, agentId);
     await register(aiTools, "dropped", OTHER_CONFIG, agentId);

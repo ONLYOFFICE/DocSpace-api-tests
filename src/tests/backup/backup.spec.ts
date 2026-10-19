@@ -2422,10 +2422,10 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
     expect(status).toBe(403);
   });
 
-  // The server answers these with an unhandled exception (500). The SDK says the
-  // request "fails" without giving a status; 400 is assumed here, as for the
-  // invalid folderId of startbackup (BUG 79523).
-  const failsWith500: { name: string; dto: unknown }[] = [
+  // The server validates these and answers 400. Until BUG 84509 was fixed it
+  // answered with an unhandled exception (500) instead — measured 2026-10-19,
+  // all 19 cases below now reject with 400.
+  const rejectedWith400: { name: string; dto: unknown }[] = [
     { name: "a request without a body", dto: undefined },
     { name: "an empty body", dto: {} },
     {
@@ -2499,23 +2499,24 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
     },
   ];
 
-  for (const { name, dto } of failsWith500) {
-    test.fail(
-      `BUG 84509: POST /api/2.0/backup/createbackupschedule - Rejects ${name} with 400 instead of 500`,
-      async ({ apiSdk, paymentsApi }) => {
-        await paymentsApi.setupPayment();
-        const ownerApi = apiSdk.forRole("owner");
+  for (const { name, dto } of rejectedWith400) {
+    test(`BUG 84509: POST /api/2.0/backup/createbackupschedule - Rejects ${name} with 400 instead of 500`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
 
-        const status = await sendInvalidSchedule(ownerApi.backup, dto);
+      const status = await sendInvalidSchedule(ownerApi.backup, dto);
 
-        expect(status).toBe(400);
-      },
-    );
+      expect(status).toBe(400);
+    });
   }
 
-  // The server accepts these with 200 and stores them, replacing the working
-  // schedule with one that can never run.
-  const acceptedButInvalid: { name: string; dto: unknown }[] = [
+  // The server rejects these with 400. Until BUG 84510 was fixed it accepted
+  // them with 200 and stored them, replacing the working schedule with one that
+  // could never run — measured 2026-10-19, all four cases now reject.
+  const invalidStorage: { name: string; dto: unknown }[] = [
     { name: "storageType 99", dto: { ...valid, storageType: 99 } },
     { name: "a negative storageType", dto: { ...valid, storageType: -1 } },
     {
@@ -2532,37 +2533,38 @@ test.describe("POST /api/2.0/backup/createbackupschedule - Create backup schedul
     },
   ];
 
-  for (const { name, dto } of acceptedButInvalid) {
-    test.fail(
-      `BUG 84510: POST /api/2.0/backup/createbackupschedule - Rejects ${name} with 400 instead of replacing the stored schedule`,
-      async ({ apiSdk, paymentsApi }) => {
-        await paymentsApi.setupPayment();
-        const ownerApi = apiSdk.forRole("owner");
-
-        const status = await sendInvalidSchedule(ownerApi.backup, dto);
-
-        expect(status).toBe(400);
-      },
-    );
-  }
-
-  // folderId is not an integer, so the server looks for a third-party provider
-  // and answers with a misleading 404 ("Selector '' not found").
-  test.fail(
-    "BUG 84511: POST /api/2.0/backup/createbackupschedule - Rejects a non-numeric folderId of a Documents schedule with 400 instead of 404",
-    async ({ apiSdk, paymentsApi }) => {
+  for (const { name, dto } of invalidStorage) {
+    test(`BUG 84510: POST /api/2.0/backup/createbackupschedule - Rejects ${name} with 400 instead of replacing the stored schedule`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
       await paymentsApi.setupPayment();
       const ownerApi = apiSdk.forRole("owner");
 
-      const status = await sendInvalidSchedule(ownerApi.backup, {
-        ...valid,
-        storageType: BackupStorageType.Documents,
-        storageParams: [{ key: "folderId", value: "invalid_value" }],
-      });
+      const status = await sendInvalidSchedule(ownerApi.backup, dto);
 
       expect(status).toBe(400);
-    },
-  );
+    });
+  }
+
+  // A non-integer folderId is rejected with 400. Until BUG 84511 was fixed the
+  // server looked for a third-party provider instead and answered with a
+  // misleading 404 ("Selector '' not found") — measured 2026-10-19.
+  test("BUG 84511: POST /api/2.0/backup/createbackupschedule - Rejects a non-numeric folderId of a Documents schedule with 400 instead of 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const status = await sendInvalidSchedule(ownerApi.backup, {
+      ...valid,
+      storageType: BackupStorageType.Documents,
+      storageParams: [{ key: "folderId", value: "invalid_value" }],
+    });
+
+    expect(status).toBe(400);
+  });
 });
 
 test.describe("POST /api/2.0/backup/startbackup - Start backup: server-side validation", () => {
@@ -2859,10 +2861,11 @@ test.describe("POST /api/2.0/backup/startbackup - Start backup: server-side vali
     expect(history.response!.map((record) => record.id)).toEqual([taskId]);
   });
 
-  // An item without a key or a value, or a missing parameter, ends in an
-  // unhandled exception instead of the 400 that the same controller returns for
-  // a folderId of the wrong form ("wrong folder type").
-  const unhandled: { name: string; dto: unknown }[] = [
+  // An item without a key or a value, or a missing parameter, is rejected with
+  // 400 — the same answer the controller gives for a folderId of the wrong form
+  // ("wrong folder type"). Until BUG 84512 was fixed these ended in an unhandled
+  // exception (500) instead.
+  const malformedStorageParams: { name: string; dto: unknown }[] = [
     {
       name: "a storageParams item without a value",
       dto: {
@@ -2894,18 +2897,18 @@ test.describe("POST /api/2.0/backup/startbackup - Start backup: server-side vali
     },
   ];
 
-  for (const { name, dto } of unhandled) {
-    test.fail(
-      `BUG 84512: POST /api/2.0/backup/startbackup - Rejects ${name} with 400 instead of 500`,
-      async ({ apiSdk, paymentsApi }) => {
-        await paymentsApi.setupPayment();
-        const ownerApi = apiSdk.forRole("owner");
+  for (const { name, dto } of malformedStorageParams) {
+    test(`BUG 84512: POST /api/2.0/backup/startbackup - Rejects ${name} with 400 instead of 500`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
 
-        const { status } = await sendRejectedBackup(ownerApi.backup, dto);
+      const { status } = await sendRejectedBackup(ownerApi.backup, dto);
 
-        expect(status).toBe(400);
-      },
-    );
+      expect(status).toBe(400);
+    });
   }
 });
 
@@ -3149,10 +3152,11 @@ test.describe("POST /api/2.0/backup/startrestore - Start restore: safe negative 
     await expectWitnessRoomIntact(ownerApi, roomId);
   });
 
-  // No usable source reaches the controller, which then looks up a `filePath`
-  // storage parameter that is not there and ends in an unhandled exception. The
-  // same endpoint answers 400 when backupId is missing altogether, and the other
-  // actions of this controller return 400 for bad input (ArgumentException).
+  // No usable source reaches the controller, and it answers 400 — the same as
+  // when backupId is missing altogether, and as the other actions of this
+  // controller do for bad input (ArgumentException). Until BUG 84513 was fixed
+  // it looked up a `filePath` storage parameter that is not there and ended in
+  // an unhandled exception (500).
   const noSource: { name: string; dto: unknown }[] = [
     { name: "a null backupId", dto: { backupId: null } },
     { name: "an empty backupId", dto: { backupId: "" } },
@@ -3187,21 +3191,21 @@ test.describe("POST /api/2.0/backup/startrestore - Start restore: safe negative 
   ];
 
   for (const { name, dto } of noSource) {
-    test.fail(
-      `BUG 84513: POST /api/2.0/backup/startrestore - Rejects ${name} with 400 instead of 500`,
-      async ({ apiSdk, paymentsApi }) => {
-        await paymentsApi.setupPayment();
-        const ownerApi = apiSdk.forRole("owner");
+    test(`BUG 84513: POST /api/2.0/backup/startrestore - Rejects ${name} with 400 instead of 500`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      await paymentsApi.setupPayment();
+      const ownerApi = apiSdk.forRole("owner");
 
-        const { status } = await startRestoreThatCannotQueue(
-          ownerApi.backup,
-          dto,
-        );
+      const { status } = await startRestoreThatCannotQueue(
+        ownerApi.backup,
+        dto,
+      );
 
-        await expectRestoreNotStarted(ownerApi.backup);
-        expect(status).toBe(400);
-      },
-    );
+      await expectRestoreNotStarted(ownerApi.backup);
+      expect(status).toBe(400);
+    });
   }
 
   /*

@@ -194,7 +194,7 @@ test.describe("GET /api/2.0/ai/threads/read-messages - ThreadsApi.aiThreadsReadM
     );
   });
 
-  test("BUG 84407: GET /api/2.0/ai/threads/read-messages - walking forward by cursor repeats the last message of every page and never ends", async ({
+  test("BUG 84407: GET /api/2.0/ai/threads/read-messages - walking forward by cursor returns each message once and reaches the end", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -224,7 +224,6 @@ test.describe("GET /api/2.0/ai/threads/read-messages - ThreadsApi.aiThreadsReadM
       cursor = JSON.stringify({ createdAt: last.createdAt, id: last.id });
     }
 
-    test.fail();
     expect(seen, "each message exactly once, in order").toEqual(texts);
     expect(pages, "the walk reaches an empty page").toBeLessThan(6);
   });
@@ -285,7 +284,6 @@ test.describe("GET /api/2.0/ai/threads/read-messages - ThreadsApi.aiThreadsReadM
     expect(sibling.status, "the neighbouring route refuses the omission").toBe(
       400,
     );
-    test.fail();
     expect(missing.status, "no threadId").toBe(400);
     expect(empty.status, "an empty threadId").toBe(400);
   });
@@ -485,7 +483,6 @@ test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThrea
     const empty = await append("");
     const blank = await append("   ");
 
-    test.fail();
     expect(await readTexts(ctx, threadId), "nothing blank was stored").toEqual([
       "control",
     ]);
@@ -518,7 +515,6 @@ test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThrea
       outcomes.push([String(role), (await append(role)).status]);
     }
 
-    test.fail();
     const stored = await readAll(ctx, threadId);
     expect(
       stored.map((message) => message.role),
@@ -548,7 +544,6 @@ test.describe("POST /api/2.0/ai/threads/append-user-message - ThreadsApi.aiThrea
     const nullMessage = await append(null);
     const noContent = await append({ role: "user" });
 
-    test.fail();
     expect(await readTexts(ctx, threadId), "nothing was stored").toEqual([
       "control",
     ]);
@@ -676,7 +671,6 @@ test.describe("GET /api/2.0/ai/threads/get-message-by-id - ThreadsApi.aiThreadsG
           .data,
       ),
     ).toBe("alive");
-    test.fail();
     for (const [label, status] of outcomes) {
       expect(status, label).toBe(404);
     }
@@ -851,7 +845,6 @@ test.describe("PUT /api/2.0/ai/threads/update-message - ThreadsApi.aiThreadsUpda
     });
     const noParts = await send({ role: "user", content: [] });
 
-    test.fail();
     expect(await readTexts(ctx, threadId), "the message survived").toEqual([
       "precious",
     ]);
@@ -884,7 +877,6 @@ test.describe("PUT /api/2.0/ai/threads/update-message - ThreadsApi.aiThreadsUpda
     );
     const stored = (await readAll(ctx, threadId))[0];
 
-    test.fail();
     expect(stored.role, "the role is still user").toBe("user");
     expect(textOf(stored), "the text is still the user's").toBe(
       "I am the user",

@@ -45,13 +45,11 @@ import {
 //   * an unknown-but-well-formed id reads back as HTTP 200 `null`
 // and `error.field` is the literal "name" no matter which field was wrong.
 //
-// BUG XXXXX: a taken name (create/create-folder/rename-folder/move/
-// update{name}/update{folderId}) is also a soft HTTP 200 `{success:false}` —
-// but unlike the blank-name/unknown-id cases above, this one sits right next
-// to a *hard* 400 on the very same route (blank text, over-long name), so a
-// caller that checks the status code alone sees success where the record was
-// never written. Marked `test.fail` at each of the six call sites, expecting
-// 400 or 409.
+// A taken name used to be a soft HTTP 200 `{success:false}` on all six routes
+// (create/create-folder/rename-folder/move/update{name}/update{folderId}) —
+// next to a *hard* 400 on the very same route (blank text, over-long name), so
+// a caller that checked the status alone saw success where the record was never
+// written. All six now answer 400/409 (BUG 84307, 84308, 84309, 84310, 84311).
 
 test.describe("AI Prompts - lifecycle", () => {
   test("POST /api/2.0/ai/prompts/create - Owner creates a prompt and reads it back", async ({
@@ -262,7 +260,7 @@ test.describe("AI Prompts - content validation", () => {
     expect((await prompts.listPrompts("owner")).data).toEqual([]);
   });
 
-  test("BUG 84307: POST /api/2.0/ai/prompts/create - a taken name is refused with 200, not the 400 its neighbours use", async ({
+  test("BUG 84307: POST /api/2.0/ai/prompts/create - a taken name is refused with 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -289,9 +287,8 @@ test.describe("AI Prompts - content validation", () => {
     expect(listed.data.map((prompt) => prompt.id)).toEqual([first]);
     expect(listed.data[0]?.text).toBe("First body");
 
-    // Same route hard-400s a blank text and an over-long name; this refusal is
-    // a soft 200, so a caller that only checks the status code sees success.
-    test.fail();
+    // The same hard 400 this route gives a blank text and an over-long name
+    // (BUG 84307).
     expect([400, 409]).toContain(status);
   });
 
@@ -937,7 +934,7 @@ test.describe("AI Prompt folders - validation", () => {
     expect((await prompts.listFolders("owner")).data).toEqual([]);
   });
 
-  test("BUG 84308: POST /api/2.0/ai/prompts/create-folder - a taken folder name is refused with 200, not 400/409", async ({
+  test("BUG 84308: POST /api/2.0/ai/prompts/create-folder - a taken folder name is refused with 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -958,8 +955,7 @@ test.describe("AI Prompt folders - validation", () => {
       folderId,
     ]);
 
-    // create-folder hard-400s an over-long name; this refusal is a soft 200.
-    test.fail();
+    // The same hard 400 create-folder gives an over-long name (BUG 84308).
     expect([400, 409]).toContain(status);
   });
 
@@ -1044,7 +1040,7 @@ test.describe("AI Prompt folders - validation", () => {
     ).toEqual(["Autotest keeper"]);
   });
 
-  test("BUG 84309: PUT /api/2.0/ai/prompts/rename-folder - renaming onto an existing folder's name is refused with 200, not 400/409", async ({
+  test("BUG 84309: PUT /api/2.0/ai/prompts/rename-folder - renaming onto an existing folder's name is refused with 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1071,9 +1067,8 @@ test.describe("AI Prompt folders - validation", () => {
       "Autotest first",
     );
 
-    // rename-folder hard-400s an over-long name (BUG 83123, fixed); this
-    // refusal is a soft 200.
-    test.fail();
+    // The same hard 400 rename-folder gives an over-long name (BUG 83123 and
+    // BUG 84309, both fixed).
     expect([400, 409]).toContain(status);
   });
 
@@ -1291,10 +1286,10 @@ test.describe("AI Prompt folders - moving prompts", () => {
   // prompt, `move` and `update{folderId}`.
   // BUG 83122 is fixed: `move` now consults the per-folder uniqueness rule
   // (verified live — the refusal below leaves both prompts exactly where they
-  // were). What's left is BUG XXXXX: the refusal itself answers 200, the same
+  // were). BUG 84310 is fixed too: the refusal answers 400/409, the same
   // soft shape as every other name-conflict in this family, instead of the 400
   // `create` uses for its own hard validations on the same resource.
-  test("BUG 83122 (fixed), BUG 84310: PUT /api/2.0/ai/prompts/move - moving onto a taken name is refused, but with 200 not 400/409", async ({
+  test("BUG 84310: PUT /api/2.0/ai/prompts/move - moving onto a taken name is refused with 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1344,15 +1339,13 @@ test.describe("AI Prompt folders - moving prompts", () => {
       "Prompt name already exists in this folder",
     );
 
-    test.fail();
     expect([400, 409]).toContain(status);
   });
 
   // BUG 83122 is fixed on this route too: `update{folderId}` now consults the
-  // per-folder uniqueness rule. What's left is the same BUG XXXXX as `move` and
-  // `create` — the refusal answers 200, not the 400 this family's hard
-  // validations use.
-  test("BUG 83122 (fixed), BUG 84311: PUT /api/2.0/ai/prompts/update - moving onto a taken name through update is refused, but with 200 not 400/409", async ({
+  // per-folder uniqueness rule, and BUG 84311 made the refusal answer 400/409
+  // like this family's other hard validations.
+  test("BUG 84311: PUT /api/2.0/ai/prompts/update - moving onto a taken name through update is refused with 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1400,11 +1393,10 @@ test.describe("AI Prompt folders - moving prompts", () => {
       "Prompt name already exists in this folder",
     );
 
-    test.fail();
     expect([400, 409]).toContain(status);
   });
 
-  test("BUG 84311: PUT /api/2.0/ai/prompts/update - renaming a prompt onto a sibling's name is refused with 200, not 400/409", async ({
+  test("BUG 84311: PUT /api/2.0/ai/prompts/update - renaming a prompt onto a sibling's name is refused with 400/409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1438,7 +1430,6 @@ test.describe("AI Prompt folders - moving prompts", () => {
       "the refused rename left the name alone",
     ).toBe("Autotest free");
 
-    test.fail();
     expect([400, 409]).toContain(status);
   });
 
