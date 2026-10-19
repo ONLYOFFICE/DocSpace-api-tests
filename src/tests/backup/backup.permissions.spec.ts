@@ -733,21 +733,21 @@ test.describe("DELETE /api/2.0/backup/deletebackup - access control", () => {
     },
   );
 
-  test.fail(
-    "BUG 80605: DELETE /api/2.0/backup/deletebackup - Delete non-existent backup",
-    async ({ apiSdk, paymentsApi }) => {
-      await paymentsApi.setupPayment();
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 80605: DELETE /api/2.0/backup/deletebackup - Delete non-existent backup returns 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.backup.deleteBackup({
-        id: "00000000-0000-0000-0000-000000000000",
-      });
+    const { data, status } = await ownerApi.backup.deleteBackup({
+      id: "00000000-0000-0000-0000-000000000000",
+    });
 
-      expect(status).toBe(404);
-      expect(data.statusCode).toBe(404);
-      expect((data as any).error).toBeDefined();
-    },
-  );
+    expect(status).toBe(404);
+    expect(data.statusCode).toBe(404);
+    expect((data as any).error).toBeDefined();
+  });
 
   test("DELETE /api/2.0/backup/deletebackup - RoomAdmin deletes backup", async ({
     apiSdk,
@@ -912,68 +912,6 @@ test.describe("POST /api/2.0/backup/startrestore - access control", () => {
     expect(data.statusCode).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
   });
-});
-
-// Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.
-test.describe("GET /api/2.0/backup/getrestoreprogress - access control", () => {
-  test.fail(
-    "BUG 79676: GET /api/2.0/backup/getrestoreprogress - Get restore progress without authorization",
-    async ({ apiSdk }) => {
-      const anonApi = apiSdk.forAnonymous();
-
-      const { status } = await anonApi.backup.getRestoreProgress();
-
-      expect(status).toBe(401);
-    },
-  );
-
-  test.fail(
-    "BUG 79676: GET /api/2.0/backup/getrestoreprogress - RoomAdmin gets restore progress",
-    async ({ apiSdk }) => {
-      const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "RoomAdmin",
-      );
-
-      const { data, status } = await roomAdminApi.backup.getRestoreProgress();
-
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
-
-  test.fail(
-    "BUG 79676: GET /api/2.0/backup/getrestoreprogress - User gets restore progress",
-    async ({ apiSdk }) => {
-      const { api: userApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "User",
-      );
-
-      const { data, status } = await userApi.backup.getRestoreProgress();
-
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
-
-  test.fail(
-    "BUG 79676: GET /api/2.0/backup/getrestoreprogress - Guest gets restore progress",
-    async ({ apiSdk }) => {
-      const { api: guestApi } = await apiSdk.addAuthenticatedMember(
-        "owner",
-        "Guest",
-      );
-
-      const { data, status } = await guestApi.backup.getRestoreProgress();
-
-      expect(status).toBe(403);
-      expect(data.statusCode).toBe(403);
-      expect((data as any).error.message).toBe("Access denied");
-    },
-  );
 });
 
 // Note: 402 is not covered — the SDK incorrectly describes this method as plan-restricted.
