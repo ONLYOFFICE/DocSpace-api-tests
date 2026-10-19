@@ -194,16 +194,19 @@ test.describe("AI Settings - per-user chat config", () => {
       await ownerApi.aiSettings.aiSettingsGetUser();
     expect(afterStatus).toBe(200);
     expect(after.response?.chatRecommendedModelVisible).toBe(initial);
-    expect(error).toBe("Bad Request");
+    expect(error).toBe(
+      "chatRecommendedModelVisible is required and must be a boolean",
+    );
     expect(status).toBe(400);
   });
 
-  test("BUG 82725: PUT /api/2.0/ai/config/user - an empty body wipes the stored preference", async ({
+  test("BUG 82725: PUT /api/2.0/ai/config/user - an empty body is refused and the stored preference survives", async ({
     apiSdk,
   }) => {
-    // The DTO carries a single optional flag, so `{}` says "change nothing".
-    // Instead the missing field is bound as false and overwrites the user's
-    // stored preference, which is silent data loss on a partial update.
+    // The DTO carries a single flag. `{}` used to bind the missing field as
+    // false and overwrite the user's stored preference — silent data loss on a
+    // partial update. Measured 2026-10-19 the field is mandatory instead: `{}`
+    // is a 400 and the stored value is left alone.
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
 
@@ -213,15 +216,17 @@ test.describe("AI Settings - per-user chat config", () => {
     const initial = before.response?.chatRecommendedModelVisible;
     expect(initial).toBe(true);
 
-    const { status } = await aiSettings.setUserConfig("owner", {});
+    const { status, error } = await aiSettings.setUserConfig("owner", {});
 
     const { data: after, status: afterStatus } =
       await ownerApi.aiSettings.aiSettingsGetUser();
-    // Checked before test.fail() is armed: a broken read must surface as a real
-    // failure, not as the expected one.
+    // State first: the 400 only means something if the preference survived it.
     expect(afterStatus).toBe(200);
     expect(after.response?.chatRecommendedModelVisible).toBe(initial);
-    expect(status).toBe(200);
+    expect(error).toBe(
+      "chatRecommendedModelVisible is required and must be a boolean",
+    );
+    expect(status).toBe(400);
   });
 });
 
@@ -606,11 +611,12 @@ const REJECTED_USER_CONFIG_BODIES: Array<{ label: string; body: unknown }> = [
   { label: "malformed JSON", body: "{bad" },
 ];
 
-// Bodies that are accepted and change nothing: "no value given" is a partial
-// update, not a reset. Measured 2026-10-09 — before BUG 82725 was fixed the
-// empty-object case wrote `false`. Each runs from a stored `true` AND a stored
-// `false`, so a missing field bound to either default would show.
-const NO_OP_USER_CONFIG_BODIES: Array<{ label: string; body: unknown }> = [
+// Bodies that carry no usable value for the one field the DTO has. They used to
+// be accepted as a partial update that changes nothing; measured 2026-10-19 the
+// field is mandatory and all of them are a 400 that stores nothing. Each runs
+// from a stored `true` AND a stored `false`, so a missing field bound to either
+// default would show.
+const VALUELESS_USER_CONFIG_BODIES: Array<{ label: string; body: unknown }> = [
   { label: "an empty object", body: {} },
   { label: "no body at all", body: undefined },
   { label: "JSON null as the body", body: "null" },
@@ -648,13 +654,15 @@ test.describe("AI Settings - per-user chat config body validation", () => {
 
       // State first: the 400 is only meaningful if nothing was stored.
       expect(await readVisible(ownerApi)).toBe(true);
-      expect(error).toBe("Bad Request");
+      expect(error).toBe(
+        "chatRecommendedModelVisible is required and must be a boolean",
+      );
       expect(status).toBe(400);
     });
   }
 
-  for (const { label, body } of NO_OP_USER_CONFIG_BODIES) {
-    test(`PUT /api/2.0/ai/config/user - ${label} is accepted as a no-op in both directions`, async ({
+  for (const { label, body } of VALUELESS_USER_CONFIG_BODIES) {
+    test(`PUT /api/2.0/ai/config/user - ${label} is a 400 and changes nothing in either direction`, async ({
       apiSdk,
     }) => {
       const ownerApi = apiSdk.forRole("owner");
@@ -665,13 +673,16 @@ test.describe("AI Settings - per-user chat config body validation", () => {
           await writeVisible(ownerApi, stored);
           expect(await readVisible(ownerApi)).toBe(stored);
 
-          const { status } = await aiSettings.setUserConfig(
+          const { status, error } = await aiSettings.setUserConfig(
             "owner",
             body as AiUserConfig,
           );
 
           expect(await readVisible(ownerApi)).toBe(stored);
-          expect(status).toBe(200);
+          expect(error).toBe(
+            "chatRecommendedModelVisible is required and must be a boolean",
+          );
+          expect(status).toBe(400);
         });
       }
     });
@@ -693,24 +704,28 @@ test.describe("AI Settings - per-user chat config body validation", () => {
     expect(await readVisible(ownerApi)).toBe(false);
   });
 
-  test("PUT /api/2.0/ai/config/user - the field name binds case-insensitively", async ({
+  test("PUT /api/2.0/ai/config/user - the field name binds case-sensitively", async ({
     apiSdk,
   }) => {
-    // Observed, not a documented promise: `ChatRecommendedModelVisible` is
-    // applied exactly like the camel-cased name. That is stock ASP.NET model
-    // binding, so it is pinned as the current behaviour (and as a way to notice
-    // a change), not asserted as a requirement.
+    // Observed, not a documented promise, and it changed: `ChatRecommended-
+    // ModelVisible` used to be applied exactly like the camel-cased name (stock
+    // ASP.NET model binding). Measured 2026-10-19 it is refused like any other
+    // body that carries no `chatRecommendedModelVisible`. Pinned to notice the
+    // next change, not asserted as a requirement.
     const ownerApi = apiSdk.forRole("owner");
     const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
     await writeVisible(ownerApi, true);
     expect(await readVisible(ownerApi)).toBe(true);
 
-    const { status } = await aiSettings.setUserConfig("owner", {
+    const { status, error } = await aiSettings.setUserConfig("owner", {
       ChatRecommendedModelVisible: false,
     } as unknown as AiUserConfig);
 
-    expect(status).toBe(200);
-    expect(await readVisible(ownerApi)).toBe(false);
+    expect(await readVisible(ownerApi)).toBe(true);
+    expect(error).toBe(
+      "chatRecommendedModelVisible is required and must be a boolean",
+    );
+    expect(status).toBe(400);
   });
 
   for (const { label, contentType } of [
