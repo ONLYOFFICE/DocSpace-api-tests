@@ -831,9 +831,9 @@ test.describe("AI Attachments - cross-user access", () => {
   }) => {
     // The thread is the member's own and readable by them (the access check in
     // the BUG 82774 test passes), so what is measured here is the attachment: it
-    // belongs to somebody else and has to be refused. Nothing is ever actually
-    // linked (BUG 82770), so there is no write to observe either way — only the
-    // answer.
+    // belongs to somebody else and has to be refused. A link leaves no trace on
+    // the message or the record (by design, formerly BUG 82770), so only the
+    // answer is asserted.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);

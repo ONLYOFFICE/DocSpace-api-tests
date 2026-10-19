@@ -220,7 +220,81 @@ export type AiWebSearchTestResult = {
   message?: string;
 };
 
+/**
+ * The engine the portal's passthrough routes are driven with. Measured
+ * 2026-10-09: the body has to name one (`engine is required` otherwise) and
+ * `exa` is the only name the gateway knows — `auto`, `neural`, `keyword`,
+ * `onlyoffice`, `google` and `tavily` all answer `unknown engine`.
+ */
+export const WEB_SEARCH_PASSTHROUGH_ENGINE = "exa";
+
+/** `POST /ai/websearch/v1/search` and `/contents` answer this shape on success. */
+export type WebSearchPassthroughResponse = {
+  requestId?: string;
+  results?: Array<{ title?: string; url?: string; text?: string }>;
+};
+
+/**
+ * The gateway's own error envelope, relayed verbatim by the passthrough routes.
+ * It is NOT the portal's `{error: "<string>"}` — `error` is an object here, so
+ * `AiHttp.call`'s `error` field (a `String(...)` of it) is useless for these;
+ * read `data.error` instead.
+ */
+export type WebSearchGatewayError = {
+  error?: { code?: string; message?: string; type?: string };
+};
+
+/** What a passthrough call is billed against — the document it was made for. */
+export type WebSearchAttribution = {
+  entityId?: number | string;
+  entityKind?: string;
+};
+
 export class AiWebSearch extends AiHttp {
+  private attribution(entity?: WebSearchAttribution) {
+    const query = new URLSearchParams();
+    if (entity?.entityId !== undefined) {
+      query.set("entityId", String(entity.entityId));
+    }
+    if (entity?.entityKind !== undefined) {
+      query.set("entityKind", entity.entityKind);
+    }
+    const text = query.toString();
+    return text ? `?${text}` : "";
+  }
+
+  /**
+   * `POST /ai/websearch/v1/search`. Raw on purpose: the body is forwarded to the
+   * provider unchanged and the SDK types it as an open map, and the validation
+   * tests need to send bodies no typed client would build.
+   */
+  passthroughSearch(
+    role: AgentRole,
+    body: unknown,
+    entity?: WebSearchAttribution,
+  ) {
+    return this.call<WebSearchPassthroughResponse & WebSearchGatewayError>(
+      role,
+      "post",
+      `/api/2.0/ai/websearch/v1/search${this.attribution(entity)}`,
+      body,
+    );
+  }
+
+  /** `POST /ai/websearch/v1/contents` — the follow-up to a search. */
+  passthroughContents(
+    role: AgentRole,
+    body: unknown,
+    entity?: WebSearchAttribution,
+  ) {
+    return this.call<WebSearchPassthroughResponse & WebSearchGatewayError>(
+      role,
+      "post",
+      `/api/2.0/ai/websearch/v1/contents${this.attribution(entity)}`,
+      body,
+    );
+  }
+
   private scope(entityId?: number | string) {
     return entityId === undefined ? "" : `?entityId=${entityId}`;
   }

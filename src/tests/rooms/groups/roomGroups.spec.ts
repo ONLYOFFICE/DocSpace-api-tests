@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import { RoomType } from "@onlyoffice/docspace-api-sdk";
+import { FileShare, RoomType } from "@onlyoffice/docspace-api-sdk";
+import type { ApiSDK } from "@/src/services/api-sdk";
 import { createAllRoomTypes, createPrivateRoom } from "@/src/helpers/rooms";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import {
@@ -11,6 +12,36 @@ import {
   expectRoomGroupShape,
   roomGroupRaw,
 } from "@/src/helpers/room-groups";
+
+type GroupsClient = ReturnType<ApiSDK["forRole"]>["groups"];
+
+/** Ids of every group in the caller's listing, sorted (no order is assumed). */
+async function groupIds(groups: GroupsClient): Promise<number[]> {
+  const { data, status } = await groups.getRoomGroups();
+  expect(status).toBe(200);
+  return data.response!.map((g) => g.id!).sort((a, b) => a - b);
+}
+
+/**
+ * Reads a group through getRoomGroupInfo and getRoomGroups, asserts the two
+ * agree and that totalRooms matches rooms[], and returns the Info DTO.
+ */
+async function expectInfoMatchesList(groups: GroupsClient, id: number) {
+  const info = await groups.getRoomGroupInfo({ id });
+  expect(info.status).toBe(200);
+  const dto = info.data.response!;
+  const { data: list } = await groups.getRoomGroups();
+  const fromList = list.response!.find((g) => g.id === id);
+  expect(fromList).toBeDefined();
+  expect(fromList!.name).toBe(dto.name);
+  expect(fromList!.icon?.id).toBe(dto.icon?.id);
+  expect(fromList!.totalRooms).toBe(dto.totalRooms);
+  expect(fromList!.rooms!.map((r) => r.title).sort()).toEqual(
+    dto.rooms!.map((r) => r.title).sort(),
+  );
+  expect(dto.totalRooms).toBe(dto.rooms!.length);
+  return dto;
+}
 
 test.describe("API room groups methods", () => {
   test.describe("POST /files/group", () => {
@@ -417,9 +448,12 @@ test.describe("API room groups methods", () => {
         });
       }
 
-      // Confirmed contract: the create is intentionally NOT atomic. The
-      // response reports the non-existent room (403), but the group is still
-      // created from the rooms that could be resolved.
+      // Non-atomic create is the documented contract (SDK 4.0.0, addRoomGroup):
+      // "when only some of them can [be read], the group is created with those
+      // rooms and the call is still reported as failed, so re-read
+      // `GET api/2.0/files/group` before retrying". The team confirmed the same on
+      // 2026-07-28. The response reports the non-existent room (403), but the
+      // group is still created from the rooms that could be resolved.
       test("POST /files/group - mixed valid+non-existent rooms: refused with 403 but the group is still created (non-atomic by design)", async ({
         apiSdk,
       }) => {
@@ -1116,9 +1150,12 @@ test.describe("API room groups methods", () => {
         expect(status).toBe(404);
       });
 
-      // Confirmed contract: the update is intentionally NOT atomic, same as
-      // create. The response reports the non-existent room (403), but the
-      // rooms that could be resolved are still added.
+      // Non-atomic update is the documented contract (SDK 4.0.0,
+      // updateRoomGroup): "when only part of the list resolves the rest is still
+      // attached and the call is reported as failed ... The steps are applied in
+      // order and are not rolled back when a later one fails". The team confirmed
+      // the same on 2026-07-28. The response reports the non-existent room (403),
+      // but the rooms that could be resolved are still added.
       test("PUT /files/group/:id - adding valid+non-existent rooms: refused with 403 but the valid room is still added (non-atomic by design)", async ({
         apiSdk,
       }) => {
@@ -2207,6 +2244,655 @@ test.describe("API room groups methods", () => {
       const { data, status } = await reOwner.groups.getRoomGroupInfo({ id });
       expect(status).toBe(200);
       expect(data.response!.name).toBe("Persistent Group");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Coverage additions (audit of roomGroups.spec.ts). Everything below fills a
+  // gap found by reading the assertions of the tests above, not their titles.
+  // ---------------------------------------------------------------------------
+  test.describe("coverage additions", () => {
+    // Largest name the API accepts today (129 is rejected). The SDK docs do not
+    // state the limit, so this is the observed boundary.
+    const MAX_NAME = 128;
+
+    test.describe("POST /files/group", () => {
+      test("POST /files/group - userId is the creator's id in create, info and list", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const { data: self } = await owner.profiles.getSelfProfile();
+        const ownerId = self.response!.id!;
+        const roomId = await createRoomId(owner.rooms, "UserId Room");
+
+        const { id, data: created } = await createRoomGroup(owner.groups, {
+          name: "UserId Group",
+          rooms: [roomId],
+        });
+        expect(created.userId).toBe(ownerId);
+
+        const info = await owner.groups.getRoomGroupInfo({ id });
+        expect(info.data.response!.userId).toBe(ownerId);
+
+        const { data: list } = await owner.groups.getRoomGroups();
+        expect(list.response!.find((g) => g.id === id)!.userId).toBe(ownerId);
+      });
+
+      test("POST /files/group - client-supplied userId, id and totalRooms are ignored", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const { data: self } = await owner.profiles.getSelfProfile();
+        const ownerId = self.response!.id!;
+        const roomId = await createRoomId(owner.rooms, "Spoof Room");
+        const spoofedUser = "00000000-0000-0000-0000-000000000000";
+
+        const { data, status } = await roomGroupRaw(apiSdk, {
+          path: "",
+          body: {
+            name: "Spoof Group",
+            icon: "star",
+            rooms: [roomId],
+            userId: spoofedUser,
+            id: 12345,
+            totalRooms: 99,
+          },
+        });
+        expect(status).toBe(200);
+        const dto = data.response;
+        expect(dto.userId).toBe(ownerId);
+        expect(dto.id).not.toBe(12345);
+        expect(dto.totalRooms).toBe(1);
+
+        const info = await owner.groups.getRoomGroupInfo({ id: dto.id });
+        expect(info.status).toBe(200);
+        expect(info.data.response!.userId).toBe(ownerId);
+        expect(info.data.response!.totalRooms).toBe(1);
+      });
+
+      test("POST /files/group - every rejected create leaves no group behind", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const roomId = await createRoomId(owner.rooms, "Reject Room");
+
+        // Positive control: the listing does reflect a successful create, so
+        // "no new id" below cannot be a false negative.
+        const empty = await groupIds(owner.groups);
+        const { id: controlId } = await createRoomGroup(owner.groups, {
+          name: "Reject Control",
+          rooms: [roomId],
+        });
+        const baseline = await groupIds(owner.groups);
+        expect(baseline).toEqual([...empty, controlId].sort((a, b) => a - b));
+
+        const valid = { name: "Rejected", icon: "star", rooms: [roomId] };
+        const cases: [string, Record<string, unknown>][] = [
+          ["empty name", { ...valid, name: "" }],
+          ["whitespace-only name", { ...valid, name: "   " }],
+          ["null name", { ...valid, name: null }],
+          ["missing name", { icon: "star", rooms: [roomId] }],
+          [
+            `name of ${MAX_NAME + 1} chars`,
+            { ...valid, name: "n".repeat(MAX_NAME + 1) },
+          ],
+          ["unknown icon", { ...valid, icon: "invalid-icon-name" }],
+          ["null icon", { ...valid, icon: null }],
+          ["empty icon", { ...valid, icon: "" }],
+          ["missing icon", { name: "Rejected", rooms: [roomId] }],
+          ["null rooms", { ...valid, rooms: null }],
+          ["string rooms", { ...valid, rooms: "abc" }],
+          ["empty object", {}],
+        ];
+        for (const [label, body] of cases) {
+          await test.step(`${label} -> 400, nothing created`, async () => {
+            const { status } = await roomGroupRaw(apiSdk, { path: "", body });
+            expect(status).toBe(400);
+            expect(await groupIds(owner.groups)).toEqual(baseline);
+          });
+        }
+      });
+
+      test("POST /files/group - name boundary: 1 and 128 characters are accepted", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const [r1, r2] = await createRoomIds(owner.rooms, 2, "Boundary");
+
+        for (const [name, roomId] of [
+          ["a", r1],
+          ["m".repeat(MAX_NAME), r2],
+        ] as const) {
+          const { data, status } = await owner.groups.addRoomGroup({
+            roomGroupRequestDto: { name, icon: "star", rooms: [roomId] },
+          });
+          expect(status).toBe(200);
+          expect(data.response!.name).toBe(name);
+          const info = await owner.groups.getRoomGroupInfo({
+            id: data.response!.id!,
+          });
+          expect(info.data.response!.name).toBe(name);
+        }
+      });
+    });
+
+    test.describe("GET /files/group/{id}", () => {
+      test("GET /files/group/:id - includeMembers=false omits the rooms but keeps totalRooms; the default lists them", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const roomIds = await createRoomIds(owner.rooms, 2, "Members");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "Members Group",
+          rooms: roomIds,
+        });
+
+        const withMembers = await owner.groups.getRoomGroupInfo({
+          id,
+          includeMembers: true,
+        });
+        const byDefault = await owner.groups.getRoomGroupInfo({ id });
+        const without = await owner.groups.getRoomGroupInfo({
+          id,
+          includeMembers: false,
+        });
+
+        expect(withMembers.data.response!.rooms).toHaveLength(2);
+        expect(byDefault.data.response!.rooms).toHaveLength(2);
+        expect(without.status).toBe(200);
+        expect(without.data.response!.rooms ?? []).toHaveLength(0);
+        expect(without.data.response!.totalRooms).toBe(2);
+      });
+    });
+
+    test.describe("GET /files/group", () => {
+      test("GET /files/group - repeated reads are stable, ids are unique and a shared room is listed under both groups", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const [shared, solo] = await createRoomIds(owner.rooms, 2, "Stable");
+        const { id: a } = await createRoomGroup(owner.groups, {
+          name: "Stable A",
+          rooms: [shared, solo],
+        });
+        const { id: b } = await createRoomGroup(owner.groups, {
+          name: "Stable B",
+          rooms: [shared],
+        });
+
+        const first = (await owner.groups.getRoomGroups()).data.response!;
+        const second = (await owner.groups.getRoomGroups()).data.response!;
+        const idsOf = (l: typeof first) => l.map((g) => g.id).sort();
+        const pick = (l: typeof first, id: number) =>
+          l.find((g) => g.id === id)!;
+        expect(idsOf(first)).toEqual(idsOf(second));
+        expect(new Set(first.map((g) => g.id)).size).toBe(first.length);
+        expect(first.map((g) => g.id)).toEqual(expect.arrayContaining([a, b]));
+
+        const ga = pick(first, a);
+        const gb = pick(first, b);
+        expect(ga.totalRooms).toBe(2);
+        expect(ga.rooms!.map((r) => r.title).sort()).toEqual([
+          "Stable 1",
+          "Stable 2",
+        ]);
+        expect(gb.totalRooms).toBe(1);
+        expect(gb.rooms!.map((r) => r.title)).toEqual(["Stable 1"]);
+        expect(pick(second, a)).toEqual(ga);
+      });
+    });
+
+    test.describe("PUT /files/group/{id}", () => {
+      test("PUT /files/group/:id - surrounding spaces in groupName are trimmed", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const roomId = await createRoomId(owner.rooms, "TrimUpd Room");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "Before Trim",
+          rooms: [roomId],
+        });
+
+        const { data, status } = await owner.groups.updateRoomGroup({
+          id,
+          updateRoomGroupRequest: { groupName: "  Trimmed Name  " },
+        });
+        expect(status).toBe(200);
+        expect(data.response!.name).toBe("Trimmed Name");
+        const info = await owner.groups.getRoomGroupInfo({ id });
+        expect(info.data.response!.name).toBe("Trimmed Name");
+      });
+
+      test("PUT /files/group/:id - groupName boundary: 128 accepted, 129 rejected with the old name kept", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const roomId = await createRoomId(owner.rooms, "NameLimit Room");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "Before Limit",
+          rooms: [roomId],
+        });
+
+        const ok = await owner.groups.updateRoomGroup({
+          id,
+          updateRoomGroupRequest: { groupName: "m".repeat(MAX_NAME) },
+        });
+        expect(ok.status).toBe(200);
+        expect(
+          (await owner.groups.getRoomGroupInfo({ id })).data.response!.name,
+        ).toBe("m".repeat(MAX_NAME));
+
+        const { status } = await roomGroupRaw(apiSdk, {
+          method: "PUT",
+          path: `/${id}`,
+          body: { groupName: "x".repeat(MAX_NAME + 1) },
+        });
+        expect(status).toBe(400);
+        expect(
+          (await owner.groups.getRoomGroupInfo({ id })).data.response!.name,
+        ).toBe("m".repeat(MAX_NAME));
+      });
+
+      test("PUT /files/group/:id - renaming to the current name is an idempotent no-op", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const roomId = await createRoomId(owner.rooms, "SameName Room");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "Same Name",
+          icon: "flag",
+          rooms: [roomId],
+        });
+        const before = (await owner.groups.getRoomGroupInfo({ id })).data
+          .response!;
+
+        const { status } = await owner.groups.updateRoomGroup({
+          id,
+          updateRoomGroupRequest: { groupName: "Same Name" },
+        });
+        expect(status).toBe(200);
+
+        const after = (await owner.groups.getRoomGroupInfo({ id })).data
+          .response!;
+        expect(after.name).toBe(before.name);
+        expect(after.icon?.id).toBe("flag");
+        expect(after.totalRooms).toBe(1);
+        expect(after.userId).toBe(before.userId);
+        expect(await groupIds(owner.groups)).toEqual([id]);
+      });
+
+      test("PUT /files/group/:id - client-supplied userId, id and icon are ignored", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const roomId = await createRoomId(owner.rooms, "UpdExtra Room");
+        const { id, data: created } = await createRoomGroup(owner.groups, {
+          name: "UpdExtra Group",
+          icon: "star",
+          rooms: [roomId],
+        });
+
+        const { status } = await roomGroupRaw(apiSdk, {
+          method: "PUT",
+          path: `/${id}`,
+          body: {
+            userId: "00000000-0000-0000-0000-000000000000",
+            id: 1,
+            icon: "flag",
+            name: "Other",
+          },
+        });
+        expect(status).toBe(200);
+
+        const after = (await owner.groups.getRoomGroupInfo({ id })).data
+          .response!;
+        expect(after.id).toBe(id);
+        expect(after.userId).toBe(created.userId);
+        expect(after.name).toBe("UpdExtra Group");
+        expect(after.icon?.id).toBe("star");
+      });
+
+      // Malformed ids in update are refused with 400 (create refuses the same
+      // shapes, see "rooms validation" above) and the room set is untouched.
+      const malformedIds: [string, unknown][] = [
+        ["fractional", [1.5]],
+        ["negative", [-1]],
+        ["zero", [0]],
+        ["numeric string", ["123"]],
+        ["null element", [null]],
+        ["object element", [{ a: 1 }]],
+        ["non-array value", 5],
+        ["beyond int64", [1e20]],
+      ];
+      for (const field of ["roomsToAdd", "roomsToRemove"] as const) {
+        test(`PUT /files/group/:id - malformed ids in ${field} are rejected with 400 and the rooms are untouched`, async ({
+          apiSdk,
+        }) => {
+          const owner = apiSdk.forRole("owner");
+          const [member] = await createRoomIds(owner.rooms, 2, `Bad ${field}`);
+          const { id } = await createRoomGroup(owner.groups, {
+            name: `Bad ${field}`,
+            rooms: [member],
+          });
+
+          for (const [label, value] of malformedIds) {
+            await test.step(`${label} -> 400, rooms unchanged`, async () => {
+              const { status } = await roomGroupRaw(apiSdk, {
+                method: "PUT",
+                path: `/${id}`,
+                body: { [field]: value },
+              });
+              expect(status).toBe(400);
+
+              const dto = (await owner.groups.getRoomGroupInfo({ id })).data
+                .response!;
+              expect(dto.name).toBe(`Bad ${field}`);
+              expect(dto.totalRooms).toBe(1);
+              expect(dto.rooms!.map((r) => r.title)).toEqual([
+                `Bad ${field} 1`,
+              ]);
+            });
+          }
+        });
+
+        // Documented non-atomicity (SDK 4.0.0, updateRoomGroup): "The steps are
+        // applied in order and are not rolled back when a later one fails." A
+        // malformed id in the room list is refused with 400, but the rename sent
+        // in the same body is a step that has already been applied, and the room
+        // set is untouched. Shapes: every element-level one above; a non-array
+        // value is the only shape refused before any step runs, so it is left
+        // out. The SDK does not state the order of the steps; "name first" is
+        // what is observed.
+        test(`PUT /files/group/:id - malformed id in ${field}: 400, the rename in the same body stays applied (documented non-rollback)`, async ({
+          apiSdk,
+        }) => {
+          const owner = apiSdk.forRole("owner");
+          const [member] = await createRoomIds(
+            owner.rooms,
+            1,
+            `Atomic ${field}`,
+          );
+          const { id } = await createRoomGroup(owner.groups, {
+            name: "Atomic Before",
+            rooms: [member],
+          });
+
+          for (const [label, value] of malformedIds.filter(
+            ([l]) => l !== "non-array value",
+          )) {
+            await test.step(`${label}: 400, new name applied, rooms untouched`, async () => {
+              const newName = `Atomic After ${label}`;
+              const { status } = await roomGroupRaw(apiSdk, {
+                method: "PUT",
+                path: `/${id}`,
+                body: { groupName: newName, [field]: value },
+              });
+              expect(status).toBe(400);
+
+              const dto = (await owner.groups.getRoomGroupInfo({ id })).data
+                .response!;
+              expect(dto.name).toBe(newName);
+              expect(dto.totalRooms).toBe(1);
+              expect(dto.rooms!.map((r) => r.title)).toEqual([
+                `Atomic ${field} 1`,
+              ]);
+            });
+          }
+        });
+      }
+
+      test("PUT /files/group/:id - duplicate ids in roomsToRemove are collapsed (200)", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const [r1, r2] = await createRoomIds(owner.rooms, 2, "DupRemove");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "DupRemove Group",
+          rooms: [r1, r2],
+        });
+
+        const { status } = await roomGroupRaw(apiSdk, {
+          method: "PUT",
+          path: `/${id}`,
+          body: { roomsToRemove: [r1, r1] },
+        });
+        expect(status).toBe(200);
+
+        const dto = await expectInfoMatchesList(owner.groups, id);
+        expect(dto.rooms!.map((r) => r.title)).toEqual(["DupRemove 2"]);
+        expect(dto.totalRooms).toBe(1);
+      });
+
+      test("PUT /files/group/:id - a room can be removed twice and re-added afterwards", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const [keep, flip] = await createRoomIds(owner.rooms, 2, "Flip");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "Flip Group",
+          rooms: [keep, flip],
+        });
+
+        await test.step("first remove", async () => {
+          const r = await owner.groups.updateRoomGroup({
+            id,
+            updateRoomGroupRequest: { roomsToRemove: [flip] },
+          });
+          expect(r.status).toBe(200);
+          const dto = await expectInfoMatchesList(owner.groups, id);
+          expect(dto.rooms!.map((x) => x.title)).toEqual(["Flip 1"]);
+        });
+
+        await test.step("second remove of the same room is harmless", async () => {
+          const r = await owner.groups.updateRoomGroup({
+            id,
+            updateRoomGroupRequest: { roomsToRemove: [flip] },
+          });
+          expect(r.status).toBe(200);
+          const dto = await expectInfoMatchesList(owner.groups, id);
+          expect(dto.rooms!.map((x) => x.title)).toEqual(["Flip 1"]);
+        });
+
+        await test.step("re-adding restores the membership exactly once", async () => {
+          const r = await owner.groups.updateRoomGroup({
+            id,
+            updateRoomGroupRequest: { roomsToAdd: [flip] },
+          });
+          expect(r.status).toBe(200);
+          const dto = await expectInfoMatchesList(owner.groups, id);
+          expect(dto.rooms!.map((x) => x.title).sort()).toEqual([
+            "Flip 1",
+            "Flip 2",
+          ]);
+        });
+      });
+
+      // The contract does not say which of roomsToAdd / roomsToRemove wins when
+      // both name the same room, so only the invariants are pinned here. Today
+      // the removal wins (observed 2026-10-12).
+      test("PUT /files/group/:id - the same room in roomsToAdd and roomsToRemove leaves a consistent group", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const [member, other] = await createRoomIds(owner.rooms, 2, "AddRem");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "AddRem Group",
+          rooms: [member],
+        });
+
+        const { status } = await owner.groups.updateRoomGroup({
+          id,
+          updateRoomGroupRequest: {
+            roomsToAdd: [other, member],
+            roomsToRemove: [other, member],
+          },
+        });
+        expect(status).toBe(200);
+
+        const dto = await expectInfoMatchesList(owner.groups, id);
+        const titles = dto.rooms!.map((r) => r.title);
+        expect(new Set(titles).size).toBe(titles.length);
+        expect(await groupIds(owner.groups)).toEqual([id]);
+      });
+
+      test("PUT /files/group/:id - totalRooms and rooms[] stay consistent across a sequence of changes", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const [r1, r2, r3] = await createRoomIds(owner.rooms, 3, "Consist");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "Consist Group",
+          rooms: [r1],
+        });
+
+        const steps: [
+          string,
+          {
+            roomsToAdd?: number[];
+            roomsToRemove?: number[];
+            groupName?: string;
+          },
+          string[],
+        ][] = [
+          [
+            "add two",
+            { roomsToAdd: [r2, r3] },
+            ["Consist 1", "Consist 2", "Consist 3"],
+          ],
+          ["remove one", { roomsToRemove: [r1] }, ["Consist 2", "Consist 3"]],
+          [
+            "swap",
+            { roomsToAdd: [r1], roomsToRemove: [r3] },
+            ["Consist 1", "Consist 2"],
+          ],
+          [
+            "rename only",
+            { groupName: "Consist Renamed" },
+            ["Consist 1", "Consist 2"],
+          ],
+          ["remove all", { roomsToRemove: [r1, r2] }, []],
+        ];
+        for (const [label, body, expected] of steps) {
+          await test.step(label, async () => {
+            const { status, data } = await owner.groups.updateRoomGroup({
+              id,
+              updateRoomGroupRequest: body,
+            });
+            expect(status).toBe(200);
+            expect(data.response!.totalRooms).toBe(expected.length);
+            const dto = await expectInfoMatchesList(owner.groups, id);
+            expect(dto.rooms!.map((r) => r.title).sort()).toEqual(expected);
+          });
+        }
+      });
+
+      // Pins the CURRENT validation only: a name over the length limit is refused
+      // before any step runs. The SDK does not promise this (it documents that
+      // steps are applied in order without rollback), so it must not be read as
+      // "update is always atomic".
+      test("PUT /files/group/:id - too-long groupName plus a valid room: 400 and neither is applied (current validation)", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const [r1, r2] = await createRoomIds(owner.rooms, 2, "Combined");
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "Combined Before",
+          rooms: [r1],
+        });
+
+        const { status } = await roomGroupRaw(apiSdk, {
+          method: "PUT",
+          path: `/${id}`,
+          body: { groupName: "n".repeat(MAX_NAME + 1), roomsToAdd: [r2] },
+        });
+        expect(status).toBe(400);
+
+        const dto = (await owner.groups.getRoomGroupInfo({ id })).data
+          .response!;
+        expect(dto.name).toBe("Combined Before");
+        expect(dto.rooms!.map((r) => r.title)).toEqual(["Combined 1"]);
+      });
+    });
+
+    test.describe("DELETE /files/group/{id}", () => {
+      test("DELETE /files/group/:id - deleting one of two groups that share a room leaves the other intact", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const [shared, onlyA] = await createRoomIds(owner.rooms, 2, "Shared");
+        const { id: a } = await createRoomGroup(owner.groups, {
+          name: "Shared A",
+          icon: "heart",
+          rooms: [shared, onlyA],
+        });
+        const { id: b } = await createRoomGroup(owner.groups, {
+          name: "Shared B",
+          icon: "flag",
+          rooms: [shared],
+        });
+
+        expect((await owner.groups.deleteRoomGroup({ id: a })).status).toBe(
+          200,
+        );
+
+        expect(await groupIds(owner.groups)).toEqual([b]);
+        const dto = await expectInfoMatchesList(owner.groups, b);
+        expect(dto.name).toBe("Shared B");
+        expect(dto.icon?.id).toBe("flag");
+        expect(dto.rooms!.map((r) => r.title)).toEqual(["Shared 1"]);
+        expect((await owner.rooms.getRoomInfo({ id: shared })).status).toBe(
+          200,
+        );
+        expect((await owner.rooms.getRoomInfo({ id: onlyA })).status).toBe(200);
+      });
+
+      test("DELETE /files/group/:id - the room's files and shares are untouched", async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const { data: member } = await apiSdk.addMember("owner", "User");
+        const memberId = member.response!.id!;
+
+        const roomId = await createRoomId(owner.rooms, "Content Room");
+        const share = await owner.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+            notify: false,
+          },
+        });
+        expect(share.status).toBe(200);
+        const file = await owner.files.createFile({
+          folderId: roomId,
+          createFileJsonElement: { title: "Group Delete Keeps Me" },
+        });
+        expect(file.status).toBe(200);
+        const fileId = file.data.response!.id!;
+
+        const { id } = await createRoomGroup(owner.groups, {
+          name: "Content Group",
+          rooms: [roomId],
+        });
+        expect((await owner.groups.deleteRoomGroup({ id })).status).toBe(200);
+        expect((await owner.groups.getRoomGroupInfo({ id })).status).toBe(404);
+
+        const room = await owner.rooms.getRoomInfo({ id: roomId });
+        expect(room.status).toBe(200);
+        expect(room.data.response!.title).toBe("Content Room");
+        expect(room.data.response!.filesCount).toBe(1);
+
+        const fileInfo = await owner.files.getFileInfo({ fileId });
+        expect(fileInfo.status).toBe(200);
+        expect(fileInfo.data.response!.title).toContain(
+          "Group Delete Keeps Me",
+        );
+
+        const security = await owner.rooms.getRoomSecurityInfo({ id: roomId });
+        expect(
+          security.data.response!.find((m) => m.sharedToUser?.id === memberId)
+            ?.access,
+        ).toBe(FileShare.ContentCreator);
+      });
     });
   });
 });

@@ -6179,11 +6179,12 @@ test.describe("AI Chat - image generation", () => {
     ).toBeNull();
 
     // …and confirm that leaves the portal in the state the requirement talks
-    // about. `ImageGeneration` still resolves — through `Default` — so the
-    // question is not whether it resolves but whether what it resolves to can
-    // draw. If a drawing model were still reachable here the run below would be
-    // testing nothing.
-    const resolved = await profiles.resolveForAction(
+    // about. `ImageGeneration` falls through to `Default`, which holds a text
+    // model, so the non-throwing `try-resolve-for-action` answers a 200 `null`
+    // (the strict `resolve-for-action` answers a bare 500 there). The question is
+    // whether anything that can draw is still reachable: if one were, the run
+    // below would be testing nothing.
+    const resolved = await profiles.tryResolveForAction(
       "owner",
       "ImageGeneration",
     );
@@ -6469,6 +6470,19 @@ const RACE_PROMPT =
   "Write a detailed essay of at least 600 words about the history of typography. " +
   "Number every paragraph.";
 
+/**
+ * `RACE_PROMPT` for a test that needs the reply to be text in the chat. Asked
+ * for an essay, the model sometimes reaches for the document generator instead
+ * (measured 2026-10-13: `onlyoffice_generate_docx`, 3 of 8 runs, with or without
+ * a rename): the stream then ends in `tool-call-pending` after ~2 s with no text,
+ * and the reply that the test waits for never exists. Steered the way
+ * `ASK_FOR_MY_FOLDER` is in mcp.spec.ts; a text reply keeps the stream open for
+ * 25-40 s, so the cut still lands mid-reply.
+ */
+const RACE_PROMPT_TEXT_ONLY =
+  `${RACE_PROMPT} Write it as plain text directly in this chat. ` +
+  "Do not generate any document or file and do not call any tool.";
+
 /** Upper bound on waiting for the send to be accepted, not a target. */
 const RACE_CUT_CAP_MS = 15000;
 
@@ -6499,11 +6513,16 @@ async function settleGeneration(ms = GENERATION_WINDOW_MS) {
  */
 async function startReply(
   aiChat: AiAgentChat,
-  body: { threadId: string; profileId: string; agentId: number },
+  body: {
+    threadId: string;
+    profileId: string;
+    agentId: number;
+    message?: string;
+  },
 ) {
   let done = false;
   const inFlight = aiChat
-    .sendMessage("owner", { ...body, message: RACE_PROMPT })
+    .sendMessage("owner", { ...body, message: body.message ?? RACE_PROMPT })
     .finally(() => {
       done = true;
     });
@@ -6549,6 +6568,7 @@ test.describe("AI Threads - mutated while the model is still writing", () => {
       threadId,
       profileId,
       agentId,
+      message: RACE_PROMPT_TEXT_ONLY,
     });
 
     const renamed = await aiChat.renameThread(

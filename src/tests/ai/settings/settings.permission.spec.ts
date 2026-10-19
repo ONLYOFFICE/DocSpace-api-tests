@@ -3,6 +3,8 @@ import { test } from "@/src/fixtures";
 import { AiSettings } from "@/src/helpers/ai-settings";
 import { AgentRole } from "@/src/helpers/ai-http";
 import { UserType } from "@/src/services/api-sdk";
+import { setPortalAiAccess } from "@/src/helpers/ai-access";
+import { enableAiGateway } from "@/src/helpers/wallet-services";
 
 // The old `/ai/config/web-search` pair is gone (404) — manual web-search
 // provider config is not exposed any more. What remains readable is
@@ -323,4 +325,237 @@ test.describe("AI Settings - per-user chat config permissions", () => {
   // A Guest's own read and write of this preference are covered by the matrix above,
   // which now carries the Guest row: the write is asserted to persist through the
   // Guest's own re-read, which is the whole of what this route offers them.
+});
+
+// ---------------------------------------------------------------------------
+// Audit additions (SettingsApi, SDK 4.0.0).
+// ---------------------------------------------------------------------------
+
+test.describe("AI Settings - an invalid token is refused on every settings route", () => {
+  // `Anonymous gets 401` above covers a missing token. This is a token that is
+  // present but wrong: the real one with its signature tail overwritten, which
+  // the platform answers 401 on `/people/@self` and `/files/rooms` as well.
+  //
+  // A token that is not decodable at all (e.g. `garbage.token.value`) answers
+  // 400 `IDX12729` on the core routes too — measured 2026-10-09 — so that is
+  // platform behaviour, not an AI-settings one, and is deliberately not pinned
+  // here. Logging out does not revoke a bearer token (the same token still
+  // answers 200 afterwards), so a revoked-token case cannot be built either.
+  const ROUTES: Array<{
+    label: string;
+    method: "get" | "put";
+    path: string;
+    body?: unknown;
+    /** What the genuine token gets: the positive control. */
+    genuine: number;
+  }> = [
+    {
+      label: "GET /ai/config",
+      method: "get",
+      path: "/api/2.0/ai/config",
+      genuine: 200,
+    },
+    {
+      label: "GET /ai/config/user",
+      method: "get",
+      path: "/api/2.0/ai/config/user",
+      genuine: 200,
+    },
+    {
+      label: "PUT /ai/config/user",
+      method: "put",
+      path: "/api/2.0/ai/config/user",
+      genuine: 200,
+    },
+    {
+      label: "GET /ai/config/vectorization",
+      method: "get",
+      path: "/api/2.0/ai/config/vectorization",
+      genuine: 403,
+    },
+    {
+      label: "PUT /ai/config/vectorization",
+      method: "put",
+      path: "/api/2.0/ai/config/vectorization",
+      body: { key: null },
+      genuine: 403,
+    },
+  ];
+
+  for (const route of ROUTES) {
+    test(`${route.label} - a token with a corrupted signature gets 401 Unauthorized`, async ({
+      apiSdk,
+    }) => {
+      const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+      const base = apiSdk.tokenStore.portalBaseUrl;
+      const genuine = apiSdk.tokenStore.getToken("owner");
+      const tampered = `${genuine.slice(0, -4)}AAAA`;
+      expect(tampered).not.toBe(genuine);
+
+      const before = await aiSettings.getUserConfig("owner");
+      expect(before.status).toBe(200);
+      const stored = before.data?.response?.chatRecommendedModelVisible;
+      expect(typeof stored).toBe("boolean");
+
+      // The write tries to flip the stored preference, so a PUT that slipped
+      // past the gate shows in the read-back below.
+      const body =
+        route.label === "PUT /ai/config/user"
+          ? { chatRecommendedModelVisible: !stored }
+          : route.body;
+      const send = (token: string) =>
+        apiSdk.request[route.method](`${base}${route.path}`, {
+          headers: {
+            Origin: base,
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          ...(body === undefined ? {} : { data: body }),
+        });
+
+      const refused = await send(tampered);
+      const refusedText = await refused.text();
+
+      // State before status: nothing may have been stored by a refused call.
+      const after = await aiSettings.getUserConfig("owner");
+      expect(after.data?.response?.chatRecommendedModelVisible).toBe(stored);
+
+      // Positive control: the genuine token gets past the authentication gate on
+      // the same request, so the 401 is about the token and nothing else.
+      expect((await send(genuine)).status()).toBe(route.genuine);
+
+      expect(JSON.parse(refusedText)).toEqual({ error: "Unauthorized" });
+      expect(refused.status()).toBe(401);
+    });
+  }
+});
+
+test.describe("AI Settings - vectorization config is forbidden in every portal state", () => {
+  // The role matrix above proves 403 per ROLE; nothing proved it per PORTAL
+  // STATE, although the header comment claims it. Each state's premise is read
+  // back first (an unasserted switch flip would fake every 403 below it), and
+  // the portal flags are compared afterwards so a "refused" PUT that still
+  // changed something would show.
+  test("GET/PUT /api/2.0/ai/config/vectorization - Owner gets 403 whether AI is switched on or off, paid for or not", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const expectState = async (switchOn: boolean, paid: boolean) => {
+      const { data, status } = await ownerApi.aiSettings.aiSettingsGet();
+      expect(status).toBe(200);
+      expect(data.response?.aiReady, "wallet service state").toBe(
+        paid && switchOn,
+      );
+      const { data: access, status: accessStatus } =
+        await ownerApi.commonSettings.getTenantAiAccessSettings();
+      expect(accessStatus).toBe(200);
+      expect(access.response?.enabled, "portal AI switch").toBe(switchOn);
+    };
+
+    const expectForbiddenWithoutSideEffect = async () => {
+      const { data: before } = await ownerApi.aiSettings.aiSettingsGet();
+      const get = await aiSettings.getVectorizationSettings("owner");
+      const put = await aiSettings.setVectorizationSettings("owner", {
+        key: null,
+      });
+      const { data: after } = await ownerApi.aiSettings.aiSettingsGet();
+
+      expect(after.response).toEqual(before.response);
+      expect(get.error).toBe("Forbidden");
+      expect(get.status).toBe(403);
+      expect(put.error).toBe("Forbidden");
+      expect(put.status).toBe(403);
+    };
+
+    await test.step("unpaid, AI switch on", async () => {
+      await expectState(true, false);
+      await expectForbiddenWithoutSideEffect();
+    });
+
+    await test.step("unpaid, AI switch off", async () => {
+      const off = await setPortalAiAccess(ownerApi, false);
+      expect(off.writeStatus).toBe(200);
+      await expectState(false, false);
+      await expectForbiddenWithoutSideEffect();
+    });
+
+    await test.step("paid, AI switch on", async () => {
+      const on = await setPortalAiAccess(ownerApi, true);
+      expect(on.writeStatus).toBe(200);
+      await enableAiGateway(paymentsApi, ownerApi.payment);
+      await expectState(true, true);
+      await expectForbiddenWithoutSideEffect();
+    });
+
+    await test.step("paid, AI switch off", async () => {
+      const off = await setPortalAiAccess(ownerApi, false);
+      expect(off.writeStatus).toBe(200);
+      await expectState(false, true);
+      await expectForbiddenWithoutSideEffect();
+      // Leave the switch as found.
+      const on = await setPortalAiAccess(ownerApi, true);
+      expect(on.enabled).toBe(true);
+    });
+  });
+});
+
+test.describe("AI Settings - PUT vectorization is refused before the body is looked at", () => {
+  // A well-formed JSON body is never inspected: the permission check answers
+  // first, so every shape gets the same 403 and nothing about a "valid" body can
+  // be learned. A body that is not an object at all is rejected earlier still,
+  // by the binder, with 400 — measured 2026-10-09. That is the order being
+  // pinned, not a statement about what the route accepts: no account can reach a
+  // successful write, so the real request shape is unknowable from here.
+  test("PUT /api/2.0/ai/config/vectorization - Owner gets 403 for every well-formed body and 400 for an unparseable one, with no side effect", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const aiSettings = new AiSettings(apiSdk.request, apiSdk.tokenStore);
+
+    const { data: before, status: beforeStatus } =
+      await ownerApi.aiSettings.aiSettingsGet();
+    expect(beforeStatus).toBe(200);
+
+    const forbidden: Array<[string, unknown]> = [
+      ["an empty object", {}],
+      ["a null value", { key: null }],
+      ["an unknown field", { unknownField: 1 }],
+      ["a nested object", { provider: { name: "x", options: { a: 1 } } }],
+      ["JSON null", "null"],
+      ["no body", undefined],
+    ];
+    for (const [label, body] of forbidden) {
+      await test.step(`${label} -> 403`, async () => {
+        const { status, error } = await aiSettings.setVectorizationSettings(
+          "owner",
+          body as Record<string, unknown>,
+        );
+        expect(error).toBe("Forbidden");
+        expect(status).toBe(403);
+      });
+    }
+
+    const unparseable: Array<[string, unknown]> = [
+      ["a JSON array", [1]],
+      ["malformed JSON", "{bad"],
+    ];
+    for (const [label, body] of unparseable) {
+      await test.step(`${label} -> 400`, async () => {
+        const { status, error } = await aiSettings.setVectorizationSettings(
+          "owner",
+          body as Record<string, unknown>,
+        );
+        expect(error).toBe("Bad Request");
+        expect(status).toBe(400);
+      });
+    }
+
+    const { data: after, status: afterStatus } =
+      await ownerApi.aiSettings.aiSettingsGet();
+    expect(afterStatus).toBe(200);
+    expect(after.response).toEqual(before.response);
+  });
 });

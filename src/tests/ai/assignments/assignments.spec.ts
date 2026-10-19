@@ -578,25 +578,57 @@ test.describe("AI Assignments - capability validation", () => {
 
     // ...but `Default` — the fallback every unassigned text action resolves
     // through — takes it, and then hands an image-only model to Chat.
+    test.fail();
     const { status, data } = await profiles.assign("owner", {
       actionType: "Default",
       profileId: image.id,
     });
     expect(status).toBe(200);
-    expect(data?.success).toBe(true);
-
-    const resolved = await profiles.resolveForAction("owner", "Chat");
-    expect(
-      resolved.data?.profileId,
-      "Chat now resolves to the image model",
-    ).toBe(image.id);
-    expect(resolved.data?.profile?.canUseTool).toBe(false);
-
-    test.fail();
     expect(
       data?.success,
       "Default must require the capabilities of the actions it backs",
     ).toBe(false);
+
+    // Still unrefused today, and the stored fallback is what Chat is then served
+    // (strict resolve-for-action answers a bare 500 for it — not asserted).
+    const read = await profiles.getAssignment("owner", "Default");
+    expect(read.data, "Default was not written").not.toBe(image.id);
+  });
+
+  test("BUG 84450: GET /api/2.0/ai/assignments/resolve-for-action - an action with no usable profile is not a bare 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    test.fail();
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+
+    const profiles = new AiProfiles(apiSdk.request, apiSdk.tokenStore);
+    const catalogue = await profiles.catalogue("owner");
+    const image = AiProfiles.byCapabilities(catalogue, AI_CAPS.imageOnly);
+
+    const unassigned = await profiles.unassign("owner", {
+      actionType: "Chat",
+    });
+    expect(unassigned.data?.success).toBe(true);
+    const assigned = await profiles.assign("owner", {
+      actionType: "Default",
+      profileId: image.id,
+    });
+    expect(
+      assigned.data?.success,
+      "premise: Default holds the image model",
+    ).toBe(true);
+
+    // Positive control: the non-throwing sibling answers for the same state.
+    const tried = await profiles.tryResolveForAction("owner", "Chat");
+    expect(tried.status).toBe(200);
+
+    const resolved = await profiles.resolveForAction("owner", "Chat");
+    expect(
+      resolved.status,
+      `resolve-for-action answered ${resolved.status} ${resolved.error}`,
+    ).not.toBe(500);
   });
 });
 

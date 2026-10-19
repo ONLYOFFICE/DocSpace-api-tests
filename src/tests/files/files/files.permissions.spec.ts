@@ -3240,13 +3240,16 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
     const { api: userApi, data: memberData } =
       await apiSdk.addAuthenticatedMember("owner", "User");
     const userId = memberData.response!.id!;
-    await ownerApi.rooms.setRoomSecurity({
+    // A User-type account cannot hold RoomManager: the invitation is refused,
+    // so this caller has no access to the room at all.
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
         invitations: [{ id: userId, access: FileShare.RoomManager }],
         notify: false,
       },
     });
+    expect(inviteStatus).toBe(403);
 
     const { status } = await userApi.files.getFileVersionInfo({ fileId });
 
@@ -4496,40 +4499,39 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 });
 
 test.describe("GET /files/file/:fileId/log - Get file history permissions", () => {
-  test.fail(
-    "BUG 81093: GET /files/file/:fileId/log - Guest sees owner email in profileUrl field of file history response",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 81093: GET /files/file/:fileId/log - Guest sees owner email in profileUrl field of file history response", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: {
-          title: "Autotest File History Guest Test",
-        },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: {
+        title: "Autotest File History Guest Test",
+      },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: guestData, api: guestApi } =
-        await apiSdk.addAuthenticatedMember("owner", "Guest");
-      const guestId = guestData.response!.id!;
+    const { data: guestData, api: guestApi } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
 
-      await ownerApi.sharing.setFileSecurityInfo({
-        id: fileId,
-        securityInfoSimpleRequestDto: {
-          share: [{ shareTo: guestId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.sharing.setFileSecurityInfo({
+      id: fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { data, status } = await guestApi.files.getFileHistory({ fileId });
+    const { data, status } = await guestApi.files.getFileHistory({ fileId });
 
-      expect(status).toBe(200);
+    expect(status).toBe(200);
 
-      const historyEntries = data.response ?? [];
-      for (const entry of historyEntries) {
-        expect(entry.initiator?.profileUrl).toBeFalsy();
-      }
-    },
-  );
+    const historyEntries = data.response ?? [];
+    for (const entry of historyEntries) {
+      expect(entry.initiator?.profileUrl).toBeFalsy();
+    }
+  });
 
   test("GET /files/file/:fileId/log - DocSpaceAdmin can get file history in owner room", async ({
     apiSdk,
@@ -4857,13 +4859,16 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
     const { api: userApi, data: memberData } =
       await apiSdk.addAuthenticatedMember("owner", "User");
     const userId = memberData.response!.id!;
-    await ownerApi.rooms.setRoomSecurity({
+    // A User-type account cannot hold RoomManager: the invitation is refused,
+    // so this caller has no access to the room at all.
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
         invitations: [{ id: userId, access: FileShare.RoomManager }],
         notify: false,
       },
     });
+    expect(inviteStatus).toBe(403);
 
     const { data, status } = await userApi.files.startEditFile({
       fileId,
@@ -4966,7 +4971,9 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
     });
     const roomId = roomData.response!.id!;
 
-    await ownerApi.rooms.setRoomSecurity({
+    // A User-type account cannot hold RoomManager: the invitation is refused,
+    // so this caller has no access to the room at all.
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
         invitations: [
@@ -4978,6 +4985,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
         notify: false,
       },
     });
+    expect(inviteStatus).toBe(403);
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
@@ -5154,7 +5162,9 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
     const { api: userApi, data: memberData } =
       await apiSdk.addAuthenticatedMember("owner", "User");
 
-    await ownerApi.rooms.setRoomSecurity({
+    // A User-type account cannot hold RoomManager: the invitation is refused,
+    // so this caller has no access to the room at all.
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
         invitations: [
@@ -5163,6 +5173,7 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
         notify: false,
       },
     });
+    expect(inviteStatus).toBe(403);
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
@@ -5370,7 +5381,9 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
     const { api: userApi, data: memberData } =
       await apiSdk.addAuthenticatedMember("owner", "User");
 
-    await ownerApi.rooms.setRoomSecurity({
+    // A User-type account cannot hold RoomManager: the invitation is refused,
+    // so this caller has no access to the room at all.
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
       id: roomId,
       roomInvitationRequest: {
         invitations: [
@@ -5379,6 +5392,7 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
         notify: false,
       },
     });
+    expect(inviteStatus).toBe(403);
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
@@ -7074,5 +7088,231 @@ test.describe("GET /files/file/:fileId/presigneduri - Get presigned URI permissi
       .files.getPresignedUri({ fileId });
 
     expect(status).toBe(403);
+  });
+});
+
+type LinkCaller = "DocSpaceAdmin" | "RoomAdmin" | "User" | "Guest";
+
+// `null` access means the caller is not a member of the room.
+const primaryLinkMatrix: Array<{
+  label: string;
+  type: LinkCaller;
+  access: FileShare | null;
+  canCreate: boolean;
+}> = [
+  {
+    label: "RoomAdmin RoomManager",
+    type: "RoomAdmin",
+    access: FileShare.RoomManager,
+    canCreate: true,
+  },
+  {
+    label: "User ContentCreator",
+    type: "User",
+    access: FileShare.ContentCreator,
+    canCreate: false,
+  },
+  {
+    label: "User Editing",
+    type: "User",
+    access: FileShare.Editing,
+    canCreate: false,
+  },
+  {
+    label: "User Read",
+    type: "User",
+    access: FileShare.Read,
+    canCreate: false,
+  },
+  {
+    label: "Guest Read",
+    type: "Guest",
+    access: FileShare.Read,
+    canCreate: false,
+  },
+  {
+    label: "User without room access",
+    type: "User",
+    access: null,
+    canCreate: false,
+  },
+  {
+    label: "RoomAdmin without room access",
+    type: "RoomAdmin",
+    access: null,
+    canCreate: false,
+  },
+  {
+    label: "DocSpaceAdmin without room access",
+    type: "DocSpaceAdmin",
+    access: null,
+    canCreate: false,
+  },
+];
+
+test.describe("POST /files/file/:id/link - permissions", () => {
+  for (const { label, type, access, canCreate } of primaryLinkMatrix) {
+    test(`POST /files/file/:id/link - ${label} ${canCreate ? "can" : "cannot"} create the primary external link`, async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest Primary Link Permissions Room",
+          roomType: RoomType.CustomRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: roomId,
+        createFileJsonElement: { title: "Autotest Primary Link File.docx" },
+      });
+      const fileId = fileData.response!.id!;
+      const { api, data: memberData } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        type,
+      );
+      if (access !== null) {
+        const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: memberData.response!.id!, access }],
+            notify: false,
+          },
+        });
+        expect(inviteStatus).toBe(200);
+      }
+
+      // Positive control: the owner can create the link on the same file.
+      const { status: ownerStatus } =
+        await ownerApi.files.createFilePrimaryExternalLink({
+          id: fileId,
+          fileLinkRequest: { access: FileShare.Read },
+        });
+      expect(ownerStatus).toBe(200);
+
+      const { status } = await api.files.createFilePrimaryExternalLink({
+        id: fileId,
+        fileLinkRequest: { access: FileShare.Read },
+      });
+
+      expect(status).toBe(canCreate ? 200 : 403);
+    });
+  }
+
+  test("POST /files/file/:id/link - Anonymous user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Primary Link Anonymous.docx" },
+    });
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.createFilePrimaryExternalLink({
+        id: fileData.response!.id!,
+        fileLinkRequest: { access: FileShare.Read },
+      });
+
+    expect(status).toBe(401);
+  });
+});
+
+test.describe("GET /files/file/:fileId/protectusers - permissions", () => {
+  test("GET /files/file/:fileId/protectusers - Member with ContentCreator access sees the other members", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: other } = await apiSdk.addMember("owner", "User");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Protect Users Permissions Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Protect Users File.docx" },
+    });
+    const { api, data: memberData } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+    const memberId = memberData.response!.id!;
+    const { status: inviteStatus } = await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [
+          { id: other.response!.id!, access: FileShare.Read },
+          { id: memberId, access: FileShare.ContentCreator },
+        ],
+        notify: false,
+      },
+    });
+    expect(inviteStatus).toBe(200);
+
+    const { data, status } = await api.files.getProtectedFileUsers({
+      fileId: fileData.response!.id!,
+    });
+
+    expect(status).toBe(200);
+    const ids = (data.response ?? []).map((u) => u.id);
+    expect(ids).toContain(other.response!.id);
+    expect(ids).not.toContain(memberId);
+  });
+
+  test("GET /files/file/:fileId/protectusers - User without room access gets no member list", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: other } = await apiSdk.addMember("owner", "User");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Protect Users Isolation Room",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFile({
+      folderId: roomId,
+      createFileJsonElement: { title: "Autotest Protect Users File.docx" },
+    });
+    await ownerApi.rooms.setRoomSecurity({
+      id: roomId,
+      roomInvitationRequest: {
+        invitations: [{ id: other.response!.id!, access: FileShare.Read }],
+        notify: false,
+      },
+    });
+    const fileId = fileData.response!.id!;
+
+    // Positive control: the owner sees the invited member.
+    const { data: ownerView } = await ownerApi.files.getProtectedFileUsers({
+      fileId,
+    });
+    expect(ownerView.response?.map((u) => u.id)).toContain(other.response!.id);
+
+    const { api } = await apiSdk.addAuthenticatedMember("owner", "User");
+    const { data, status } = await api.files.getProtectedFileUsers({ fileId });
+
+    expect(status).toBe(200);
+    expect(data.response).toEqual([]);
+  });
+
+  test("GET /files/file/:fileId/protectusers - Anonymous user gets 401", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Protect Users Anonymous.docx" },
+    });
+
+    const { status } = await apiSdk
+      .forAnonymous()
+      .files.getProtectedFileUsers({ fileId: fileData.response!.id! });
+
+    expect(status).toBe(401);
   });
 });

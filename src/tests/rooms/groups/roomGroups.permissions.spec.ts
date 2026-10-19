@@ -4,6 +4,7 @@ import { FileShare } from "@onlyoffice/docspace-api-sdk";
 import type { UserType } from "@/src/services/api-sdk";
 import {
   createRoomId,
+  createRoomIds,
   createRoomGroup,
   roomGroupRaw,
 } from "@/src/helpers/room-groups";
@@ -400,6 +401,399 @@ test.describe("API room groups permissions", () => {
         token: "garbage.token",
       });
       expect(status).toBe(401);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Coverage additions (audit of this file): update with rooms the caller
+  // cannot reach, lost access, cross-user update, end-to-end isolation.
+  // ---------------------------------------------------------------------------
+  test.describe("Update with rooms the caller cannot reach", () => {
+    // Same room-access gate as create: 403 and nothing applied. DocSpaceAdmin is
+    // excluded because it can reach the owner's rooms.
+    const gatedRoles: UserType[] = ["RoomAdmin", "User", "Guest"];
+
+    for (const role of gatedRoles) {
+      test(`${role} cannot add or detach a room it cannot access through update — group unchanged`, async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const { api, data: member } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          role,
+        );
+        const memberId = member.response!.id!;
+
+        const ownTitle = `${role} Own Room`;
+        let ownRoom: number;
+        if (role === "RoomAdmin") {
+          ownRoom = await createRoomId(api.rooms, ownTitle);
+        } else {
+          ownRoom = await createRoomId(owner.rooms, ownTitle);
+          const sec = await owner.rooms.setRoomSecurity({
+            id: ownRoom,
+            roomInvitationRequest: {
+              invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+              notify: false,
+            },
+          });
+          expect(sec.status).toBe(200);
+        }
+        const foreignRoom = await createRoomId(
+          owner.rooms,
+          `${role} Foreign Room`,
+        );
+
+        const { id } = await createRoomGroup(api.groups, {
+          name: `${role} Gate Group`,
+          rooms: [ownRoom],
+        });
+
+        const expectUnchanged = async () => {
+          const { data, status } = await api.groups.getRoomGroupInfo({ id });
+          expect(status).toBe(200);
+          expect(data.response!.name).toBe(`${role} Gate Group`);
+          expect(data.response!.totalRooms).toBe(1);
+          expect(data.response!.rooms!.map((r) => r.title)).toEqual([ownTitle]);
+        };
+
+        await test.step("adding the foreign room is refused (403)", async () => {
+          const { status } = await api.groups.updateRoomGroup({
+            id,
+            updateRoomGroupRequest: { roomsToAdd: [foreignRoom] },
+          });
+          expect(status).toBe(403);
+          await expectUnchanged();
+        });
+
+        await test.step("detaching a foreign room that is not in the group is refused (403)", async () => {
+          const { status } = await api.groups.updateRoomGroup({
+            id,
+            updateRoomGroupRequest: { roomsToRemove: [foreignRoom] },
+          });
+          expect(status).toBe(403);
+          await expectUnchanged();
+        });
+      });
+    }
+
+    test("User keeps the ability to detach a room it has lost access to", async ({
+      apiSdk,
+    }) => {
+      const owner = apiSdk.forRole("owner");
+      const { api, data: member } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+      const memberId = member.response!.id!;
+      const roomId = await createRoomId(owner.rooms, "Lost Access Room");
+      expect(
+        (
+          await owner.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+              notify: false,
+            },
+          })
+        ).status,
+      ).toBe(200);
+      const { id } = await createRoomGroup(api.groups, {
+        name: "Lost Access Group",
+        rooms: [roomId],
+      });
+
+      // premise: the access is really gone
+      expect(
+        (
+          await owner.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: memberId, access: FileShare.None }],
+              notify: false,
+            },
+          })
+        ).status,
+      ).toBe(200);
+      expect((await api.rooms.getRoomInfo({ id: roomId })).status).toBe(403);
+
+      const { status, data } = await api.groups.updateRoomGroup({
+        id,
+        updateRoomGroupRequest: { roomsToRemove: [roomId] },
+      });
+      expect(status).toBe(200);
+      expect(data.response!.totalRooms).toBe(0);
+      const after = await api.groups.getRoomGroupInfo({ id });
+      expect(after.data.response!.totalRooms).toBe(0);
+      expect(after.data.response!.rooms ?? []).toHaveLength(0);
+      expect((await owner.rooms.getRoomInfo({ id: roomId })).status).toBe(200);
+    });
+
+    // Candidate defect: after access is revoked the group keeps serving LIVE
+    // data of the room. Observed 2026-10-12 in rooms[] of getRoomGroupInfo and
+    // getRoomGroups while getRoomInfo answers 403: title (follows renames),
+    // filesCount, foldersCount, usedSpace, tags, created/updated, createdBy and
+    // updatedBy (displayName, avatar, profileUrl), roomType; security flags are
+    // all false but a stale access value is still returned. Only the title is
+    // asserted here.
+    test.fail(
+      "BUG 84474: a group keeps exposing the live title of a room the member lost access to",
+      async ({ apiSdk }) => {
+        const owner = apiSdk.forRole("owner");
+        const { api, data: member } = await apiSdk.addAuthenticatedMember(
+          "owner",
+          "User",
+        );
+        const memberId = member.response!.id!;
+        const roomId = await createRoomId(owner.rooms, "Leak Before");
+        expect(
+          (
+            await owner.rooms.setRoomSecurity({
+              id: roomId,
+              roomInvitationRequest: {
+                invitations: [
+                  { id: memberId, access: FileShare.ContentCreator },
+                ],
+                notify: false,
+              },
+            })
+          ).status,
+        ).toBe(200);
+        const { id } = await createRoomGroup(api.groups, {
+          name: "Leak Group",
+          rooms: [roomId],
+        });
+
+        // positive control: while access exists the member sees the room
+        const seen = await api.groups.getRoomGroupInfo({ id });
+        expect(seen.data.response!.rooms!.map((r) => r.title)).toContain(
+          "Leak Before",
+        );
+
+        // access revoked, then the owner renames the room
+        expect(
+          (
+            await owner.rooms.setRoomSecurity({
+              id: roomId,
+              roomInvitationRequest: {
+                invitations: [{ id: memberId, access: FileShare.None }],
+                notify: false,
+              },
+            })
+          ).status,
+        ).toBe(200);
+        expect(
+          (
+            await owner.rooms.updateRoom({
+              id: roomId,
+              updateRoomRequest: { title: "Leak After Revoke" },
+            })
+          ).status,
+        ).toBe(200);
+        expect((await api.rooms.getRoomInfo({ id: roomId })).status).toBe(403);
+
+        const info = await api.groups.getRoomGroupInfo({ id });
+        const { data: list } = await api.groups.getRoomGroups();
+        const listed = list.response!.find((g) => g.id === id)!;
+        expect(info.data.response!.rooms!.map((r) => r.title)).not.toContain(
+          "Leak After Revoke",
+        );
+        expect(listed.rooms!.map((r) => r.title)).not.toContain(
+          "Leak After Revoke",
+        );
+      },
+    );
+  });
+
+  test.describe("Cross-user update", () => {
+    for (const role of [
+      "DocSpaceAdmin",
+      "RoomAdmin",
+      "User",
+      "Guest",
+    ] as const) {
+      test(`${role} cannot add rooms to or detach rooms from the owner's group`, async ({
+        apiSdk,
+      }) => {
+        const owner = apiSdk.forRole("owner");
+        const [inGroup, extra] = await createRoomIds(
+          owner.rooms,
+          2,
+          `XUpd ${role}`,
+        );
+        const { id } = await createRoomGroup(owner.groups, {
+          name: `XUpd Group ${role}`,
+          rooms: [inGroup],
+        });
+
+        const { api } = await apiSdk.addAuthenticatedMember("owner", role);
+
+        const expectOwnerGroupIntact = async () => {
+          const dto = (await owner.groups.getRoomGroupInfo({ id })).data
+            .response!;
+          expect(dto.name).toBe(`XUpd Group ${role}`);
+          expect(dto.totalRooms).toBe(1);
+          expect(dto.rooms!.map((r) => r.title)).toEqual([`XUpd ${role} 1`]);
+        };
+
+        await test.step("add is 404 and changes nothing", async () => {
+          const { status } = await api.groups.updateRoomGroup({
+            id,
+            updateRoomGroupRequest: { roomsToAdd: [extra] },
+          });
+          expect(status).toBe(404);
+          await expectOwnerGroupIntact();
+        });
+
+        await test.step("detach is 404 and changes nothing", async () => {
+          const { status } = await api.groups.updateRoomGroup({
+            id,
+            updateRoomGroupRequest: { roomsToRemove: [inGroup] },
+          });
+          expect(status).toBe(404);
+          await expectOwnerGroupIntact();
+        });
+
+        await test.step("the owner's group is not listed for the other user", async () => {
+          const { data } = await api.groups.getRoomGroups();
+          expect(data.response!.map((g) => g.id)).not.toContain(id);
+        });
+      });
+    }
+  });
+
+  test.describe("End-to-end isolation of two users sharing a room", () => {
+    test("owner's and admin's groups over the same room never affect each other", async ({
+      apiSdk,
+    }) => {
+      const owner = apiSdk.forRole("owner");
+      const { api: admin } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "DocSpaceAdmin",
+      );
+      const [shared, ownerOnly] = await createRoomIds(
+        owner.rooms,
+        2,
+        "E2E Iso",
+      );
+
+      const { id: ownerGroup } = await createRoomGroup(owner.groups, {
+        name: "E2E Owner Group",
+        icon: "heart",
+        rooms: [shared, ownerOnly],
+      });
+      const { id: adminGroup } = await createRoomGroup(admin.groups, {
+        name: "E2E Admin Group",
+        icon: "flag",
+        rooms: [shared],
+      });
+
+      const view = async (groups: typeof owner.groups, id: number) => {
+        const dto = (await groups.getRoomGroupInfo({ id })).data.response!;
+        return {
+          name: dto.name,
+          icon: dto.icon?.id,
+          rooms: dto.rooms!.map((r) => r.title).sort(),
+          total: dto.totalRooms,
+        };
+      };
+
+      const ownerBaseline = await view(owner.groups, ownerGroup);
+      const adminBaseline = await view(admin.groups, adminGroup);
+      expect(ownerBaseline.total).toBe(2);
+      expect(adminBaseline.rooms).toEqual(["E2E Iso 1"]);
+
+      await test.step("each listing contains only its own group", async () => {
+        const ownerIds = (
+          await owner.groups.getRoomGroups()
+        ).data.response!.map((g) => g.id);
+        const adminIds = (
+          await admin.groups.getRoomGroups()
+        ).data.response!.map((g) => g.id);
+        expect(ownerIds).toContain(ownerGroup);
+        expect(ownerIds).not.toContain(adminGroup);
+        expect(adminIds).toContain(adminGroup);
+        expect(adminIds).not.toContain(ownerGroup);
+      });
+
+      await test.step("neither user can address the other's group", async () => {
+        expect(
+          (await admin.groups.getRoomGroupInfo({ id: ownerGroup })).status,
+        ).toBe(404);
+        expect(
+          (await owner.groups.getRoomGroupInfo({ id: adminGroup })).status,
+        ).toBe(404);
+      });
+
+      await test.step("the owner edits their group -> the admin's group is unchanged", async () => {
+        expect(
+          (
+            await owner.groups.updateRoomGroup({
+              id: ownerGroup,
+              updateRoomGroupRequest: {
+                groupName: "E2E Owner Renamed",
+                roomsToRemove: [shared],
+              },
+            })
+          ).status,
+        ).toBe(200);
+        expect(
+          (
+            await owner.groups.changeRoomGroupIcon({
+              id: ownerGroup,
+              iconRequest: { icon: "folder" },
+            })
+          ).status,
+        ).toBe(200);
+        expect(await view(admin.groups, adminGroup)).toEqual(adminBaseline);
+        expect(await view(owner.groups, ownerGroup)).toEqual({
+          name: "E2E Owner Renamed",
+          icon: "folder",
+          rooms: ["E2E Iso 2"],
+          total: 1,
+        });
+      });
+
+      await test.step("the admin edits and deletes their group -> the owner's group is unchanged", async () => {
+        const ownerBefore = await view(owner.groups, ownerGroup);
+        expect(
+          (
+            await admin.groups.updateRoomGroup({
+              id: adminGroup,
+              updateRoomGroupRequest: {
+                groupName: "E2E Admin Renamed",
+                roomsToAdd: [ownerOnly],
+              },
+            })
+          ).status,
+        ).toBe(200);
+        expect(
+          (
+            await admin.groups.changeRoomGroupIcon({
+              id: adminGroup,
+              iconRequest: { icon: "star" },
+            })
+          ).status,
+        ).toBe(200);
+        expect(await view(owner.groups, ownerGroup)).toEqual(ownerBefore);
+
+        expect(
+          (await admin.groups.deleteRoomGroup({ id: adminGroup })).status,
+        ).toBe(200);
+        expect(await view(owner.groups, ownerGroup)).toEqual(ownerBefore);
+        expect(
+          (await admin.groups.getRoomGroupInfo({ id: adminGroup })).status,
+        ).toBe(404);
+      });
+
+      await test.step("the shared room itself survives both group deletions", async () => {
+        expect((await owner.rooms.getRoomInfo({ id: shared })).status).toBe(
+          200,
+        );
+        expect((await owner.rooms.getRoomInfo({ id: ownerOnly })).status).toBe(
+          200,
+        );
+      });
     });
   });
 });

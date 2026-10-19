@@ -68,9 +68,11 @@ import {
 //     one operation cannot be allowed to pass on the strength of ten. The
 //     intermittency itself is pinned by the two tests in "intermittent reads and
 //     deletes".
-//   * `{success:true}` is not evidence. `link-to-message` answers 200 to an
-//     empty body and to unknown ids and never attaches anything, so every
-//     linking test reads the message back instead of trusting the status.
+//   * `{success:true}` is not evidence, and neither is an empty `attachments`
+//     list: `link-to-message` writes nothing onto the message by design (BUG
+//     82770 was closed as such). It marks the draft as the message's own, which
+//     shows only when the message or thread is deleted, so the linking tests
+//     delete and watch the draft go, with an unlinked draft as the control.
 //   * Almost nothing here needs the model. Messages are created with
 //     `append-user-message`, which stores a user message without inference, so
 //     only the two send-with-stream tests depend on a funded gateway.
@@ -595,7 +597,7 @@ test.describe("AI Attachments - save-file", () => {
     expect(statuses).toEqual(bodies.map(([label]) => [label, 400]));
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/attachments/save-file - an empty path is a 400", async ({
+  test("BUG 84389: POST /api/2.0/ai/attachments/save-file - an empty path is a 400", async ({
     apiSdk,
   }) => {
     // A missing path and a null path are both a 400 (the test above); an empty
@@ -1477,33 +1479,14 @@ async function prepareLinkTargets(
   return { attachments, aiChat, first, second, id };
 }
 
-/**
- * The ids of the attachments a stored message carries, or undefined when it has
- * none at all. Polled for the same reason draft reads are: this backend answers
- * intermittently.
- */
-async function attachmentIdsOnMessage(
-  aiChat: AiAgentChat,
-  target: { threadId: string; messageId: string },
-): Promise<string[] | undefined> {
-  for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
-    const message = await readMessageById(
-      aiChat,
-      "owner",
-      target.threadId,
-      target.messageId,
-    );
-    if (Array.isArray(message?.attachments)) {
-      return (message.attachments as Array<{ id?: string }>).map(
-        (attachment) => attachment.id ?? "",
-      );
-    }
-  }
-  return undefined;
-}
-
 test.describe("AI Attachments - link-to-message", () => {
-  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - a linked draft never reaches the message", async ({
+  // BUG 82770 was closed as by design. link-to-message does not write the
+  // message's `attachments` (that list is stored with the message when it is
+  // created, e.g. by send-with-stream) and does not change what the record
+  // returns. It marks the draft as the message's own, and the mark is observable
+  // only through deletion: a marked draft goes with its message or thread, an
+  // unmarked one stays until it is swept as abandoned.
+  test("POST /api/2.0/ai/attachments/link-to-message - a linked draft is removed with its message, an unlinked one is not", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1522,51 +1505,41 @@ test.describe("AI Attachments - link-to-message", () => {
       "owner",
       { profileId, agentId },
     );
-
-    const id = await attachments.saveFileId("owner", {
+    const linked = await attachments.saveFileId("owner", {
       title: "Autotest linkable.docx",
       content: "linkable payload",
       type: FileType.Document,
     });
-    await attachments.expectStored("owner", id, "draft before linking");
+    const loose = await attachments.saveFileId("owner", {
+      title: "Autotest loose.docx",
+      content: "loose payload",
+      type: FileType.Document,
+    });
+    await attachments.expectStored("owner", linked, "draft before linking");
+    await attachments.expectStored("owner", loose, "unlinked draft");
 
     const { status, data } = await attachments.linkToMessage("owner", {
-      ids: [id],
+      ids: [linked],
       messageId,
       threadId,
     });
     expect(status).toBe(200);
     expect(data?.success, "link-to-message reports success").toBe(true);
 
-    // Polled, for the same reason draft reads are: this backend answers
-    // intermittently.
-    let attachmentsOnMessage: unknown;
-    for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
-      const message = await readMessageById(
-        aiChat,
-        "owner",
-        threadId,
-        messageId,
-      );
-      if (message?.attachments !== undefined) {
-        attachmentsOnMessage = message.attachments;
-        break;
-      }
-    }
+    const deleted = await aiChat.deleteMessage("owner", messageId);
+    expect(deleted.status).toBe(200);
 
-    test.fail();
-    expect(
-      attachmentsOnMessage,
-      "the message carries the attachment it was linked to",
-    ).toEqual([expect.objectContaining({ id })]);
+    await attachments.expectAbsent("owner", linked, "linked draft");
+    // Positive control: the same wait did not remove a draft that was not linked.
+    await attachments.expectStored("owner", loose, "unlinked draft");
   });
 
-  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - a linked draft keeps no messageId or threadId", async ({
+  test("POST /api/2.0/ai/attachments/link-to-message - linking writes nothing onto the message or the record", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The other half of the same failure: the attachment record itself is never
-    // updated, so it stays an unbound draft after a successful link.
+    // Pins the documented design so nobody reads the empty list as a failure: the
+    // message's attachments are written when the message is created, not here.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const attachments = new AiAttachments(apiSdk.request, apiSdk.tokenStore);
@@ -1586,6 +1559,7 @@ test.describe("AI Attachments - link-to-message", () => {
       title: "Autotest bound.docx",
       content: "x",
     });
+    await attachments.expectStored("owner", id, "draft before linking");
 
     const { status } = await attachments.linkToMessage("owner", {
       ids: [id],
@@ -1599,12 +1573,11 @@ test.describe("AI Attachments - link-to-message", () => {
       id,
       "draft after linking",
     );
-
-    test.fail();
-    expect(
-      { messageId: stored.messageId, threadId: stored.threadId },
-      "the linked record points at its message and thread",
-    ).toEqual({ messageId, threadId });
+    expect(stored.messageId).toBeUndefined();
+    expect(stored.threadId).toBeUndefined();
+    const message = await readMessageById(aiChat, "owner", threadId, messageId);
+    expect(message?.id, "the message is readable").toBe(messageId);
+    expect(message?.attachments ?? []).toEqual([]);
   });
 
   // A link that cannot be made is refused with a status that says why. All of
@@ -1759,44 +1732,48 @@ test.describe("AI Attachments - link-to-message", () => {
     expect(status).toBe(400);
   });
 
-  // The next three are the scenarios that one combined test used to cover, split
-  // so each reports on its own. They share BUG 82770's root cause: link-to-message
-  // answers 200 {success:true} and then no message ever gains an attachment. The
-  // `test.fail()` sits right before the assertion that fails, so a setup or link
-  // error is a real red failure and not an expected one.
-  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - a file and an image linked in one call both reach the message", async ({
+  // Several ids in one call, the same draft twice, and the thread instead of the
+  // message: link-to-message only marks drafts as the message's own, and the mark
+  // is what makes them go when the message or thread goes.
+  test("POST /api/2.0/ai/attachments/link-to-message - drafts linked in one call are removed with the thread, an unlinked one is not", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    const { attachments, aiChat, first } = await prepareLinkTargets(
-      apiSdk,
-      paymentsApi,
-    );
-    const fileId = await attachments.saveFileId("owner", {
-      title: "Autotest multi-1.docx",
-      content: "one",
+    const {
+      attachments,
+      aiChat,
+      first,
+      id: firstId,
+    } = await prepareLinkTargets(apiSdk, paymentsApi);
+    const second = await attachments.saveFileId("owner", {
+      title: "Autotest multi-2.docx",
+      content: "two",
       type: FileType.Document,
     });
-    const imageId = await attachments.saveImageId("owner", {
-      name: "multi-2.png",
-      base64: PNG_1X1,
+    const loose = await attachments.saveFileId("owner", {
+      title: "Autotest loose.docx",
+      content: "loose",
+      type: FileType.Document,
     });
-    await attachments.expectStored("owner", fileId, "file draft");
-    await attachments.expectStored("owner", imageId, "image draft");
+    await attachments.expectStored("owner", second, "second draft");
+    await attachments.expectStored("owner", loose, "unlinked draft");
 
     const { status } = await attachments.linkToMessage("owner", {
-      ids: [fileId, imageId],
+      ids: [firstId, second],
       messageId: first.messageId,
       threadId: first.threadId,
     });
     expect(status).toBe(200);
-    const onMessage = await attachmentIdsOnMessage(aiChat, first);
 
-    test.fail();
-    expect(onMessage).toEqual(expect.arrayContaining([fileId, imageId]));
+    const deleted = await aiChat.deleteThread("owner", first.threadId);
+    expect(deleted.status).toBe(200);
+
+    await attachments.expectAbsent("owner", firstId, "first linked draft");
+    await attachments.expectAbsent("owner", second, "second linked draft");
+    await attachments.expectStored("owner", loose, "unlinked draft");
   });
 
-  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - linking the same draft twice puts it on the message once", async ({
+  test("POST /api/2.0/ai/attachments/link-to-message - linking the same draft twice is accepted and it is still removed with the message", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1805,43 +1782,17 @@ test.describe("AI Attachments - link-to-message", () => {
       paymentsApi,
     );
 
-    // `prepareLinkTargets` already linked `id` once; this is the second link.
+    // `prepareLinkTargets` already linked the draft once; this is the second link.
     const { status } = await attachments.linkToMessage("owner", {
       ids: [id],
       messageId: first.messageId,
       threadId: first.threadId,
     });
     expect(status).toBe(200);
-    const onMessage = await attachmentIdsOnMessage(aiChat, first);
 
-    test.fail();
-    expect(onMessage?.filter((attachmentId) => attachmentId === id)).toEqual([
-      id,
-    ]);
-  });
-
-  test("BUG 82770: POST /api/2.0/ai/attachments/link-to-message - a draft linked to a second message reaches that message", async ({
-    apiSdk,
-    paymentsApi,
-  }) => {
-    // What happens to the first message is deliberately not asserted: whether a
-    // draft may be re-pointed, and whether it then leaves the first message, is
-    // not a contract anyone has stated.
-    const { attachments, aiChat, second, id } = await prepareLinkTargets(
-      apiSdk,
-      paymentsApi,
-    );
-
-    const { status } = await attachments.linkToMessage("owner", {
-      ids: [id],
-      messageId: second.messageId,
-      threadId: second.threadId,
-    });
-    expect(status).toBe(200);
-    const onMessage = await attachmentIdsOnMessage(aiChat, second);
-
-    test.fail();
-    expect(onMessage).toContain(id);
+    const deleted = await aiChat.deleteMessage("owner", first.messageId);
+    expect(deleted.status).toBe(200);
+    await attachments.expectAbsent("owner", id, "twice-linked draft");
   });
 });
 

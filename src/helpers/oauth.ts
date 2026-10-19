@@ -1,7 +1,7 @@
 import { ApiSDK } from "../services/api-sdk";
 import { readIconAsBase64 } from "../utils/icon.utils";
 
-export const OAUTH_LOGO = `data:image/png;base64,${readIconAsBase64("src/assets/mcp-icon.png")}`;
+export const OAUTH_LOGO = `data:image/png;base64,${readIconAsBase64("src/assets/oauth-logo.png")}`;
 
 export type OAuthApi = ReturnType<ApiSDK["forRole"]>;
 

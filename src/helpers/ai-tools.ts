@@ -122,6 +122,26 @@ export class AiTools extends AiHttp {
   }
 
   /**
+   * A request with a body the typed wrappers above refuse to build — a missing
+   * field, `null`, a wrong type. The wrappers drop `undefined` keys and type their
+   * inputs, which is exactly what a malformed-request test must not do.
+   */
+  raw(
+    role: AgentRole,
+    method: "get" | "post" | "put" | "delete",
+    route: string,
+    body?: unknown,
+    query = "",
+  ) {
+    return this.call<unknown>(
+      role,
+      method,
+      `/api/2.0/ai/tools/${route}${query}`,
+      body,
+    );
+  }
+
+  /**
    * Full replacement of one scope's custom servers, keyed by name. The body
    * field is `map` — an SDK-shaped `{servers: …}` is accepted with
    * `{success:true}` and silently clears the scope instead.

@@ -29,10 +29,9 @@ interface Config {
   MCP_API_KEY: string;
   MCP_CALCULATOR_URL: string;
   MCP_CALCULATOR_TOKEN: string;
-  SMTP_HOST: string;
-  SMTP_PORT: number;
-  SMTP_HOST_LOGIN: string;
-  SMTP_HOST_PASSWORD: string;
+  QA_MAIL_DOMAIN: string;
+  QA_MAIL_LOGIN: string;
+  QA_MAIL_PASSWORD: string;
 }
 
 const config: Config = {
@@ -74,12 +73,9 @@ const config: Config = {
     process.env.MCP_CALCULATOR_URL ?? "MCP_CALCULATOR_URL_NOT_CONFIGURED",
   MCP_CALCULATOR_TOKEN:
     process.env.MCP_CALCULATOR_TOKEN ?? "MCP_CALCULATOR_TOKEN_NOT_CONFIGURED",
-  SMTP_HOST: process.env.SMTP_HOST ?? "smtp.yandex.com",
-  SMTP_PORT: Number(process.env.SMTP_PORT ?? "587"),
-  SMTP_HOST_LOGIN:
-    process.env.SMTP_HOST_LOGIN ?? "SMTP_HOST_LOGIN_NOT_CONFIGURED",
-  SMTP_HOST_PASSWORD:
-    process.env.SMTP_HOST_PASSWORD ?? "SMTP_HOST_PASSWORD_NOT_CONFIGURED",
+  QA_MAIL_DOMAIN: process.env.QA_MAIL_DOMAIN ?? "qamail.teamlab.info",
+  QA_MAIL_LOGIN: process.env.QA_MAIL_LOGIN ?? "",
+  QA_MAIL_PASSWORD: process.env.QA_MAIL_PASSWORD ?? "",
 };
 
 export default config;

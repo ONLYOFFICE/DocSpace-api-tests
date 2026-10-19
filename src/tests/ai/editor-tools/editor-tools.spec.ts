@@ -36,7 +36,7 @@ import { ApiSDK } from "@/src/services/api-sdk";
 const fieldsOf = (...names: string[]) => ({ fields: names });
 
 // `create_room.roomType` is listed in `required` AND carries `default: 6`, and
-// the tool really does run without it (BUG XXXXX below). The generic "remove a
+// the tool really does run without it (BUG 84395 below). The generic "remove a
 // required argument" cases skip a property that has a default, so one known
 // schema defect does not hide what they are there to find in the other tools.
 const trulyRequired = (tool: EditorTool) =>
@@ -375,7 +375,7 @@ test.describe("AI Editor Tools - the tool name", () => {
     { label: "a name in the wrong case", name: "DELETE_FILE" },
     { label: "a name with padding", name: " delete_file " },
   ]) {
-    test(`BUG XXXXX: POST /api/2.0/ai/editor-tools/call - ${label} is answered 200 instead of the 400 the SDK documents`, async ({
+    test(`BUG 84394: POST /api/2.0/ai/editor-tools/call - ${label} is answered 200 instead of the 400 the SDK documents`, async ({
       apiSdk,
     }) => {
       const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
@@ -531,7 +531,7 @@ test.describe("AI Editor Tools - arguments", () => {
         const variants: Array<[string, unknown]> = [];
         const wrong = wrongTypeValue(sub);
         if (wrong !== undefined) variants.push(["a wrong type", wrong]);
-        // A generator takes a null fileName and writes ".docx" (BUG XXXXX below).
+        // A generator takes a null fileName and writes ".docx" (BUG 84396 below).
         const isGenerator = tool.name.startsWith("onlyoffice_generate_");
         if (!nullable && !isGenerator) variants.push(["null", null]);
         for (const [label, value] of variants) {
@@ -554,18 +554,17 @@ test.describe("AI Editor Tools - arguments", () => {
     expect(offenders).toEqual([]);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/editor-tools/list - a property with a default is published as required, and the tool runs without it", async ({
+  test("BUG 84395: GET /api/2.0/ai/editor-tools/list - a property with a default is published as required, and the tool runs without it", async ({
     apiSdk,
   }) => {
-    // create_room lists `roomType` in `required` and gives it `default: 6`. A
-    // client that trusts `required` will always send it; one that trusts the
-    // default may leave it out. Only one of the two is true, and the call shows
-    // which: it creates the room.
+    // create_room used to list `roomType` in `required` while giving it
+    // `default: 6`, yet the call created the room without it. Fixed: `roomType`
+    // is no longer required. The tool still runs without it, and no tool may
+    // publish a property as both required and defaulted.
     const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
     const tools = await api.tools("owner");
     const createRoom = tools.find((t) => t.name === "create_room")!;
-    expect(createRoom.inputSchema.required).toContain("roomType");
-    expect(createRoom.inputSchema.properties?.roomType?.default).toBe(6);
+    expect(createRoom.inputSchema.required ?? []).not.toContain("roomType");
 
     const args = sampleArguments(createRoom.inputSchema);
     delete args.roomType;
@@ -577,7 +576,6 @@ test.describe("AI Editor Tools - arguments", () => {
         .filter((k) => t.inputSchema.properties?.[k]?.default !== undefined)
         .map((k) => `${t.name}.${k}`),
     );
-    test.fail();
     expect(
       contradictions,
       "required properties that also have a default",
@@ -589,7 +587,7 @@ test.describe("AI Editor Tools - arguments", () => {
     { tool: "onlyoffice_generate_presentation", key: "fileName" },
     { tool: "onlyoffice_generate_form", key: "fileName" },
   ]) {
-    test(`BUG XXXXX: POST /api/2.0/ai/editor-tools/call - ${tool} with a null ${key} creates a document with an empty name`, async ({
+    test(`BUG 84396: POST /api/2.0/ai/editor-tools/call - ${tool} with a null ${key} creates a document with an empty name`, async ({
       apiSdk,
     }) => {
       const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
@@ -617,17 +615,20 @@ test.describe("AI Editor Tools - arguments", () => {
     });
   }
 
-  test("BUG XXXXX: POST /api/2.0/ai/editor-tools/call - a property the published schema forbids is accepted and the tool runs", async ({
+  test("BUG 84397: POST /api/2.0/ai/editor-tools/call - a property the published schema forbids is accepted and the tool runs", async ({
     apiSdk,
   }) => {
-    // Every inputSchema says `additionalProperties:false`; the endpoint publishes
-    // it, so a client may treat it as authoritative. The call below carries one
-    // property the schema forbids — and creates the folder anyway.
+    // Every inputSchema used to say `additionalProperties:false` while the call
+    // accepted an unknown property and created the folder anyway. Fixed by the
+    // schema no longer forbidding extras. What must hold is that the published
+    // schema and the behaviour agree: forbidden means refused, not forbidden
+    // means tolerated.
     const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
     const owner = apiSdk.forRole("owner");
     const tools = await api.tools("owner");
     const createFolder = tools.find((t) => t.name === "create_folder")!;
-    expect(createFolder.inputSchema.additionalProperties).toBe(false);
+    const forbidsExtras =
+      createFolder.inputSchema.additionalProperties === false;
 
     const parentId = await myFolderId(apiSdk);
     const title = `Autotest extra ${apiSdk.faker.generateString(6)}`;
@@ -648,12 +649,16 @@ test.describe("AI Editor Tools - arguments", () => {
       (f) => f.title === title,
     );
 
-    test.fail();
-    expect(created, "the folder must not be created").toBe(false);
-    expect(outcome.isError).toBe(true);
+    expect(
+      created,
+      forbidsExtras
+        ? "the schema forbids extras, so the folder must not be created"
+        : "the schema does not forbid extras, so the folder is created",
+    ).toBe(!forbidsExtras);
+    expect(outcome.isError).toBe(forbidsExtras);
   });
 
-  test("BUG XXXXX: GET /api/2.0/ai/editor-tools/list - filters.fields items are an enum in practice but the schema publishes a bare string", async ({
+  test("BUG 84398: GET /api/2.0/ai/editor-tools/list - filters.fields items are an enum in practice but the schema publishes a bare string", async ({
     apiSdk,
   }) => {
     const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
@@ -681,7 +686,6 @@ test.describe("AI Editor Tools - arguments", () => {
     });
     expect(accepted.isError, accepted.text).toBe(false);
 
-    test.fail();
     expect(
       Array.isArray(items?.enum) && items!.enum!.includes("id"),
       "the schema lists the values the tool accepts",

@@ -110,7 +110,7 @@ test.describe("AI Editor Tools - AI Disabled", () => {
     }
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/editor-tools/call - create_folder still creates the folder when the switch is off", async ({
+  test("BUG 84390: POST /api/2.0/ai/editor-tools/call - create_folder still creates the folder when the switch is off", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");
@@ -153,7 +153,7 @@ test.describe("AI Editor Tools - AI Disabled", () => {
     expect(status).toBe(403);
   });
 
-  test("BUG XXXXX: POST /api/2.0/ai/editor-tools/call - delete_file still deletes the file when the switch is off", async ({
+  test("BUG 84391: POST /api/2.0/ai/editor-tools/call - delete_file still deletes the file when the switch is off", async ({
     apiSdk,
   }) => {
     const owner = apiSdk.forRole("owner");

@@ -1316,7 +1316,7 @@ test.describe("AI Preferences - malformed entityId", () => {
     },
   ];
   for (const { route, read } of READERS) {
-    test(`BUG XXXXX: GET /api/2.0/ai/preferences/${route} - a malformed entityId is refused like the write routes refuse it`, async ({
+    test(`BUG 84417: GET /api/2.0/ai/preferences/${route} - a malformed entityId is refused like the write routes refuse it`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -1667,7 +1667,7 @@ test.describe("AI Preferences - a real agent against the portal-wide value", () 
 test.describe("AI Preferences - a room, a folder or an unknown id is not a scope", () => {
   // The room and folder variants of this write are BUG 82900 (above). An id that
   // exists nowhere has no such ticket.
-  test("BUG XXXXX: PUT /api/2.0/ai/preferences/set-deep-mode - a nonexistent id scope is stored separately from the portal-wide value", async ({
+  test("BUG 84418: PUT /api/2.0/ai/preferences/set-deep-mode - a nonexistent id scope is stored separately from the portal-wide value", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1702,7 +1702,7 @@ test.describe("AI Preferences - a room, a folder or an unknown id is not a scope
   });
 
   for (const kind of NON_AGENT_KINDS) {
-    test(`BUG XXXXX: DELETE /api/2.0/ai/preferences/clear-deep-mode - clearing a ${kind} leaves the portal-wide value alone`, async ({
+    test(`BUG 84419: DELETE /api/2.0/ai/preferences/clear-deep-mode - clearing a ${kind} leaves the portal-wide value alone`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -1729,7 +1729,7 @@ test.describe("AI Preferences - a room, a folder or an unknown id is not a scope
       });
     });
 
-    test(`BUG XXXXX: GET get-deep-mode | is-deep-mode-set | get-reasoning-level - a ${kind} with nothing of its own does not read the portal-wide value`, async ({
+    test(`BUG 84420: GET get-deep-mode | is-deep-mode-set | get-reasoning-level - a ${kind} with nothing of its own does not read the portal-wide value`, async ({
       apiSdk,
       paymentsApi,
     }) => {

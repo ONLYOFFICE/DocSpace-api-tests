@@ -15,6 +15,7 @@ import {
 } from "@onlyoffice/docspace-api-sdk";
 import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { uploadFileToFolder } from "@/src/helpers/upload-file";
+import { waitForUsedSpaceToMatchFiles } from "@/src/helpers/used-space";
 import { createTestImageBuffer } from "@/src/utils/test-image";
 
 function getFolderSortedByCustomOrder(folders: FoldersApi, folderId: number) {
@@ -7863,17 +7864,18 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       coverRequestDto: { color: "FF5733" },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.RoomColorChanged);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomColorChanged,
-    );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    // History entries are written asynchronously: poll instead of reading once
+    await expect(async () => {
+      const { data, status } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      expect(status).toBe(200);
+      const entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.RoomColorChanged,
+      );
+      expect(entry).toBeDefined();
+      expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    }).toPass({ intervals: [500, 1_000, 2_000], timeout: 15_000 });
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomCoverChanged after room cover is changed", async ({
@@ -7899,17 +7901,18 @@ test.describe("GET /api/2.0/files/folder/{folderId}/log - Get folder history", (
       coverRequestDto: { color: "1A2B3C", cover: coverId },
     });
 
-    const { data, status } = await ownerApi.folders.getFolderHistory({
-      folderId: roomId,
-    });
-    expect(status).toBe(200);
-    const actionIds = data.response!.map((e) => e.action?.id);
-    expect(actionIds).toContain(MessageAction.RoomCoverChanged);
-    const entry = data.response!.find(
-      (e) => e.action?.id === MessageAction.RoomCoverChanged,
-    );
-    expect(entry).toBeDefined();
-    expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    // History entries are written asynchronously: poll instead of reading once
+    await expect(async () => {
+      const { data, status } = await ownerApi.folders.getFolderHistory({
+        folderId: roomId,
+      });
+      expect(status).toBe(200);
+      const entry = data.response!.find(
+        (e) => e.action?.id === MessageAction.RoomCoverChanged,
+      );
+      expect(entry).toBeDefined();
+      expect(entry!.initiator.displayName).toBe(ownerDisplayName);
+    }).toPass({ intervals: [500, 1_000, 2_000], timeout: 15_000 });
   });
 
   test("GET /api/2.0/files/folder/{folderId}/log - History contains RoomGroupAdded after group is added to room", async ({
@@ -9721,6 +9724,23 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
     const fileId = fileData.response!.id!;
     const fileSize = fileData.response!.pureContentLength!;
 
+    // The four sample files are seeded in the background after registration, one
+    // after another (the spreadsheet last, 76825 bytes). One landing between the
+    // two measurements below shifts the counter by its own size and hides the
+    // delete (observed: -69883 = 6942 - 76825). Wait for the whole set, then for
+    // the counter to agree with the files actually in My Documents.
+    await expect(async () => {
+      const { data: myData } = await ownerApi.folders.getMyFolder({});
+      const samples = (myData.response?.files ?? [])
+        .map((file) => file.title ?? "")
+        .filter((title) => /^ONLYOFFICE .+ Sample\./.test(title));
+      expect(
+        samples,
+        "all four sample files are seeded before the baseline is taken",
+      ).toHaveLength(4);
+    }).toPass({ intervals: [500, 1_000, 2_000], timeout: 60_000 });
+    await waitForUsedSpaceToMatchFiles(ownerApi);
+
     const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
     const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
 
@@ -9749,6 +9769,11 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
       createFileJsonElement: { title: "Autotest Metadata Read" },
     });
     const fileId = fileData.response!.id!;
+
+    // The counter trails the file list (sample documents are credited late), so a
+    // baseline taken at once can sit below the real total and "drift" with no read
+    // involved. Measure only once it agrees with the files actually in My Documents.
+    await waitForUsedSpaceToMatchFiles(ownerApi);
 
     const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
     const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
@@ -9818,6 +9843,18 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space statisti
       createFileJsonElement: { title: "Autotest Rename Before" },
     });
     const fileId = fileData.response!.id!;
+
+    // Sample files are seeded after registration and inflate the counter. Wait for
+    // all four to be listed (proof the seeding has finished, not just paused),
+    // then for the counter to agree with the real sum of file sizes
+    await expect(async () => {
+      const { data: my } = await ownerApi.folders.getMyFolder({});
+      const samples = (my.response!.files ?? []).filter((f) =>
+        /^ONLYOFFICE .* Sample\./.test(f.title ?? ""),
+      );
+      expect(samples).toHaveLength(4);
+    }).toPass({ intervals: [1_000, 2_000], timeout: 30_000 });
+    await waitForUsedSpaceToMatchFiles(ownerApi);
 
     const { data: beforeData } = await ownerApi.folders.getFilesUsedSpace();
     const spaceBefore = beforeData.response!.myDocumentsUsedSpace!.usedSpace!;
