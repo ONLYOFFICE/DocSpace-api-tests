@@ -15,7 +15,7 @@ import type { Role } from "@/src/services/token-store";
 // authorization check and may be fixed independently of the other:
 // - BUG 84580: missing CanCreateAsync - creates a file in a room the caller
 //   is not a member of;
-// - BUG YYYYY: missing CanEditAsync - overwrites an existing file the caller
+// - BUG 84582: missing CanEditAsync - overwrites an existing file the caller
 //   cannot read/edit, keeping its real title and extension (only the version
 //   is bumped), so the response discloses the file's real title/creator/root
 //   folder even though the caller supplied a different, wrong title in the
@@ -138,7 +138,7 @@ test.describe("GET+POST /ChunkedUploader.ashx - broken access control", () => {
   );
 
   test.fail(
-    "BUG YYYYY: ChunkedUploader.ashx - missing CanEditAsync check lets an attacker overwrite any file and discloses its real title/creator",
+    "BUG 84582: ChunkedUploader.ashx - missing CanEditAsync check lets an attacker overwrite any file and discloses its real title/creator",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
