@@ -174,3 +174,128 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - access control"
     expect(status).toBe(403);
   });
 });
+
+test.describe("PUT /api/2.0/settings/whitelabel/logos/restore - access control", () => {
+  test("User (non-admin) cannot restore the white label logos", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.rebranding.restoreWhiteLabelLogos();
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("POST /api/2.0/settings/whitelabel/logos/save - access control", () => {
+  test("User (non-admin) is refused before the plan check is even reached", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.rebranding.saveWhiteLabelSettings({
+      whiteLabelRequestsDto: { logo: [] },
+    });
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("POST /api/2.0/settings/whitelabel/logos/savefromfiles - access control", () => {
+  test("User (non-admin) is refused before the plan check is even reached", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } =
+      await userApi.rebranding.saveWhiteLabelSettingsFromFiles();
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("POST /api/2.0/settings/rebranding/company - access control", () => {
+  test("User (non-admin) cannot save the company white label settings", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } = await userApi.rebranding.saveCompanyWhiteLabelSettings({
+      companyWhiteLabelSettingsWrapper: {
+        settings: {
+          companyName: "Autotest Co",
+          site: "https://example.com",
+          email: "autotest@example.com",
+          address: "Autotest address",
+          phone: "+10000000000",
+        },
+      },
+    });
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("POST /api/2.0/settings/rebranding/additional - access control", () => {
+  test("User (non-admin) cannot save the additional white label settings", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } =
+      await userApi.rebranding.saveAdditionalWhiteLabelSettings({
+        additionalWhiteLabelSettingsWrapper: {
+          settings: {
+            startDocsEnabled: false,
+            helpCenterEnabled: false,
+            feedbackAndSupportEnabled: false,
+            userForumEnabled: false,
+            videoGuidesEnabled: false,
+            licenseAgreementsEnabled: false,
+          },
+        },
+      });
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("DELETE /api/2.0/settings/rebranding/company - access control", () => {
+  test("User (non-admin) cannot delete the company white label settings", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } =
+      await userApi.rebranding.deleteCompanyWhiteLabelSettings();
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("DELETE /api/2.0/settings/rebranding/additional - access control", () => {
+  test("User (non-admin) cannot delete the additional white label settings", async ({
+    apiSdk,
+  }) => {
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    const { status } =
+      await userApi.rebranding.deleteAdditionalWhiteLabelSettings();
+    expect(status).toBe(403);
+  });
+});
