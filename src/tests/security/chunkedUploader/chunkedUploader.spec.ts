@@ -13,7 +13,7 @@ import type { Role } from "@/src/services/token-store";
 // entry point into the same upload machinery that was never given either
 // check - filed as two separate bugs since each is its own missing
 // authorization check and may be fixed independently of the other:
-// - BUG XXXXX: missing CanCreateAsync - creates a file in a room the caller
+// - BUG 84580: missing CanCreateAsync - creates a file in a room the caller
 //   is not a member of;
 // - BUG YYYYY: missing CanEditAsync - overwrites an existing file the caller
 //   cannot read/edit, keeping its real title and extension (only the version
@@ -91,7 +91,7 @@ async function uploadChunk(
 
 test.describe("GET+POST /ChunkedUploader.ashx - broken access control", () => {
   test.fail(
-    "BUG XXXXX: ChunkedUploader.ashx - missing CanCreateAsync check lets an attacker create a file in a room they are not a member of",
+    "BUG 84580: ChunkedUploader.ashx - missing CanCreateAsync check lets an attacker create a file in a room they are not a member of",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: roomData } = await ownerApi.rooms.createRoom({
