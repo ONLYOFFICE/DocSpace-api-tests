@@ -717,13 +717,13 @@ test.describe("AI Settings - per-user chat config body validation", () => {
     { label: "text/plain", contentType: "text/plain" },
     { label: "no Content-Type", contentType: null },
   ]) {
-    test(`BUG 84430: PUT /api/2.0/ai/config/user - a valid body sent as ${label} is acknowledged with 200 but not applied`, async ({
+    test(`BUG 84430: PUT /api/2.0/ai/config/user - a valid body sent as ${label} is applied, or refused — never acknowledged without effect`, async ({
       apiSdk,
     }) => {
-      // A 200 has to mean "stored". Here the body is dropped without a word:
-      // the response says success, the preference stays as it was. A 4xx (400
-      // or 415) would be fine; so would applying it. What is not fine is
-      // acknowledging a write that never happened.
+      // A 200 has to mean "stored". Until BUG 84430 was fixed the body was
+      // dropped without a word: the response said success, the preference
+      // stayed as it was. A 4xx (400 or 415) is fine; so is applying it. What
+      // is not fine is acknowledging a write that never happened.
       const ownerApi = apiSdk.forRole("owner");
       const base = apiSdk.tokenStore.portalBaseUrl;
       await writeVisible(ownerApi, true);
@@ -746,8 +746,7 @@ test.describe("AI Settings - per-user chat config body validation", () => {
 
       const after = await readVisible(ownerApi);
 
-      // Everything above is setup; only the invariant below is the bug.
-      test.fail();
+      // Everything above is setup; the invariant below is what BUG 84430 broke.
       expect(
         response.status() !== 200 || after === false,
         `PUT answered ${response.status()} but the stored value is ${after}`,

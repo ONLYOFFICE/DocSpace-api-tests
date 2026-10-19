@@ -13,9 +13,9 @@ import {
 //   * name limit is 255 characters on create, update, create-folder, rename-folder
 //     and import — 255 is stored whole, 256 is a hard 400
 //   * a text of the wrong type or a missing text is a hard 400
-//   * a name that is missing, null or not a string is a hard **500** on create,
-//     create-folder, rename-folder and update — while the sibling field `text`
-//     answers 400 for the same kind of input. Those are the BUG 84429 tests.
+//   * a name that is missing, null or not a string is a 400 on create,
+//     create-folder, rename-folder and update, the same as the sibling field
+//     `text`. Until BUG 84429 was fixed it was a hard 500 instead.
 //   * names are unique per folder / per library **case-insensitively**, and are
 //     not trimmed — "Alpha " is a different name from "Alpha".
 //
@@ -50,7 +50,7 @@ const withField = (key: string, value: unknown) =>
 
 test.describe("AI Prompts - create: field validation", () => {
   for (const [label, value] of BAD_NAMES) {
-    test(`BUG 84429: POST /api/2.0/ai/prompts/create - a name that is ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84429: POST /api/2.0/ai/prompts/create - a name that is ${label} is a 400 and stores nothing`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -66,9 +66,6 @@ test.describe("AI Prompts - create: field validation", () => {
         "the refused call stored nothing",
       ).toEqual([]);
 
-      // `text` of the wrong type is a clean 400 on this same route (test below),
-      // so the unhandled name is the odd one out.
-      test.fail();
       expect(status).toBe(400);
     });
   }
@@ -374,7 +371,7 @@ test.describe("AI Prompts - update: field validation", () => {
   for (const [label, value] of BAD_NAMES.filter(
     ([, value]) => typeof value !== "undefined" && value !== null,
   )) {
-    test(`BUG 84429: PUT /api/2.0/ai/prompts/update - a name that is ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84429: PUT /api/2.0/ai/prompts/update - a name that is ${label} is a 400 and changes nothing`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -395,7 +392,6 @@ test.describe("AI Prompts - update: field validation", () => {
         "the refused call changed nothing",
       ).toEqual(before);
 
-      test.fail();
       expect(status).toBe(400);
     });
   }
@@ -540,7 +536,7 @@ test.describe("AI Prompt folders - field validation", () => {
     ["an object with a null name", { name: null }],
     ["an object with a numeric name", { name: 5 }],
   ] as Array<[string, unknown]>) {
-    test(`BUG 84429: POST /api/2.0/ai/prompts/create-folder - a body that is ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84429: POST /api/2.0/ai/prompts/create-folder - a body that is ${label} is a 400 and creates nothing`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -553,7 +549,6 @@ test.describe("AI Prompt folders - field validation", () => {
         "the refused call created nothing",
       ).toEqual([]);
 
-      test.fail();
       expect(status).toBe(400);
     });
   }
@@ -601,7 +596,7 @@ test.describe("AI Prompt folders - field validation", () => {
   });
 
   for (const [label, value] of BAD_NAMES) {
-    test(`BUG 84429: PUT /api/2.0/ai/prompts/rename-folder - a name that is ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84429: PUT /api/2.0/ai/prompts/rename-folder - a name that is ${label} is a 400 and changes nothing`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -619,7 +614,6 @@ test.describe("AI Prompt folders - field validation", () => {
         "the refused rename changed nothing",
       ).toEqual(before);
 
-      test.fail();
       expect(status).toBe(400);
     });
   }

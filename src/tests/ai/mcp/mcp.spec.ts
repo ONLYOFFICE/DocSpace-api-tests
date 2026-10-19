@@ -1433,7 +1433,7 @@ test.describe("MCP - a genuine two-hop tool call", () => {
 // (a repeat deny always answers with the same canned "User deny tool call"
 // result, so only the regenerated prose around it shows the replay).
 test.describe("MCP - a decision replayed on an already-resolved tool call", () => {
-  test("BUG 84283: POST /api/2.0/ai/ai/approve-tool-call - a second approve with a different result overwrites the first", async ({
+  test("BUG 84283: POST /api/2.0/ai/ai/approve-tool-call - a second approve with a different result does not overwrite the first", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1478,14 +1478,13 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
     const after = await aiChat.readMessages("owner", threadId);
     const afterReply = AiAgentChat.assistantMessages(after.data)[0];
 
-    test.fail();
     expect(
       AiAgentChat.toolCalls(afterReply)[0].result,
       "the first decision's result must survive a stale second approve",
     ).toBe("14C and sunny");
   });
 
-  test("BUG 84285: POST /api/2.0/ai/ai/deny-tool-call - denying an already-approved call overwrites its result", async ({
+  test("BUG 84285: POST /api/2.0/ai/ai/deny-tool-call - denying an already-approved call does not overwrite its result", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1527,14 +1526,13 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
     const after = await aiChat.readMessages("owner", threadId);
     const afterReply = AiAgentChat.assistantMessages(after.data)[0];
 
-    test.fail();
     expect(
       AiAgentChat.toolCalls(afterReply)[0].result,
       "an approved result must survive a stale deny",
     ).toBe("14C and sunny");
   });
 
-  test("BUG 84287: POST /api/2.0/ai/ai/approve-tool-call - approving an already-denied call overwrites its result", async ({
+  test("BUG 84287: POST /api/2.0/ai/ai/approve-tool-call - approving an already-denied call does not overwrite its result", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1578,14 +1576,13 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
     const after = await aiChat.readMessages("owner", threadId);
     const afterReply = AiAgentChat.assistantMessages(after.data)[0];
 
-    test.fail();
     expect(
       AiAgentChat.toolCalls(afterReply)[0].result,
       "a denial must survive a stale approve",
     ).toBe("User deny tool call");
   });
 
-  test("BUG 84288: POST /api/2.0/ai/ai/deny-tool-call - a second deny regenerates the follow-up text even though the result is unchanged", async ({
+  test("BUG 84288: POST /api/2.0/ai/ai/deny-tool-call - a second deny does not regenerate the follow-up text", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1626,10 +1623,9 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
     const afterReply = AiAgentChat.assistantMessages(after.data)[0];
 
     // The canned deny result reads the same both times, so it cannot tell a
-    // replay apart from a true no-op here — the generated prose around it can:
-    // measured live across 3 runs, a repeat deny always re-answers with
+    // replay apart from a true no-op here — the generated prose around it can.
+    // Until BUG 84288 was fixed a repeat deny always re-answered with
     // differently-worded text even though nothing about the situation changed.
-    test.fail();
     expect(
       AiAgentChat.messageText(afterReply),
       "an already-denied call must not trigger a fresh generation on a repeat deny",
@@ -1644,7 +1640,7 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
   // asserted as a real, reassuring fact before `test.fail()` — it is what
   // keeps this a "wrong message got rewritten" bug rather than a "the whole
   // thread can be rolled back" one.
-  test("BUG 84291: POST /api/2.0/ai/ai/approve-tool-call - a stale approve reaches back into an earlier, already-superseded message", async ({
+  test("BUG 84291: POST /api/2.0/ai/ai/approve-tool-call - a stale approve does not reach back into an earlier, already-superseded message", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1717,7 +1713,6 @@ test.describe("MCP - a decision replayed on an already-resolved tool call", () =
     );
 
     const finalFirstReply = AiAgentChat.assistantMessages(final.data)[0];
-    test.fail();
     expect(
       AiAgentChat.toolCalls(finalFirstReply)[0]?.result,
       "a message that is no longer the thread's last turn must not be reopened by a stale decision on it",
@@ -2420,11 +2415,10 @@ test.describe("MCP - always-allow drives the pause", () => {
     expect(isSet.status).toBe(200);
     expect(isSet.data).toBe(true);
 
-    // The settings route files the grant as "host_get_weather" (the read agrees),
-    // but the engine looks a client tool up under the bare name the model called
-    // it by, so the dialog still comes up. The dialog's own checkbox writes the
-    // bare name and does work — see the next test.
-    test.fail();
+    // The settings route files the grant as "host_get_weather" (the read agrees).
+    // Until BUG 84292 was fixed the engine looked a client tool up under the bare
+    // name the model called it by, so the dialog still came up. The dialog's own
+    // checkbox writes the bare name — see the next test.
     expect(await askAndGetAutoAllow("after"), "after allow-always").toBe(true);
 
     const unset = await aiTools.setAllowAlways("owner", {

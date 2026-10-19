@@ -20,15 +20,16 @@ import {
 //   * soft refusals (unsupported version, a prompt pointing at a folder the
 //     bundle does not have, a name collision on merge) are atomic in both modes —
 //     tested here as plain passing tests
-//   * a bundle the validator refuses with a hard 400 is **not**: in `replace` the
-//     library is deleted first and then the bundle fails, leaving it empty (or
-//     holding only the entries before the bad one); in `merge` the entries before
-//     the bad one are kept — BUG XXXXX tests
-//   * a bundle with the wrong shape (no `folders`, no bundle at all) is a 500 —
-//     BUG XXXXX tests
+//   * a bundle the validator refuses with a hard 400 is atomic too. Until
+//     BUG 84421 / BUG 84422 were fixed it was not: in `replace` the library was
+//     deleted first and then the bundle failed, leaving it empty (or holding
+//     only the entries before the bad one); in `merge` the entries before the
+//     bad one were kept
+//   * a bundle with the wrong shape (no `folders`, no bundle at all) is a 400.
+//     Until BUG 84423 was fixed it was a 500
 //   * two prompts of one name in a `replace` bundle, and two folders of one name
-//     in any bundle, are written as duplicates although create / rename / merge
-//     refuse exactly that — BUG XXXXX tests
+//     in any bundle, are refused like create / rename / merge refuse them. Until
+//     BUG 84424 / BUG 84425 were fixed both were written as duplicates
 //
 // Not pinned, because the SDK does not say: what an import without `options`
 // does (it behaves as `replace` today), and what an unknown `mode` does (it
@@ -416,7 +417,7 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
     ],
   );
 
-  test("BUG 84421: POST /api/2.0/ai/prompts/import-bundle - mode merge: an invalid entry after a valid one is a 400 but the valid one stays written", async ({
+  test("BUG 84421: POST /api/2.0/ai/prompts/import-bundle - mode merge: an invalid entry after a valid one is a 400 and nothing is written", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -432,7 +433,6 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
     expect(data?.success).not.toBe(true);
 
     // "a corrupt bundle is rejected whole rather than applied halfway".
-    test.fail();
     expect(await prompts.snapshot("owner")).toEqual(before);
   });
 
@@ -443,7 +443,7 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
   ];
 
   for (const [label, bundle] of REPLACE_REFUSALS) {
-    test(`BUG 84422: POST /api/2.0/ai/prompts/import-bundle - mode replace: ${label} is a 400 but the existing library has already been deleted`, async ({
+    test(`BUG 84422: POST /api/2.0/ai/prompts/import-bundle - mode replace: ${label} is a 400 and the existing library is kept`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -464,7 +464,6 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
 
       // `replace` is documented as destructive, but a refused bundle must not
       // have destroyed anything.
-      test.fail();
       expect(await prompts.snapshot("owner")).toEqual(before);
     });
   }
@@ -491,7 +490,7 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
   ];
 
   for (const [label, body] of MALFORMED) {
-    test(`BUG 84423: POST /api/2.0/ai/prompts/import-bundle - ${label} answers 500, not a 400 validation error`, async ({
+    test(`BUG 84423: POST /api/2.0/ai/prompts/import-bundle - ${label} is a 400 and writes nothing`, async ({
       apiSdk,
       paymentsApi,
     }) => {
@@ -508,14 +507,13 @@ test.describe("AI Prompts - import validation (hard 400)", () => {
         before,
       );
 
-      test.fail();
       expect(status).toBe(400);
     });
   }
 });
 
 test.describe("AI Prompts - import must not bypass the name rules", () => {
-  test("BUG 84424: POST /api/2.0/ai/prompts/import-bundle - mode replace: two prompts of one name in the bundle are written as duplicates", async ({
+  test("BUG 84424: POST /api/2.0/ai/prompts/import-bundle - mode replace: two prompts of one name in the bundle are not written as duplicates", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -537,13 +535,12 @@ test.describe("AI Prompts - import must not bypass the name rules", () => {
     const names = (await prompts.snapshot("owner")).prompts.map((prompt) =>
       String(prompt.name).toLowerCase(),
     );
-    test.fail();
     expect(new Set(names).size, "prompt names in the library").toBe(
       names.length,
     );
   });
 
-  test("BUG 84425: POST /api/2.0/ai/prompts/import-bundle - mode merge: two folders of one name in the bundle are written as duplicates", async ({
+  test("BUG 84425: POST /api/2.0/ai/prompts/import-bundle - mode merge: two folders of one name in the bundle are not written as duplicates", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -564,7 +561,6 @@ test.describe("AI Prompts - import must not bypass the name rules", () => {
     const names = (await prompts.snapshot("owner")).folders.map((folder) =>
       String(folder.name).toLowerCase(),
     );
-    test.fail();
     expect(new Set(names).size, "folder names in the library").toBe(
       names.length,
     );
