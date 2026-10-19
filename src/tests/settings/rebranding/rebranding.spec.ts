@@ -13,6 +13,13 @@ import { test } from "@/src/fixtures/index";
 //   the call is refused").
 // The restore operations (logos/logotext) are gated by neither and succeed
 // here as Owner.
+//
+// Confirmed live: `paymentsApi.setupPayment()` (the same helper AI tests use
+// to unlock their own paid features) also flips this portal's plan to one
+// that includes branding - `GET /settings/enablewhitelabel` goes from false
+// to true, and the three payment-gated save calls succeed. The SaaS
+// space-access gate above is independent of this and stays refused either
+// way, confirmed live too.
 
 test.describe("GET /api/2.0/settings/enablewhitelabel", () => {
   test("Owner checks whether branding is available", async ({ apiSdk }) => {
@@ -186,6 +193,27 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - Save the white 
 
     expect(status).toBe(402);
   });
+
+  test("Owner saves a custom wordmark once the plan includes branding", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { status } = await ownerApi.rebranding.saveWhiteLabelLogoText({
+      whiteLabelRequestsDto: { logoText: "Autotest Brand" },
+    });
+    expect(status).toBe(200);
+
+    const { data: readBack } =
+      await ownerApi.rebranding.getWhiteLabelLogoText();
+    expect(readBack.response).toBe("Autotest Brand");
+
+    const { data: isDefault } =
+      await ownerApi.rebranding.getIsDefaultWhiteLabelLogoText();
+    expect(isDefault.response?.default).toBe(false);
+  });
 });
 
 test.describe("POST /api/2.0/settings/whitelabel/logos/save - Save the white label logos", () => {
@@ -200,6 +228,32 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/save - Save the white lab
 
     expect(status).toBe(402);
   });
+
+  test("Owner saves a custom logo once the plan includes branding", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    // A 1x1 PNG - the endpoint only cares that it decodes as an image.
+    const tinyPng =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+    const { status } = await ownerApi.rebranding.saveWhiteLabelSettings({
+      whiteLabelRequestsDto: {
+        logo: [{ key: "1", value: { light: tinyPng } }],
+      },
+    });
+    expect(status).toBe(200);
+
+    const { data: isDefaultLogos } =
+      await ownerApi.rebranding.getIsDefaultWhiteLabelLogos();
+    const savedSlot = isDefaultLogos.response!.find(
+      (l) => l.name === "LightSmall",
+    );
+    expect(savedSlot?.default).toBe(false);
+  });
 });
 
 test.describe("POST /api/2.0/settings/whitelabel/logos/savefromfiles - Save the logos from files", () => {
@@ -211,6 +265,47 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/savefromfiles - Save the 
       .rebranding.saveWhiteLabelSettingsFromFiles();
 
     expect(status).toBe(403);
+  });
+
+  test("Owner saves a logo from an uploaded file once the plan includes branding", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    // Not callable through the typed SDK method (it takes no body param for
+    // the actual multipart payload) - same raw-axios pattern as uploadFileToFolder.
+    const pngBytes = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    const formData = new FormData();
+    formData.append(
+      "1.png",
+      new Blob([new Uint8Array(pngBytes)], { type: "image/png" }),
+      "1.png",
+    );
+
+    const axiosInstance = apiSdk.createAxiosInstance();
+    const response = await axiosInstance.post(
+      `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/settings/whitelabel/logos/savefromfiles`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+          Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+        },
+      },
+    );
+    expect(response.status).toBe(200);
+
+    const { data: isDefaultLogos } = await apiSdk
+      .forRole("owner")
+      .rebranding.getIsDefaultWhiteLabelLogos();
+    const savedSlot = isDefaultLogos.response!.find(
+      (l) => l.name === "LightSmall",
+    );
+    expect(savedSlot?.default).toBe(false);
   });
 });
 
