@@ -231,7 +231,7 @@ test.describe("AI Prompts - content validation", () => {
         name,
         text: "Body",
       });
-      expect(status, `name ${JSON.stringify(name)}`).toBe(200);
+      expect(status, `name ${JSON.stringify(name)}`).toBe(400);
       expect(data?.success).toBe(false);
       expect(data?.error?.message).toBe("Name is required");
     }
@@ -398,7 +398,7 @@ test.describe("AI Prompts - content validation", () => {
         text: "Body",
         folderId,
       });
-      expect(status, `folderId ${folderId}`).toBe(200);
+      expect(status, `folderId ${folderId}`).toBe(404);
       expect(data?.success).toBe(false);
       expect(data?.error?.message).toBe(`Folder not found: ${folderId}`);
     }
@@ -421,7 +421,7 @@ test.describe("AI Prompts - content validation", () => {
       updates: { name: "Autotest renamed" },
     });
 
-    expect(status).toBe(200);
+    expect(status).toBe(404);
     expect(data?.success).toBe(false);
     expect(data?.error?.message).toBe(`Prompt not found: ${unknown}`);
   });
@@ -704,7 +704,7 @@ test.describe("AI Prompts - export and import", () => {
       },
       options: { mode: "merge" },
     });
-    expect(status).toBe(200);
+    expect(status).toBe(409);
 
     // Control: `create` still refuses a duplicate name, so the library really has
     // a uniqueness rule for the import to report against — the silence below is
@@ -926,7 +926,7 @@ test.describe("AI Prompt folders - validation", () => {
 
     for (const name of ["", "   "]) {
       const { status, data } = await prompts.createFolder("owner", name);
-      expect(status, `name ${JSON.stringify(name)}`).toBe(200);
+      expect(status, `name ${JSON.stringify(name)}`).toBe(400);
       expect(data?.success).toBe(false);
       expect(data?.error?.message).toBe("Name is required");
     }
@@ -1026,7 +1026,7 @@ test.describe("AI Prompt folders - validation", () => {
         id: folderId,
         name,
       });
-      expect(status, `name ${JSON.stringify(name)}`).toBe(200);
+      expect(status, `name ${JSON.stringify(name)}`).toBe(400);
       expect(data?.success).toBe(false);
       expect(data?.error?.message).toBe("Name is required");
     }
@@ -1122,7 +1122,7 @@ test.describe("AI Prompt folders - validation", () => {
       name: "Autotest renamed",
     });
 
-    expect(status).toBe(200);
+    expect(status).toBe(404);
     expect(data?.success).toBe(false);
     expect(data?.error?.message).toBe(`Folder not found: ${unknown}`);
   });
@@ -1224,7 +1224,7 @@ test.describe("AI Prompt folders - moving prompts", () => {
       id: promptId,
       folderId: unknown,
     });
-    expect(status).toBe(200);
+    expect(status).toBe(404);
     expect(data?.success).toBe(false);
     expect(data?.error?.message).toBe(`Folder not found: ${unknown}`);
 
@@ -1249,7 +1249,7 @@ test.describe("AI Prompt folders - moving prompts", () => {
       id: unknown,
       folderId,
     });
-    expect(status).toBe(200);
+    expect(status).toBe(404);
     expect(data?.success).toBe(false);
     expect(data?.error?.message).toBe(`Prompt not found: ${unknown}`);
   });

@@ -331,7 +331,7 @@ test.describe("AI Prompts - update: field validation", () => {
         id: promptId,
         updates: { name },
       });
-      expect.soft(status, `name ${JSON.stringify(name)}`).toBe(200);
+      expect.soft(status, `name ${JSON.stringify(name)}`).toBe(400);
       expect.soft(data?.success, `name ${JSON.stringify(name)}`).toBe(false);
       expect
         .soft(data?.error?.message, `name ${JSON.stringify(name)}`)
@@ -444,7 +444,7 @@ test.describe("AI Prompts - update: field validation", () => {
         id: promptId,
         updates: { folderId: target, name: "Autotest renamed too" },
       });
-      expect.soft(status, `folderId ${target}`).toBe(200);
+      expect.soft(status, `folderId ${target}`).toBe(404);
       expect.soft(data?.success, `folderId ${target}`).toBe(false);
       expect
         .soft(data?.error?.message, `folderId ${target}`)
@@ -700,7 +700,7 @@ test.describe("AI Prompt folders - field validation", () => {
 });
 
 test.describe("AI Prompts - move and delete: id validation", () => {
-  test("PUT /api/2.0/ai/prompts/move - a missing or malformed prompt id is a 400, an unknown folder id is refused softly", async ({
+  test("PUT /api/2.0/ai/prompts/move - a missing or malformed prompt id is a 400, an unknown folder id is a 404", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -728,7 +728,7 @@ test.describe("AI Prompts - move and delete: id validation", () => {
         id: promptId,
         folderId: target,
       });
-      expect.soft(status, `folderId ${JSON.stringify(target)}`).toBe(200);
+      expect.soft(status, `folderId ${JSON.stringify(target)}`).toBe(404);
       expect
         .soft(data?.success, `folderId ${JSON.stringify(target)}`)
         .toBe(false);

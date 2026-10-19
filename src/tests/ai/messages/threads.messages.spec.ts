@@ -963,9 +963,9 @@ test.describe("DELETE /api/2.0/ai/threads/delete-message - ThreadsApi.aiThreadsD
     await expectState("without the last", ["b", "d"]);
 
     expect(
-      (await ctx.api.aiThreadsGetMessageById({ messageId: ids[0] })).data,
+      (await ctx.api.aiThreadsGetMessageById({ messageId: ids[0] })).status,
       "a deleted message is no longer served",
-    ).toBeNull();
+    ).toBe(404);
     expect(
       textOf(
         (await ctx.api.aiThreadsGetMessageById({ messageId: ids[1] })).data,

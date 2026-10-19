@@ -17,9 +17,11 @@ import {
 // before writing".
 //
 // Measured 2026-10-08, against that promise:
-//   * soft refusals (unsupported version, a prompt pointing at a folder the
-//     bundle does not have, a name collision on merge) are atomic in both modes —
-//     tested here as plain passing tests
+//   * refusals that report per entry (unsupported version, a prompt pointing at
+//     a folder the bundle does not have, a name collision on merge) are atomic
+//     in both modes. They used to answer 200 `{success:false}`; measured
+//     2026-10-19 they answer 400, except a collision with a name the library
+//     already holds, which is 409 on merge and no collision at all on replace
 //   * a bundle the validator refuses with a hard 400 is atomic too. Until
 //     BUG 84421 / BUG 84422 were fixed it was not: in `replace` the library was
 //     deleted first and then the bundle failed, leaving it empty (or holding
@@ -157,7 +159,7 @@ test.describe("AI Prompts - export/import round trip", () => {
       options: { mode: "merge" },
     });
 
-    expect(status).toBe(200);
+    expect(status).toBe(409);
     expect(data?.success).toBe(false);
     expect(
       data?.errors?.map((error) => error.ref).sort(),
@@ -276,7 +278,7 @@ test.describe("AI Prompts - import merge keeps what is there", () => {
   });
 });
 
-test.describe("AI Prompts - import is refused whole (soft refusals)", () => {
+test.describe("AI Prompts - import is refused whole (per-entry reports)", () => {
   const SOFT_REFUSALS: Array<[string, Bundle, string]> = [
     [
       "a bundle version of 0",
@@ -325,7 +327,7 @@ test.describe("AI Prompts - import is refused whole (soft refusals)", () => {
           bundle,
           options: { mode },
         });
-        expect.soft(status, label).toBe(200);
+        expect.soft(status, label).toBe(400);
         expect.soft(data?.success, label).toBe(false);
         expect.soft(data?.imported, label).toBeUndefined();
         expect
@@ -358,10 +360,10 @@ test.describe("AI Prompts - import is refused whole (soft refusals)", () => {
       options: { mode: "merge" },
     });
 
-    expect(status).toBe(200);
+    expect(status).toBe(400);
     expect(data?.success).toBe(false);
     expect(data?.errors?.[0]?.error?.message).toBe(
-      "Prompt name already exists in this folder",
+      "The bundle holds two prompts of this name in one folder",
     );
     expect(await prompts.snapshot("owner")).toEqual(before);
   });

@@ -729,7 +729,7 @@ const TOOL_CALL_BODY = {
 };
 
 test.describe("MCP - tool-call confirmation validation", () => {
-  test("POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - a confirmation for a message that has no tool call is accepted with an empty body", async ({
+  test("POST /api/2.0/ai/ai/approve-tool-call, deny-tool-call - a confirmation for a message that has no tool call is refused with 409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -769,8 +769,11 @@ test.describe("MCP - tool-call confirmation validation", () => {
       entityId: String(agentId),
       profileId: profile.id,
     });
-    expect(approve.status).toBe(200);
-    expect(approve.text.trim(), "approve answers with an empty body").toBe("");
+    expect(approve.status).toBe(409);
+    expect(approve.text, "approve names the message").toContain(messageId);
+    expect(approve.text, "approve names the index").toContain(
+      "has no tool call at index 0",
+    );
 
     const deny = await aiChat.denyToolCall("owner", {
       ...TOOL_CALL_BODY,
@@ -779,8 +782,11 @@ test.describe("MCP - tool-call confirmation validation", () => {
       entityId: String(agentId),
       profileId: profile.id,
     });
-    expect(deny.status).toBe(200);
-    expect(deny.text.trim(), "deny answers with an empty body").toBe("");
+    expect(deny.status).toBe(409);
+    expect(deny.text, "deny names the message").toContain(messageId);
+    expect(deny.text, "deny names the index").toContain(
+      "has no tool call at index 0",
+    );
 
     // Neither decision invented a tool result or a reply in the thread.
     const messages = await aiChat.readMessages("owner", threadId);
@@ -788,7 +794,7 @@ test.describe("MCP - tool-call confirmation validation", () => {
     expect(AiAgentChat.assistantMessages(messages.data)).toEqual([]);
   });
 
-  test("POST /api/2.0/ai/ai/approve-tool-call - an unknown message id and an out-of-range index are accepted too", async ({
+  test("POST /api/2.0/ai/ai/approve-tool-call - an unknown message id and an out-of-range index are refused with 409", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -814,8 +820,9 @@ test.describe("MCP - tool-call confirmation validation", () => {
     });
 
     // Section 16.1's "Allow of a non-existent request id": there is no request id
-    // in this API — the (messageId, idx) pair is the identity — and neither half
-    // of it is checked.
+    // in this API — the (messageId, idx) pair is the identity. The message half
+    // is checked first, so all three cases answer "not found" rather than
+    // anything about the index.
     const cases: Array<[string, Record<string, unknown>]> = [
       [
         "an unknown message id",
@@ -839,7 +846,7 @@ test.describe("MCP - tool-call confirmation validation", () => {
         profileId: profile.id,
         ...override,
       });
-      expect(status, `approve with ${label}`).toBe(200);
+      expect(status, `approve with ${label}`).toBe(409);
     }
 
     // Nothing was created for any of them.

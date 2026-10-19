@@ -1271,7 +1271,7 @@ test.describe("ToolsApi - set-allow-always, get-allow-always, is-allow-always", 
     expect(await allowedOf(aiTools, agentId)).toEqual(["docspace_delete_file"]);
   });
 
-  test("PUT /api/2.0/ai/tools/set-allow-always - falsy values (0, null) grant nothing", async ({
+  test("PUT /api/2.0/ai/tools/set-allow-always - falsy values (0, null) are a 400 and grant nothing", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -1283,13 +1283,21 @@ test.describe("ToolsApi - set-allow-always, get-allow-always, is-allow-always", 
       ["null", null],
       ["missing", undefined],
     ] as Array<[string, unknown]>) {
-      const { status } = await aiTools.raw("owner", "put", "set-allow-always", {
-        serverType: "srv",
-        toolName: `tool-${label}`,
-        ...(value === undefined ? {} : { value }),
-        entityId: String(agentId),
-      });
-      expect(status, label).toBe(200);
+      const { status, data } = await aiTools.raw(
+        "owner",
+        "put",
+        "set-allow-always",
+        {
+          serverType: "srv",
+          toolName: `tool-${label}`,
+          ...(value === undefined ? {} : { value }),
+          entityId: String(agentId),
+        },
+      );
+      expect(status, label).toBe(400);
+      expect((data as { error?: string })?.error, label).toBe(
+        "value is required and must be a boolean",
+      );
       expect(
         (
           await aiTools.isAllowAlways("owner", {
