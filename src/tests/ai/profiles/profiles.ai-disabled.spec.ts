@@ -133,7 +133,7 @@ test.describe("AI Profiles - AI Disabled", () => {
     expect(after.error, "a different gate refused this one").toBe("Forbidden");
   });
 
-  test("BUG 82810: POST /api/2.0/ai/profiles/list-provider-models - provider discovery still runs when AI access is disabled", async ({
+  test("BUG 82810: POST /api/2.0/ai/profiles/list-provider-models - provider discovery is refused when AI access is disabled", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -152,18 +152,13 @@ test.describe("AI Profiles - AI Disabled", () => {
     const gated = await profiles.getProfileById("owner", profile.id);
     expect(gated.status, "get-by-id is gated").toBe(403);
 
-    const { status, data } = await profiles.listProviderModels("owner", {
+    const { status, error } = await profiles.listProviderModels("owner", {
       providerType: "deepseek",
       baseUrl: "https://api.deepseek.com",
       apiKey: config.DEEPSEEK_API_KEY,
     });
 
-    // The portal still contacted the provider on a portal where AI is switched
-    // off, and still handed back its catalogue.
-    expect(Array.isArray(data)).toBe(true);
-    expect(data!.length).toBeGreaterThan(0);
-
-    test.fail();
+    expect(error, "the refusal body, not a model catalogue").toBe("Forbidden");
     expect(
       status,
       "provider discovery must be refused when AI access is disabled",

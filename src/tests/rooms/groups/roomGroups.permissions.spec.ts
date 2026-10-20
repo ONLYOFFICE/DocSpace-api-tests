@@ -536,73 +536,70 @@ test.describe("API room groups permissions", () => {
     // updatedBy (displayName, avatar, profileUrl), roomType; security flags are
     // all false but a stale access value is still returned. Only the title is
     // asserted here.
-    test.fail(
-      "BUG 84474: a group keeps exposing the live title of a room the member lost access to",
-      async ({ apiSdk }) => {
-        const owner = apiSdk.forRole("owner");
-        const { api, data: member } = await apiSdk.addAuthenticatedMember(
-          "owner",
-          "User",
-        );
-        const memberId = member.response!.id!;
-        const roomId = await createRoomId(owner.rooms, "Leak Before");
-        expect(
-          (
-            await owner.rooms.setRoomSecurity({
-              id: roomId,
-              roomInvitationRequest: {
-                invitations: [
-                  { id: memberId, access: FileShare.ContentCreator },
-                ],
-                notify: false,
-              },
-            })
-          ).status,
-        ).toBe(200);
-        const { id } = await createRoomGroup(api.groups, {
-          name: "Leak Group",
-          rooms: [roomId],
-        });
+    test("BUG 84474: a group keeps exposing the live title of a room the member lost access to", async ({
+      apiSdk,
+    }) => {
+      const owner = apiSdk.forRole("owner");
+      const { api, data: member } = await apiSdk.addAuthenticatedMember(
+        "owner",
+        "User",
+      );
+      const memberId = member.response!.id!;
+      const roomId = await createRoomId(owner.rooms, "Leak Before");
+      expect(
+        (
+          await owner.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: memberId, access: FileShare.ContentCreator }],
+              notify: false,
+            },
+          })
+        ).status,
+      ).toBe(200);
+      const { id } = await createRoomGroup(api.groups, {
+        name: "Leak Group",
+        rooms: [roomId],
+      });
 
-        // positive control: while access exists the member sees the room
-        const seen = await api.groups.getRoomGroupInfo({ id });
-        expect(seen.data.response!.rooms!.map((r) => r.title)).toContain(
-          "Leak Before",
-        );
+      // positive control: while access exists the member sees the room
+      const seen = await api.groups.getRoomGroupInfo({ id });
+      expect(seen.data.response!.rooms!.map((r) => r.title)).toContain(
+        "Leak Before",
+      );
 
-        // access revoked, then the owner renames the room
-        expect(
-          (
-            await owner.rooms.setRoomSecurity({
-              id: roomId,
-              roomInvitationRequest: {
-                invitations: [{ id: memberId, access: FileShare.None }],
-                notify: false,
-              },
-            })
-          ).status,
-        ).toBe(200);
-        expect(
-          (
-            await owner.rooms.updateRoom({
-              id: roomId,
-              updateRoomRequest: { title: "Leak After Revoke" },
-            })
-          ).status,
-        ).toBe(200);
-        expect((await api.rooms.getRoomInfo({ id: roomId })).status).toBe(403);
+      // access revoked, then the owner renames the room
+      expect(
+        (
+          await owner.rooms.setRoomSecurity({
+            id: roomId,
+            roomInvitationRequest: {
+              invitations: [{ id: memberId, access: FileShare.None }],
+              notify: false,
+            },
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await owner.rooms.updateRoom({
+            id: roomId,
+            updateRoomRequest: { title: "Leak After Revoke" },
+          })
+        ).status,
+      ).toBe(200);
+      expect((await api.rooms.getRoomInfo({ id: roomId })).status).toBe(403);
 
-        const info = await api.groups.getRoomGroupInfo({ id });
-        const { data: list } = await api.groups.getRoomGroups();
-        const listed = list.response!.find((g) => g.id === id)!;
-        expect(info.data.response!.rooms!.map((r) => r.title)).not.toContain(
-          "Leak After Revoke",
-        );
-        expect(listed.rooms!.map((r) => r.title)).not.toContain(
-          "Leak After Revoke",
-        );
-      },
-    );
+      const info = await api.groups.getRoomGroupInfo({ id });
+      const { data: list } = await api.groups.getRoomGroups();
+      const listed = list.response!.find((g) => g.id === id)!;
+      expect(info.data.response!.rooms!.map((r) => r.title)).not.toContain(
+        "Leak After Revoke",
+      );
+      expect(listed.rooms!.map((r) => r.title)).not.toContain(
+        "Leak After Revoke",
+      );
+    });
   });
 
   test.describe("Cross-user update", () => {

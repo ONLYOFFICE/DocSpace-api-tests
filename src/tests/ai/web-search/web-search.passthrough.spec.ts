@@ -320,7 +320,6 @@ test.describe("AI Web Search passthrough - search", () => {
       );
     }
 
-    test.fail();
     expect(
       observed,
       "a wrongly typed field is a 400 and does not leak internals",
@@ -409,7 +408,6 @@ test.describe("AI Web Search passthrough - contents", () => {
       urls: "https://example.com",
     });
 
-    test.fail();
     expect(status, `urls as a string answered ${status}: ${text}`).toBe(400);
   });
 

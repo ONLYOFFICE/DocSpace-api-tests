@@ -4875,7 +4875,6 @@ test.describe("AI Messages - one-shot inference", () => {
     const listed = await aiChat.listThreads("owner", agentId);
     expect(listed.data).toEqual([]);
 
-    test.fail();
     for (const [label, status] of results) {
       // AiAiSendRequest declares both `actionType` and `userMessage` required —
       // a caller violating that is a validation error, not a server crash.
@@ -4899,7 +4898,6 @@ test.describe("AI Messages - one-shot inference", () => {
       },
     });
 
-    test.fail();
     // AiAiSendCustomRequest declares `systemPrompt` required.
     expect(
       status,
@@ -4929,7 +4927,6 @@ test.describe("AI Messages - one-shot inference", () => {
       },
     });
 
-    test.fail();
     // AiAiSendCustomRequest declares `isStream` a boolean.
     expect(
       status,

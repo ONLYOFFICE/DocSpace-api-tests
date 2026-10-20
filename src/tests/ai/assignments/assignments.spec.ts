@@ -599,7 +599,6 @@ test.describe("AI Assignments - capability validation", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -1384,7 +1383,6 @@ test.describe("AI Assignments - resolution precedence", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -1403,7 +1401,6 @@ test.describe("AI Assignments - resolution precedence", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 

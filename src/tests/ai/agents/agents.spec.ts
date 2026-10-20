@@ -1207,23 +1207,23 @@ test.describe("PUT|DELETE /ai/agents/:id - nonexistent agent", () => {
   // check runs before the existence check on this route and not on the other
   // two. Pinned as a candidate contract gap rather than silently matched to
   // 404, since that is what was actually observed.
-  test.fail(
-    "BUG 84274: PUT /ai/agents/:id answers 403 for a non-existent agent instead of 404 like GET and DELETE do",
-    async ({ apiSdk, paymentsApi }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
+  test("BUG 84274: PUT /ai/agents/:id answers 403 for a non-existent agent instead of 404 like GET and DELETE do", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profileId = await aiChat.defaultProfileId("owner");
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
 
-      const { status } = await aiChat.updateAgent("owner", 999999999, {
-        title: "Autotest Ghost Agent",
-        profileId,
-      });
+    const { status } = await aiChat.updateAgent("owner", 999999999, {
+      title: "Autotest Ghost Agent",
+      profileId,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
   test("DELETE /ai/agents/:id - Owner deletes a non-existent agent", async ({
     apiSdk,
@@ -1313,26 +1313,26 @@ test.describe("GET /ai/agents - ordinary rooms never surface as agents", () => {
   // `internal/ai/agents/{id}` self-link. The endpoint is not scoped to
   // roomType 9 the way the rest of this surface assumes; it reads as a
   // generic "get room by id" once past whatever access check gated it.
-  test.fail(
-    "BUG 84275: GET /ai/agents/:id serves an ordinary, non-agent room's full data instead of refusing it",
-    async ({ apiSdk, paymentsApi }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
+  test("BUG 84275: GET /ai/agents/:id serves an ordinary, non-agent room's full data instead of refusing it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
 
-      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const { data: room } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: "Autotest Ordinary Room For Agent Get",
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = room.response!.id!;
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const { data: room } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Ordinary Room For Agent Get",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = room.response!.id!;
 
-      const { status } = await aiChat.getAgentInfo("owner", roomId);
+    const { status } = await aiChat.getAgentInfo("owner", roomId);
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 });
 
 test.describe("PUT /ai/agents/agentquota|resetquota - batch semantics with mixed roomIds", () => {
@@ -1341,58 +1341,58 @@ test.describe("PUT /ai/agents/agentquota|resetquota - batch semantics with mixed
   // the valid agent — it 500s with `{"error":"Internal Server Error"}`. Any of
   // "valid id updated, unknown one dropped" or "the whole batch is refused
   // with 400" would be a defensible contract; blowing up the server is not.
-  test.fail(
-    "BUG 84276: PUT /ai/agents/agentquota - a roomIds batch mixing a valid and a non-existent id answers 500",
-    async ({ apiSdk, paymentsApi }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
-      });
+  test("BUG 84276: PUT /ai/agents/agentquota - a roomIds batch mixing a valid and a non-existent id answers 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
-      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profileId = await aiChat.defaultProfileId("owner");
-      const agentId = await aiChat.createAgentId("owner", {
-        title: "Autotest Quota Mixed Ids Agent",
-        profileId,
-      });
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Quota Mixed Ids Agent",
+      profileId,
+    });
 
-      const { status } = await aiChat.updateAgentsQuota("owner", {
-        roomIds: [agentId, 999999999],
-        quota: 1048576,
-      });
+    const { status } = await aiChat.updateAgentsQuota("owner", {
+      roomIds: [agentId, 999999999],
+      quota: 1048576,
+    });
 
-      expect(status).toBe(200);
-    },
-  );
+    expect(status).toBe(200);
+  });
 
-  test.fail(
-    "BUG 84277: PUT /ai/agents/resetquota - a roomIds batch mixing a valid and a non-existent id answers 500",
-    async ({ apiSdk, paymentsApi }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      await enableAiGateway(paymentsApi, ownerApi.payment);
-      await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
-      });
+  test("BUG 84277: PUT /ai/agents/resetquota - a roomIds batch mixing a valid and a non-existent id answers 500", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    await enableAiGateway(paymentsApi, ownerApi.payment);
+    await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
+      quotaSettingsRequestsDto: { enableQuota: true, defaultQuota: 1048576 },
+    });
 
-      const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
-      const profileId = await aiChat.defaultProfileId("owner");
-      const agentId = await aiChat.createAgentId("owner", {
-        title: "Autotest Reset Quota Mixed Ids Agent",
-        profileId,
-      });
-      await aiChat.updateAgentsQuota("owner", {
-        roomIds: [agentId],
-        quota: 1048576,
-      });
+    const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
+    const profileId = await aiChat.defaultProfileId("owner");
+    const agentId = await aiChat.createAgentId("owner", {
+      title: "Autotest Reset Quota Mixed Ids Agent",
+      profileId,
+    });
+    await aiChat.updateAgentsQuota("owner", {
+      roomIds: [agentId],
+      quota: 1048576,
+    });
 
-      const { status } = await aiChat.resetAgentsQuota("owner", {
-        roomIds: [agentId, 999999999],
-      });
+    const { status } = await aiChat.resetAgentsQuota("owner", {
+      roomIds: [agentId, 999999999],
+    });
 
-      expect(status).toBe(200);
-    },
-  );
+    expect(status).toBe(200);
+  });
 });
 
 // Reported 2026-08-21: an admin disables a model via its provider toggle in AI

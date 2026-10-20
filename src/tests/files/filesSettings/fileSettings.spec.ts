@@ -3176,7 +3176,7 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - Validation", () => 
 
 test.describe("POST /api/2.0/files/settings/defaulttemplate - Upload default template", () => {
   // BUG 79837: POST /api/2.0/files/settings/defaulttemplate - Uploading template larger than 100 MB returns 400 without error message in response body
-  test.fail(
+  test(
     "BUG 79837: POST /api/2.0/files/settings/defaulttemplate - Uploading template larger than" +
       " 100 MB returns 400 with error message",
     async ({ apiSdk }) => {

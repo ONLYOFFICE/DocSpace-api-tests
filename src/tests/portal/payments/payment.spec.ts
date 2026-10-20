@@ -1683,7 +1683,6 @@ test.describe("GET /api/2.0/portal/payment/ai-model/restrictions", () => {
     });
     const get = await ownerApi.payment.getRestrictedAiModels();
 
-    test.fail();
     expect(
       put.status !== 200 || (get.data.response?.models?.length ?? 0) > 0,
       "a 200 write should actually persist — a refusal (any non-200) is an " +
@@ -2187,7 +2186,6 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
     });
     const { data: got } = await ownerApi.payment.getRestrictedAiModels();
 
-    test.fail();
     expect(
       { status, models: got.response?.models },
       "[null] should 400 like its sibling wrong-typed elements and leave the " +

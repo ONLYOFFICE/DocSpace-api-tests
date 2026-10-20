@@ -308,7 +308,6 @@ test.describe("AI Web Search - set-active-config", () => {
     await apiSdk.authenticateOwner();
     await expectNothingStored(webSearch);
 
-    test.fail();
     expect(
       [malformed.status, private_.status],
       "a Guest must be refused with 403 before the body is ever validated",
@@ -339,7 +338,6 @@ test.describe("AI Web Search - set-active-config", () => {
 
     const { status } = await webSearch.setActiveConfig("owner", {});
 
-    test.fail();
     expect(
       status,
       "set-active-config must be refused with 403 when AI access is disabled, before the body is parsed",

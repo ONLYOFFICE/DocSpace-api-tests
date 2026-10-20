@@ -645,61 +645,57 @@ test.describe("keyId handling", () => {
 
   const UNKNOWN_ID = "00000000-0000-0000-0000-000000000000";
 
-  test.fail(
-    "BUG 84482: PUT /api/2.0/keys/{keyId} - Update of a well-formed unknown keyId is a client error, not a 500",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.forRole("owner").apiKeys.updateApiKey({
-        keyId: UNKNOWN_ID,
-        updateApiKeyRequest: { name: "changed" },
-      });
+  test("BUG 84482: PUT /api/2.0/keys/{keyId} - Update of a well-formed unknown keyId is a client error, not a 500", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").apiKeys.updateApiKey({
+      keyId: UNKNOWN_ID,
+      updateApiKeyRequest: { name: "changed" },
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
-  test.fail(
-    "BUG 84483: DELETE /api/2.0/keys/{keyId} - Delete of a well-formed unknown keyId is a client error, not a 500",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.forRole("owner").apiKeys.deleteApiKey({
-        keyId: UNKNOWN_ID,
-      });
+  test("BUG 84483: DELETE /api/2.0/keys/{keyId} - Delete of a well-formed unknown keyId is a client error, not a 500", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").apiKeys.deleteApiKey({
+      keyId: UNKNOWN_ID,
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
-  test.fail(
-    "BUG 84483: DELETE /api/2.0/keys/{keyId} - Repeated delete of the same key is a client error, not a 500",
-    async ({ apiSdk }) => {
-      const owner = apiSdk.forRole("owner");
-      const key = await createKey(owner, { name: "Autotest twice" });
-      expect((await owner.apiKeys.deleteApiKey({ keyId: key.id })).status).toBe(
-        200,
-      );
+  test("BUG 84483: DELETE /api/2.0/keys/{keyId} - Repeated delete of the same key is a client error, not a 500", async ({
+    apiSdk,
+  }) => {
+    const owner = apiSdk.forRole("owner");
+    const key = await createKey(owner, { name: "Autotest twice" });
+    expect((await owner.apiKeys.deleteApiKey({ keyId: key.id })).status).toBe(
+      200,
+    );
 
-      const { status } = await owner.apiKeys.deleteApiKey({ keyId: key.id });
+    const { status } = await owner.apiKeys.deleteApiKey({ keyId: key.id });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 
-  test.fail(
-    "BUG 84482: PUT /api/2.0/keys/{keyId} - Update of an already deleted key is a client error, not a 500",
-    async ({ apiSdk }) => {
-      const owner = apiSdk.forRole("owner");
-      const key = await createKey(owner, { name: "Autotest deleted" });
-      expect((await owner.apiKeys.deleteApiKey({ keyId: key.id })).status).toBe(
-        200,
-      );
+  test("BUG 84482: PUT /api/2.0/keys/{keyId} - Update of an already deleted key is a client error, not a 500", async ({
+    apiSdk,
+  }) => {
+    const owner = apiSdk.forRole("owner");
+    const key = await createKey(owner, { name: "Autotest deleted" });
+    expect((await owner.apiKeys.deleteApiKey({ keyId: key.id })).status).toBe(
+      200,
+    );
 
-      const { status } = await owner.apiKeys.updateApiKey({
-        keyId: key.id,
-        updateApiKeyRequest: { name: "changed" },
-      });
+    const { status } = await owner.apiKeys.updateApiKey({
+      keyId: key.id,
+      updateApiKeyRequest: { name: "changed" },
+    });
 
-      expect(status).toBe(404);
-    },
-  );
+    expect(status).toBe(404);
+  });
 });
 
 test.describe("Bearer credentials that are not API keys", () => {
@@ -792,33 +788,31 @@ test.describe("Names with non-Latin characters", () => {
 });
 
 test.describe("Inconsistent or failing responses", () => {
-  test.fail(
-    "BUG 84485: PUT /api/2.0/keys/{keyId} - Whitespace-only name is rejected like it is by POST",
-    async ({ apiSdk }) => {
-      const owner = apiSdk.forRole("owner");
-      const key = await createKey(owner, { name: "Autotest original" });
+  test("BUG 84485: PUT /api/2.0/keys/{keyId} - Whitespace-only name is rejected like it is by POST", async ({
+    apiSdk,
+  }) => {
+    const owner = apiSdk.forRole("owner");
+    const key = await createKey(owner, { name: "Autotest original" });
 
-      const { status } = await owner.apiKeys.updateApiKey({
-        keyId: key.id,
-        updateApiKeyRequest: { name: "   " },
-      });
+    const { status } = await owner.apiKeys.updateApiKey({
+      keyId: key.id,
+      updateApiKeyRequest: { name: "   " },
+    });
 
-      // Side effect first: POST rejects this name, so PUT must not store it
-      expect((await findKey(owner, key.id))?.name).toBe("Autotest original");
-      expect(status).toBe(400);
-    },
-  );
+    // Side effect first: POST rejects this name, so PUT must not store it
+    expect((await findKey(owner, key.id))?.name).toBe("Autotest original");
+    expect(status).toBe(400);
+  });
 
-  test.fail(
-    "BUG 84486: GET /api/2.0/keys/@self - Regular login (not an API key) does not cause a server error",
-    async ({ apiSdk }) => {
-      const { status } = await apiSdk.forRole("owner").apiKeys.getApiKey();
+  test("BUG 84486: GET /api/2.0/keys/@self - Regular login (not an API key) does not cause a server error", async ({
+    apiSdk,
+  }) => {
+    const { status } = await apiSdk.forRole("owner").apiKeys.getApiKey();
 
-      // The operation is documented as unusable for such a session; any
-      // client error is acceptable, a 5xx never is.
-      expect(status).not.toBe(500);
-    },
-  );
+    // The operation is documented as unusable for such a session; any
+    // client error is acceptable, a 5xx never is.
+    expect(status).not.toBe(500);
+  });
 });
 
 // Companions to the "BUG ..." tests above: those assert the status and the

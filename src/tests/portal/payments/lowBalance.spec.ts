@@ -271,10 +271,6 @@ test.describe("POST /api/2.0/portal/payment/topupsettings - auto top-up bounds",
     // above), but the *relationship* between the two bounds is not checked at all:
     // an upper bound under the trigger is stored, leaving auto top-up configured to
     // refill the wallet into a state that immediately triggers another refill.
-    test.fail(
-      true,
-      "BUG 84314: topupsettings accepts upToBalance below minBalance",
-    );
 
     await paymentsApi.makeWalletTopUp();
     const ownerApi = apiSdk.forRole("owner");

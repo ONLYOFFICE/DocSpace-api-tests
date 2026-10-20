@@ -316,24 +316,23 @@ test.describe("GET /files/rooms/{id}/ai - the room's skills folder listing", () 
     return { status: res.status(), data: JSON.parse(await res.text()) };
   }
 
-  test.fail(
-    "BUG 84329: GET /files/rooms/{id}/ai - a room with no .ai folder yet returns 404 instead of an empty listing",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { data: roomData } = await ownerApi.rooms.createRoom({
-        createRoomRequestDto: {
-          title: `Autotest Skills No AI Folder ${apiSdk.faker.generateString(6)}`,
-          roomType: RoomType.CustomRoom,
-        },
-      });
-      const roomId = roomData.response!.id!;
+  test("BUG 84329: GET /files/rooms/{id}/ai - a room with no .ai folder yet returns 404 instead of an empty listing", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: `Autotest Skills No AI Folder ${apiSdk.faker.generateString(6)}`,
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
 
-      // The UI calls this on every room it opens, regardless of whether a
-      // .ai folder was ever created - most rooms never have one.
-      const { status } = await getRoomAiFolder(apiSdk, roomId);
-      expect(status).toBe(200);
-    },
-  );
+    // The UI calls this on every room it opens, regardless of whether a
+    // .ai folder was ever created - most rooms never have one.
+    const { status } = await getRoomAiFolder(apiSdk, roomId);
+    expect(status).toBe(200);
+  });
 
   test("GET /files/rooms/{id}/ai - a room with a .ai folder returns its (empty) listing", async ({
     apiSdk,
