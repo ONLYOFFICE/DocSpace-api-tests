@@ -1120,13 +1120,6 @@ test.describe("API rooms methods", () => {
     test("BUG 84476: PUT /files/rooms/:id - Update non-existent room should return 404, but API returns 403", async ({
       apiSdk,
     }) => {
-      test.fail(
-        true,
-        "BUG 84476: PUT /files/rooms/{id} with an id that does not exist answers 403 " +
-          "(the permission error) instead of 404 Item not found. Same defect class as " +
-          "BUG 81550 (archive) and BUG 81850 / 81862 (pin, reorder). When the API " +
-          "returns 404 this test reports an unexpected pass: remove test.fail.",
-      );
       const ownerApi = apiSdk.forRole("owner");
       const { data, status } = await ownerApi.rooms.updateRoom({
         id: 999999999,
@@ -8655,16 +8648,15 @@ test.describe("API rooms methods", () => {
     // whitespace-only string id blows up the thirdparty selector's regex
     // lookup (ArgumentNullException) instead of resolving to 404 like every
     // other invalid id shape above.
-    test.fail(
-      "BUG 84318: GET /files/rooms/:id/share - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes",
-      async ({ apiSdk }) => {
-        const ownerApi = apiSdk.forRole("owner");
-        const { status } = await ownerApi.rooms.getRoomSecurityInfo({
-          id: "   " as unknown as number,
-        });
-        expect(status).toBe(404);
-      },
-    );
+    test("BUG 84318: GET /files/rooms/:id/share - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes", async ({
+      apiSdk,
+    }) => {
+      const ownerApi = apiSdk.forRole("owner");
+      const { status } = await ownerApi.rooms.getRoomSecurityInfo({
+        id: "   " as unknown as number,
+      });
+      expect(status).toBe(404);
+    });
 
     // === 9. Stability / consistency ===
 
@@ -16354,65 +16346,62 @@ test.describe("PUT /files/tags - Update tag", () => {
 
   // Same envelope change as the empty-newName case above: error?.message is
   // no longer present in the 400 body for null-field validation failures.
-  test.fail(
-    "BUG 84319: PUT /files/tags - null oldName returns 400 but the error body no longer includes error.message",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 84319: PUT /files/tags - null oldName returns 400 but the error body no longer includes error.message", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.rooms.updateRoomTag({
-        updateTagRequestDto: {
-          oldName: null,
-          newName: "Autotest Null Old Name New",
-        },
-      });
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: null,
+        newName: "Autotest Null Old Name New",
+      },
+    });
 
-      expect(status).toBe(400);
-      expect((data as any).error?.message).toBeDefined();
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBeDefined();
+  });
 
-  test.fail(
-    "BUG 84319: PUT /files/tags - null newName returns 400 but the error body no longer includes error.message",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 84319: PUT /files/tags - null newName returns 400 but the error body no longer includes error.message", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      await ownerApi.rooms.createRoomTag({
-        createTagRequestDto: { name: "Autotest Null New Name" },
-      });
+    await ownerApi.rooms.createRoomTag({
+      createTagRequestDto: { name: "Autotest Null New Name" },
+    });
 
-      const { data, status } = await ownerApi.rooms.updateRoomTag({
-        updateTagRequestDto: {
-          oldName: "Autotest Null New Name",
-          newName: null,
-        },
-      });
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: "Autotest Null New Name",
+        newName: null,
+      },
+    });
 
-      expect(status).toBe(400);
-      expect((data as any).error?.message).toBeDefined();
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBeDefined();
 
-      const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
-      expect(catalog.response as unknown as string[]).toContain(
-        "Autotest Null New Name",
-      );
-    },
-  );
+    const { data: catalog } = await ownerApi.rooms.getRoomTagsInfo();
+    expect(catalog.response as unknown as string[]).toContain(
+      "Autotest Null New Name",
+    );
+  });
 
-  test.fail(
-    "BUG 84319: PUT /files/tags - Both oldName and newName null returns 400 but the error body no longer includes error.message",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 84319: PUT /files/tags - Both oldName and newName null returns 400 but the error body no longer includes error.message", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data, status } = await ownerApi.rooms.updateRoomTag({
-        updateTagRequestDto: {
-          oldName: null,
-          newName: null,
-        },
-      });
+    const { data, status } = await ownerApi.rooms.updateRoomTag({
+      updateTagRequestDto: {
+        oldName: null,
+        newName: null,
+      },
+    });
 
-      expect(status).toBe(400);
-      expect((data as any).error?.message).toBeDefined();
-    },
-  );
+    expect(status).toBe(400);
+    expect((data as any).error?.message).toBeDefined();
+  });
 
   // ── Whitespace handling ──
 
@@ -19227,17 +19216,16 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
   // Unlike other invalid id shapes above, a whitespace-only id crashes the
   // thirdparty selector's regex lookup (ArgumentNullException) instead of
   // resolving to a clean "not found".
-  test.fail(
-    "BUG 84320: DELETE /files/rooms/:id/tags - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
-      const { status } = await ownerApi.rooms.deleteRoomTags({
-        id: "   " as unknown as number,
-        batchTagsRequestDto: { names: ["X"] },
-      });
-      expect(status).toBe(404);
-    },
-  );
+  test("BUG 84320: DELETE /files/rooms/:id/tags - Whitespace-only string room id throws an unhandled exception (400) instead of resolving to 404 like other invalid id shapes", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { status } = await ownerApi.rooms.deleteRoomTags({
+      id: "   " as unknown as number,
+      batchTagsRequestDto: { names: ["X"] },
+    });
+    expect(status).toBe(404);
+  });
 
   // Note: missing room id (item 20) is enforced by the SDK route — the endpoint
   // cannot be invoked without an id, so there is no API-level test for it.

@@ -198,28 +198,27 @@ test.describe("PUT /api/2.0/apps/{id}/enabled", () => {
     });
   });
 
-  test.fail(
-    "BUG 84498: PUT /api/2.0/apps/{id}/enabled - A body without the enabled field is rejected instead of silently disabling the application",
-    async ({ apiSdk }) => {
-      const owner = apiSdk.forRole("owner");
-      const [id] = await pickApps(owner, 1);
+  test("BUG 84498: PUT /api/2.0/apps/{id}/enabled - A body without the enabled field is rejected instead of silently disabling the application", async ({
+    apiSdk,
+  }) => {
+    const owner = apiSdk.forRole("owner");
+    const [id] = await pickApps(owner, 1);
 
-      await withAppRestored(owner, id, async () => {
-        await saveEnabled(owner, id, true);
+    await withAppRestored(owner, id, async () => {
+      await saveEnabled(owner, id, true);
 
-        const { status } = await apiSdk.rawApi(
-          "owner",
-          "PUT",
-          `${appPath(id)}/enabled`,
-          { body: "{}" },
-        );
+      const { status } = await apiSdk.rawApi(
+        "owner",
+        "PUT",
+        `${appPath(id)}/enabled`,
+        { body: "{}" },
+      );
 
-        // Observed: 200 and enabled becomes false (the missing bool defaults).
-        expect((await snapshot(owner, id)).enabled).toBe(true);
-        expect(status).toBe(400);
-      });
-    },
-  );
+      // Observed: 200 and enabled becomes false (the missing bool defaults).
+      expect((await snapshot(owner, id)).enabled).toBe(true);
+      expect(status).toBe(400);
+    });
+  });
 });
 
 test.describe("PUT /api/2.0/apps/{id}/settings", () => {

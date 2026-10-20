@@ -1945,7 +1945,6 @@ test.describe("AI Web Search - permissions", () => {
     await apiSdk.authenticateOwner();
     expect((await webSearch.isConfigured("owner")).data).toBe(false);
 
-    test.fail();
     expect(
       status,
       "a Guest must be refused with 403 before the body is ever validated",
@@ -1975,7 +1974,6 @@ test.describe("AI Web Search - permissions", () => {
     await apiSdk.authenticateOwner();
     expect((await webSearch.isConfigured("owner")).data).toBe(false);
 
-    test.fail();
     expect(
       status,
       "a Guest must be refused with 403 before the body is ever parsed, even a malformed one",
@@ -2023,7 +2021,6 @@ test.describe("AI Web Search - AI Disabled", () => {
       config: { provider: "onlyoffice", key: config.EXA_API_KEY },
     });
 
-    test.fail();
     expect(
       status,
       "configure must be refused with 403 when AI access is disabled, before the body is ever validated",
@@ -2047,7 +2044,6 @@ test.describe("AI Web Search - AI Disabled", () => {
     const { status } = await webSearch.configure("owner", {});
     expect((await webSearch.isConfigured("owner")).status).toBe(403);
 
-    test.fail();
     expect(
       status,
       "configure must be refused with 403 when AI access is disabled, before the body is ever parsed, even a malformed one",

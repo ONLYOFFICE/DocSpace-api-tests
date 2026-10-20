@@ -1030,35 +1030,34 @@ test.describe("DELETE /api/2.0/files/share - Remove security info - access contr
   });
 
   // BUG 83262: DELETE /api/2.0/files/share - Guest can remove their own access to shared file
-  test.fail(
-    "BUG 83262: DELETE /api/2.0/files/share - Guest can remove their own access to shared file",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 83262: DELETE /api/2.0/files/share - Guest can remove their own access to shared file", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Remove Security File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Remove Security File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: guestData, api: guestApi } =
-        await apiSdk.addAuthenticatedMember("owner", "Guest");
-      const guestId = guestData.response!.id!;
+    const { data: guestData, api: guestApi } =
+      await apiSdk.addAuthenticatedMember("owner", "Guest");
+    const guestId = guestData.response!.id!;
 
-      await ownerApi.sharing.setFileSecurityInfo({
-        id: fileId,
-        securityInfoSimpleRequestDto: {
-          share: [{ shareTo: guestId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.sharing.setFileSecurityInfo({
+      id: fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: guestId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { status } = await guestApi.sharing.removeSecurityInfo({
-        baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
-      });
+    const { status } = await guestApi.sharing.removeSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
 
-      expect(status).toBe(200);
-    },
-  );
+    expect(status).toBe(200);
+  });
 
   test("BUG 83262: DELETE /api/2.0/files/share - User cannot remove sharing from another user file (IDOR) returns 403", async ({
     apiSdk,
@@ -1094,66 +1093,64 @@ test.describe("DELETE /api/2.0/files/share - Remove security info - access contr
   });
 
   // BUG 83262: DELETE /api/2.0/files/share - User with read access cannot remove shared file from own list (returns 403 instead of 200)
-  test.fail(
-    "BUG 83262: DELETE /api/2.0/files/share - User with read access removes shared file from own list returns 200",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 83262: DELETE /api/2.0/files/share - User with read access removes shared file from own list returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Remove Security File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Remove Security File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: userData, api: userApi } =
-        await apiSdk.addAuthenticatedMember("owner", "User");
-      const userId = userData.response!.id!;
+    const { data: userData, api: userApi } =
+      await apiSdk.addAuthenticatedMember("owner", "User");
+    const userId = userData.response!.id!;
 
-      await ownerApi.sharing.setFileSecurityInfo({
-        id: fileId,
-        securityInfoSimpleRequestDto: {
-          share: [{ shareTo: userId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.sharing.setFileSecurityInfo({
+      id: fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: userId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { status } = await userApi.sharing.removeSecurityInfo({
-        baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
-      });
+    const { status } = await userApi.sharing.removeSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
 
-      expect(status).toBe(200);
-    },
-  );
+    expect(status).toBe(200);
+  });
 
   // BUG 83262: DELETE /api/2.0/files/share - RoomAdmin with read access cannot remove shared file from own list (returns 403 instead of 200)
-  test.fail(
-    "BUG 83262: DELETE /api/2.0/files/share - RoomAdmin with read access removes shared file from own list returns 200",
-    async ({ apiSdk }) => {
-      const ownerApi = apiSdk.forRole("owner");
+  test("BUG 83262: DELETE /api/2.0/files/share - RoomAdmin with read access removes shared file from own list returns 200", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
 
-      const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest Remove Security File" },
-      });
-      const fileId = fileData.response!.id!;
+    const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
+      createFileJsonElement: { title: "Autotest Remove Security File" },
+    });
+    const fileId = fileData.response!.id!;
 
-      const { data: roomAdminData, api: roomAdminApi } =
-        await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
-      const roomAdminId = roomAdminData.response!.id!;
+    const { data: roomAdminData, api: roomAdminApi } =
+      await apiSdk.addAuthenticatedMember("owner", "RoomAdmin");
+    const roomAdminId = roomAdminData.response!.id!;
 
-      await ownerApi.sharing.setFileSecurityInfo({
-        id: fileId,
-        securityInfoSimpleRequestDto: {
-          share: [{ shareTo: roomAdminId, access: FileShare.Read }],
-          notify: false,
-        },
-      });
+    await ownerApi.sharing.setFileSecurityInfo({
+      id: fileId,
+      securityInfoSimpleRequestDto: {
+        share: [{ shareTo: roomAdminId, access: FileShare.Read }],
+        notify: false,
+      },
+    });
 
-      const { status } = await roomAdminApi.sharing.removeSecurityInfo({
-        baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
-      });
+    const { status } = await roomAdminApi.sharing.removeSecurityInfo({
+      baseBatchRequestDto: { fileIds: [fileId as unknown as object] },
+    });
 
-      expect(status).toBe(200);
-    },
-  );
+    expect(status).toBe(200);
+  });
 });
 
 test.describe("GET /api/2.0/files/file/{id}/share - Get file security info - access control", () => {

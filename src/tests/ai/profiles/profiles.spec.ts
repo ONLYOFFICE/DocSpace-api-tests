@@ -1911,7 +1911,6 @@ test.describe("AI Profiles - id boundaries on the read routes", () => {
 
     // Measured: 502 "Failed to list provider models" for both, a gateway error
     // for a profile that does not exist, which a caller cannot tell from an outage.
-    test.fail();
     expect(
       outcomes.map((outcome) => outcome.status),
       "a profile that does not exist is a 404",
@@ -1996,7 +1995,6 @@ test.describe("AI Profiles - test-connection request and response shape", () => 
     const zero = await profiles.testConnection("owner", ZERO_GUID);
 
     // Measured: an unhandled "Internal server error" for all three.
-    test.fail();
     expect(
       [bare.status, wrapped.status, zero.status],
       "a profile that does not exist is a 404",
@@ -2229,7 +2227,6 @@ test.describe("AI Profiles - list-provider-models request validation", () => {
     // Measured: 502 for every combination, in ~100 ms and without a connection:
     // the portal cannot build the outbound request, and the caller is told it
     // is the provider's fault.
-    test.fail();
     expect(outcomes, "combinations that are not a 400").toEqual([]);
   });
 });

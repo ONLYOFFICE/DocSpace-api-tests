@@ -873,7 +873,6 @@ test.describe("ToolsApi - the order of the gate and the serverType check", () =>
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const { aiTools, ownerApi, agentId } = await ownerWithServers(
       apiSdk,
       paymentsApi,
@@ -922,7 +921,6 @@ test.describe("ToolsApi - the order of the gate and the serverType check", () =>
     apiSdk,
     paymentsApi,
   }) => {
-    test.fail();
     const { aiTools, aiChat } = await ownerWithServers(apiSdk, paymentsApi);
     const { userId, userData } = await addUser(apiSdk, "Guest");
     await apiSdk.authenticateMember(userData, "Guest");

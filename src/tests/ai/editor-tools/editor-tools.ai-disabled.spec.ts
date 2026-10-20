@@ -145,7 +145,6 @@ test.describe("AI Editor Tools - AI Disabled", () => {
       arguments: args(offTitle),
     });
 
-    test.fail();
     expect(
       await folders(),
       "no folder is created while AI is off",
@@ -178,7 +177,6 @@ test.describe("AI Editor Tools - AI Disabled", () => {
     // could be read, so the victim's absence means it was deleted.
     const ids = (await listFolderFiles(owner, folderId)).map((f) => f.id);
     expect(ids).toContain(controlId);
-    test.fail();
     expect(ids, "the file survives while AI is off").toContain(fileId);
     expect(status).toBe(403);
   });

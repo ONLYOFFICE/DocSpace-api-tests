@@ -613,7 +613,6 @@ test.describe("AI Attachments - save-file", () => {
       },
     });
 
-    test.fail();
     expect(status).toBe(400);
   });
 

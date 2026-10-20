@@ -1333,7 +1333,6 @@ test.describe("AI Preferences - malformed entityId", () => {
         statuses[entityId] = (await read(preferences, entityId)).status;
       }
 
-      test.fail();
       for (const entityId of MALFORMED_ENTITY_IDS) {
         expect(statuses[entityId], `entityId ${JSON.stringify(entityId)}`).toBe(
           400,

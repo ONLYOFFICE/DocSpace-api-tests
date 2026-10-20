@@ -377,25 +377,29 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
   ];
 
   for (const { name, body } of IMAGE_INVALID_BODIES) {
-    test.fail(
-      `BUG 84414: POST images/generations - ${name} answers 500 instead of 400`,
-      async ({ apiSdk, paymentsApi }) => {
-        const { imageProfileId, imageModel } = await providePassthrough(
-          apiSdk,
-          paymentsApi,
-        );
+    test(`BUG 84414: POST images/generations - ${name} answers 500 instead of 400`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const { imageProfileId, imageModel } = await providePassthrough(
+        apiSdk,
+        paymentsApi,
+      );
 
-        const result = await postRaw(
-          apiSdk,
-          "owner",
-          imageProfileId,
-          "images",
-          body(imageModel),
-        );
+      // A body the Go decoder cannot parse at all is still answered 5xx (502 as
+      // of 2026-10-20); only the wrong-typed prompt was fixed to 400.
+      if (UNPARSEABLE_BODIES.some((b) => b.name === name)) test.fail();
 
-        expect(result.status).toBe(400);
-      },
-    );
+      const result = await postRaw(
+        apiSdk,
+        "owner",
+        imageProfileId,
+        "images",
+        body(imageModel),
+      );
+
+      expect(result.status).toBe(400);
+    });
   }
 
   test("POST images/generations - an unauthenticated request answers 401", async ({
@@ -468,25 +472,25 @@ test.describe("OpenAI passthrough - body size", () => {
       expect(gatewayMessage(result)).toBe("unknown model");
     });
 
-    test.fail(
-      `BUG 84415: POST ${endpoint} - a 31 MB body answers 500 and leaks the stack trace and the internal gateway host`,
-      async ({ apiSdk, paymentsApi }) => {
-        const { chatProfileId } = await providePassthrough(apiSdk, paymentsApi);
+    test(`BUG 84415: POST ${endpoint} - a 31 MB body answers 500 and leaks the stack trace and the internal gateway host`, async ({
+      apiSdk,
+      paymentsApi,
+    }) => {
+      const { chatProfileId } = await providePassthrough(apiSdk, paymentsApi);
 
-        const result = await postRaw(
-          apiSdk,
-          "owner",
-          chatProfileId,
-          endpoint,
-          bodyOfSize(31 * MB, "no-such-model", endpoint),
-        );
+      const result = await postRaw(
+        apiSdk,
+        "owner",
+        chatProfileId,
+        endpoint,
+        bodyOfSize(31 * MB, "no-such-model", endpoint),
+      );
 
-        // The leak first: when the status is fixed but the exception text still
-        // escapes (or the other way round) the test must not go green.
-        expectNoInternalDetails(result.text);
-        expect(result.status).toBe(413);
-      },
-    );
+      // The leak first: when the status is fixed but the exception text still
+      // escapes (or the other way round) the test must not go green.
+      expectNoInternalDetails(result.text);
+      expect(result.status).toBe(413);
+    });
   }
 });
 
@@ -496,19 +500,19 @@ test.describe("OpenAI passthrough - SDK documentation vs the gateway", () => {
   // does the opposite and demands `model`. Either the gateway should fall back to
   // the profile's model or the SDK text is wrong; if the docs get fixed instead,
   // replace this with a plain "model is required" 400 test.
-  test.fail(
-    "BUG 84416: POST chat/completions - the model is not taken from the profile although the SDK says it is",
-    async ({ apiSdk, paymentsApi }) => {
-      const { chatProfileId } = await providePassthrough(apiSdk, paymentsApi);
+  test("BUG 84416: POST chat/completions - the model is not taken from the profile although the SDK says it is", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    const { chatProfileId } = await providePassthrough(apiSdk, paymentsApi);
 
-      const result = await postRaw(apiSdk, "owner", chatProfileId, "chat", {
-        messages: [{ role: "user", content: "Reply with the word OK" }],
-        max_tokens: 16,
-      });
+    const result = await postRaw(apiSdk, "owner", chatProfileId, "chat", {
+      messages: [{ role: "user", content: "Reply with the word OK" }],
+      max_tokens: 16,
+    });
 
-      expect(result.status).toBe(200);
-    },
-  );
+    expect(result.status).toBe(200);
+  });
 
   test.fail(
     "BUG 84416: POST images/generations - the model is not taken from the profile although the SDK says it is",

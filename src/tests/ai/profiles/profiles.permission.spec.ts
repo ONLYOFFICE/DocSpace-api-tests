@@ -207,7 +207,7 @@ test.describe("AI Profiles - provider discovery permissions", () => {
     });
   }
 
-  test("BUG 82824: POST /api/2.0/ai/profiles/list-provider-models - a Guest validates a provider key and makes the portal dial an external host", async ({
+  test("BUG 82824: POST /api/2.0/ai/profiles/list-provider-models - a Guest is refused provider discovery", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -226,18 +226,19 @@ test.describe("AI Profiles - provider discovery permissions", () => {
     const blocked = await profiles.listProfiles("guest");
     expect(blocked.status, "the Guest really is blocked elsewhere").toBe(403);
 
-    const { status, data } = await profiles.listProviderModels("guest", {
+    const { status, error } = await profiles.listProviderModels("guest", {
       providerType: "deepseek",
       baseUrl: "https://api.deepseek.com",
       apiKey: config.DEEPSEEK_API_KEY,
     });
 
-    // The Guest gets a real answer from the upstream provider: the portal spent an
-    // outbound request on a Guest-supplied URL and key.
-    expect(Array.isArray(data)).toBe(true);
-    expect(data!.length).toBeGreaterThan(0);
-
-    test.fail();
+    // Until BUG 82824 was fixed the Guest got a real answer from the upstream
+    // provider — the portal spent an outbound request on a Guest-supplied URL
+    // and key. Measured 2026-10-20 the route is refused by role instead.
+    // Until BUG 82824 was fixed the Guest got a real answer from the upstream
+    // provider — the portal spent an outbound request on a Guest-supplied URL
+    // and key. Measured 2026-10-20 the route is refused by role instead.
+    expect(error, "the refusal body, not a model catalogue").toBe("Forbidden");
     expect(
       status,
       "a Guest must not reach the provider-discovery endpoint",
