@@ -145,7 +145,9 @@ test.describe("AI Attachments - route contract", () => {
       input: { title: name },
     });
     expect(titleOnly.status).toBe(400);
-    expect(titleOnly.error).toBe("input.path is required and must be a string");
+    expect(titleOnly.error).toBe(
+      "input.path is required and must be a non-empty string",
+    );
 
     const { status, data } = await attachments.saveFile("owner", {
       input: { path, content: "", type: FileType.Document },

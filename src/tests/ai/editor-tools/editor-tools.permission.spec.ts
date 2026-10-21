@@ -112,10 +112,7 @@ test.describe("AI Editor Tools - GET /list by user type", () => {
 });
 
 test.describe("AI Editor Tools - POST /call by user type", () => {
-  for (const { type, role } of [
-    ...MEMBERS,
-    { type: "Guest" as UserType, role: "guest" as AgentRole },
-  ]) {
+  for (const { type, role } of MEMBERS) {
     test(`POST /api/2.0/ai/editor-tools/call - ${role} can call a read tool`, async ({
       apiSdk,
     }) => {
@@ -132,6 +129,23 @@ test.describe("AI Editor Tools - POST /call by user type", () => {
       expect(outcome.text).toContain("Form Filling Room");
     });
   }
+
+  // A Guest used to reach the read tools like every other member; measured
+  // 2026-10-21 the whole route is closed to them by role, the same way
+  // /ai/profiles and /ai/web-search are.
+  test("POST /api/2.0/ai/editor-tools/call - a Guest cannot call even a read tool", async ({
+    apiSdk,
+  }) => {
+    const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
+    await apiSdk.addAuthenticatedMember("owner", "Guest");
+
+    const { status, error } = await api.callTool("guest", {
+      name: "get_room_types",
+    });
+
+    expect(error, "the refusal body").toBe("Forbidden");
+    expect(status).toBe(403);
+  });
 
   for (const { type, role } of MEMBERS) {
     test(`POST /api/2.0/ai/editor-tools/call - a ${role}'s tools act in the ${role}'s own My Documents`, async ({
@@ -317,8 +331,15 @@ test.describe("AI Editor Tools - entityId: a room the caller may not use is deni
       expect(fallback.isError, fallback.raw).toBe(false);
       expect(generatedFile(fallback)?.parentId).toBe(memberMy);
 
+      // The refusal used to arrive inside the tool result
+      // ("tool_not_available") with a 200 around it; measured 2026-10-21 the
+      // call is refused by role before the tool runs.
       const blocked = `Autotest blocked ${apiSdk.faker.generateString(6)}`;
-      const denied = await generate(api, role, blocked, String(roomId));
+      const denied = await api.callTool(role, {
+        name: "onlyoffice_generate_docx",
+        arguments: { fileName: blocked, description: "One short line." },
+        entityId: String(roomId),
+      });
 
       expect(
         (await listFolderFiles(memberApi, memberMy)).map((f) => f.title),
@@ -329,9 +350,8 @@ test.describe("AI Editor Tools - entityId: a room the caller may not use is deni
         "nor to the Owner's",
       ).not.toContain(`${blocked}.docx`);
       expect(await listFolderFiles(owner, roomId)).toEqual([]);
-      expect(generatedFile(denied)).toBeUndefined();
-      expect(denied.isError).toBe(true);
-      expect(denied.text).toContain("tool_not_available");
+      expect(denied.error, "the refusal body").toBe("Forbidden");
+      expect(denied.status).toBe(403);
 
       // The same refusal for a REST tool: it must not run against the member's
       // own file with the room merely ignored.
@@ -344,9 +364,10 @@ test.describe("AI Editor Tools - entityId: a room the caller may not use is deni
         arguments: { fileId: ownId },
         entityId: String(roomId),
       });
-      expect(readToolResult(rest.data?.result).text).toContain(
-        "tool_not_available",
+      expect(rest.error, "the REST tool is refused the same way").toBe(
+        "Forbidden",
       );
+      expect(rest.status).toBe(403);
       expect(
         (await listFolderFiles(memberApi, memberMy)).map((f) => f.id),
         "the member's own file survived",
@@ -479,11 +500,11 @@ test.describe("AI Editor Tools - Guest", () => {
     for (const name of GENERATOR_TOOLS) {
       const fileName = `Autotest guest ${apiSdk.faker.generateString(6)}`;
       names.push(fileName);
-      const { status, data } = await api.callTool("guest", {
+      const { status, error } = await api.callTool("guest", {
         name,
         arguments: guestGeneratorArgs(fileName),
       });
-      results.push({ name, status, outcome: readToolResult(data?.result) });
+      results.push({ name, status, error });
     }
 
     const ids = (await listFolderFiles(guestApi, roomId))
@@ -496,9 +517,12 @@ test.describe("AI Editor Tools - Guest", () => {
     for (const fileName of names) {
       expect(ownerTitles).not.toContain(fileName);
     }
+    // The refusal used to arrive inside the tool result ("tool_not_available")
+    // with a 200 around it; measured 2026-10-21 the route itself is closed to a
+    // Guest, so nothing runs at all.
     for (const r of results) {
-      expect(r.status, r.name).toBe(200);
-      expect(r.outcome.text, r.name).toContain("tool_not_available");
+      expect(r.status, r.name).toBe(403);
+      expect(r.error, r.name).toBe("Forbidden");
     }
   });
 

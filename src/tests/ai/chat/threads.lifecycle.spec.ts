@@ -517,9 +517,9 @@ test.describe("Threads - lifecycle", () => {
         .filter((_, index) => ![0, 19, 39].includes(index));
       expect(await readTexts(ctx, threadId)).toEqual(expected);
       expect(
-        (await ctx.api.aiThreadsGetMessageById({ messageId: ids[19] })).data,
+        (await ctx.api.aiThreadsGetMessageById({ messageId: ids[19] })).status,
         "a pruned message is not served",
-      ).toBeNull();
+      ).toBe(404);
     });
 
     await test.step("page the remainder back to front in sevens: every message once", async () => {
@@ -616,8 +616,8 @@ test.describe("Threads - lifecycle", () => {
           await ctx.api.aiThreadsGetMessageById({
             messageId: cleared.messageId,
           })
-        ).data,
-      ).toBeNull();
+        ).status,
+      ).toBe(404);
     });
 
     await test.step("delete takes the thread and its attachment-bearing message", async () => {
@@ -632,8 +632,8 @@ test.describe("Threads - lifecycle", () => {
           await ctx.api.aiThreadsGetMessageById({
             messageId: deleted.messageId,
           })
-        ).data,
-      ).toBeNull();
+        ).status,
+      ).toBe(404);
     });
 
     await test.step("the neighbouring thread still has its message with its attachment", async () => {

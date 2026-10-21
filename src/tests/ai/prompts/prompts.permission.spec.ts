@@ -288,7 +288,7 @@ test.describe("AI Prompts - cross-user isolation", () => {
       id: ownerPrompt,
       updates: { name: "Autotest hijacked", text: "Hijacked body" },
     });
-    expect(hijack.status).toBe(200);
+    expect(hijack.status).toBe(404);
     expect(hijack.data?.success).toBe(false);
     expect(hijack.data?.error?.message).toBe(
       `Prompt not found: ${ownerPrompt}`,
@@ -368,7 +368,7 @@ test.describe("AI Prompts - cross-user isolation", () => {
       id: ownerFolder,
       name: "Autotest hijacked",
     });
-    expect(status).toBe(200);
+    expect(status).toBe(404);
     expect(data?.success).toBe(false);
     expect(data?.error?.message).toBe(`Folder not found: ${ownerFolder}`);
 

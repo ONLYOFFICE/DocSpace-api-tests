@@ -1091,9 +1091,9 @@ test.describe("DELETE /api/2.0/ai/threads/delete - ThreadsApi.aiThreadsDelete", 
     ).toBe(404);
     expect(
       (await ctx.api.aiThreadsGetMessageById({ messageId: doomedMessage }))
-        .data,
+        .status,
       "its message is no longer served",
-    ).toBeNull();
+    ).toBe(404);
   });
 
   test("DELETE /api/2.0/ai/threads/delete - a body with no id is refused and deletes nothing", async ({
@@ -1156,7 +1156,7 @@ test.describe("DELETE /api/2.0/ai/threads/clear-messages - ThreadsApi.aiThreadsC
       expect(opened.data?.priorMessages).toEqual([]);
       for (const messageId of oldIds) {
         const read = await ctx.api.aiThreadsGetMessageById({ messageId });
-        expect(read.data, `message ${messageId} is gone`).toBeNull();
+        expect(read.status, `message ${messageId} is gone`).toBe(404);
       }
     });
 

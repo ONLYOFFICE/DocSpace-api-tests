@@ -42,6 +42,12 @@ const INVALID_PROFILE_IDS = [
 ];
 
 // Cheap bodies that only exercise the validator: no provider is ever called.
+const gatewayEnvelope = (message: string) => ({
+  code: "gateway_error",
+  message,
+  type: "bad_request",
+});
+
 const UNPARSEABLE_BODIES = [
   { name: "malformed JSON", body: "{bad json" },
   { name: "a JSON array", body: "[]" },
@@ -192,12 +198,18 @@ test.describe("POST /ai/openai/:profileId/v1/chat/completions", () => {
     body: (model: string) => unknown;
     message?: string;
   }> = [
+    // An empty `messages` is reported before the missing model: the gateway
+    // checks messages first (measured 2026-10-21).
     {
       name: "no model",
       body: () => ({ messages: [] }),
-      message: "model is required",
+      message: "messages is required",
     },
-    { name: "an empty object", body: () => ({}), message: "model is required" },
+    {
+      name: "an empty object",
+      body: () => ({}),
+      message: "messages is required",
+    },
     { name: "a null body", body: () => "null", message: "model is required" },
     {
       name: "no messages",
@@ -314,31 +326,44 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
     expect(gatewayMessage(result)).toBe("model is not an image model");
   });
 
+  // A missing or blank `prompt` is refused before the gateway is dialled, and
+  // the refusal carries OpenAI's own error shape rather than the gateway
+  // envelope (measured 2026-10-21).
+  const PROMPT_REQUIRED = {
+    message: "prompt is required and must be a non-empty string",
+    type: "invalid_request_error",
+    code: null,
+    param: null,
+  };
   const IMAGE_VALIDATION: Array<{
     name: string;
     body: (model: string) => unknown;
-    message: string;
+    error: unknown;
   }> = [
     {
       name: "no model",
       body: () => ({ prompt: "x" }),
-      message: "model is required",
+      error: gatewayEnvelope("model is required"),
     },
-    { name: "an empty object", body: () => ({}), message: "model is required" },
-    { name: "a null body", body: () => "null", message: "model is required" },
+    { name: "an empty object", body: () => ({}), error: PROMPT_REQUIRED },
+    {
+      name: "a null body",
+      body: () => "null",
+      error: gatewayEnvelope("model is required"),
+    },
     {
       name: "an empty prompt",
       body: (model) => ({ model, prompt: "" }),
-      message: "prompt is required",
+      error: PROMPT_REQUIRED,
     },
     {
       name: "an unknown model",
       body: () => ({ model: "no-such-model", prompt: "x" }),
-      message: "unknown model",
+      error: gatewayEnvelope("unknown model"),
     },
   ];
 
-  for (const { name, body, message } of IMAGE_VALIDATION) {
+  for (const { name, body, error } of IMAGE_VALIDATION) {
     test(`POST images/generations - ${name} answers 400 from the gateway`, async ({
       apiSdk,
       paymentsApi,
@@ -357,8 +382,7 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
       );
 
       expect(result.status).toBe(400);
-      expect(result.data?.error?.code).toBe("gateway_error");
-      expect(gatewayMessage(result)).toBe(message);
+      expect(result.data?.error).toEqual(error);
     });
   }
 
@@ -386,9 +410,7 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
         paymentsApi,
       );
 
-      // A body the Go decoder cannot parse at all is still answered 5xx (502 as
-      // of 2026-10-20); only the wrong-typed prompt was fixed to 400.
-      if (UNPARSEABLE_BODIES.some((b) => b.name === name)) test.fail();
+      test.fail();
 
       const result = await postRaw(
         apiSdk,

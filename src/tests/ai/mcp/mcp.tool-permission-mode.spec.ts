@@ -21,6 +21,14 @@ import { ApiSDK } from "@/src/services/api-sdk";
 import { TokenStore } from "@/src/services/token-store";
 import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
 
+/**
+ * The grant is filed under the server-prefixed key ("host_get_weather") while
+ * the engine and the dialog use the bare call name; both spellings read back as
+ * granted since BUG 84293 was fixed, so the list is matched on the suffix.
+ */
+const holdsGrantFor = (list: string[], toolName: string) =>
+  list.some((name) => name === toolName || name.endsWith(`_${toolName}`));
+
 // Whether a tool call stops for the user's approval is decided by a per-user
 // "tool permission mode" first, then by the tool's own `requireApproval` and the
 // persisted allow-always list. This file pins the setting itself and, below, how
@@ -298,7 +306,10 @@ test.describe("MCP - tool permission mode steers the approval pause", () => {
         false,
       );
       await approve(call, REQUIRES_APPROVAL, "ask, requireApproval true", true);
-      expect(await storedAllowAlways()).toContain(WEATHER_TOOL.name);
+      expect(
+        holdsGrantFor(await storedAllowAlways(), WEATHER_TOOL.name),
+        "the grant is stored",
+      ).toBe(true);
     });
 
     await test.step("a saved allow-always wins in ask", async () => {
@@ -338,7 +349,10 @@ test.describe("MCP - tool permission mode steers the approval pause", () => {
         "auto, requireApproval true",
         true,
       );
-      expect(await storedAllowAlways()).toContain(WEATHER_TOOL.name);
+      expect(
+        holdsGrantFor(await storedAllowAlways(), WEATHER_TOOL.name),
+        "the grant is stored",
+      ).toBe(true);
     });
 
     await test.step("a saved allow-always wins in auto", async () => {
@@ -382,7 +396,10 @@ test.describe("MCP - tool permission mode steers the approval pause", () => {
         true,
       );
       await approve(call, REQUIRES_APPROVAL, "allow, before saving", true);
-      expect(await storedAllowAlways()).toContain(WEATHER_TOOL.name);
+      expect(
+        holdsGrantFor(await storedAllowAlways(), WEATHER_TOOL.name),
+        "the grant is stored",
+      ).toBe(true);
       await expectAutoAllow(
         REQUIRES_APPROVAL,
         "allow, allow-always saved",
@@ -619,8 +636,11 @@ test.describe("MCP - tool permission mode and the user config", () => {
     });
 
     await test.step("saving an empty body", async () => {
+      // `chatRecommendedModelVisible` became mandatory when BUG 82725 was
+      // fixed, so an empty body is refused outright. The point of the step
+      // stands: the refused write leaves the tool permission mode alone.
       const put = await settings.setUserConfig("owner", {});
-      expect(put.status).toBe(200);
+      expect(put.status).toBe(400);
       expect((await preferences.getToolPermissionMode("owner")).data).toBe(
         "allow",
       );
