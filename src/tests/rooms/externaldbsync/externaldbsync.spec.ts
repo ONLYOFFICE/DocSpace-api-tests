@@ -119,14 +119,6 @@ test.describe("POST /files/rooms/:id/externaldbsync - start", () => {
   test("BUG 84473: Owner starting a sync with no external database configured returns 500 instead of a controlled 4xx", async ({
     apiSdk,
   }) => {
-    test.fail(
-      true,
-      "BUG 84473: POST /files/rooms/{id}/externaldbsync on a form filling room " +
-        "while the portal has no external database throws " +
-        'Microsoft.AspNetCore.Http.BadHttpRequestException ("Bad request.") from ' +
-        "FileStorageService.StartExternalDbSyncAsync and answers 500. The " +
-        "exception type is a client error, the response should be 400.",
-    );
     const roomId = await createFormRoom(apiSdk, "Autotest DbSync Start NoDb");
 
     const { status } = await apiSdk

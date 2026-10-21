@@ -785,14 +785,18 @@ test.describe("AI Preferences - deep mode is not per thread", () => {
     });
     expect(enabled?.success).toBe(true);
 
-    // A thread of that agent does not read as the agent — it reads as the
-    // portal-wide fallback, so the client has to ask for the *section*.
+    // A thread is not a scope at all any more: every deep-mode route refuses a
+    // thread id outright. It used to be accepted on the read side and resolved
+    // to the portal-wide fallback; measured 2026-10-21 reads and writes alike
+    // answer 400 and name what the field expects.
+    const SCOPE_ERROR = "entityId must be a room id (a positive integer)";
     const threadRead = await preferences.getDeepMode("owner", first);
-    expect(threadRead.status).toBe(200);
+    expect(threadRead.status, "a thread id is not a scope to read").toBe(400);
+    expect(threadRead.error).toBe(SCOPE_ERROR);
     expect(
-      threadRead.data,
-      "a thread id resolves to the portal-wide value, not the agent's",
-    ).toBe(false);
+      (await preferences.isDeepModeSet("owner", second)).status,
+      "nor on the sibling read route",
+    ).toBe(400);
 
     const threadWrite = await preferences.setDeepMode("owner", {
       value: false,
@@ -806,15 +810,15 @@ test.describe("AI Preferences - deep mode is not per thread", () => {
     ).toBe(true);
     expect((await preferences.isDeepModeSet("owner", agentId)).data).toBe(true);
     expect(
-      (await preferences.getDeepMode("owner", second)).data,
-      "the other thread of the same agent reads the same fallback",
+      (await preferences.getDeepMode("owner")).data,
+      "and the portal-wide value is untouched",
     ).toBe(false);
 
-    // BUG 84026: the refusal had regressed to a silent 200; it is a 400 again.
     expect(
       threadWrite.status,
       "a thread id is not a valid scope to write to",
     ).toBe(400);
+    expect(threadWrite.error).toBe(SCOPE_ERROR);
   });
 });
 

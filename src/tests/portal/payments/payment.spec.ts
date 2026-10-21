@@ -2245,7 +2245,10 @@ test.describe("PUT /api/2.0/portal/payment/ai-model/restrictions", () => {
     apiSdk,
     paymentsApi,
   }) => {
-    await paymentsApi.makeWalletTopUp();
+    // The write needs the AI Tools wallet service: since BUG 84316 was fixed a
+    // portal without it is refused with 403 instead of accepting a write that
+    // never persisted. The neighbouring Owner tests arrange it the same way.
+    await enableAiGateway(paymentsApi, apiSdk.forRole("owner").payment);
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
     const { data, status } = await apiSdk

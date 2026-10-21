@@ -3411,7 +3411,6 @@ test.describe("PUT /api/2.0/files/fileops/copy - copyBatchItems", () => {
       expect(destAfter.response?.files ?? []).toHaveLength(0);
       expect(destAfter.response?.folders ?? []).toHaveLength(0);
 
-      test.fail();
       expect(
         status,
         `unknown folderId answered ${status} ${JSON.stringify(data)}`,
@@ -8967,7 +8966,6 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       expect(destAfter.response?.files ?? []).toHaveLength(0);
       expect(destAfter.response?.folders ?? []).toHaveLength(0);
 
-      test.fail();
       expect(
         status,
         `unknown folderId answered ${status} ${JSON.stringify(data)}`,
@@ -9060,7 +9058,6 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       );
       expect(srcIds).not.toContain(srcFileId);
 
-      test.fail();
       expect(
         destFiles.map((f) => f.title),
         "titles in the destination after the move",

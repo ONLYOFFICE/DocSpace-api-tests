@@ -366,16 +366,16 @@ test.describe("AI Editor Tools - the tool name", () => {
     });
   }
 
-  // The SDK says an unknown or excluded name "is rejected with 400". The server
-  // does that only for a name that is not a usable string; any non-empty string it
-  // does not know is dispatched and fails inside `result` with a 200.
+  // The SDK says an unknown or excluded name "is rejected with 400", and since
+  // BUG 84394 was fixed the server does exactly that. Surrounding whitespace is
+  // trimmed before the lookup, so ` delete_file ` runs the real tool — the
+  // regular spelling rules below are what the route actually enforces.
   for (const { label, name } of [
     { label: "an unknown name", name: "no_such_tool_zz" },
     { label: "a whitespace-only name", name: "   " },
     { label: "a name in the wrong case", name: "DELETE_FILE" },
-    { label: "a name with padding", name: " delete_file " },
   ]) {
-    test(`BUG 84394: POST /api/2.0/ai/editor-tools/call - ${label} is answered 200 instead of the 400 the SDK documents`, async ({
+    test(`BUG 84394: POST /api/2.0/ai/editor-tools/call - ${label} is answered 400 as the SDK documents`, async ({
       apiSdk,
     }) => {
       const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
@@ -390,9 +390,9 @@ test.describe("AI Editor Tools - the tool name", () => {
         "tool_not_available",
       );
 
-      const { status } = await api.callTool("owner", { name });
+      const { status, error } = await api.callTool("owner", { name });
 
-      test.fail();
+      expect(error).toBe("Unknown tool name");
       expect(status).toBe(400);
     });
   }

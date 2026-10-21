@@ -162,6 +162,7 @@ const BAD_BODIES: {
   body: string;
 }[] = [
   { name: "enabled as a string", path: "enabled", body: '{"enabled":"true"}' },
+  { name: "enabled with no value", path: "enabled", body: "{}" },
   {
     name: "enabled as malformed JSON",
     path: "enabled",
@@ -177,8 +178,10 @@ const BAD_BODIES: {
 
 // Bodies that bind to the request models but would be wrong or destructive if
 // accepted: they must hit the permission check, not be applied.
+// `enabled` with no value used to bind as `false` and reach the permission
+// check; BUG 84498 made it a validation error, so it sits with the other
+// unbindable bodies now (measured 2026-10-21).
 const BINDABLE_BODIES: typeof BAD_BODIES = [
-  { name: "enabled with no value", path: "enabled", body: "{}" },
   { name: "settings with no wrapper", path: "settings", body: '{"a":5}' },
   { name: "settings: null", path: "settings", body: '{"settings":null}' },
 ];

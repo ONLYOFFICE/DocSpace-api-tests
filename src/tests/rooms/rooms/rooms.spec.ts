@@ -1980,22 +1980,22 @@ test.describe("API rooms methods", () => {
       expect(memberIds).toContain(memberId);
     });
 
-    test("PUT /files/rooms/:id - id=0 returns 403", async ({ apiSdk }) => {
+    test("PUT /files/rooms/:id - id=0 returns 404", async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { status } = await ownerApi.rooms.updateRoom({
         id: 0,
         updateRoomRequest: { title: "x" },
       });
-      expect(status).toBe(403);
+      expect(status).toBe(404);
     });
 
-    test("PUT /files/rooms/:id - id=-1 returns 403", async ({ apiSdk }) => {
+    test("PUT /files/rooms/:id - id=-1 returns 404", async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
       const { status } = await ownerApi.rooms.updateRoom({
         id: -1,
         updateRoomRequest: { title: "x" },
       });
-      expect(status).toBe(403);
+      expect(status).toBe(404);
     });
 
     test("PUT /files/rooms/:id - Non-numeric id returns 404", async ({
@@ -2043,9 +2043,11 @@ test.describe("API rooms methods", () => {
 
       const { status } = await ownerApi.rooms.updateRoom({
         id: roomId,
+        // BUG 84476 taught this route to answer 404 for a room that is not
+        // there; a deleted one is answered the same way (2026-10-21).
         updateRoomRequest: { title: "Resurrect" },
       });
-      expect(status).toBe(403);
+      expect(status).toBe(404);
 
       const { data: list } = await ownerApi.rooms.getRoomsFolder({});
       const ids = (list.response!.folders as any[]).map((f) => f.id);

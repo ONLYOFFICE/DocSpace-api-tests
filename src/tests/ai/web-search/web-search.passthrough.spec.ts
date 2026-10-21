@@ -61,6 +61,12 @@ const SEARCH_BODY = {
 
 const SECRET_FIELD = /"(key|apiKey|api_key|token|secret|authorization)"\s*:/i;
 
+const gatewayEnvelope = (message: string) => ({
+  code: "gateway_error",
+  message,
+  type: "bad_request",
+});
+
 const MEMBER_ROLES: Array<{ type: UserType; role: Role }> = [
   { type: "DocSpaceAdmin", role: "docSpaceAdmin" },
   { type: "RoomAdmin", role: "roomAdmin" },
@@ -117,9 +123,13 @@ test.describe("AI Web Search passthrough - no configuration", () => {
       contents: await webSearch.passthroughContents("owner", {}),
     });
 
+    // An empty body no longer reaches the gateway: DocSpace validates `query`
+    // and `urls` itself and answers a plain string (measured 2026-10-21).
     const on = await reaches();
     expect(on.search.status, on.search.text).toBe(400);
-    expect(on.search.data?.error?.message).toBe("engine is required");
+    expect(on.search.data?.error).toBe(
+      "query is required and must be a non-empty string",
+    );
     expect(on.contents.status, on.contents.text).toBe(400);
 
     await setAiSearchAddon(ownerApi.payment, false);
@@ -216,44 +226,48 @@ test.describe("AI Web Search passthrough - search", () => {
       ),
     );
 
-    const refused: Array<[string, unknown, string]> = [
-      ["an empty object", {}, "engine is required"],
-      ["null", null, "engine is required"],
-      ["an array", [], "engine is required"],
-      ["a string", "hello", "engine is required"],
-      ["an empty engine", { engine: "", query: "x" }, "engine is required"],
-      ["no query", { engine: "exa" }, "query is required"],
-      ["an empty query", { engine: "exa", query: "" }, "query is required"],
+    // Two layers refuse here. DocSpace validates `query`, `urls` and
+    // `numResults` itself and answers a plain string; whatever passes that is
+    // sent on, and the gateway's own refusal arrives in its envelope.
+    const QUERY_REQUIRED = "query is required and must be a non-empty string";
+    const refused: Array<[string, unknown, unknown]> = [
+      ["an empty object", {}, QUERY_REQUIRED],
+      ["null", null, QUERY_REQUIRED],
+      ["an array", [], QUERY_REQUIRED],
+      ["a string", "hello", QUERY_REQUIRED],
+      [
+        "an empty engine",
+        { engine: "", query: "x" },
+        gatewayEnvelope("engine is required"),
+      ],
+      ["no query", { engine: "exa" }, QUERY_REQUIRED],
+      ["an empty query", { engine: "exa", query: "" }, QUERY_REQUIRED],
       ...["bogus-engine", "auto", "neural", "onlyoffice", "google"].map(
-        (engine): [string, unknown, string] => [
+        (engine): [string, unknown, unknown] => [
           `engine ${engine}`,
           { engine, query: "x" },
-          "unknown engine",
+          gatewayEnvelope("unknown engine"),
         ],
       ),
       [
         "numResults 0",
         { engine: "exa", query: "x", numResults: 0 },
-        "numResults must be greater than 0",
+        "numResults must be a positive integer",
       ],
       [
         "numResults -1",
         { engine: "exa", query: "x", numResults: -1 },
-        "numResults must be greater than 0",
+        "numResults must be a positive integer",
       ],
     ];
 
-    for (const [label, body, message] of refused) {
+    for (const [label, body, error] of refused) {
       const { status, data, text } = await webSearch.passthroughSearch(
         "owner",
         body,
       );
       expect(status, `${label}: ${text}`).toBe(400);
-      expect(data?.error, label).toEqual({
-        code: "gateway_error",
-        message,
-        type: "bad_request",
-      });
+      expect(data?.error, label).toEqual(error);
     }
 
     // The control: the same route with a good body is billed, and it is the
@@ -365,28 +379,26 @@ test.describe("AI Web Search passthrough - contents", () => {
     await enableWebSearch(apiSdk, paymentsApi);
     const webSearch = new AiWebSearch(apiSdk.request, apiSdk.tokenStore);
 
-    const refused: Array<[string, unknown, string]> = [
-      ["an empty object", {}, "engine is required"],
+    const URLS_REQUIRED =
+      "urls is required and must be a non-empty array of strings";
+    const refused: Array<[string, unknown, unknown]> = [
+      ["an empty object", {}, URLS_REQUIRED],
       [
         "an unknown engine",
         { engine: "zzz", urls: ["https://example.com"] },
-        "unknown engine",
+        gatewayEnvelope("unknown engine"),
       ],
-      ["no urls", { engine: "exa" }, "urls is required"],
-      ["an empty urls list", { engine: "exa", urls: [] }, "urls is required"],
+      ["no urls", { engine: "exa" }, URLS_REQUIRED],
+      ["an empty urls list", { engine: "exa", urls: [] }, URLS_REQUIRED],
     ];
 
-    for (const [label, body, message] of refused) {
+    for (const [label, body, error] of refused) {
       const { status, data, text } = await webSearch.passthroughContents(
         "owner",
         body,
       );
       expect(status, `${label}: ${text}`).toBe(400);
-      expect(data?.error, label).toEqual({
-        code: "gateway_error",
-        message,
-        type: "bad_request",
-      });
+      expect(data?.error, label).toEqual(error);
     }
   });
 
@@ -489,7 +501,9 @@ test.describe("AI Web Search passthrough - permissions", () => {
           0,
         );
         expect(contents.status, `${type} contents: ${contents.text}`).toBe(400);
-        expect(contents.data?.error?.message, type).toBe("engine is required");
+        expect(contents.data?.error, type).toBe(
+          "urls is required and must be a non-empty array of strings",
+        );
       }
     }
   });

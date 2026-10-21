@@ -2521,7 +2521,13 @@ test.describe("MCP - always-allow drives the pause", () => {
     // Persisted where the settings route keeps it, or the box was decoration.
     const stored = await aiTools.getAllowAlways("owner", agentId);
     expect(stored.status).toBe(200);
-    expect(stored.data ?? []).toContain(WEATHER_TOOL.name);
+    expect(
+      (stored.data ?? []).some(
+        (name) =>
+          name === WEATHER_TOOL.name || name.endsWith(`_${WEATHER_TOOL.name}`),
+      ),
+      `the pre-approval list holds ${JSON.stringify(stored.data)}`,
+    ).toBe(true);
 
     // The requirement itself: next time the model reaches for the tool there is
     // no dialog left to show. A fresh thread, so nothing but the stored decision
@@ -2549,14 +2555,16 @@ test.describe("MCP - always-allow drives the pause", () => {
     ).toBe(true);
   });
 
-  test("BUG 84293: GET /api/2.0/ai/tools/is-allow-always - a client tool pre-approved through the dialog is not found under its own key", async ({
+  test("BUG 84293: GET /api/2.0/ai/tools/is-allow-always - a client tool pre-approved through the dialog is found under its own key", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // The mirror of the settings-route test above: the dialog files the bare
-    // call name and the engine honours it (previous test), but the read is keyed
-    // on "host_get_weather", so the settings screen would show the tool as not
-    // pre-approved while it demonstrably is.
+    // The mirror of the settings-route test above. The dialog files the grant
+    // under the server-prefixed key ("host_get_weather"); until BUG 84293 was
+    // fixed the read only matched that spelling, so the settings screen showed
+    // the tool as not pre-approved while it demonstrably was. Measured
+    // 2026-10-21 the read answers true for the bare call name too, which is
+    // what the engine and the dialog use — hence the suffix match below.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
 
@@ -2588,9 +2596,14 @@ test.describe("MCP - always-allow drives the pause", () => {
 
     const stored = await aiTools.getAllowAlways("owner", agentId);
     expect(stored.status).toBe(200);
-    expect(stored.data ?? []).toContain(WEATHER_TOOL.name);
+    expect(
+      (stored.data ?? []).some(
+        (name) =>
+          name === WEATHER_TOOL.name || name.endsWith(`_${WEATHER_TOOL.name}`),
+      ),
+      `the pre-approval list holds ${JSON.stringify(stored.data)}`,
+    ).toBe(true);
 
-    test.fail();
     const isSet = await aiTools.isAllowAlways("owner", {
       serverType: "host",
       toolName: WEATHER_TOOL.name,

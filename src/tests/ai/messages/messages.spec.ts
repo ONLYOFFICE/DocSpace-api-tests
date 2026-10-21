@@ -2420,7 +2420,7 @@ test.describe("AI Messages - reading one message", () => {
     expect(AiAgentChat.messageText(data!)).toBe("Autotest question");
   });
 
-  test("GET /api/2.0/ai/threads/get-message-by-id - an unknown id answers 200 null and a malformed one 400", async ({
+  test("GET /api/2.0/ai/threads/get-message-by-id - an unknown id answers 404 and a malformed one 400", async ({
     apiSdk,
     paymentsApi,
   }) => {
@@ -2434,8 +2434,10 @@ test.describe("AI Messages - reading one message", () => {
       "owner",
       "019fcc1d-478e-749f-85df-7427ca64566b",
     );
-    expect(unknown.status).toBe(200);
-    expect(unknown.data).toBeNull();
+    expect(unknown.status).toBe(404);
+    expect(unknown.error, "the refusal names what is missing").toBe(
+      "message not found",
+    );
 
     const malformed = await aiChat.getMessageById("owner", "not-a-guid");
     expect(malformed.status).toBe(400);
@@ -2543,7 +2545,9 @@ test.describe("AI Messages - deleting a message", () => {
     expect(status).toBe(200);
     expect(data?.success).toBe(true);
 
-    expect((await aiChat.getMessageById("owner", doomed)).data).toBeNull();
+    const gone = await aiChat.getMessageById("owner", doomed);
+    expect(gone.status).toBe(404);
+    expect(gone.error).toBe("message not found");
 
     const messages = await aiChat.readMessages("owner", threadId);
     expect(messages.data.map((message) => message.id)).toEqual([keeper]);
@@ -4934,14 +4938,14 @@ test.describe("AI Messages - one-shot inference", () => {
     ).toBe(400);
   });
 
-  test("POST /api/2.0/ai/ai/send - an empty userMessage is accepted, unlike send-with-stream", async ({
+  test("POST /api/2.0/ai/ai/send - an empty userMessage is refused, like send-with-stream", async ({
     apiSdk,
     paymentsApi,
   }) => {
-    // send-with-stream refuses this with 400 (BUG 82720, fixed). `send` is a
-    // separate, stateless, one-shot route, and nothing in its own contract
-    // documents the same requirement — this pins its current, looser behavior
-    // rather than assuming the sibling route's rule carries over unverified.
+    // send-with-stream refuses this with 400 (BUG 82720, fixed). `send` used to
+    // accept it — a one-shot route with a looser contract. Measured 2026-10-21
+    // the two agree: both refuse a message that carries neither text nor an
+    // attachment, and say so.
     const ownerApi = apiSdk.forRole("owner");
     await enableAiGateway(paymentsApi, ownerApi.payment);
     const aiChat = new AiAgentChat(apiSdk.request, apiSdk.tokenStore);
@@ -4958,18 +4962,20 @@ test.describe("AI Messages - one-shot inference", () => {
       entityId: String(agentId),
       userMessage: { role: "user", content: [] },
     });
-    expect(emptyArray.status).toBe(200);
-    expect(emptyArray.data?.role).toBe("assistant");
-    expect(emptyArray.data?.status?.error).toBeUndefined();
+    expect(emptyArray.status).toBe(400);
+    expect(emptyArray.error).toBe(
+      "userMessage must contain non-empty text content or an attachment",
+    );
 
     const emptyText = await aiChat.send("owner", {
       actionType: "Chat",
       entityId: String(agentId),
       userMessage: { role: "user", content: [{ type: "text", text: "" }] },
     });
-    expect(emptyText.status).toBe(200);
-    expect(emptyText.data?.role).toBe("assistant");
-    expect(emptyText.data?.status?.error).toBeUndefined();
+    expect(emptyText.status).toBe(400);
+    expect(emptyText.error).toBe(
+      "userMessage must contain non-empty text content or an attachment",
+    );
   });
 
   test("POST /api/2.0/ai/ai/send - entityId: nonexistent falls back to the portal-wide assignment, an accessible entity is used, an inaccessible one is refused", async ({
