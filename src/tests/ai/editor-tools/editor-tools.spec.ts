@@ -397,29 +397,33 @@ test.describe("AI Editor Tools - the tool name", () => {
     });
   }
 
-  test("POST /api/2.0/ai/editor-tools/call - a name that is only almost a tool's name runs nothing", async ({
+  test("POST /api/2.0/ai/editor-tools/call - the wrong case runs nothing, surrounding whitespace is trimmed and runs the tool", async ({
     apiSdk,
   }) => {
-    // Whatever status the spelling gets, it must not reach the tool. The exact
-    // name deletes a file in the same folder, which shows the file the others
-    // aimed at would have been deletable.
+    // The route looks the name up after trimming it, so padding reaches the
+    // real tool while a different case does not. Both halves are checked by
+    // what happened to the file each call aimed at, not by the status alone.
     const api = new AiEditorTools(apiSdk.request, apiSdk.tokenStore);
     const owner = apiSdk.forRole("owner");
     const folderId = await myFolderId(apiSdk);
-    const spared = await Promise.all(
-      ["DELETE_FILE", " delete_file ", "delete_file "].map((_, i) =>
-        newFile(apiSdk, `Autotest spared ${i}.docx`),
-      ),
-    );
+
+    const wrongCase = await newFile(apiSdk, "Autotest wrong case.docx");
+    const padded = await newFile(apiSdk, "Autotest padded.docx");
     const doomed = await newFile(apiSdk, "Autotest doomed.docx");
 
-    const names = ["DELETE_FILE", " delete_file ", "delete_file "];
-    for (const [i, name] of names.entries()) {
-      await api.callTool("owner", {
-        name,
-        arguments: { fileId: spared[i] },
-      });
-    }
+    const refused = await api.callTool("owner", {
+      name: "DELETE_FILE",
+      arguments: { fileId: wrongCase },
+    });
+    expect(refused.status, "a different case is not the tool's name").toBe(400);
+    expect(refused.error).toBe("Unknown tool name");
+
+    const trimmed = await api.callTool("owner", {
+      name: " delete_file ",
+      arguments: { fileId: padded },
+    });
+    expect(trimmed.status, "padding is trimmed and the tool runs").toBe(200);
+
     const exact = await call(api, {
       name: "delete_file",
       arguments: { fileId: doomed },
@@ -427,8 +431,9 @@ test.describe("AI Editor Tools - the tool name", () => {
     expect(exact.isError, exact.text).toBe(false);
 
     const ids = (await listFolderFiles(owner, folderId)).map((f) => f.id);
-    expect(ids).not.toContain(doomed);
-    for (const id of spared) expect(ids).toContain(id);
+    expect(ids, "the exact name deleted its file").not.toContain(doomed);
+    expect(ids, "and so did the padded spelling").not.toContain(padded);
+    expect(ids, "the wrong case left its file alone").toContain(wrongCase);
   });
 });
 

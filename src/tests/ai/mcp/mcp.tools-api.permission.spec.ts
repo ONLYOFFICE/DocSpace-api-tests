@@ -245,8 +245,12 @@ test.describe("ToolsApi permissions - a user who was never invited to the agent"
     ];
     const settled = await Promise.all(calls.map(([, call]) => call));
 
-    // The catalogue needs no membership, so it must answer for the PORTAL, never
-    // for the agent the caller is not in.
+    // The catalogue itself stays open to a plain User: asked without an
+    // entityId it answers 200 with an empty portal-wide set. What changed is
+    // naming an agent the caller is not in — that used to be ignored and
+    // silently served the portal set, and since 2026-10-22 it is a 403. The
+    // refusal is the stricter answer: the old one could not be told apart from
+    // "I asked the portal".
     const catalogue = await aiTools.listSystemTools("user", agentId);
 
     await apiSdk.authenticateOwner();
@@ -266,10 +270,10 @@ test.describe("ToolsApi permissions - a user who was never invited to the agent"
       expect(text, `${label}: nor a server name`).not.toContain("agent-secret");
     });
 
-    expect(catalogue.status).toBe(200);
+    expect(catalogue.status).toBe(403);
     expect(
-      Object.keys(catalogue.data?.groups ?? {}),
-      "the agent's servers are not enumerated for an outsider",
+      JSON.stringify(catalogue.data),
+      "the refusal enumerates nothing and carries no config",
     ).not.toContain("agent-secret");
     expect(JSON.stringify(catalogue.data)).not.toContain(SECRET);
   });
