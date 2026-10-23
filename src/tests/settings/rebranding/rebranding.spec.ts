@@ -430,7 +430,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/savefromfiles - Save the 
   });
 
   test.fail(
-    "BUG XXXXX: a file name with no leading numeric slot crashes with 500 instead of a validation error",
+    "BUG 84674: a file name with no leading numeric slot crashes with 500 instead of a validation error",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
 
