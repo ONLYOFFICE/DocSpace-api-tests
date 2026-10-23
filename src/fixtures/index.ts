@@ -3,6 +3,16 @@ import API from "@/src/services/api";
 import { ApiSDK } from "../services/api-sdk";
 import { PaymentApi } from "../services/payment-api";
 
+// Portals whose cleanup failed, reprinted when the worker exits.
+const orphanedPortals: string[] = [];
+
+process.on("exit", () => {
+  if (orphanedPortals.length === 0) return;
+  console.warn(
+    `ORPHANED PORTALS (${orphanedPortals.length}) left by this worker: ${orphanedPortals.join(", ")}`,
+  );
+});
+
 type TestFixtures = {
   api: API;
   apiSdk: ApiSDK;
@@ -34,8 +44,9 @@ export const test = base.extend<TestFixtures>({
       console.log(`Deleting portal: ${api.portalDomain}`);
       await api.cleanup();
     } catch (error) {
+      orphanedPortals.push(api.portalDomain);
       console.warn(
-        `Portal cleanup failed for ${api.portalDomain} — portal may be orphaned. Reason: ${error}`,
+        `ORPHANED PORTAL: cleanup failed for ${api.portalDomain}. Reason: ${error}`,
       );
     }
 

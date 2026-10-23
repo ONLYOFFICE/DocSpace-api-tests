@@ -104,6 +104,53 @@ class Apisystem {
       );
     }
   }
+
+  // A 200 from the delete endpoint only means the request was accepted: a live
+  // portal answers /api/2.0/settings with 200, a deleted one with 404.
+  async expectPortalGone(timeoutMs = 60000) {
+    const url = `${this.portalBaseUrl}/api/2.0/settings`;
+    const deadline = Date.now() + timeoutMs;
+    let last = "";
+
+    while (Date.now() < deadline) {
+      try {
+        const probe = await this.apiContext.get(url, { timeout: 15000 });
+        if (probe.status() === 404) return;
+        last = `HTTP ${probe.status()}`;
+      } catch (error) {
+        // The host no longer resolves or refuses the connection — also gone.
+        return void error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
+    throw new Error(
+      `Portal ${this.portalDomain} still answers after delete (${last}) — it was not removed`,
+    );
+  }
+
+  // A portal that was registered but never became reachable would otherwise
+  // fail later, inside whichever test ran first.
+  async expectPortalReady(timeoutMs = 60000) {
+    const url = `${this.portalBaseUrl}/api/2.0/settings`;
+    const deadline = Date.now() + timeoutMs;
+    let last = "no response";
+
+    while (Date.now() < deadline) {
+      try {
+        const probe = await this.apiContext.get(url, { timeout: 15000 });
+        if (probe.ok()) return;
+        last = `HTTP ${probe.status()}`;
+      } catch (error) {
+        last = String(error).slice(0, 120);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
+    throw new Error(
+      `Portal ${this.portalDomain} never became reachable (${last})`,
+    );
+  }
 }
 
 export default Apisystem;

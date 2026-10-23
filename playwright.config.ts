@@ -6,6 +6,8 @@ dotenv.config();
 
 export default defineConfig({
   testDir: "./src/tests",
+  // Aborts a CI run if portals cannot be created and really deleted.
+  globalSetup: process.env.CI ? "./src/fixtures/preflight.ts" : undefined,
   retries: process.env.CI ? 1 : 0,
   workers: 4,
 
