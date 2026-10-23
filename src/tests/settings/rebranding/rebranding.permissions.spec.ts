@@ -299,3 +299,71 @@ test.describe("DELETE /api/2.0/settings/rebranding/additional - access control",
     expect(status).toBe(403);
   });
 });
+
+test.describe("Mutating rebranding endpoints - Anonymous access control", () => {
+  // Every save/restore/delete call refuses an unauthenticated caller with 401,
+  // same as the read endpoints above - checked together here since it's the
+  // same claim repeated across every mutating method, rather than one test
+  // per endpoint as the role-based checks above do.
+  test("Anonymous cannot call any save, restore or delete rebranding endpoint", async ({
+    apiSdk,
+  }) => {
+    const anon = apiSdk.forAnonymous();
+
+    const saveLogoText = await anon.rebranding.saveWhiteLabelLogoText({
+      whiteLabelRequestsDto: { logoText: "x" },
+    });
+    expect(saveLogoText.status).toBe(401);
+
+    const saveLogos = await anon.rebranding.saveWhiteLabelSettings({
+      whiteLabelRequestsDto: { logo: [] },
+    });
+    expect(saveLogos.status).toBe(401);
+
+    const saveLogosFromFiles =
+      await anon.rebranding.saveWhiteLabelSettingsFromFiles();
+    expect(saveLogosFromFiles.status).toBe(401);
+
+    const restoreLogoText = await anon.rebranding.restoreWhiteLabelLogoText();
+    expect(restoreLogoText.status).toBe(401);
+
+    const restoreLogos = await anon.rebranding.restoreWhiteLabelLogos();
+    expect(restoreLogos.status).toBe(401);
+
+    const saveCompany = await anon.rebranding.saveCompanyWhiteLabelSettings({
+      companyWhiteLabelSettingsWrapper: {
+        settings: {
+          companyName: "x",
+          site: "https://example.com",
+          email: "a@example.com",
+          address: "a",
+          phone: "1",
+        },
+      },
+    });
+    expect(saveCompany.status).toBe(401);
+
+    const saveAdditional =
+      await anon.rebranding.saveAdditionalWhiteLabelSettings({
+        additionalWhiteLabelSettingsWrapper: {
+          settings: {
+            startDocsEnabled: false,
+            helpCenterEnabled: false,
+            feedbackAndSupportEnabled: false,
+            userForumEnabled: false,
+            videoGuidesEnabled: false,
+            licenseAgreementsEnabled: false,
+          },
+        },
+      });
+    expect(saveAdditional.status).toBe(401);
+
+    const deleteCompany =
+      await anon.rebranding.deleteCompanyWhiteLabelSettings();
+    expect(deleteCompany.status).toBe(401);
+
+    const deleteAdditional =
+      await anon.rebranding.deleteAdditionalWhiteLabelSettings();
+    expect(deleteAdditional.status).toBe(401);
+  });
+});
