@@ -36,6 +36,7 @@ class API {
     this.tokenStore.portalDomain = this.portalDomain;
     this.tokenStore.newTenantDomain = this.apisystem.portalName;
     this.tokenStore.isLocal = !!config.LOCAL_PORTAL_DOMAIN;
+    await this.apisystem.expectPortalReady();
     await this.auth.authenticateOwner();
   }
 
