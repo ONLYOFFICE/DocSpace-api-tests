@@ -214,6 +214,82 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - Save the white 
       await ownerApi.rebranding.getIsDefaultWhiteLabelLogoText();
     expect(isDefault.response?.default).toBe(false);
   });
+
+  test("Owner is refused with a validation error when the wordmark exceeds 40 characters", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .rebranding.saveWhiteLabelLogoText({
+        whiteLabelRequestsDto: { logoText: "A".repeat(41) },
+      });
+
+    expect(status).toBe(400);
+  });
+
+  test("Owner saves a wordmark exactly at the 40-character limit", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .rebranding.saveWhiteLabelLogoText({
+        whiteLabelRequestsDto: { logoText: "B".repeat(40) },
+      });
+
+    expect(status).toBe(200);
+  });
+
+  test("Owner clears the wordmark by saving an empty string, rather than storing it", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rebranding.saveWhiteLabelLogoText({
+      whiteLabelRequestsDto: { logoText: "Custom Brand" },
+    });
+
+    const { status } = await ownerApi.rebranding.saveWhiteLabelLogoText({
+      whiteLabelRequestsDto: { logoText: "" },
+    });
+    expect(status).toBe(200);
+
+    const { data: readBack } =
+      await ownerApi.rebranding.getWhiteLabelLogoText();
+    expect(readBack.response).toBe("ONLYOFFICE");
+
+    const { data: isDefault } =
+      await ownerApi.rebranding.getIsDefaultWhiteLabelLogoText();
+    expect(isDefault.response?.default).toBe(true);
+  });
+
+  test("Owner clears the wordmark by saving the built-in ONLYOFFICE text itself", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.rebranding.saveWhiteLabelLogoText({
+      whiteLabelRequestsDto: { logoText: "Custom Brand" },
+    });
+
+    const { status } = await ownerApi.rebranding.saveWhiteLabelLogoText({
+      whiteLabelRequestsDto: { logoText: "ONLYOFFICE" },
+    });
+    expect(status).toBe(200);
+
+    const { data: isDefault } =
+      await ownerApi.rebranding.getIsDefaultWhiteLabelLogoText();
+    expect(isDefault.response?.default).toBe(true);
+  });
 });
 
 test.describe("POST /api/2.0/settings/whitelabel/logos/save - Save the white label logos", () => {
@@ -373,6 +449,42 @@ test.describe("DELETE /api/2.0/settings/rebranding/additional - Delete the addit
     const { status } = await apiSdk
       .forRole("owner")
       .rebranding.deleteAdditionalWhiteLabelSettings();
+
+    expect(status).toBe(403);
+  });
+});
+
+test.describe("isDefault=true - writing the installation-wide default branding", () => {
+  // A third, independent gate from the payment gate and the SaaS
+  // company/additional gate above: writing the *default* (installation-wide)
+  // branding is only allowed on a self-hosted installation. Confirmed live
+  // this refuses Owner even with a paid plan that lets the per-portal
+  // (isDefault omitted) save/restore calls above succeed.
+  test("Owner is refused writing the default wordmark, even with branding enabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .rebranding.saveWhiteLabelLogoText({
+        isDefault: true,
+        whiteLabelRequestsDto: { logoText: "Installation Wide" },
+      });
+
+    expect(status).toBe(403);
+  });
+
+  test("Owner is refused restoring the default wordmark, even with branding enabled", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .rebranding.restoreWhiteLabelLogoText({ isDefault: true });
 
     expect(status).toBe(403);
   });
