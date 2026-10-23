@@ -330,6 +330,51 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/save - Save the white lab
     );
     expect(savedSlot?.default).toBe(false);
   });
+
+  test("Owner is refused with 404 when a logo value names a staged file that doesn't exist", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    // A logo value is either a data: URI or the name of a file already
+    // uploaded to the temporary store - a plain string that is neither is
+    // treated as the latter, so a nonexistent name is a clean 404, not a
+    // validation error.
+    const { status } = await apiSdk
+      .forRole("owner")
+      .rebranding.saveWhiteLabelSettings({
+        whiteLabelRequestsDto: {
+          logo: [{ key: "1", value: { light: "not-a-valid-image" } }],
+        },
+      });
+
+    expect(status).toBe(404);
+  });
+
+  test("Owner's save for an unrecognized logo slot key is silently accepted", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    // Documents current behavior: the endpoint does not validate `key`
+    // against the real slot numbers GET .../logos publishes - an
+    // out-of-range key is accepted (200) with no visible effect, rather
+    // than rejected as an invalid request.
+    const tinyPng =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .rebranding.saveWhiteLabelSettings({
+        whiteLabelRequestsDto: {
+          logo: [{ key: "999", value: { light: tinyPng } }],
+        },
+      });
+
+    expect(status).toBe(200);
+  });
 });
 
 test.describe("POST /api/2.0/settings/whitelabel/logos/savefromfiles - Save the logos from files", () => {
@@ -383,6 +428,40 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/savefromfiles - Save the 
     );
     expect(savedSlot?.default).toBe(false);
   });
+
+  test.fail(
+    "BUG XXXXX: a file name with no leading numeric slot crashes with 500 instead of a validation error",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment();
+
+      // Each file's name must start with the numeric logo slot (e.g.
+      // "1.png"); this one doesn't, so the server's own Convert.ToInt32
+      // on the name throws, surfacing as an unhandled 500 instead of 400.
+      const pngBytes = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      );
+      const formData = new FormData();
+      formData.append(
+        "weird-name.png",
+        new Blob([new Uint8Array(pngBytes)], { type: "image/png" }),
+        "weird-name.png",
+      );
+
+      const axiosInstance = apiSdk.createAxiosInstance();
+      const response = await axiosInstance.post(
+        `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/settings/whitelabel/logos/savefromfiles`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+            Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+          },
+        },
+      );
+      expect(response.status).toBe(400);
+    },
+  );
 });
 
 test.describe("POST /api/2.0/settings/rebranding/company - Save the company white label settings", () => {
