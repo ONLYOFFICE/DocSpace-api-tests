@@ -190,12 +190,12 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
   // handler actually throws a raw (unhandled in the entityId/ssoUrl/mapping
   // cases, truly unhandled NullReferenceException when fieldMapping is left
   // out entirely) C# exception that the global error handler turns into a
-  // 500, leaking a full .NET stack trace to the client. Filed as BUG TBD,
-  // BUG TBD, BUG TBD - same root cause (validation not mapped to a 400
+  // 500, leaking a full .NET stack trace to the client. Filed as BUG 84685,
+  // BUG 84686, BUG 84687 - same root cause (validation not mapped to a 400
   // response) but three independent code paths, one per field.
 
   test.fail(
-    "BUG TBD: missing entityId crashes with 500 instead of a validation error",
+    "BUG 84685: missing entityId crashes with 500 instead of a validation error",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
 
@@ -217,7 +217,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
   );
 
   test.fail(
-    "BUG TBD: missing ssoUrl crashes with 500 instead of a validation error",
+    "BUG 84686: missing ssoUrl crashes with 500 instead of a validation error",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
 
@@ -239,7 +239,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
   );
 
   test.fail(
-    "BUG TBD: an incomplete field mapping crashes with 500 instead of a validation error",
+    "BUG 84687: an incomplete field mapping crashes with 500 instead of a validation error",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
 
