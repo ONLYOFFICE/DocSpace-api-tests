@@ -179,6 +179,53 @@ test.describe("PUT /api/2.0/settings/whitelabel/logos/restore - Restore the whit
     expect(status).toBe(200);
     expect(data.response).toBe(true);
   });
+
+  // Confirmed live: all logo slots reset together, with no way to restore
+  // a single one (matches the SDK doc comment on this method).
+  test("Owner restoring resets every customized slot together, not selectively", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    const tinyPng =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+    await ownerApi.rebranding.saveWhiteLabelSettings({
+      whiteLabelRequestsDto: {
+        logo: [{ key: "1", value: { light: tinyPng } }],
+      },
+    });
+    await ownerApi.rebranding.saveWhiteLabelSettings({
+      whiteLabelRequestsDto: {
+        logo: [{ key: "2", value: { light: tinyPng } }],
+      },
+    });
+
+    const { data: before } =
+      await ownerApi.rebranding.getIsDefaultWhiteLabelLogos();
+    const lightSmallBefore = before.response!.find(
+      (l) => l.name === "LightSmall",
+    );
+    const loginPageBefore = before.response!.find(
+      (l) => l.name === "LoginPage",
+    );
+    expect(lightSmallBefore?.default).toBe(false);
+    expect(loginPageBefore?.default).toBe(false);
+
+    const { status } = await ownerApi.rebranding.restoreWhiteLabelLogos();
+    expect(status).toBe(200);
+
+    const { data: after } =
+      await ownerApi.rebranding.getIsDefaultWhiteLabelLogos();
+    const lightSmallAfter = after.response!.find(
+      (l) => l.name === "LightSmall",
+    );
+    const loginPageAfter = after.response!.find((l) => l.name === "LoginPage");
+    expect(lightSmallAfter?.default).toBe(true);
+    expect(loginPageAfter?.default).toBe(true);
+  });
 });
 
 test.describe("POST /api/2.0/settings/whitelabel/logotext/save - Save the white label logo text", () => {

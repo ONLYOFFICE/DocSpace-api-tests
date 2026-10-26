@@ -131,6 +131,26 @@ test.describe("PUT /api/2.0/settings/storage/cdn - Update the CDN storage", () =
     });
     expect(status).toBe(403);
   });
+
+  // Confirmed live: an empty JSON body fails model-binding deserialization
+  // before the handler ever runs, so this 400 fires *before* the SaaS gate
+  // above - contrast with a well-formed-but-empty body ({module, props:[]}),
+  // which passes deserialization and only then gets the SaaS 403.
+  test("Owner gets a validation error, not the SaaS gate, when the body is empty", async ({
+    apiSdk,
+  }) => {
+    const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/settings/storage/cdn`;
+    const response = await apiSdk.request.put(url, {
+      headers: {
+        Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+        Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+        "Content-Type": "application/json",
+      },
+      data: "",
+    });
+
+    expect(response.status()).toBe(400);
+  });
 });
 
 test.describe("PUT /api/2.0/settings/storage - Switch the portal storage", () => {
@@ -144,5 +164,23 @@ test.describe("PUT /api/2.0/settings/storage - Switch the portal storage", () =>
       },
     });
     expect(status).toBe(403);
+  });
+
+  // Same check-ordering as updateCdnStorage above: JSON deserialization
+  // validation outranks the SaaS-architecture gate.
+  test("Owner gets a validation error, not the SaaS gate, when the body is empty", async ({
+    apiSdk,
+  }) => {
+    const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/settings/storage`;
+    const response = await apiSdk.request.put(url, {
+      headers: {
+        Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+        Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+        "Content-Type": "application/json",
+      },
+      data: "",
+    });
+
+    expect(response.status()).toBe(400);
   });
 });
