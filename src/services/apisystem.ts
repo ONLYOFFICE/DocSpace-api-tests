@@ -88,14 +88,34 @@ class Apisystem {
     }
 
     const deleteUrl = `${this.portalBaseUrl}/api/2.0/portal/deleteportalimmediately`;
-    const response = await this.apiContext.delete(deleteUrl, {
-      headers: {
-        Authorization: `Bearer ${this.auth.authTokenOwner}`,
-        Origin: `http://${this.portalName}`,
-      },
-      data: { reference: `${this.portalName}.onlyoffice.io` },
-      timeout: 120000,
-    });
+
+    const maxRetries = 3;
+    let lastError: unknown;
+    let response;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        response = await this.apiContext.delete(deleteUrl, {
+          headers: {
+            Authorization: `Bearer ${this.auth.authTokenOwner}`,
+            Origin: `http://${this.portalName}`,
+          },
+          data: { reference: `${this.portalName}.onlyoffice.io` },
+          timeout: 120000,
+        });
+        if (response.ok()) break;
+        lastError = new Error(`HTTP ${response.status()}`);
+      } catch (e) {
+        lastError = e;
+        response = undefined;
+      }
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+
+    if (!response) throw lastError;
+
     const body = await parseResponse(response);
 
     if (!response.ok()) {
