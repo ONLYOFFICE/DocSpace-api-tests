@@ -36,6 +36,20 @@ test.describe("GET /api/2.0/settings/ssov2/default - access control", () => {
       .sso.getDefaultSsoSettingsV2();
     expect(status).toBe(401);
   });
+
+  test("RoomAdmin cannot read the default SSO settings - treated like a regular user, not elevated", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { status } = await roomAdminApi.sso.getDefaultSsoSettingsV2();
+    expect(status).toBe(403);
+  });
 });
 
 test.describe("GET /api/2.0/settings/ssov2/constants - access control", () => {

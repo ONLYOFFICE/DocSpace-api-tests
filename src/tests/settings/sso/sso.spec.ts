@@ -172,6 +172,30 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
     expect(data.response?.usersType).toBe(4);
   });
 
+  test("Owner's recognized usersType values (1 room admin, 3 DocSpace admin) are kept as-is, not normalized", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+
+    await ownerApi.sso.saveSsoSettingsV2({
+      ssoSettingsRequestsDto: {
+        serializeSettings: JSON.stringify(validSsoSettings({ usersType: 1 })),
+      },
+    });
+    const afterRoomAdmin = await ownerApi.sso.getSsoSettingsV2();
+    expect(afterRoomAdmin.data.response?.usersType).toBe(1);
+
+    await ownerApi.sso.saveSsoSettingsV2({
+      ssoSettingsRequestsDto: {
+        serializeSettings: JSON.stringify(validSsoSettings({ usersType: 3 })),
+      },
+    });
+    const afterDocSpaceAdmin = await ownerApi.sso.getSsoSettingsV2();
+    expect(afterDocSpaceAdmin.data.response?.usersType).toBe(3);
+  });
+
   test("An empty serializeSettings string is refused with 400", async ({
     apiSdk,
     paymentsApi,
@@ -248,6 +272,37 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
           serializeSettings: JSON.stringify(
             validSsoSettings({
               fieldMapping: { firstName: "a", lastName: "b" },
+            }),
+          ),
+        },
+      });
+
+      expect(status).toBe(400);
+    },
+  );
+
+  // Mirrors BUG 84686 on the logout side: a missing sloUrl is silently
+  // accepted (not validated at all), but a malformed one hits the same
+  // "Invalid binding: SLO <binding>" exception and crashes with 500 instead
+  // of a validation error. Filed as its own bug since it's a separate field,
+  // even though the error shape strongly suggests the same underlying
+  // validation function as BUG 84686.
+  test.fail(
+    "BUG TBD: a malformed sloUrl crashes with 500 instead of a validation error",
+    async ({ apiSdk, paymentsApi }) => {
+      await paymentsApi.setupPayment();
+
+      const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
+        ssoSettingsRequestsDto: {
+          serializeSettings: JSON.stringify(
+            validSsoSettings({
+              idpSettings: {
+                entityId: "https://idp.example.com/entity",
+                ssoUrl: "https://idp.example.com/sso",
+                ssoBinding: VALID_BINDING,
+                sloUrl: "not-a-url",
+                sloBinding: VALID_BINDING,
+              },
             }),
           ),
         },
