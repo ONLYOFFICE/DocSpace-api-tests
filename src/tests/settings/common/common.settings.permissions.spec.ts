@@ -1,6 +1,8 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 
+import { FolderType } from "@onlyoffice/docspace-api-sdk";
+
 // closeAdminHelper PUT /api/2.0/settings/closeadminhelper — not available in cloud,
 // returns 415 "Not available" for all roles. Access control cannot be verified.
 
@@ -519,5 +521,70 @@ test.describe("GET /api/2.0/settings - Get portal settings (permissions)", () =>
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
     expect(data.response!.passwordHash).toBeDefined();
+  });
+});
+
+// The default folder is a per-account preference: every signed-in role sets
+// its own, so the only line to check is the one between an authenticated
+// caller and an anonymous one.
+test.describe("PUT /api/2.0/settings/defaultfolder - access control", () => {
+  test("PUT /api/2.0/settings/defaultfolder - Anonymous cannot set the default folder", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forAnonymous()
+      .commonSettings.saveDefaultFolder({
+        defaultProductRequestDto: {
+          defaultFolderType: FolderType.VirtualRooms,
+        },
+      });
+
+    expect(status).toBe(401);
+    expect(data.response).toBeUndefined();
+  });
+
+  test("PUT /api/2.0/settings/defaultfolder - RoomAdmin sets their own default folder", async ({
+    apiSdk,
+  }) => {
+    const { api: roomAdminApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "RoomAdmin",
+    );
+
+    const { data, status } =
+      await roomAdminApi.commonSettings.saveDefaultFolder({
+        defaultProductRequestDto: {
+          defaultFolderType: FolderType.VirtualRooms,
+        },
+      });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.defaultFolderType).toBe(FolderType.VirtualRooms);
+
+    const { data: settings } =
+      await roomAdminApi.commonSettings.getPortalSettings();
+    expect(settings.response!.defaultFolderType).toBe(FolderType.VirtualRooms);
+  });
+
+  test("PUT /api/2.0/settings/defaultfolder - Guest sets the rooms list as their default folder", async ({
+    apiSdk,
+  }) => {
+    const { api: guestApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "Guest",
+    );
+
+    const { data, status } = await guestApi.commonSettings.saveDefaultFolder({
+      defaultProductRequestDto: { defaultFolderType: FolderType.VirtualRooms },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.defaultFolderType).toBe(FolderType.VirtualRooms);
+
+    const { data: settings } =
+      await guestApi.commonSettings.getPortalSettings();
+    expect(settings.response!.defaultFolderType).toBe(FolderType.VirtualRooms);
   });
 });

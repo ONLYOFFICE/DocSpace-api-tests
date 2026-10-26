@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
 
-import { DeepLinkHandlingMode } from "@onlyoffice/docspace-api-sdk";
+import { DeepLinkHandlingMode, FolderType } from "@onlyoffice/docspace-api-sdk";
 
 // getPortalHostname GET /api/2.0/settings/machine — returns 403 for all roles including Owner,
 // both in cloud and on-premise. Likely a deprecated or internal-only endpoint.
@@ -736,5 +736,68 @@ test.describe("GET /api/2.0/settings - Get portal settings", () => {
     expect(data.response!.culture).toBeTruthy();
     expect(data.response!.baseDomain).toBeTruthy();
     expect(data.response!.docSpace).toBe(true);
+  });
+});
+
+test.describe("PUT /api/2.0/settings/defaultfolder - Set the default folder", () => {
+  test("PUT /api/2.0/settings/defaultfolder - Owner sets the rooms list as the default folder and the portal settings report it", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const { data, status } = await ownerApi.commonSettings.saveDefaultFolder({
+      defaultProductRequestDto: { defaultFolderType: FolderType.VirtualRooms },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.defaultFolderType).toBe(FolderType.VirtualRooms);
+
+    const { data: settings } =
+      await ownerApi.commonSettings.getPortalSettings();
+    expect(settings.response!.defaultFolderType).toBe(FolderType.VirtualRooms);
+
+    const { data: switched } = await ownerApi.commonSettings.saveDefaultFolder({
+      defaultProductRequestDto: { defaultFolderType: FolderType.Favorites },
+    });
+    expect(switched.response!.defaultFolderType).toBe(FolderType.Favorites);
+
+    const { data: settingsAgain } =
+      await ownerApi.commonSettings.getPortalSettings();
+    expect(settingsAgain.response!.defaultFolderType).toBe(
+      FolderType.Favorites,
+    );
+  });
+
+  test("PUT /api/2.0/settings/defaultfolder - A User's own choice does not move the Owner's landing page", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { api: userApi } = await apiSdk.addAuthenticatedMember(
+      "owner",
+      "User",
+    );
+
+    await ownerApi.commonSettings.saveDefaultFolder({
+      defaultProductRequestDto: { defaultFolderType: FolderType.VirtualRooms },
+    });
+
+    const { data, status } = await userApi.commonSettings.saveDefaultFolder({
+      defaultProductRequestDto: { defaultFolderType: FolderType.USER },
+    });
+
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response!.defaultFolderType).toBe(FolderType.USER);
+
+    const { data: userSettings } =
+      await userApi.commonSettings.getPortalSettings();
+    expect(userSettings.response!.defaultFolderType).toBe(FolderType.USER);
+
+    const { data: ownerSettings } =
+      await ownerApi.commonSettings.getPortalSettings();
+    expect(ownerSettings.response!.defaultFolderType).toBe(
+      FolderType.VirtualRooms,
+    );
   });
 });
