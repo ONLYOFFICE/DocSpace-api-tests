@@ -70,3 +70,45 @@ test.describe("DELETE /api/2.0/settings/telegram/link - Unlink Telegram", () => 
     expect(second.data.response).toBe(true);
   });
 });
+
+test.describe("Wrong HTTP methods on the Telegram endpoints", () => {
+  test("GET /telegram/check is rejected with 405 for POST and PUT", async ({
+    apiSdk,
+  }) => {
+    const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/settings/telegram/check`;
+    const headers = {
+      Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+      Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+    };
+
+    await test.step("POST returns 405", async () => {
+      const response = await apiSdk.request.post(url, { headers });
+      expect(response.status()).toBe(405);
+    });
+
+    await test.step("PUT returns 405", async () => {
+      const response = await apiSdk.request.put(url, { headers });
+      expect(response.status()).toBe(405);
+    });
+  });
+
+  test("GET+DELETE /telegram/link is rejected with 405 for POST and PUT", async ({
+    apiSdk,
+  }) => {
+    const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/settings/telegram/link`;
+    const headers = {
+      Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+      Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+    };
+
+    await test.step("POST returns 405", async () => {
+      const response = await apiSdk.request.post(url, { headers });
+      expect(response.status()).toBe(405);
+    });
+
+    await test.step("PUT returns 405", async () => {
+      const response = await apiSdk.request.put(url, { headers });
+      expect(response.status()).toBe(405);
+    });
+  });
+});
