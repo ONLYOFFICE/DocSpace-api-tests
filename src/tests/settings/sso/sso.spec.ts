@@ -288,7 +288,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
   // even though the error shape strongly suggests the same underlying
   // validation function as BUG 84686.
   test.fail(
-    "BUG TBD: a malformed sloUrl crashes with 500 instead of a validation error",
+    "BUG 84688: a malformed sloUrl crashes with 500 instead of a validation error",
     async ({ apiSdk, paymentsApi }) => {
       await paymentsApi.setupPayment();
 
