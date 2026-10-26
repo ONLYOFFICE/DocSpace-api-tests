@@ -1,0 +1,132 @@
+import { expect } from "@playwright/test";
+import { test } from "@/src/fixtures/index";
+
+// Per-user Telegram notification linking. All 3 methods act on the caller's
+// own account only - there is no way to read or change another member's
+// link - and none of them need any admin permission, just authentication.
+//
+// This test portal has no Telegram bot configured (that would need
+// `POST api/2.0/settings/authservice` with real bot keys from an actual
+// Telegram bot, which this suite has no way to provision), so every call
+// here exercises the "no bot configured" path: `checkTelegram` reports
+// `unlinked` and `linkTelegram` comes back with no `response` body at all
+// (confirmed live, matches the SDK doc: "without a configured bot name the
+// response comes back empty").
+//
+// Gotcha: the SDK's exported `RegStatus` type claims numeric values
+// (`unlinked = 0`, `linked = 1`, `linking = 2`), but the live JSON payload
+// serializes the status as its string name ("unlinked"), not the number -
+// assert against the string, not the `RegStatus` constant.
+
+test.describe("GET /api/2.0/settings/telegram/check - Check the Telegram connection", () => {
+  test("Owner is unlinked when no Telegram bot is configured", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .telegram.checkTelegram();
+
+    expect(status).toBe(200);
+    expect(data.response?.status).toBe("unlinked");
+    expect(data.response?.username).toBeFalsy();
+  });
+});
+
+test.describe("GET /api/2.0/settings/telegram/link - Get the Telegram link", () => {
+  test("Owner gets an empty link when no Telegram bot is configured", async ({
+    apiSdk,
+  }) => {
+    const { data, status } = await apiSdk
+      .forRole("owner")
+      .telegram.linkTelegram();
+
+    expect(status).toBe(200);
+    expect(data.response).toBeFalsy();
+  });
+
+  test("Calling it twice in a row does not error", async ({ apiSdk }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const first = await ownerApi.telegram.linkTelegram();
+    const second = await ownerApi.telegram.linkTelegram();
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+  });
+
+  // BUG 84692: even though no bot is configured and the returned link is
+  // empty (nothing for the user to open in Telegram), calling this still
+  // flips the account's status from "unlinked" to "linking" - a purgatory
+  // state the user can only recover from by calling unlinkTelegram, despite
+  // never having been given a link to complete it with.
+  test.fail(
+    "BUG 84692: calling it with no bot configured still moves status to linking, despite returning no link",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: linkData } = await ownerApi.telegram.linkTelegram();
+      expect(linkData.response).toBeFalsy();
+
+      const { data: checkData } = await ownerApi.telegram.checkTelegram();
+      expect(checkData.response?.status).toBe("unlinked");
+    },
+  );
+});
+
+test.describe("DELETE /api/2.0/settings/telegram/link - Unlink Telegram", () => {
+  test("Owner can unlink even with nothing linked - idempotent, safe to retry", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+
+    const first = await ownerApi.telegram.unlinkTelegram();
+    expect(first.status).toBe(200);
+    expect(first.data.response).toBe(true);
+
+    const second = await ownerApi.telegram.unlinkTelegram();
+    expect(second.status).toBe(200);
+    expect(second.data.response).toBe(true);
+  });
+});
+
+test.describe("Wrong HTTP methods on the Telegram endpoints", () => {
+  test("GET /telegram/check is rejected with 405 for POST and PUT", async ({
+    apiSdk,
+  }) => {
+    const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/settings/telegram/check`;
+    const headers = {
+      Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+      Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+    };
+
+    await test.step("POST returns 405", async () => {
+      const response = await apiSdk.request.post(url, { headers });
+      expect(response.status()).toBe(405);
+    });
+
+    await test.step("PUT returns 405", async () => {
+      const response = await apiSdk.request.put(url, { headers });
+      expect(response.status()).toBe(405);
+    });
+  });
+
+  test("GET+DELETE /telegram/link is rejected with 405 for POST and PUT", async ({
+    apiSdk,
+  }) => {
+    const url = `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/settings/telegram/link`;
+    const headers = {
+      Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+      Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+    };
+
+    await test.step("POST returns 405", async () => {
+      const response = await apiSdk.request.post(url, { headers });
+      expect(response.status()).toBe(405);
+    });
+
+    await test.step("PUT returns 405", async () => {
+      const response = await apiSdk.request.put(url, { headers });
+      expect(response.status()).toBe(405);
+    });
+  });
+});
