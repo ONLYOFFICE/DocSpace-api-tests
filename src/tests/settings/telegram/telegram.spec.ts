@@ -54,13 +54,13 @@ test.describe("GET /api/2.0/settings/telegram/link - Get the Telegram link", () 
     expect(second.status).toBe(200);
   });
 
-  // BUG TBD: even though no bot is configured and the returned link is
+  // BUG 84692: even though no bot is configured and the returned link is
   // empty (nothing for the user to open in Telegram), calling this still
   // flips the account's status from "unlinked" to "linking" - a purgatory
   // state the user can only recover from by calling unlinkTelegram, despite
   // never having been given a link to complete it with.
   test.fail(
-    "BUG TBD: calling it with no bot configured still moves status to linking, despite returning no link",
+    "BUG 84692: calling it with no bot configured still moves status to linking, despite returning no link",
     async ({ apiSdk }) => {
       const ownerApi = apiSdk.forRole("owner");
 
