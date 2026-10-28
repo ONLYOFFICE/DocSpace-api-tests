@@ -8660,6 +8660,228 @@ test.describe("API rooms methods", () => {
       expect(status).toBe(404);
     });
 
+    // === 8b. `fields` query parameter (raw — the SDK does not expose it) ===
+    //
+    // docspace-mcp's get_room_security_info always sends fields=sharedTo (it
+    // needs it to learn who the members are). Observed contract on 4.0.1:
+    // `fields` projects every entry down to exactly the requested keys.
+    // Projection of `sharedTo` fails with System.Text.Json "possible object
+    // cycle" — the body is half-written and ends with an `error` object and
+    // HTTP 500, while every other field projects fine.
+    test.describe("GET /files/rooms/:id/share - fields query parameter", () => {
+      type ShareEntry = Record<string, unknown>;
+      type ShareBody = {
+        response?: ShareEntry[];
+        count?: number;
+        total?: number;
+        statusCode?: number;
+        error?: unknown;
+      };
+
+      const rawGetShare = async (
+        apiSdk: ApiSDK,
+        roomId: number,
+        fields: string[],
+        extra: Record<string, string> = {},
+      ) => {
+        const params = new URLSearchParams(extra);
+        for (const f of fields) params.append("fields", f);
+        const query = params.toString();
+        const response = await apiSdk.request.get(
+          `${apiSdk.tokenStore.portalBaseUrl}/api/2.0/files/rooms/${roomId}/share${query ? `?${query}` : ""}`,
+          {
+            headers: {
+              Authorization: `Bearer ${apiSdk.tokenStore.getToken("owner")}`,
+              Origin: `http://${apiSdk.tokenStore.newTenantDomain}`,
+            },
+          },
+        );
+        const text = await response.text();
+        let body: ShareBody | undefined;
+        try {
+          body = JSON.parse(text) as ShareBody;
+        } catch {
+          body = undefined;
+        }
+        await test.info().attach(`share?${query}`, {
+          body: `HTTP ${response.status()}\n${text}`,
+          contentType: "text/plain",
+        });
+        return { status: response.status(), text, body };
+      };
+
+      // Owner + one invited user, so the list has two distinguishable members.
+      const setupRoom = async (apiSdk: ApiSDK) => {
+        const ownerApi = apiSdk.forRole("owner");
+        const { data: memberData } = await apiSdk.addMember("owner", "User");
+        const userId = memberData.response!.id!;
+        const { data: roomData } = await ownerApi.rooms.createRoom({
+          createRoomRequestDto: {
+            title: "Autotest Share Fields",
+            roomType: RoomType.CustomRoom,
+          },
+        });
+        const roomId = roomData.response!.id!;
+        const { status } = await ownerApi.rooms.setRoomSecurity({
+          id: roomId,
+          roomInvitationRequest: {
+            invitations: [{ id: userId, access: FileShare.Editing }],
+            notify: false,
+          },
+        });
+        expect(status).toBe(200);
+        return { roomId, userId };
+      };
+
+      const assertFieldsMatchBaseline = async (
+        apiSdk: ApiSDK,
+        fields: string[],
+        extra: Record<string, string> = {},
+      ) => {
+        const { roomId, userId } = await setupRoom(apiSdk);
+
+        const baseline = await rawGetShare(apiSdk, roomId, [], extra);
+        expect(baseline.status).toBe(200);
+        const baselineEntries = baseline.body!.response!;
+        expect(baselineEntries.length).toBeGreaterThanOrEqual(2);
+
+        const { status, text, body } = await rawGetShare(
+          apiSdk,
+          roomId,
+          fields,
+          extra,
+        );
+
+        expect(status, `body: ${text.slice(-400)}`).toBe(200);
+        // Complete, valid JSON — not a half-written response with an error tail.
+        expect(body, "response body is valid JSON").toBeDefined();
+        expect(body!.error).toBeUndefined();
+        expect(body!.statusCode).toBe(200);
+
+        const entries = body!.response!;
+        expect(entries.length).toBe(baselineEntries.length);
+        expect(body!.total).toBe(baseline.body!.total);
+
+        for (const [i, entry] of entries.entries()) {
+          // Projection returns exactly the requested keys.
+          expect(Object.keys(entry).sort()).toEqual([...fields].sort());
+          for (const f of fields) {
+            expect(entry[f], `entry ${i} field ${f}`).toEqual(
+              baselineEntries[i][f],
+            );
+          }
+        }
+
+        if (fields.includes("sharedTo")) {
+          const ids = entries.map((e) => (e.sharedTo as { id?: string }).id);
+          expect(ids).toContain(userId);
+          expect(ids).toEqual(
+            baselineEntries.map((e) => (e.sharedTo as { id?: string }).id),
+          );
+          for (const e of entries) {
+            const shared = e.sharedTo as Record<string, unknown>;
+            expect(typeof shared.id).toBe("string");
+            expect(typeof shared.displayName).toBe("string");
+            expect(typeof shared.email).toBe("string");
+          }
+        }
+      };
+
+      test("GET /files/rooms/:id/share - Without fields returns the full entry shape", async ({
+        apiSdk,
+      }) => {
+        const { roomId, userId } = await setupRoom(apiSdk);
+
+        const { status, body } = await rawGetShare(apiSdk, roomId, []);
+
+        expect(status).toBe(200);
+        expect(body!.error).toBeUndefined();
+        const entries = body!.response!;
+        expect(entries.length).toBe(2);
+        for (const e of entries) {
+          for (const key of [
+            "access",
+            "sharedTo",
+            "isLocked",
+            "isOwner",
+            "canEditAccess",
+            "subjectType",
+          ]) {
+            expect(e, `key ${key}`).toHaveProperty(key);
+          }
+        }
+        expect(
+          entries.map((e) => (e.sharedTo as { id?: string }).id),
+        ).toContain(userId);
+      });
+
+      // Single fields that do NOT involve sharedTo — positive control: they
+      // prove `fields` itself works, so the sharedTo failures below are
+      // specific to that projection.
+      for (const field of [
+        "access",
+        "isLocked",
+        "isOwner",
+        "canEditAccess",
+        "subjectType",
+      ]) {
+        test(`GET /files/rooms/:id/share - fields=${field} returns only ${field} for every member`, async ({
+          apiSdk,
+        }) => {
+          await assertFieldsMatchBaseline(apiSdk, [field]);
+        });
+      }
+
+      const sharedToCases: {
+        label: string;
+        fields: string[];
+        extra?: Record<string, string>;
+      }[] = [
+        { label: "fields=sharedTo", fields: ["sharedTo"] },
+        {
+          label: "fields=access&fields=sharedTo",
+          fields: ["access", "sharedTo"],
+        },
+        {
+          label: "fields=access&fields=sharedTo&fields=isOwner",
+          fields: ["access", "sharedTo", "isOwner"],
+        },
+        {
+          label: "fields=access&fields=sharedTo&fields=isOwner&filterType=0",
+          fields: ["access", "sharedTo", "isOwner"],
+          extra: { filterType: "0" },
+        },
+        {
+          label: "fields=access&fields=sharedTo&fields=isOwner&filterType=16",
+          fields: ["access", "sharedTo", "isOwner"],
+          extra: { filterType: "16" },
+        },
+        {
+          label: "count=30&fields=access&fields=sharedTo&fields=isOwner",
+          fields: ["access", "sharedTo", "isOwner"],
+          extra: { count: "30" },
+        },
+      ];
+
+      for (const c of sharedToCases) {
+        test.fail(
+          `BUG XXXXX: GET /files/rooms/:id/share - ${c.label} returns 500 (JsonException: possible object cycle) instead of 200`,
+          async ({ apiSdk }) => {
+            await assertFieldsMatchBaseline(apiSdk, c.fields, c.extra);
+          },
+        );
+      }
+
+      test("GET /files/rooms/:id/share - fields without sharedTo still match the full response with filterType and count", async ({
+        apiSdk,
+      }) => {
+        await assertFieldsMatchBaseline(apiSdk, ["access", "isOwner"], {
+          filterType: "0",
+          count: "30",
+        });
+      });
+    });
+
     // === 9. Stability / consistency ===
 
     test("GET /files/rooms/:id/share - Repeated GET returns the same security list", async ({

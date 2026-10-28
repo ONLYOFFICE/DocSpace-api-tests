@@ -4542,3 +4542,28 @@ test.describe("GET /api/2.0/files/folder/{id}/link - Get folder primary external
     expect(status).toBe(403);
   });
 });
+
+test.describe("GET and DELETE /api/2.0/files/folder/{folderId}/log/report - access control", () => {
+  test("GET and DELETE /api/2.0/files/folder/{folderId}/log/report - Anonymous requests return 401", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const { data: roomData } = await apiSdk.forRole("owner").rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Anon",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const anonFolders = apiSdk.forAnonymous().folders;
+
+    const get = await anonFolders.getReportFolderHistory({ folderId: roomId });
+    const terminate = await anonFolders.terminateReportFolderHistory({
+      folderId: roomId,
+    });
+
+    expect(get.status).toBe(401);
+    expect(terminate.status).toBe(401);
+  });
+});
