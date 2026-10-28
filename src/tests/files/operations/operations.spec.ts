@@ -9124,6 +9124,75 @@ test.describe("PUT /api/2.0/files/fileops/move - moveBatchItems", () => {
       expect(operation.error).toBe("");
     },
   );
+
+  // A folder holding a file that is open in the editor cannot be moved, which
+  // looks deliberate. What this pins is the batch: one such folder and nothing
+  // moves, not even the folders that have nothing to do with it - and the file
+  // that blocks it is not in the selection at all.
+  test.fail(
+    "BUG 84725: PUT /api/2.0/files/fileops/move - a folder holding a file open in the editor cancels the move of the whole selection",
+    async ({ apiSdk }) => {
+      const ownerApi = apiSdk.forRole("owner");
+
+      const { data: roomData } = await ownerApi.rooms.createRoom({
+        createRoomRequestDto: {
+          title: "Autotest MoveBatch Editing Session Room",
+          roomType: RoomType.EditingRoom,
+        },
+      });
+      const roomId = roomData.response!.id!;
+
+      const createFolder = async (title: string) =>
+        (
+          await ownerApi.folders.createFolder({
+            folderId: roomId,
+            createFolder: { title },
+          })
+        ).data.response!.id!;
+
+      const destFolderId = await createFolder(
+        "Autotest MoveBatch Editing Session Dest",
+      );
+      const withOpenFile = await createFolder(
+        "Autotest MoveBatch Folder With Open File",
+      );
+      const untouched = await createFolder(
+        "Autotest MoveBatch Folder Untouched",
+      );
+
+      const { data: fileData } = await ownerApi.files.createFile({
+        folderId: withOpenFile,
+        createFileJsonElement: {
+          title: "Autotest MoveBatch Open In Editor.docx",
+        },
+      });
+      await ownerApi.files.createFile({
+        folderId: untouched,
+        createFileJsonElement: { title: "Autotest MoveBatch Untouched.docx" },
+      });
+
+      const { status: editStatus } = await ownerApi.files.startEditFile({
+        fileId: fileData.response!.id!,
+        startEdit: { editingAlone: true },
+      });
+      expect(editStatus, "setup: the file is opened in the editor").toBe(200);
+
+      const { status } = await ownerApi.operations.moveBatchItems({
+        batchRequestDto: {
+          folderIds: [withOpenFile, untouched],
+          destFolderId,
+          conflictResolveType: FileConflictResolveType.Skip,
+          deleteAfter: false,
+        },
+      });
+      if (status === 200) await waitForOperation(ownerApi.operations);
+
+      const { data: moved } = await ownerApi.folders.getFolderInfo({
+        folderId: untouched,
+      });
+      expect(moved.response!.parentId).toBe(destFolderId);
+    },
+  );
 });
 
 test.describe("PUT /api/2.0/files/fileops/terminate/{id} - terminateTasks", () => {
