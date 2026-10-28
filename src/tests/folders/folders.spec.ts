@@ -1,6 +1,9 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures";
 import {
+  AuditReportFormat,
+  DistributedTaskStatus,
+  DocumentBuilderTaskDto,
   EmployeeType,
   FileShare,
   FilterType,
@@ -17,6 +20,8 @@ import { waitForOperation } from "@/src/helpers/wait-for-operation";
 import { uploadFileToFolder } from "@/src/helpers/upload-file";
 import { waitForUsedSpaceToMatchFiles } from "@/src/helpers/used-space";
 import { createTestImageBuffer } from "@/src/utils/test-image";
+import { downloadFile } from "@/src/helpers/download";
+import { randomUUID } from "node:crypto";
 
 function getFolderSortedByCustomOrder(folders: FoldersApi, folderId: number) {
   return folders.getFolderByFolderId({
@@ -10030,4 +10035,513 @@ test.describe("GET /api/2.0/files/filesusedspace - Reports zero space when files
       ).toBeGreaterThan(0);
     },
   );
+});
+
+// Reproduces the folders.insertFile SDK defect: the SDK sends the multipart
+// fields as `InsertFile.File` / `InsertFile.Title`, and the server answers 400
+// ("Value cannot be null. (Parameter 'title')"). The same endpoint accepts the
+// flat `File` / `Title` fields (see docs/bug-report-folders-insertfile-multipart-fields.md).
+// The test asserts the intended behaviour; it is expected to stay red until the
+// SDK/endpoint mismatch is fixed. No test.fail yet: the bug number is not known.
+test.describe("POST /api/2.0/files/{folderId}/insert - Insert file into a folder", () => {
+  test("POST /api/2.0/files/{folderId}/insert - Owner inserts a file and the response describes it", async ({
+    apiSdk,
+  }) => {
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: myData } = await ownerApi.folders.getMyFolder();
+    const { data: folderData, status: folderStatus } =
+      await ownerApi.folders.createFolder({
+        folderId: myData.response!.current!.id!,
+        createFolder: { title: `Autotest Insert ${randomUUID()}` },
+      });
+    expect(folderStatus).toBe(200);
+    const folderId = folderData.response!.id!;
+    const content = Buffer.from("Autotest insertFile content");
+    const title = `autotest-insert-${randomUUID()}.txt`;
+
+    const { data, status } = await ownerApi.folders.insertFile({
+      folderId,
+      insertFileFile: new File([new Uint8Array(content)], title, {
+        type: "text/plain",
+      }),
+      insertFileTitle: title,
+    });
+
+    const response = data.response as any;
+    expect(status).toBe(200);
+    expect(response.id).toBeGreaterThan(0);
+    expect(response.title).toBe(title);
+    expect(response.fileExst).toBe(".txt");
+    expect(response.folderId).toBe(folderId);
+    expect(response.pureContentLength).toBe(content.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Folder history report lifecycle: create / get / terminate.
+//
+// Observed on the stand but deliberately NOT asserted (they differ from, or go
+// beyond, the SDK documentation): intermediate percentages, the format of the
+// task id (it carries the folder id), the URL being absolute for CSV, CSV
+// filling `resultFileId`, and the documented "a finished report is picked up by
+// an earlier poll" (repeated GETs kept returning the finished task).
+//
+// Each test owns its portal (the `api` fixture is test-scoped) and its room, and
+// starts at most a few small reports, so nothing is shared or order dependent.
+// Result files are told apart by comparing the ids in My documents before and
+// after, never by name alone.
+// ---------------------------------------------------------------------------
+type ReportOutcome = "completed" | "canceled" | "failed";
+
+// Polls the report of a folder until the task has stopped, with a bounded
+// timeout and no fixed sleeps. Every caller MUST assert `outcome`: a failed task
+// is returned immediately as "failed" with its `error` (it is not retried), and
+// a cancelled one as "canceled", so neither can pass for "completed".
+async function waitForReport(
+  folders: FoldersApi,
+  folderId: number,
+  timeoutMs = 30_000,
+) {
+  let task: DocumentBuilderTaskDto | undefined;
+  await expect(async () => {
+    const { data, status } = await folders.getReportFolderHistory({
+      folderId,
+    });
+    expect(status).toBe(200);
+    task = data.response;
+    expect(task, "the report task is reported").toBeDefined();
+    const stopped =
+      task!.status === DistributedTaskStatus.Failted ||
+      (task!.isCompleted &&
+        task!.status !== DistributedTaskStatus.Created &&
+        task!.status !== DistributedTaskStatus.Running);
+    expect(stopped, `report has not stopped yet: ${JSON.stringify(task)}`).toBe(
+      true,
+    );
+  }).toPass({ intervals: [250, 500, 1_000], timeout: timeoutMs });
+
+  const outcome: ReportOutcome =
+    task!.status === DistributedTaskStatus.Completed
+      ? "completed"
+      : task!.status === DistributedTaskStatus.Canceled
+        ? "canceled"
+        : "failed";
+  return { outcome, task: task! };
+}
+
+test.describe("GET /api/2.0/files/folder/{folderId}/log/report - Get folder history report", () => {
+  test("GET /api/2.0/files/folder/{folderId}/log/report - Returns no task when no report was started", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Get Empty",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data, status } = await ownerApi.folders.getReportFolderHistory({
+      folderId: roomId,
+    });
+
+    // A well-formed 200 envelope without a task, not a failed request.
+    expect(status).toBe(200);
+    expect(data.statusCode).toBe(200);
+    expect(data.response ?? undefined).toBeUndefined();
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log/report - Started report has a well-formed task that GET reports under the same id", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Task Contract",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { data: created, status } =
+      await ownerApi.folders.createReportFolderHistory({ folderId: roomId });
+    expect(status).toBe(200);
+    const task = created.response!;
+    expect(task, "the create call answers with the queued task").toBeDefined();
+    expect(typeof task.id).toBe("string");
+    expect(task.id!.length).toBeGreaterThan(0);
+    expect(task.error ?? "").toBe("");
+    expect(typeof task.percentage).toBe("number");
+    expect(task.percentage).toBeGreaterThanOrEqual(0);
+    expect(task.percentage).toBeLessThanOrEqual(100);
+    expect(typeof task.isCompleted).toBe("boolean");
+    expect([
+      DistributedTaskStatus.Created,
+      DistributedTaskStatus.Running,
+      DistributedTaskStatus.Completed,
+    ]).toContain(task.status);
+
+    const { data: polled, status: pollStatus } =
+      await ownerApi.folders.getReportFolderHistory({ folderId: roomId });
+    expect(pollStatus).toBe(200);
+    expect(polled.response, "GET reports the started task").toBeDefined();
+    expect(polled.response!.id).toBe(task.id);
+    expect(polled.response!.percentage).toBeGreaterThanOrEqual(0);
+    expect(polled.response!.percentage).toBeLessThanOrEqual(100);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log/report - Report completes and its XLSX result is available in My documents", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Lifecycle",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status: createStatus } =
+      await ownerApi.folders.createReportFolderHistory({ folderId: roomId });
+    expect(createStatus).toBe(200);
+
+    const { outcome, task } = await waitForReport(ownerApi.folders, roomId);
+
+    expect(outcome, JSON.stringify(task)).toBe("completed");
+    expect(task.error ?? "").toBe("");
+    expect(task.percentage).toBe(100);
+    expect(task.resultFileId).toBeTruthy();
+    expect(typeof task.resultFileName).toBe("string");
+    expect(task.resultFileName!.length).toBeGreaterThan(0);
+    expect(task.resultFileUrl).toBeTruthy();
+
+    const fileId = Number(task.resultFileId);
+    const { data: info, status: infoStatus } = await ownerApi.files.getFileInfo(
+      { fileId },
+    );
+    expect(infoStatus).toBe(200);
+    expect((info.response as any).title).toBe(task.resultFileName);
+
+    const { data: myDocs, status: myDocsStatus } =
+      await ownerApi.folders.getMyFolder({});
+    expect(myDocsStatus).toBe(200);
+    expect(myDocs.response!.files!.map((f) => (f as any).id)).toContain(fileId);
+
+    const downloaded = await downloadFile(apiSdk, "owner", fileId);
+    expect(downloaded.status).toBe(200);
+    expect(downloaded.bytes.length).toBeGreaterThan(0);
+    // An XLSX file is a zip archive.
+    expect(downloaded.bytes.subarray(0, 2).toString("latin1")).toBe("PK");
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log/report - A second report after completion completes and its result is available", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Rerun",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status: firstStatus } =
+      await ownerApi.folders.createReportFolderHistory({ folderId: roomId });
+    expect(firstStatus).toBe(200);
+    const first = await waitForReport(ownerApi.folders, roomId);
+    expect(first.outcome, JSON.stringify(first.task)).toBe("completed");
+
+    const { status: secondStatus } =
+      await ownerApi.folders.createReportFolderHistory({ folderId: roomId });
+    expect(secondStatus).toBe(200);
+    const second = await waitForReport(ownerApi.folders, roomId);
+
+    expect(second.outcome, JSON.stringify(second.task)).toBe("completed");
+    expect(second.task.error ?? "").toBe("");
+    expect(second.task.resultFileId).toBeTruthy();
+    // Guards against reading the first run's finished task as the second run.
+    expect(
+      second.task.resultFileId,
+      "the second run has its own result file",
+    ).not.toBe(first.task.resultFileId);
+
+    const secondFileId = Number(second.task.resultFileId);
+    const { status: infoStatus } = await ownerApi.files.getFileInfo({
+      fileId: secondFileId,
+    });
+    expect(infoStatus).toBe(200);
+    const downloaded = await downloadFile(apiSdk, "owner", secondFileId);
+    expect(downloaded.status).toBe(200);
+    expect(downloaded.bytes.subarray(0, 2).toString("latin1")).toBe("PK");
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log/report - A CSV report completes and its file is available in My documents", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Csv",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+    const { data: before, status: beforeStatus } =
+      await ownerApi.folders.getMyFolder({});
+    expect(beforeStatus).toBe(200);
+    const idsBefore = new Set(
+      before.response!.files!.map((f) => (f as any).id as number),
+    );
+
+    const { status: createStatus } =
+      await ownerApi.folders.createReportFolderHistory({
+        folderId: roomId,
+        format: AuditReportFormat.Csv,
+      });
+    expect(createStatus).toBe(200);
+
+    const { outcome, task } = await waitForReport(ownerApi.folders, roomId);
+
+    expect(outcome, JSON.stringify(task)).toBe("completed");
+    expect(task.error ?? "").toBe("");
+    expect(task.resultFileName!.length).toBeGreaterThan(0);
+    expect(task.resultFileUrl).toBeTruthy();
+
+    // The CSV file is the file that appeared in My documents with the reported
+    // name; files that existed before the report are never considered.
+    const { data: after, status: afterStatus } =
+      await ownerApi.folders.getMyFolder({});
+    expect(afterStatus).toBe(200);
+    const csvFiles = after
+      .response!.files!.filter((f) => !idsBefore.has((f as any).id))
+      .filter((f) => f.title === task.resultFileName);
+    expect(csvFiles, "one new file carries the reported name").toHaveLength(1);
+    const downloaded = await downloadFile(
+      apiSdk,
+      "owner",
+      (csvFiles[0] as any).id as number,
+    );
+    expect(downloaded.status).toBe(200);
+    expect(downloaded.bytes.length).toBeGreaterThan(0);
+  });
+
+  // Observation of current behaviour: the task is bound to the folder it was
+  // started for. The SDK documentation speaks of "this folder and caller" but
+  // does not state how tasks of different folders relate.
+  test("GET /api/2.0/files/folder/{folderId}/log/report - Observation: a report of one folder is not reported for another folder", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomAData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Folder A",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomA = roomAData.response!.id!;
+    const { data: roomBData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Folder B",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomB = roomBData.response!.id!;
+
+    const { status: createAStatus } =
+      await ownerApi.folders.createReportFolderHistory({ folderId: roomA });
+    expect(createAStatus).toBe(200);
+    const reportA = await waitForReport(ownerApi.folders, roomA);
+    expect(reportA.outcome, JSON.stringify(reportA.task)).toBe("completed");
+
+    const { data: beforeB, status: beforeStatus } =
+      await ownerApi.folders.getReportFolderHistory({ folderId: roomB });
+    expect(beforeStatus).toBe(200);
+    expect(beforeB.statusCode).toBe(200);
+    expect(beforeB.response ?? undefined).toBeUndefined();
+
+    const { status: createBStatus } =
+      await ownerApi.folders.createReportFolderHistory({ folderId: roomB });
+    expect(createBStatus).toBe(200);
+    const reportB = await waitForReport(ownerApi.folders, roomB);
+    expect(reportB.outcome, JSON.stringify(reportB.task)).toBe("completed");
+    expect(reportB.task.resultFileId).not.toBe(reportA.task.resultFileId);
+
+    // Folder B's report did not replace what folder A reports.
+    const { data: afterA, status: afterAStatus } =
+      await ownerApi.folders.getReportFolderHistory({ folderId: roomA });
+    expect(afterAStatus).toBe(200);
+    expect(afterA.response, "folder A still reports its task").toBeDefined();
+    expect(afterA.response!.resultFileId).toBe(reportA.task.resultFileId);
+  });
+
+  test("GET /api/2.0/files/folder/{folderId}/log/report - Non-existent folderId returns 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .folders.getReportFolderHistory({ folderId: 999999999 });
+
+    expect(status).toBe(404);
+  });
+});
+
+test.describe("DELETE /api/2.0/files/folder/{folderId}/log/report - Terminate folder history report", () => {
+  // The report takes a couple of seconds, so the terminate request races with
+  // completion. Both documented outcomes are accepted and each is checked against
+  // its own invariant, after the task has stopped. The recorded outcome is
+  // attached as an annotation; a "completed" outcome is NOT proof that
+  // cancellation works.
+  test("DELETE /api/2.0/files/folder/{folderId}/log/report - Terminate right after start ends Canceled (no result) or Completed (result available)", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Terminate Running",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status: createStatus } =
+      await ownerApi.folders.createReportFolderHistory({ folderId: roomId });
+    expect(createStatus).toBe(200);
+    const { status: terminateStatus } =
+      await ownerApi.folders.terminateReportFolderHistory({ folderId: roomId });
+    expect(terminateStatus).toBe(200);
+
+    const { outcome, task } = await waitForReport(ownerApi.folders, roomId);
+    test.info().annotations.push({
+      type: "report-terminate-outcome",
+      description: outcome,
+    });
+    expect(["completed", "canceled"], JSON.stringify(task)).toContain(outcome);
+
+    // My documents also receives the portal's sample files asynchronously, so
+    // the folder listing is not compared; only the task's own result is.
+    if (outcome === "canceled") {
+      expect(task.status).toBe(DistributedTaskStatus.Canceled);
+      expect(task.isCompleted).toBe(true);
+      expect(task.resultFileId, "a cancelled report names no file").toBeFalsy();
+      expect(task.resultFileName ?? "").toBe("");
+      expect(task.resultFileUrl ?? "").toBe("");
+    } else {
+      expect(task.resultFileId).toBeTruthy();
+      const resultId = Number(task.resultFileId);
+      const { status: infoStatus } = await ownerApi.files.getFileInfo({
+        fileId: resultId,
+      });
+      expect(infoStatus).toBe(200);
+      const downloaded = await downloadFile(apiSdk, "owner", resultId);
+      expect(downloaded.status).toBe(200);
+      expect(downloaded.bytes.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("DELETE /api/2.0/files/folder/{folderId}/log/report - Terminating a finished report keeps its result file", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Terminate Finished",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const { status: createStatus } =
+      await ownerApi.folders.createReportFolderHistory({ folderId: roomId });
+    expect(createStatus).toBe(200);
+    const { outcome, task } = await waitForReport(ownerApi.folders, roomId);
+    expect(outcome, JSON.stringify(task)).toBe("completed");
+    expect(task.resultFileId).toBeTruthy();
+    const fileId = Number(task.resultFileId);
+    // Baseline read of the result before the terminate request.
+    const beforeDownload = await downloadFile(apiSdk, "owner", fileId);
+    expect(beforeDownload.status).toBe(200);
+    expect(beforeDownload.bytes.length).toBeGreaterThan(0);
+
+    const { status } = await ownerApi.folders.terminateReportFolderHistory({
+      folderId: roomId,
+    });
+    expect(status).toBe(200);
+
+    // The state the server reports for the task afterwards is not asserted: the
+    // task may be dropped. Only the file is required to survive.
+    const { status: infoStatus } = await ownerApi.files.getFileInfo({ fileId });
+    expect(infoStatus).toBe(200);
+    const { data: myDocs, status: myDocsStatus } =
+      await ownerApi.folders.getMyFolder({});
+    expect(myDocsStatus).toBe(200);
+    expect(myDocs.response!.files!.map((f) => (f as any).id)).toContain(fileId);
+    const afterDownload = await downloadFile(apiSdk, "owner", fileId);
+    expect(afterDownload.status).toBe(200);
+    expect(afterDownload.bytes.equals(beforeDownload.bytes)).toBe(true);
+  });
+
+  test("DELETE /api/2.0/files/folder/{folderId}/log/report - Terminate with no report is accepted repeatedly and leaves no task", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+    const ownerApi = apiSdk.forRole("owner");
+    const { data: roomData } = await ownerApi.rooms.createRoom({
+      createRoomRequestDto: {
+        title: "Autotest Report Terminate Nothing",
+        roomType: RoomType.CustomRoom,
+      },
+    });
+    const roomId = roomData.response!.id!;
+
+    const first = await ownerApi.folders.terminateReportFolderHistory({
+      folderId: roomId,
+    });
+    const second = await ownerApi.folders.terminateReportFolderHistory({
+      folderId: roomId,
+    });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+
+    const { data: report, status: reportStatus } =
+      await ownerApi.folders.getReportFolderHistory({ folderId: roomId });
+    expect(reportStatus).toBe(200);
+    expect(report.statusCode).toBe(200);
+    expect(report.response ?? undefined).toBeUndefined();
+  });
+
+  test("DELETE /api/2.0/files/folder/{folderId}/log/report - Non-existent folderId returns 404", async ({
+    apiSdk,
+    paymentsApi,
+  }) => {
+    await paymentsApi.setupPayment();
+
+    const { status } = await apiSdk
+      .forRole("owner")
+      .folders.terminateReportFolderHistory({ folderId: 999999999 });
+
+    expect(status).toBe(404);
+  });
 });
