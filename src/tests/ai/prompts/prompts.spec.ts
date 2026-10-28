@@ -1662,7 +1662,7 @@ test.describe("AI Prompts - composer round trip", () => {
 //     lifecycle tests above), and the SDK exposes exactly the 13 routes listed at
 //     the top of this file, none of which serves a system library.
 //   * Nothing serves the chips either: no prompts route, no field on
-//     `/ai/config` (AiAiSettingsDto is vectorizationEnabled /
+//     `/ai/config` (AiSettingsDto is vectorizationEnabled /
 //     vectorizationNeedReset / aiReady / embeddingModel / systemAiEnabled /
 //     recommendedModelForForms), and `/ai/preferences/*` is deep-mode only.
 //

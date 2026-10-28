@@ -22,7 +22,7 @@ async function roomWithHtml(apiSdk: ApiSDK, content = "<p>original</p>") {
   const roomId = roomData.response!.id!;
   const { data } = await ownerApi.files.createHtmlFile({
     folderId: roomId,
-    createTextOrHtmlFile: { title: "Autotest State", content },
+    createTextOrHtmlFileRequest: { title: "Autotest State", content },
   });
   return { ownerApi, roomId, fileId: (data.response as { id: number }).id };
 }
@@ -77,7 +77,7 @@ test.describe("State: locked file", () => {
     const member = await addMember(apiSdk, roomId, FileShare.ContentCreator);
     const { status } = await ownerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
     expect(status).toBe(200);
     return { ownerApi, member, fileId };
@@ -110,7 +110,7 @@ test.describe("State: locked file", () => {
 
     await member.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
 
     expect(await fileState(apiSdk, fileId)).toEqual(before);
@@ -126,7 +126,7 @@ test.describe("State: locked file", () => {
 
       const { status } = await member.files.startEditFile({
         fileId,
-        startEdit: { editingAlone: true },
+        startEditRequest: { editingAlone: true },
       });
 
       expect(await fileState(apiSdk, fileId)).toEqual(before);
@@ -142,7 +142,7 @@ test.describe("State: locked file", () => {
 
     const { status: renameStatus } = await ownerApi.files.updateFile({
       fileId,
-      updateFile: { title: "Renamed by setter" },
+      updateFileRequest: { title: "Renamed by setter" },
     });
     expect(renameStatus).toBe(200);
     expect((await fileState(apiSdk, fileId)).title).toBe(
@@ -151,7 +151,7 @@ test.describe("State: locked file", () => {
 
     const { status: deleteStatus } = await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     expect(deleteStatus).toBe(200);
     await waitForOperation(ownerApi.operations);
@@ -180,13 +180,13 @@ test.describe("State: open in an editing session", () => {
     const fileId = (
       await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest Edited.docx" },
+        createFileRequest: { title: "Autotest Edited.docx" },
       })
     ).data.response!.id!;
     const member = await addMember(apiSdk, roomId, FileShare.ContentCreator);
     const { data } = await ownerApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
     expect(typeof data.response).toBe("string");
     return { ownerApi, member, fileId };
@@ -226,7 +226,7 @@ test.describe("State: open in an editing session", () => {
 
     const { status } = await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     // The refusal queues no operation, so there is nothing to wait for.
@@ -253,7 +253,7 @@ test.describe("State: file in an archived room", () => {
     const { ownerApi, roomId, fileId } = await roomWithHtml(apiSdk);
     const { data } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Archived Sheet.xlsx" },
+      createFileRequest: { title: "Autotest Archived Sheet.xlsx" },
     });
     const sheetId = data.response!.id!;
     await archiveRoomAndWait(apiSdk, roomId);
@@ -275,18 +275,21 @@ test.describe("State: file in an archived room", () => {
       run: (api, { fileId }) =>
         api.files.updateFile({
           fileId,
-          updateFile: { title: "Renamed in archive" },
+          updateFileRequest: { title: "Renamed in archive" },
         }),
     },
     {
       name: "lockFile",
       run: (api, { fileId }) =>
-        api.files.lockFile({ fileId, lockFileParameters: { lockFile: true } }),
+        api.files.lockFile({ fileId, lockFileRequest: { lockFile: true } }),
     },
     {
       name: "startEditFile",
       run: (api, { fileId }) =>
-        api.files.startEditFile({ fileId, startEdit: { editingAlone: true } }),
+        api.files.startEditFile({
+          fileId,
+          startEditRequest: { editingAlone: true },
+        }),
     },
     {
       name: "saveEditingFileFromForm",
@@ -307,7 +310,7 @@ test.describe("State: file in an archived room", () => {
       run: (api, { sheetId }) =>
         api.files.setCustomFilterTag({
           fileId: sheetId,
-          customFilterParameters: { enabled: true },
+          customFilterRequest: { enabled: true },
         }),
     },
     {
@@ -341,7 +344,7 @@ test.describe("State: file in an archived room", () => {
 
     const { status } = await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     if (status === 200) {
       await waitForOperation(ownerApi.operations);
@@ -376,7 +379,7 @@ test.describe("State: deleted file", () => {
     const { ownerApi, roomId, fileId } = await roomWithHtml(apiSdk);
     const { status: deleteStatus } = await ownerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     expect(deleteStatus).toBe(200);
     await waitForOperation(ownerApi.operations);
@@ -393,14 +396,14 @@ test.describe("State: deleted file", () => {
         "copyFileAs",
         ownerApi.files.copyFileAs({
           fileId,
-          copyAsJsonElement: { destTitle: "Copy.html", destFolderId: roomId },
+          copyAsRequest: { destTitle: "Copy.html", destFolderId: roomId },
         }),
       ],
       [
         "saveFileAsPdf",
         ownerApi.files.saveFileAsPdf({
           id: fileId,
-          saveAsPdf: { folderId: roomId, title: "Pdf" },
+          saveAsPdfRequest: { folderId: roomId, title: "Pdf" },
         }),
       ],
       ["getPresignedUri", ownerApi.files.getPresignedUri({ fileId })],
@@ -422,7 +425,7 @@ test.describe("State: deleted file", () => {
     // say which, so it is only required to refuse and start no session.
     const start = await ownerApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
     expect(start.status).not.toBe(200);
 

@@ -1193,7 +1193,7 @@ test.describe("AI Web Search - room and folder scope", () => {
     const { data: myFolder } = await ownerApi.folders.getMyFolder();
     const { data: folder } = await ownerApi.folders.createFolder({
       folderId: myFolder.response!.current!.id!,
-      createFolder: { title: "Autotest Web Search Folder" },
+      createFolderRequest: { title: "Autotest Web Search Folder" },
     });
     const folderId = folder.response!.id!;
 

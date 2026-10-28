@@ -57,7 +57,7 @@ export async function saveSettings(
 ) {
   const result = await api.apps.setSettings({
     id,
-    setAppSettingsBody: { settings },
+    setAppSettingsRequest: { settings },
   });
   expect(result.status, `setSettings ${id} (setup)`).toBe(200);
   return result;
@@ -70,7 +70,7 @@ export async function saveEnabled(
 ) {
   const result = await api.apps.setEnabled({
     id,
-    setAppEnabledBody: { enabled },
+    setAppEnabledRequest: { enabled },
   });
   expect(result.status, `setEnabled ${id} (setup)`).toBe(200);
   return result;
@@ -79,11 +79,11 @@ export async function saveEnabled(
 async function restoreApp(api: AppsClient, state: AppState) {
   await api.apps.setEnabled({
     id: state.id,
-    setAppEnabledBody: { enabled: state.enabled },
+    setAppEnabledRequest: { enabled: state.enabled },
   });
   await api.apps.setSettings({
     id: state.id,
-    setAppSettingsBody: { settings: state.settings },
+    setAppSettingsRequest: { settings: state.settings },
   });
   const after = await snapshot(api, state.id);
   if (JSON.stringify(after) !== JSON.stringify(state)) {

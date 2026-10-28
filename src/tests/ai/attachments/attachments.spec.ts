@@ -3477,7 +3477,7 @@ async function pdfWithMarker(
 
   const { status, data } = await ownerApi.files.saveFileAsPdf({
     id: docx.id,
-    saveAsPdf: { folderId, title: `${title}.pdf` },
+    saveAsPdfRequest: { folderId, title: `${title}.pdf` },
   });
   return expectConverted(
     ownerApi,
@@ -3513,7 +3513,7 @@ async function xlsxWithMarker(
 
   const { status, data } = await ownerApi.files.copyFileAs({
     fileId: csv.id,
-    copyAsJsonElement: { destTitle: `${title}.xlsx`, destFolderId: folderId },
+    copyAsRequest: { destTitle: `${title}.xlsx`, destFolderId: folderId },
   });
   return expectConverted(
     ownerApi,
@@ -3840,7 +3840,7 @@ test.describe("AI Attachments - attaching a stored file by id", () => {
 
     const { data: empty } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "autotest-empty.docx" },
+      createFileRequest: { title: "autotest-empty.docx" },
     });
     expect(
       (
@@ -4182,7 +4182,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
       (
         await ownerApi.files.createFile({
           folderId: agentId,
-          createFileJsonElement: { title: "autotest.docx" },
+          createFileRequest: { title: "autotest.docx" },
         })
       ).status,
       "creating a file in the agent room",
@@ -4240,7 +4240,7 @@ test.describe("AI Attachments - the destination of a device file", () => {
 
     const { status } = await ownerApi.folders.createFolder({
       folderId: knowledgeId,
-      createFolder: { title: folderTitle },
+      createFolderRequest: { title: folderTitle },
     });
 
     // Side-effect check before the status check, so a status failure never

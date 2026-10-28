@@ -99,7 +99,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
     apiSdk,
   }) => {
     const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: {
+      ssoSettingsRequestDto: {
         serializeSettings: JSON.stringify(validSsoSettings()),
       },
     });
@@ -115,7 +115,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { status } = await ownerApi.sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: {
+      ssoSettingsRequestDto: {
         serializeSettings: JSON.stringify(
           validSsoSettings({
             enableSso: true,
@@ -142,7 +142,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { status } = await ownerApi.sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: {
+      ssoSettingsRequestDto: {
         serializeSettings: JSON.stringify(
           validSsoSettings({ spLoginLabel: "L".repeat(150) }),
         ),
@@ -162,7 +162,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { status } = await ownerApi.sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: {
+      ssoSettingsRequestDto: {
         serializeSettings: JSON.stringify(validSsoSettings({ usersType: 99 })),
       },
     });
@@ -180,7 +180,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: {
+      ssoSettingsRequestDto: {
         serializeSettings: JSON.stringify(validSsoSettings({ usersType: 1 })),
       },
     });
@@ -188,7 +188,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
     expect(afterRoomAdmin.data.response?.usersType).toBe(1);
 
     await ownerApi.sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: {
+      ssoSettingsRequestDto: {
         serializeSettings: JSON.stringify(validSsoSettings({ usersType: 3 })),
       },
     });
@@ -203,7 +203,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
     await paymentsApi.setupPayment();
 
     const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: { serializeSettings: "" },
+      ssoSettingsRequestDto: { serializeSettings: "" },
     });
 
     expect(status).toBe(400);
@@ -224,7 +224,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
       await paymentsApi.setupPayment();
 
       const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-        ssoSettingsRequestsDto: {
+        ssoSettingsRequestDto: {
           serializeSettings: JSON.stringify(
             validSsoSettings({
               idpSettings: {
@@ -246,7 +246,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
       await paymentsApi.setupPayment();
 
       const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-        ssoSettingsRequestsDto: {
+        ssoSettingsRequestDto: {
           serializeSettings: JSON.stringify(
             validSsoSettings({
               idpSettings: {
@@ -268,7 +268,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
       await paymentsApi.setupPayment();
 
       const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-        ssoSettingsRequestsDto: {
+        ssoSettingsRequestDto: {
           serializeSettings: JSON.stringify(
             validSsoSettings({
               fieldMapping: { firstName: "a", lastName: "b" },
@@ -293,7 +293,7 @@ test.describe("POST /api/2.0/settings/ssov2 - Save the SSO settings", () => {
       await paymentsApi.setupPayment();
 
       const { status } = await apiSdk.forRole("owner").sso.saveSsoSettingsV2({
-        ssoSettingsRequestsDto: {
+        ssoSettingsRequestDto: {
           serializeSettings: JSON.stringify(
             validSsoSettings({
               idpSettings: {
@@ -330,7 +330,7 @@ test.describe("DELETE /api/2.0/settings/ssov2 - Reset the SSO settings", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: {
+      ssoSettingsRequestDto: {
         serializeSettings: JSON.stringify(
           validSsoSettings({ enableSso: true }),
         ),

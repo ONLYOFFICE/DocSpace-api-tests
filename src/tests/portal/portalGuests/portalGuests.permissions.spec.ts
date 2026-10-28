@@ -12,7 +12,7 @@ test.describe("Portal Guests — Sharing Link — Permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .portalGuests.getGuestSharingLink({ userid: guestId });
+      .portalGuests.getGuestSharingLink({ userId: guestId });
 
     expect(status).toBe(403);
     expect((data as any).error.message).toBe("Access denied");
@@ -28,7 +28,7 @@ test.describe("Portal Guests — Sharing Link — Permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .portalGuests.getGuestSharingLink({ userid: guestId });
+      .portalGuests.getGuestSharingLink({ userId: guestId });
 
     expect(status).toBe(403);
     expect((data as any).error.message).toBe("Access denied");

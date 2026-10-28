@@ -688,7 +688,7 @@ test.describe("PUT /files/rooms/:id/archive - access control", () => {
     const { data: fileData, status: fileDataStatus } =
       await adminApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: {
+        createFileRequest: {
           title: "DocSpaceAdmin Document",
         },
       });

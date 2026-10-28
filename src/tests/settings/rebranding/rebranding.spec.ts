@@ -193,12 +193,12 @@ test.describe("PUT /api/2.0/settings/whitelabel/logos/restore - Restore the whit
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
     await ownerApi.rebranding.saveWhiteLabelSettings({
-      whiteLabelRequestsDto: {
+      whiteLabelRequestDto: {
         logo: [{ key: "1", value: { light: tinyPng } }],
       },
     });
     await ownerApi.rebranding.saveWhiteLabelSettings({
-      whiteLabelRequestsDto: {
+      whiteLabelRequestDto: {
         logo: [{ key: "2", value: { light: tinyPng } }],
       },
     });
@@ -235,7 +235,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - Save the white 
     const { status } = await apiSdk
       .forRole("owner")
       .rebranding.saveWhiteLabelLogoText({
-        whiteLabelRequestsDto: { logoText: "Autotest Brand" },
+        whiteLabelRequestDto: { logoText: "Autotest Brand" },
       });
 
     expect(status).toBe(402);
@@ -249,7 +249,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - Save the white 
     const ownerApi = apiSdk.forRole("owner");
 
     const { status } = await ownerApi.rebranding.saveWhiteLabelLogoText({
-      whiteLabelRequestsDto: { logoText: "Autotest Brand" },
+      whiteLabelRequestDto: { logoText: "Autotest Brand" },
     });
     expect(status).toBe(200);
 
@@ -271,7 +271,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - Save the white 
     const { status } = await apiSdk
       .forRole("owner")
       .rebranding.saveWhiteLabelLogoText({
-        whiteLabelRequestsDto: { logoText: "A".repeat(41) },
+        whiteLabelRequestDto: { logoText: "A".repeat(41) },
       });
 
     expect(status).toBe(400);
@@ -286,7 +286,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - Save the white 
     const { status } = await apiSdk
       .forRole("owner")
       .rebranding.saveWhiteLabelLogoText({
-        whiteLabelRequestsDto: { logoText: "B".repeat(40) },
+        whiteLabelRequestDto: { logoText: "B".repeat(40) },
       });
 
     expect(status).toBe(200);
@@ -300,11 +300,11 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - Save the white 
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.rebranding.saveWhiteLabelLogoText({
-      whiteLabelRequestsDto: { logoText: "Custom Brand" },
+      whiteLabelRequestDto: { logoText: "Custom Brand" },
     });
 
     const { status } = await ownerApi.rebranding.saveWhiteLabelLogoText({
-      whiteLabelRequestsDto: { logoText: "" },
+      whiteLabelRequestDto: { logoText: "" },
     });
     expect(status).toBe(200);
 
@@ -325,11 +325,11 @@ test.describe("POST /api/2.0/settings/whitelabel/logotext/save - Save the white 
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.rebranding.saveWhiteLabelLogoText({
-      whiteLabelRequestsDto: { logoText: "Custom Brand" },
+      whiteLabelRequestDto: { logoText: "Custom Brand" },
     });
 
     const { status } = await ownerApi.rebranding.saveWhiteLabelLogoText({
-      whiteLabelRequestsDto: { logoText: "ONLYOFFICE" },
+      whiteLabelRequestDto: { logoText: "ONLYOFFICE" },
     });
     expect(status).toBe(200);
 
@@ -346,7 +346,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/save - Save the white lab
     const { status } = await apiSdk
       .forRole("owner")
       .rebranding.saveWhiteLabelSettings({
-        whiteLabelRequestsDto: { logo: [] },
+        whiteLabelRequestDto: { logo: [] },
       });
 
     expect(status).toBe(402);
@@ -364,7 +364,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/save - Save the white lab
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
     const { status } = await ownerApi.rebranding.saveWhiteLabelSettings({
-      whiteLabelRequestsDto: {
+      whiteLabelRequestDto: {
         logo: [{ key: "1", value: { light: tinyPng } }],
       },
     });
@@ -391,7 +391,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/save - Save the white lab
     const { status } = await apiSdk
       .forRole("owner")
       .rebranding.saveWhiteLabelSettings({
-        whiteLabelRequestsDto: {
+        whiteLabelRequestDto: {
           logo: [{ key: "1", value: { light: "not-a-valid-image" } }],
         },
       });
@@ -415,7 +415,7 @@ test.describe("POST /api/2.0/settings/whitelabel/logos/save - Save the white lab
     const { status } = await apiSdk
       .forRole("owner")
       .rebranding.saveWhiteLabelSettings({
-        whiteLabelRequestsDto: {
+        whiteLabelRequestDto: {
           logo: [{ key: "999", value: { light: tinyPng } }],
         },
       });
@@ -518,7 +518,7 @@ test.describe("POST /api/2.0/settings/rebranding/company - Save the company whit
     const { status } = await apiSdk
       .forRole("owner")
       .rebranding.saveCompanyWhiteLabelSettings({
-        companyWhiteLabelSettingsWrapper: {
+        companyWhiteLabelSettingsRequestDto: {
           settings: {
             companyName: "Autotest Co",
             site: "https://example.com",
@@ -540,7 +540,7 @@ test.describe("POST /api/2.0/settings/rebranding/additional - Save the additiona
     const { status } = await apiSdk
       .forRole("owner")
       .rebranding.saveAdditionalWhiteLabelSettings({
-        additionalWhiteLabelSettingsWrapper: {
+        additionalWhiteLabelSettingsRequestDto: {
           settings: {
             startDocsEnabled: false,
             helpCenterEnabled: false,
@@ -596,7 +596,7 @@ test.describe("isDefault=true - writing the installation-wide default branding",
       .forRole("owner")
       .rebranding.saveWhiteLabelLogoText({
         isDefault: true,
-        whiteLabelRequestsDto: { logoText: "Installation Wide" },
+        whiteLabelRequestDto: { logoText: "Installation Wide" },
       });
 
     expect(status).toBe(403);

@@ -26,7 +26,7 @@ test.describe("POST /api/2.0/settings/webhook - Create a webhook", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .webhooks.createWebhook({
-        createWebhooksConfigRequestsDto: { ...dto, enabled: true },
+        createWebhooksConfigRequestDto: { ...dto, enabled: true },
       });
 
     expect(status).toBe(200);
@@ -48,7 +48,7 @@ test.describe("POST /api/2.0/settings/webhook - Create a webhook", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .webhooks.createWebhook({
-        createWebhooksConfigRequestsDto: {
+        createWebhooksConfigRequestDto: {
           ...dto,
           ssl: true,
           triggers: WebhookTrigger.FileCreated,
@@ -70,7 +70,7 @@ test.describe("GET /api/2.0/settings/webhook - Get tenant webhooks", () => {
     const dto = webhookDto(apiSdk);
 
     const { data: created } = await ownerApi.webhooks.createWebhook({
-      createWebhooksConfigRequestsDto: dto,
+      createWebhooksConfigRequestDto: dto,
     });
     const createdId = created.response!.id!;
 
@@ -93,14 +93,14 @@ test.describe("PUT /api/2.0/settings/webhook - Update a webhook", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: created } = await ownerApi.webhooks.createWebhook({
-      createWebhooksConfigRequestsDto: webhookDto(apiSdk),
+      createWebhooksConfigRequestDto: webhookDto(apiSdk),
     });
     const id = created.response!.id!;
 
     const updated = webhookDto(apiSdk);
 
     const { data, status } = await ownerApi.webhooks.updateWebhook({
-      updateWebhooksConfigRequestsDto: { id, ...updated },
+      updateWebhooksConfigRequestDto: { id, ...updated },
     });
 
     expect(status).toBe(200);
@@ -120,12 +120,12 @@ test.describe("PUT /api/2.0/settings/webhook/enable - Enable a webhook", () => {
     const dto = webhookDto(apiSdk);
 
     const { data: created } = await ownerApi.webhooks.createWebhook({
-      createWebhooksConfigRequestsDto: { ...dto, enabled: true },
+      createWebhooksConfigRequestDto: { ...dto, enabled: true },
     });
     const id = created.response!.id!;
 
     const { data, status } = await ownerApi.webhooks.enableWebhook({
-      updateWebhooksConfigRequestsDto: { id, ...dto, enabled: false },
+      updateWebhooksConfigRequestDto: { id, ...dto, enabled: false },
     });
 
     expect(status).toBe(200);
@@ -145,7 +145,7 @@ test.describe("DELETE /api/2.0/settings/webhook/{id} - Remove a webhook", () => 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: created } = await ownerApi.webhooks.createWebhook({
-      createWebhooksConfigRequestsDto: webhookDto(apiSdk),
+      createWebhooksConfigRequestDto: webhookDto(apiSdk),
     });
     const id = created.response!.id!;
 
@@ -197,7 +197,7 @@ test.describe("PUT /api/2.0/settings/webhook/retry - Retry webhooks", () => {
   }) => {
     const { data, status } = await apiSdk
       .forRole("owner")
-      .webhooks.retryWebhooks({ webhookRetryRequestsDto: { ids: [] } });
+      .webhooks.retryWebhooks({ webhookRetryRequestDto: { ids: [] } });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);

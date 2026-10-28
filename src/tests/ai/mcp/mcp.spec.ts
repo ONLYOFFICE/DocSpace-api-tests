@@ -2968,7 +2968,7 @@ test.describe("MCP - custom servers scoped to a room", () => {
     const { data: folder, status: created } =
       await ownerApi.folders.createFolder({
         folderId: myDocsId,
-        createFolder: { title: "Autotest MCP Folder" },
+        createFolderRequest: { title: "Autotest MCP Folder" },
       });
     // Asserted before test.fail() is armed: a folder that was never created
     // must surface as a real failure, not as the expected 403.
@@ -7257,7 +7257,7 @@ test.describe("MCP - the server-executed DocSpace tools", () => {
         const { data: myFolder } = await ownerApi.folders.getMyFolder({});
         const { data: created, status } = await ownerApi.folders.createFolder({
           folderId: myFolder.response!.current!.id!,
-          createFolder: { title: "Autotest REST Tool Folder" },
+          createFolderRequest: { title: "Autotest REST Tool Folder" },
         });
         expect(status, "the control folder was created").toBe(200);
         entityId = created.response!.id!;

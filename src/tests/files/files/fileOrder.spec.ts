@@ -25,7 +25,7 @@ async function indexedRoomWithFiles(apiSdk: ApiSDK, titles: string[]) {
   for (const title of titles) {
     const { data } = await ownerApi.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title, content: "<p/>" },
+      createTextOrHtmlFileRequest: { title, content: "<p/>" },
     });
     ids.push((data.response as { id: number }).id);
   }
@@ -359,7 +359,7 @@ test.describe("Order endpoints - permissions in an indexed VDR", () => {
     expect(inviteStatus).toBe(200);
     const { data: created } = await api.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "Mine", content: "<p/>" },
+      createTextOrHtmlFileRequest: { title: "Mine", content: "<p/>" },
     });
     const mineId = (created.response as { id: number }).id;
 

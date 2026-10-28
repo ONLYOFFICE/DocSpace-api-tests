@@ -8,7 +8,7 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - who can call the endpoint
     const { status } = await apiSdk
       .forAnonymous()
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
 
     expect(status).toBe(401);
@@ -22,7 +22,7 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - who can call the endpoint
     const { status } = await apiSdk
       .forRole("roomAdmin")
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
 
     expect(status).toBe(403);
@@ -36,7 +36,7 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - who can call the endpoint
     const { status } = await apiSdk
       .forRole("user")
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
 
     expect(status).toBe(403);
@@ -50,7 +50,7 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - who can call the endpoint
     const { status } = await apiSdk
       .forRole("guest")
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
 
     expect(status).toBe(403);
@@ -65,7 +65,9 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - effect with limitedAccess
       await apiSdk
         .forRole("owner")
         .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-          tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+          tenantDevToolsAccessSettingsRequestDto: {
+            limitedAccessForUsers: true,
+          },
         });
     });
 
@@ -85,7 +87,9 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - effect with limitedAccess
       await apiSdk
         .forRole("owner")
         .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-          tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+          tenantDevToolsAccessSettingsRequestDto: {
+            limitedAccessForUsers: true,
+          },
         });
     });
 
@@ -109,7 +113,9 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - effect with limitedAccess
         await apiSdk
           .forRole("owner")
           .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-            tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+            tenantDevToolsAccessSettingsRequestDto: {
+              limitedAccessForUsers: true,
+            },
           });
       });
 
@@ -137,7 +143,9 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - effect with limitedAccess
         await apiSdk
           .forRole("owner")
           .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-            tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+            tenantDevToolsAccessSettingsRequestDto: {
+              limitedAccessForUsers: true,
+            },
           });
       });
 
@@ -166,10 +174,12 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - access restored with limi
     await test.step("Owner enables then disables limited access", async () => {
       const ownerApi = apiSdk.forRole("owner");
       await ownerApi.securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
       await ownerApi.securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: false },
+        tenantDevToolsAccessSettingsRequestDto: {
+          limitedAccessForUsers: false,
+        },
       });
     });
 
@@ -192,10 +202,12 @@ test.describe("POST /api/2.0/settings/devtoolsaccess - access restored with limi
     await test.step("Owner enables then disables limited access", async () => {
       const ownerApi = apiSdk.forRole("owner");
       await ownerApi.securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
       await ownerApi.securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: false },
+        tenantDevToolsAccessSettingsRequestDto: {
+          limitedAccessForUsers: false,
+        },
       });
     });
 

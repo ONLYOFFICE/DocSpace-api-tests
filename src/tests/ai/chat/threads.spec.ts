@@ -400,7 +400,10 @@ test.describe("POST /api/2.0/ai/threads/open-or-create - ThreadsApi.aiThreadsOpe
     const ctx = await threadsSetup(apiSdk, paymentsApi);
     const keeper = await createThread(ctx, "Keeper");
     const doomed = await createThread(ctx, "Doomed");
-    expect((await ctx.api.aiThreadsDelete({ body: doomed })).status).toBe(200);
+    expect(
+      (await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: doomed }))
+        .status,
+    ).toBe(200);
 
     const open = (threadId: unknown) =>
       ctx.raw.send("owner", "post", "/api/2.0/ai/threads/open-or-create", {
@@ -532,7 +535,11 @@ test.describe("GET /api/2.0/ai/threads/get-by-id - ThreadsApi.aiThreadsGetById",
 
     await test.step("after clear-messages the thread is still there", async () => {
       expect(
-        (await ctx.api.aiThreadsClearMessages({ body: threadId })).status,
+        (
+          await ctx.api.aiThreadsClearMessages({
+            aiThreadsClearMessagesRequest: threadId,
+          })
+        ).status,
       ).toBe(200);
       const cleared = await getThread(ctx, threadId);
       expect(cleared.title).toBe("Renamed");
@@ -547,7 +554,10 @@ test.describe("GET /api/2.0/ai/threads/get-by-id - ThreadsApi.aiThreadsGetById",
     const ctx = await threadsSetup(apiSdk, paymentsApi);
     const keeper = await createThread(ctx, "Keeper");
     const doomed = await createThread(ctx, "Doomed");
-    expect((await ctx.api.aiThreadsDelete({ body: doomed })).status).toBe(200);
+    expect(
+      (await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: doomed }))
+        .status,
+    ).toBe(200);
 
     const unknown = await ctx.api.aiThreadsGetById({ threadId: UNKNOWN_ID });
     const deleted = await ctx.api.aiThreadsGetById({ threadId: doomed });
@@ -611,12 +621,14 @@ test.describe("GET /api/2.0/ai/threads/list - ThreadsApi.aiThreadsList", () => {
     });
 
     await test.step("clear-messages keeps the thread in the list", async () => {
-      await ctx.api.aiThreadsClearMessages({ body: b });
+      await ctx.api.aiThreadsClearMessages({
+        aiThreadsClearMessagesRequest: b,
+      });
       await expectOnlyThreads(ctx, [a, b], "cleared thread stays listed");
     });
 
     await test.step("delete removes exactly that thread", async () => {
-      await ctx.api.aiThreadsDelete({ body: a });
+      await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: a });
       await expectOnlyThreads(ctx, [b], "only the deleted thread went");
     });
   });
@@ -802,7 +814,10 @@ test.describe("PUT /api/2.0/ai/threads/rename - ThreadsApi.aiThreadsRename", () 
     const ctx = await threadsSetup(apiSdk, paymentsApi);
     const threadId = await createThread(ctx, "Untouchable");
     const doomed = await createThread(ctx, "Doomed");
-    expect((await ctx.api.aiThreadsDelete({ body: doomed })).status).toBe(200);
+    expect(
+      (await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: doomed }))
+        .status,
+    ).toBe(200);
     const rename = (body: unknown) =>
       ctx.raw.send("owner", "put", "/api/2.0/ai/threads/rename", body);
 
@@ -856,7 +871,10 @@ test.describe("POST /api/2.0/ai/threads/regenerate-title - ThreadsApi.aiThreadsR
     const threadId = await createThread(ctx, "Keep my name");
     await appendText(ctx, threadId, "Something to title");
     const doomed = await createThread(ctx, "Doomed");
-    expect((await ctx.api.aiThreadsDelete({ body: doomed })).status).toBe(200);
+    expect(
+      (await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: doomed }))
+        .status,
+    ).toBe(200);
     const regenerate = (body: unknown) =>
       ctx.raw.send(
         "owner",
@@ -1026,7 +1044,10 @@ test.describe("POST /api/2.0/ai/threads/touch - ThreadsApi.aiThreadsTouch", () =
     const ctx = await threadsSetup(apiSdk, paymentsApi);
     const threadId = await createThread(ctx, "Bystander");
     const doomed = await createThread(ctx, "Doomed");
-    expect((await ctx.api.aiThreadsDelete({ body: doomed })).status).toBe(200);
+    expect(
+      (await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: doomed }))
+        .status,
+    ).toBe(200);
     const before = await snapshotThread(ctx, threadId);
     const touch = (body: unknown) =>
       ctx.raw.send("owner", "post", "/api/2.0/ai/threads/touch", body);
@@ -1072,8 +1093,12 @@ test.describe("DELETE /api/2.0/ai/threads/delete - ThreadsApi.aiThreadsDelete", 
     const emptyDoomed = await createThread(ctx, "Empty doomed");
 
     // SDK 4.0.0 takes the id as a bare JSON string.
-    const { status, data } = await ctx.api.aiThreadsDelete({ body: doomed });
-    const emptyResult = await ctx.api.aiThreadsDelete({ body: emptyDoomed });
+    const { status, data } = await ctx.api.aiThreadsDelete({
+      aiThreadsDeleteRequest: doomed,
+    });
+    const emptyResult = await ctx.api.aiThreadsDelete({
+      aiThreadsDeleteRequest: emptyDoomed,
+    });
 
     expect(status).toBe(200);
     expect(data.success).toBe(true);
@@ -1107,8 +1132,12 @@ test.describe("DELETE /api/2.0/ai/threads/delete - ThreadsApi.aiThreadsDelete", 
 
     const noBody = await del();
     const empty = await del({});
-    const malformed = await ctx.api.aiThreadsDelete({ body: MALFORMED_ID });
-    const unknown = await ctx.api.aiThreadsDelete({ body: UNKNOWN_ID });
+    const malformed = await ctx.api.aiThreadsDelete({
+      aiThreadsDeleteRequest: MALFORMED_ID,
+    });
+    const unknown = await ctx.api.aiThreadsDelete({
+      aiThreadsDeleteRequest: UNKNOWN_ID,
+    });
 
     await expectOnlyThreads(ctx, [keeper], "nothing was deleted");
     expect(noBody.status, "no body").toBe(400);
@@ -1139,7 +1168,7 @@ test.describe("DELETE /api/2.0/ai/threads/clear-messages - ThreadsApi.aiThreadsC
     const identityBefore = await getThread(ctx, threadId);
 
     const { status, data } = await ctx.api.aiThreadsClearMessages({
-      body: threadId,
+      aiThreadsClearMessagesRequest: threadId,
     });
 
     expect(status).toBe(200);

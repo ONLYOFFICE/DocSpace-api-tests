@@ -4,7 +4,7 @@ import { test } from "@/src/fixtures/index";
 const webhookDto = (apiSdk: {
   faker: { generateString(n: number): string };
 }) => ({
-  createWebhooksConfigRequestsDto: {
+  createWebhooksConfigRequestDto: {
     name: apiSdk.faker.generateString(10),
     uri: `https://example.com/?id=${apiSdk.faker.generateString(10)}`,
     secretKey: apiSdk.faker.generateString(20),
@@ -153,9 +153,9 @@ test.describe("Webhook ownership - a non-admin cannot modify another user's webh
     const id = created.response!.id!;
 
     const { data, status } = await apiA.webhooks.enableWebhook({
-      updateWebhooksConfigRequestsDto: {
+      updateWebhooksConfigRequestDto: {
         id,
-        ...dtoB.createWebhooksConfigRequestsDto,
+        ...dtoB.createWebhooksConfigRequestDto,
         enabled: false,
       },
     });

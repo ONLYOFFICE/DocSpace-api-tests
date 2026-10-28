@@ -48,7 +48,7 @@ test.describe("OpenAI passthrough - permissions by user type", () => {
         .forRole(role)
         .openaiPassthrough.aiOpenaiChatCompletions({
           profileId: chatProfileId,
-          requestBody: chatBody(chatModel),
+          aiOpenaiChatCompletionsRequest: chatBody(chatModel),
         });
 
       expect(status).toBe(200);

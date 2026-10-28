@@ -212,7 +212,7 @@ test.describe("POST /api/2.0/security/audit/settings/lifetime", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .auditTrail.setAuditSettings({
-        tenantAuditSettingsWrapper: {
+        tenantAuditSettingsRequestDto: {
           settings: {
             loginHistoryLifeTime: 180,
             auditTrailLifeTime: 180,
@@ -236,7 +236,7 @@ test.describe("POST /api/2.0/security/audit/settings/lifetime", () => {
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .auditTrail.setAuditSettings({
-        tenantAuditSettingsWrapper: {
+        tenantAuditSettingsRequestDto: {
           settings: {
             loginHistoryLifeTime: 180,
             auditTrailLifeTime: 180,

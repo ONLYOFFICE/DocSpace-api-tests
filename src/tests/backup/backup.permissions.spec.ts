@@ -89,7 +89,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.backup.startBackup({
-      backupDto: { storageType: BackupStorageType.DataStore },
+      startBackupRequestDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(401);
@@ -105,7 +105,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.startBackup({
-      backupDto: { storageType: BackupStorageType.DataStore },
+      startBackupRequestDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(402);
@@ -127,7 +127,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     );
 
     const { data, status } = await roomAdminApi.backup.startBackup({
-      backupDto: { storageType: BackupStorageType.DataStore },
+      startBackupRequestDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(403);
@@ -147,7 +147,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     );
 
     const { data, status } = await userApi.backup.startBackup({
-      backupDto: { storageType: BackupStorageType.DataStore },
+      startBackupRequestDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(403);
@@ -167,7 +167,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     );
 
     const { data, status } = await guestApi.backup.startBackup({
-      backupDto: { storageType: BackupStorageType.DataStore },
+      startBackupRequestDto: { storageType: BackupStorageType.DataStore },
     });
 
     expect(status).toBe(403);
@@ -183,7 +183,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.startBackup({
-      backupDto: {
+      startBackupRequestDto: {
         storageType: BackupStorageType.Documents,
         storageParams: [{ key: "folderId", value: "99999999" }],
       },
@@ -203,7 +203,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.startBackup({
-      backupDto: {
+      startBackupRequestDto: {
         storageType: BackupStorageType.Documents,
         storageParams: [{ key: "folderId", value: "invalid_value" }],
       },
@@ -230,7 +230,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     const roomId = roomData.response!.id!;
 
     const { data, status } = await ownerApi.backup.startBackup({
-      backupDto: {
+      startBackupRequestDto: {
         storageType: BackupStorageType.ThridpartyDocuments,
         storageParams: [{ key: "folderId", value: String(roomId) }],
       },
@@ -253,7 +253,7 @@ test.describe("POST /portal/backup/start - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.startBackup({
-      backupDto: {
+      startBackupRequestDto: {
         storageType: BackupStorageType.DataStore,
         dump: true,
       },
@@ -278,7 +278,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.backup.createBackupSchedule({
-      backupScheduleDto: scheduleDto,
+      createBackupScheduleRequestDto: scheduleDto,
     });
 
     expect(status).toBe(401);
@@ -294,7 +294,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.backup.createBackupSchedule({
-      backupScheduleDto: scheduleDto,
+      createBackupScheduleRequestDto: scheduleDto,
     });
 
     expect(status).toBe(402);
@@ -316,7 +316,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
     );
 
     const { data, status } = await roomAdminApi.backup.createBackupSchedule({
-      backupScheduleDto: scheduleDto,
+      createBackupScheduleRequestDto: scheduleDto,
     });
 
     expect(status).toBe(403);
@@ -336,7 +336,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
     );
 
     const { data, status } = await userApi.backup.createBackupSchedule({
-      backupScheduleDto: scheduleDto,
+      createBackupScheduleRequestDto: scheduleDto,
     });
 
     expect(status).toBe(403);
@@ -356,7 +356,7 @@ test.describe("POST /api/2.0/backup/createbackupschedule - access control", () =
     );
 
     const { data, status } = await guestApi.backup.createBackupSchedule({
-      backupScheduleDto: scheduleDto,
+      createBackupScheduleRequestDto: scheduleDto,
     });
 
     expect(status).toBe(403);
@@ -664,7 +664,7 @@ test.describe("Backup validation - access control with invalid parameters", () =
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().backup.startBackup({
-      backupDto: { storageType: 99 as BackupStorageType },
+      startBackupRequestDto: { storageType: 99 as BackupStorageType },
     });
 
     expect(status).toBe(401);
@@ -703,7 +703,7 @@ test.describe("Backup validation - access control with invalid parameters", () =
       );
 
       const { data, status } = await memberApi.backup.startBackup({
-        backupDto: { storageType: 99 as BackupStorageType },
+        startBackupRequestDto: { storageType: 99 as BackupStorageType },
       });
 
       expect(status).toBe(403);
@@ -726,7 +726,7 @@ test.describe("Backup validation - access control with invalid parameters", () =
       );
 
       const { data, status } = await memberApi.backup.startBackup({
-        backupDto: {
+        startBackupRequestDto: {
           storageType: BackupStorageType.Documents,
           storageParams: [{ key: "folderId", value: "99999999" }],
         },

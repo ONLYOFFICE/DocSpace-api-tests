@@ -833,7 +833,7 @@ test.describe("GET /api/2.0/portal/users/:userID - access control", () => {
     const { data: userData } = await apiSdk.addMember("owner", "RoomAdmin");
     const userId = userData.response!.id!;
 
-    const { status } = await anonApi.users.getUserById({ userID: userId });
+    const { status } = await anonApi.users.getUserById({ userId: userId });
 
     expect(status).toBe(401);
   });
@@ -849,7 +849,7 @@ test.describe("GET /api/2.0/portal/users/:userID - access control", () => {
     );
 
     const { data, status } = await userApi.users.getUserById({
-      userID: userId,
+      userId: userId,
     });
 
     expect(status).toBe(403);
@@ -867,7 +867,7 @@ test.describe("GET /api/2.0/portal/users/:userID - access control", () => {
     );
 
     const { data, status } = await guestApi.users.getUserById({
-      userID: userId,
+      userId: userId,
     });
 
     expect(status).toBe(403);
@@ -880,7 +880,7 @@ test.describe("GET /api/2.0/portal/users/:userID - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.users.getUserById({
-      userID: "00000000-0000-0000-0000-000000000000",
+      userId: "00000000-0000-0000-0000-000000000000",
     });
 
     expect(status).toBe(404);

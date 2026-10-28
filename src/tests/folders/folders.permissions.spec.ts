@@ -20,7 +20,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Path Owner" },
+      createFolderRequest: { title: "Autotest Folder Path Owner" },
     });
     const folderId = folderData.response!.id!;
 
@@ -42,7 +42,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Path Anon" },
+      createFolderRequest: { title: "Autotest Folder Path Anon" },
     });
     const folderId = folderData.response!.id!;
 
@@ -61,7 +61,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Path User No Access" },
+      createFolderRequest: { title: "Autotest Folder Path User No Access" },
     });
     const folderId = folderData.response!.id!;
 
@@ -88,7 +88,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Path Guest No Access" },
+      createFolderRequest: { title: "Autotest Folder Path Guest No Access" },
     });
     const folderId = folderData.response!.id!;
 
@@ -120,7 +120,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Path User Read" },
+      createFolderRequest: { title: "Autotest Folder Path User Read" },
     });
     const folderId = folderData.response!.id!;
 
@@ -158,7 +158,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Path Guest Read" },
+      createFolderRequest: { title: "Autotest Folder Path Guest Read" },
     });
     const folderId = folderData.response!.id!;
 
@@ -196,7 +196,7 @@ test.describe("GET /api/2.0/files/folder/:folderId/path - access control", () =>
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Path DocSpaceAdmin" },
+      createFolderRequest: { title: "Autotest Folder Path DocSpaceAdmin" },
     });
     const folderId = folderData.response!.id!;
 
@@ -231,14 +231,14 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Anon Delete" },
+      createFolderRequest: { title: "Autotest Folder Anon Delete" },
     });
     const folderId = folderData.response!.id!;
 
     const anonApi = apiSdk.forAnonymous();
     const { status } = await anonApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     expect(status).toBe(401);
@@ -258,7 +258,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder RoomAdmin Delete" },
+      createFolderRequest: { title: "Autotest Folder RoomAdmin Delete" },
     });
     const folderId = folderData.response!.id!;
 
@@ -269,7 +269,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data, status } = await roomAdminApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     expect(status).toBe(403);
@@ -290,7 +290,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder User Delete" },
+      createFolderRequest: { title: "Autotest Folder User Delete" },
     });
     const folderId = folderData.response!.id!;
 
@@ -301,7 +301,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data, status } = await userApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     expect(status).toBe(403);
@@ -322,7 +322,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder DocSpaceAdmin Delete" },
+      createFolderRequest: { title: "Autotest Folder DocSpaceAdmin Delete" },
     });
     const folderId = folderData.response!.id!;
 
@@ -342,7 +342,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
     await test.step("DocSpaceAdmin deletes owner's folder  -  operation is created", async () => {
       const { data, status } = await adminApi.folders.deleteFolder({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
+        deleteFolderRequest: { deleteAfter: true, immediately: true },
       });
 
       expect(status).toBe(200);
@@ -395,14 +395,14 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await userApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder By ContentCreator" },
+      createFolderRequest: { title: "Autotest Folder By ContentCreator" },
     });
     const folderId = folderData.response!.id!;
 
     await test.step("ContentCreator deletes own folder  -  operation is created", async () => {
       const { data, status } = await userApi.folders.deleteFolder({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
+        deleteFolderRequest: { deleteAfter: true, immediately: true },
       });
 
       expect(status).toBe(200);
@@ -455,14 +455,14 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await roomAdminApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder By RoomAdmin" },
+      createFolderRequest: { title: "Autotest Folder By RoomAdmin" },
     });
     const folderId = folderData.response!.id!;
 
     await test.step("RoomAdmin deletes own folder  -  operation is created", async () => {
       const { data, status } = await roomAdminApi.folders.deleteFolder({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
+        deleteFolderRequest: { deleteAfter: true, immediately: true },
       });
 
       expect(status).toBe(200);
@@ -515,14 +515,16 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await roomAdminApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder By RoomAdmin For Owner Delete" },
+      createFolderRequest: {
+        title: "Autotest Folder By RoomAdmin For Owner Delete",
+      },
     });
     const folderId = folderData.response!.id!;
 
     await test.step("Owner deletes RoomAdmin's folder  -  operation is created", async () => {
       const { data, status } = await ownerApi.folders.deleteFolder({
         folderId,
-        deleteFolder: { deleteAfter: true, immediately: true },
+        deleteFolderRequest: { deleteAfter: true, immediately: true },
       });
 
       expect(status).toBe(200);
@@ -562,7 +564,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Read Member Delete" },
+      createFolderRequest: { title: "Autotest Folder Read Member Delete" },
     });
     const folderId = folderData.response!.id!;
 
@@ -581,7 +583,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data, status } = await userApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     expect(status).toBe(403);
@@ -602,7 +604,9 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder ContentCreator Delete Other" },
+      createFolderRequest: {
+        title: "Autotest Folder ContentCreator Delete Other",
+      },
     });
     const folderId = folderData.response!.id!;
 
@@ -621,7 +625,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data, status } = await userApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     expect(status).toBe(403);
@@ -642,7 +646,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Guest Delete" },
+      createFolderRequest: { title: "Autotest Folder Guest Delete" },
     });
     const folderId = folderData.response!.id!;
 
@@ -653,7 +657,7 @@ test.describe("DELETE /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data, status } = await guestApi.folders.deleteFolder({
       folderId,
-      deleteFolder: { deleteAfter: true, immediately: true },
+      deleteFolderRequest: { deleteAfter: true, immediately: true },
     });
 
     expect(status).toBe(403);
@@ -963,7 +967,7 @@ test.describe("GET /files/:folderId/formfilter - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Filter Read" },
+      createFolderRequest: { title: "Autotest Folder Filter Read" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1011,7 +1015,9 @@ test.describe("GET /files/:folderId/formfilter - access control", () => {
 
     const { data: folderData } = await userApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder By User For Owner Filter" },
+      createFolderRequest: {
+        title: "Autotest Folder By User For Owner Filter",
+      },
     });
     const folderId = folderData.response!.id!;
 
@@ -1037,7 +1043,7 @@ test.describe("GET /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Info Anon" },
+      createFolderRequest: { title: "Autotest Folder Info Anon" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1056,7 +1062,7 @@ test.describe("GET /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Info User No Access" },
+      createFolderRequest: { title: "Autotest Folder Info User No Access" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1084,7 +1090,7 @@ test.describe("GET /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Info Read" },
+      createFolderRequest: { title: "Autotest Folder Info Read" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1115,7 +1121,7 @@ test.describe("GET /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Info Guest No Access" },
+      createFolderRequest: { title: "Autotest Folder Info Guest No Access" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1155,7 +1161,7 @@ test.describe("GET /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await userApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder By User For Owner Info" },
+      createFolderRequest: { title: "Autotest Folder By User For Owner Info" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1180,7 +1186,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder Anon Auth" },
+      createFolderRequest: { title: "Autotest Subfolder Anon Auth" },
     });
 
     const anonApi = apiSdk.forAnonymous();
@@ -1197,7 +1203,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const myDocsFolderId = myDocsData.response!.current!.id!;
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Subfolders No Access" },
+      createFolderRequest: { title: "Autotest Folder Subfolders No Access" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1224,7 +1230,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder Read Access" },
+      createFolderRequest: { title: "Autotest Subfolder Read Access" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1254,7 +1260,9 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const myDocsFolderId = myDocsData.response!.current!.id!;
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Subfolders Guest No Access" },
+      createFolderRequest: {
+        title: "Autotest Folder Subfolders Guest No Access",
+      },
     });
     const folderId = folderData.response!.id!;
 
@@ -1294,12 +1302,12 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
 
     const { data: folderData } = await userApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder By User For Owner" },
+      createFolderRequest: { title: "Autotest Subfolder By User For Owner" },
     });
     const folderId = folderData.response!.id!;
     await userApi.folders.createFolder({
       folderId,
-      createFolder: { title: "Autotest Nested Subfolder By User" },
+      createFolderRequest: { title: "Autotest Nested Subfolder By User" },
     });
 
     const { data, status } = await ownerApi.folders.getFolders({ folderId });
@@ -1321,7 +1329,9 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder In Public Room Non-member" },
+      createFolderRequest: {
+        title: "Autotest Subfolder In Public Room Non-member",
+      },
     });
 
     const { api: userApi } = await apiSdk.addAuthenticatedMember(
@@ -1349,7 +1359,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder Guest Read" },
+      createFolderRequest: { title: "Autotest Subfolder Guest Read" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1397,7 +1407,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
 
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder For Admin" },
+      createFolderRequest: { title: "Autotest Subfolder For Admin" },
     });
 
     const { data, status } = await adminApi.folders.getFolders({
@@ -1421,7 +1431,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder RoomManager" },
+      createFolderRequest: { title: "Autotest Subfolder RoomManager" },
     });
 
     const { api: userApi, data: userData } =
@@ -1457,7 +1467,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder ContentCreator" },
+      createFolderRequest: { title: "Autotest Subfolder ContentCreator" },
     });
 
     const { api: userApi, data: userData } =
@@ -1493,7 +1503,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder Review" },
+      createFolderRequest: { title: "Autotest Subfolder Review" },
     });
 
     const { api: userApi, data: userData } =
@@ -1529,7 +1539,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder Comment" },
+      createFolderRequest: { title: "Autotest Subfolder Comment" },
     });
 
     const { api: userApi, data: userData } =
@@ -1565,7 +1575,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder FillForms" },
+      createFolderRequest: { title: "Autotest Subfolder FillForms" },
     });
 
     const { api: userApi, data: userData } =
@@ -1601,7 +1611,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder Restrict" },
+      createFolderRequest: { title: "Autotest Subfolder Restrict" },
     });
 
     const { api: userApi, data: userData } =
@@ -1629,7 +1639,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const myDocsFolderId = myDocsData.response!.current!.id!;
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder DocSpaceAdmin No Access" },
+      createFolderRequest: { title: "Autotest Folder DocSpaceAdmin No Access" },
     });
     const folderId = folderData.response!.id!;
 
@@ -1656,7 +1666,7 @@ test.describe("GET /api/2.0/files/:folderId/subfolders - access control", () => 
     const roomId = roomData.response!.id!;
     await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Subfolder In Archived Room" },
+      createFolderRequest: { title: "Autotest Subfolder In Archived Room" },
     });
 
     const { api: userApi, data: userData } =
@@ -1839,7 +1849,7 @@ test.describe("GET /api/2.0/files/@favorites - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Owner Only Favorite.docx" },
+      createFileRequest: { title: "Autotest Owner Only Favorite.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1872,7 +1882,7 @@ test.describe("GET /api/2.0/files/@favorites - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Owner Only Favorite.docx" },
+      createFileRequest: { title: "Autotest Owner Only Favorite.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1908,7 +1918,7 @@ test.describe("GET /api/2.0/files/@favorites - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Owner Only Favorite.docx" },
+      createFileRequest: { title: "Autotest Owner Only Favorite.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1939,7 +1949,7 @@ test.describe("GET /api/2.0/files/@favorites - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites Access File.docx",
       },
     });
@@ -1989,7 +1999,7 @@ test.describe("GET /api/2.0/files/@favorites - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites Isolation File.docx",
       },
     });
@@ -2032,7 +2042,7 @@ test.describe("GET /api/2.0/files/@favorites - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Favorites Archived Room File.docx",
       },
     });
@@ -2064,14 +2074,14 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Anon Rename" },
+      createFolderRequest: { title: "Autotest Folder Anon Rename" },
     });
     const folderId = folderData.response!.id!;
 
     const anonApi = apiSdk.forAnonymous();
     const { status } = await anonApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "Autotest Folder Anon Renamed" },
+      createFolderRequest: { title: "Autotest Folder Anon Renamed" },
     });
 
     expect(status).toBe(401);
@@ -2086,7 +2096,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: myDocsFolderId,
-      createFolder: { title: "Autotest Folder Guest Rename" },
+      createFolderRequest: { title: "Autotest Folder Guest Rename" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2096,7 +2106,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
     );
     const { status } = await guestApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "Autotest Folder Guest Renamed" },
+      createFolderRequest: { title: "Autotest Folder Guest Renamed" },
     });
 
     expect(status).toBe(403);
@@ -2112,7 +2122,9 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: myDocsFolderId,
-        createFolder: { title: "Autotest Owner Folder User Cannot Rename" },
+        createFolderRequest: {
+          title: "Autotest Owner Folder User Cannot Rename",
+        },
       });
       const folderId = folderData.response!.id!;
 
@@ -2122,7 +2134,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
       );
       const { status } = await userApi.folders.renameFolder({
         folderId,
-        createFolder: { title: "Autotest Owner Folder Renamed By User" },
+        createFolderRequest: { title: "Autotest Owner Folder Renamed By User" },
       });
 
       expect(status).toBe(403);
@@ -2143,7 +2155,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Read Access Rename" },
+      createFolderRequest: { title: "Autotest Folder Read Access Rename" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2161,7 +2173,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
     const { status } = await userApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "Autotest Folder Renamed By Reader" },
+      createFolderRequest: { title: "Autotest Folder Renamed By Reader" },
     });
 
     expect(status).toBe(403);
@@ -2181,7 +2193,9 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder RoomAdmin Not Member Rename" },
+      createFolderRequest: {
+        title: "Autotest Folder RoomAdmin Not Member Rename",
+      },
     });
     const folderId = folderData.response!.id!;
 
@@ -2192,7 +2206,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
     const { status } = await roomAdminApi.folders.renameFolder({
       folderId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Folder Renamed By Non-Member RoomAdmin",
       },
     });
@@ -2214,7 +2228,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Folder Editing Access Rename" },
+      createFolderRequest: { title: "Autotest Folder Editing Access Rename" },
     });
     const folderId = folderData.response!.id!;
 
@@ -2232,7 +2246,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
     const { status } = await userApi.folders.renameFolder({
       folderId,
-      createFolder: { title: "Autotest Folder Renamed By Editing User" },
+      createFolderRequest: { title: "Autotest Folder Renamed By Editing User" },
     });
 
     expect(status).toBe(403);
@@ -2253,7 +2267,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: {
+        createFolderRequest: {
           title: "Autotest Folder DocSpaceAdmin ContentCreator Rename",
         },
       });
@@ -2273,7 +2287,9 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
       const { status } = await adminApi.folders.renameFolder({
         folderId,
-        createFolder: { title: "Autotest Folder Renamed By DocSpaceAdmin" },
+        createFolderRequest: {
+          title: "Autotest Folder Renamed By DocSpaceAdmin",
+        },
       });
 
       expect(status).toBe(403);
@@ -2295,7 +2311,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: {
+        createFolderRequest: {
           title: "Autotest Folder RoomAdmin ContentCreator Rename",
         },
       });
@@ -2315,7 +2331,7 @@ test.describe("PUT /api/2.0/files/folder/:folderId - access control", () => {
 
       const { status } = await roomAdminApi.folders.renameFolder({
         folderId,
-        createFolder: { title: "Autotest Folder Renamed By RoomAdmin" },
+        createFolderRequest: { title: "Autotest Folder Renamed By RoomAdmin" },
       });
 
       expect(status).toBe(403);
@@ -3781,7 +3797,7 @@ test.describe("GET /api/2.0/files/filesusedspace - Get files used space permissi
     );
 
     await adminApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Admin UsedSpace Init" },
+      createFileRequest: { title: "Autotest Admin UsedSpace Init" },
     });
 
     const { data, status } = await adminApi.folders.getFilesUsedSpace();

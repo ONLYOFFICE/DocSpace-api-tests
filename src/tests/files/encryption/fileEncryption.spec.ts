@@ -26,7 +26,7 @@ async function createPrivateRoomWithFile(
   const roomId = roomData.response!.id!;
   const { data: fileData } = await ownerApi.files.createFile({
     folderId: roomId,
-    createFileJsonElement: { title: "Autotest Encrypted File.docx" },
+    createFileRequest: { title: "Autotest Encrypted File.docx" },
   });
   const { data: me } = await ownerApi.profiles.getSelfProfile();
   return {
@@ -275,7 +275,7 @@ test.describe("PUT /files/:fileId/access", () => {
     });
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomData.response!.id!,
-      createFileJsonElement: { title: "Autotest Plain File.docx" },
+      createFileRequest: { title: "Autotest Plain File.docx" },
     });
 
     const { status } = await ownerApi.files.setEncryptionInfo({
@@ -299,7 +299,7 @@ test.describe("PUT /files/:fileId/access", () => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: me } = await ownerApi.profiles.getSelfProfile();
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest My Documents File.docx" },
+      createFileRequest: { title: "Autotest My Documents File.docx" },
     });
 
     const { status } = await ownerApi.files.setEncryptionInfo({

@@ -297,7 +297,7 @@ test.describe("PUT /api/2.0/files/rooms/roomquota - Change room quota", () => {
       });
     const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
       id: tpData.response!.id!,
-      createThirdPartyRoom: {
+      createThirdPartyRoomRequest: {
         title: "Autotest TP Quota Room",
         roomType: RoomType.CustomRoom,
       },
@@ -347,7 +347,7 @@ test.describe("Room quota exhaustion - file upload behavior", () => {
 
     const { status } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Quota File.docx" },
+      createFileRequest: { title: "Autotest Quota File.docx" },
     });
 
     expect(status).not.toBe(200);
@@ -379,7 +379,7 @@ test.describe("Room quota exhaustion - file upload behavior", () => {
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Quota Info File.docx" },
+      createFileRequest: { title: "Autotest Quota Info File.docx" },
     });
 
     const { data, status } = await ownerApi.rooms.getRoomInfo({
@@ -418,7 +418,7 @@ test.describe("Room quota exhaustion - file upload behavior", () => {
 
     await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Quota Track File.docx" },
+      createFileRequest: { title: "Autotest Quota Track File.docx" },
     });
 
     const { data } = await ownerApi.rooms.getRoomInfo({
@@ -747,7 +747,7 @@ test.describe("PUT /api/2.0/files/rooms/resetquota - Reset room quota", () => {
       });
     const { data: roomData } = await ownerApi.rooms.createRoomThirdParty({
       id: tpData.response!.id!,
-      createThirdPartyRoom: {
+      createThirdPartyRoomRequest: {
         title: "Autotest TP Reset Quota Room",
         roomType: RoomType.CustomRoom,
       },

@@ -1,9 +1,9 @@
 import { expect } from "@playwright/test";
 import config from "@/config";
 import { ApiSDK } from "@/src/services/api-sdk";
-import type { SmtpOperationStatusRequestsDto } from "@onlyoffice/docspace-api-sdk";
+import type { SmtpOperationStatusDto } from "@onlyoffice/docspace-api-sdk";
 
-type SmtpOperationResponse = SmtpOperationStatusRequestsDto | undefined;
+type SmtpOperationResponse = SmtpOperationStatusDto | undefined;
 
 export const smtpSettingsDto = {
   host: config.QA_MAIL_DOMAIN,

@@ -32,7 +32,7 @@ test.describe("AI Vectorization - AI Disabled", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.commonSettings.setTenantAiAccessSettings({
-      tenantAiAccessSettingsDto: { enabled: false },
+      tenantAiAccessSettingsRequestDto: { enabled: false },
     });
 
     const { status } = await ownerApi.vectorization.aiVectorizationStartTask({
@@ -142,6 +142,6 @@ function createKnowledgeFileRaw(
 ) {
   return api.files.createFile({
     folderId: knowledgeFolderId,
-    createFileJsonElement: { title },
+    createFileRequest: { title },
   });
 }

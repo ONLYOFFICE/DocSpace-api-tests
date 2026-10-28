@@ -30,7 +30,7 @@ async function createRoomFile(
   const roomId = roomData.response!.id!;
   const { data: fileData } = await ownerApi.files.createHtmlFile({
     folderId: roomId,
-    createTextOrHtmlFile: {
+    createTextOrHtmlFileRequest: {
       title: "Autotest Recent",
       content: "<p>keep me</p>",
     },

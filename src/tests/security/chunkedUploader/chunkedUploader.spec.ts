@@ -149,7 +149,7 @@ test.describe("GET+POST /ChunkedUploader.ashx - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "victim-original.docx" },
+      createFileRequest: { title: "victim-original.docx" },
     });
     const victimFileId = fileData.response!.id!;
 

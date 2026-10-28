@@ -29,7 +29,7 @@ test.describe("GET /files/file/:fileId - Get file info permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Admin Get File Info" },
+      createFileRequest: { title: "Autotest Admin Get File Info" },
     });
     const fileId = created.response!.id!;
 
@@ -58,7 +58,7 @@ test.describe("GET /files/file/:fileId - Get file info permissions", () => {
 
     const { data: fileCreated } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Room Admin File Info" },
+      createFileRequest: { title: "Autotest Room Admin File Info" },
     });
     const fileId = fileCreated.response!.id!;
 
@@ -94,7 +94,7 @@ test.describe("GET /files/file/:fileId - Get file info permissions", () => {
 
     const { data: fileCreated } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest User File Info" },
+      createFileRequest: { title: "Autotest User File Info" },
     });
     const fileId = fileCreated.response!.id!;
 
@@ -129,7 +129,7 @@ test.describe("GET /files/file/:fileId - Get file info permissions", () => {
 
     const { data: fileCreated } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Forbidden File Info" },
+      createFileRequest: { title: "Autotest Forbidden File Info" },
     });
     const fileId = fileCreated.response!.id!;
 
@@ -157,7 +157,7 @@ test.describe("GET /files/file/:fileId - Get file info permissions", () => {
 
     const { data: fileCreated } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Unauthenticated File Info" },
+      createFileRequest: { title: "Autotest Unauthenticated File Info" },
     });
     const fileId = fileCreated.response!.id!;
 
@@ -184,7 +184,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Admin Update File" },
+      createFileRequest: { title: "Autotest Admin Update File" },
     });
     const fileId = created.response!.id!;
 
@@ -201,7 +201,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data, status } = await adminApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest Admin Updated File" },
+      updateFileRequest: { title: "Autotest Admin Updated File" },
     });
 
     expect(status).toBe(200);
@@ -224,7 +224,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Room Admin Update File" },
+      createFileRequest: { title: "Autotest Room Admin Update File" },
     });
     const fileId = created.response!.id!;
 
@@ -241,7 +241,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data, status } = await roomAdminApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest Room Admin Updated File" },
+      updateFileRequest: { title: "Autotest Room Admin Updated File" },
     });
 
     expect(status).toBe(403);
@@ -262,7 +262,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest User Update File" },
+      createFileRequest: { title: "Autotest User Update File" },
     });
     const fileId = created.response!.id!;
 
@@ -279,7 +279,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data, status } = await userApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest User Updated File" },
+      updateFileRequest: { title: "Autotest User Updated File" },
     });
 
     expect(status).toBe(403);
@@ -300,7 +300,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Read-only Update File" },
+      createFileRequest: { title: "Autotest Read-only Update File" },
     });
     const fileId = created.response!.id!;
 
@@ -317,7 +317,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data, status } = await userApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest Read-only Renamed" },
+      updateFileRequest: { title: "Autotest Read-only Renamed" },
     });
 
     expect(status).toBe(403);
@@ -338,7 +338,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest No Access Update File" },
+      createFileRequest: { title: "Autotest No Access Update File" },
     });
     const fileId = created.response!.id!;
 
@@ -349,7 +349,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data, status } = await userApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest No Access Renamed" },
+      updateFileRequest: { title: "Autotest No Access Renamed" },
     });
 
     expect(status).toBe(403);
@@ -381,13 +381,13 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data: fileCreated } = await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest User Own File" },
+      createFileRequest: { title: "Autotest User Own File" },
     });
     const fileId = fileCreated.response!.id!;
 
     const { data, status } = await userApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest User Own File Renamed" },
+      updateFileRequest: { title: "Autotest User Own File Renamed" },
     });
 
     expect(status).toBe(200);
@@ -409,7 +409,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data: fileCreated } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Guest Rename File" },
+      createFileRequest: { title: "Autotest Guest Rename File" },
     });
     const fileId = fileCreated.response!.id!;
 
@@ -426,7 +426,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data, status } = await guestApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest Guest Renamed" },
+      updateFileRequest: { title: "Autotest Guest Renamed" },
     });
 
     expect(status).toBe(403);
@@ -447,7 +447,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data: fileCreated } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Admin No Room File" },
+      createFileRequest: { title: "Autotest Admin No Room File" },
     });
     const fileId = fileCreated.response!.id!;
 
@@ -458,7 +458,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data, status } = await adminApi.files.updateFile({
       fileId,
-      updateFile: { title: "Autotest Admin No Room Renamed" },
+      updateFileRequest: { title: "Autotest Admin No Room Renamed" },
     });
 
     expect(status).toBe(403);
@@ -479,7 +479,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Unauthenticated Update File",
       },
     });
@@ -487,7 +487,7 @@ test.describe("PUT /files/file/:fileId - Update file permissions", () => {
 
     const { status } = await apiSdk.forAnonymous().files.updateFile({
       fileId,
-      updateFile: { title: "Autotest Anon Renamed" },
+      updateFileRequest: { title: "Autotest Anon Renamed" },
     });
 
     expect(status).toBe(401);
@@ -509,7 +509,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Admin Delete File" },
+      createFileRequest: { title: "Autotest Admin Delete File" },
     });
     const fileId = created.response!.id!;
 
@@ -526,7 +526,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { status } = await adminApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     const operation = await waitForOperation(adminApi.operations);
@@ -553,7 +553,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Room Manager Delete File" },
+      createFileRequest: { title: "Autotest Room Manager Delete File" },
     });
     const fileId = created.response!.id!;
 
@@ -570,7 +570,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { status } = await roomManagerApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     const operation = await waitForOperation(roomManagerApi.operations);
@@ -608,13 +608,13 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data: fileCreated } = await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest User Own Delete File" },
+      createFileRequest: { title: "Autotest User Own Delete File" },
     });
     const fileId = fileCreated.response!.id!;
 
     const { status } = await userApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     const operation = await waitForOperation(userApi.operations);
@@ -641,7 +641,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest ReadWrite Delete File" },
+      createFileRequest: { title: "Autotest ReadWrite Delete File" },
     });
     const fileId = created.response!.id!;
 
@@ -658,7 +658,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data, status } = await userApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     expect(status).toBe(403);
@@ -679,7 +679,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Read-only Delete File" },
+      createFileRequest: { title: "Autotest Read-only Delete File" },
     });
     const fileId = created.response!.id!;
 
@@ -696,7 +696,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data, status } = await userApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     expect(status).toBe(403);
@@ -717,7 +717,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest No Access Delete File" },
+      createFileRequest: { title: "Autotest No Access Delete File" },
     });
     const fileId = created.response!.id!;
 
@@ -728,7 +728,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data, status } = await userApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     expect(status).toBe(403);
@@ -749,7 +749,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Guest Delete File" },
+      createFileRequest: { title: "Autotest Guest Delete File" },
     });
     const fileId = created.response!.id!;
 
@@ -766,7 +766,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data, status } = await guestApi.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     expect(status).toBe(403);
@@ -787,7 +787,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Unauthenticated Delete File",
       },
     });
@@ -795,7 +795,7 @@ test.describe("DELETE /files/file/:fileId - Delete file permissions", () => {
 
     const { status } = await apiSdk.forAnonymous().files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     expect(status).toBe(401);
@@ -819,7 +819,7 @@ test.describe("Share link privacy - no user data leakage", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Share Link Privacy File" },
+      createFileRequest: { title: "Autotest Share Link Privacy File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -900,7 +900,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Admin Lock File" },
+      createFileRequest: { title: "Autotest Admin Lock File" },
     });
     const fileId = created.response!.id!;
 
@@ -917,7 +917,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data, status } = await adminApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     expect(status).toBe(200);
@@ -939,7 +939,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Room Manager Lock File" },
+      createFileRequest: { title: "Autotest Room Manager Lock File" },
     });
     const fileId = created.response!.id!;
 
@@ -956,7 +956,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data, status } = await roomManagerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     expect(status).toBe(200);
@@ -989,13 +989,13 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: fileCreated } = await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest User Own Lock File" },
+      createFileRequest: { title: "Autotest User Own Lock File" },
     });
     const fileId = fileCreated.response!.id!;
 
     const { data, status } = await userApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     expect(status).toBe(200);
@@ -1017,7 +1017,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest ReadWrite Lock File" },
+      createFileRequest: { title: "Autotest ReadWrite Lock File" },
     });
     const fileId = created.response!.id!;
 
@@ -1034,7 +1034,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data, status } = await userApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     expect(status).toBe(403);
@@ -1057,7 +1057,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Read-only Lock File" },
+      createFileRequest: { title: "Autotest Read-only Lock File" },
     });
     const fileId = created.response!.id!;
 
@@ -1074,7 +1074,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data, status } = await userApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     expect(status).toBe(403);
@@ -1097,7 +1097,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest No Access Lock File" },
+      createFileRequest: { title: "Autotest No Access Lock File" },
     });
     const fileId = created.response!.id!;
 
@@ -1108,7 +1108,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data, status } = await userApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     expect(status).toBe(403);
@@ -1131,7 +1131,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Guest Lock File" },
+      createFileRequest: { title: "Autotest Guest Lock File" },
     });
     const fileId = created.response!.id!;
 
@@ -1148,7 +1148,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data, status } = await guestApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     expect(status).toBe(403);
@@ -1171,7 +1171,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: created } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Unauthenticated Lock File",
       },
     });
@@ -1179,7 +1179,7 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { status } = await apiSdk.forAnonymous().files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     expect(status).toBe(401);
@@ -1221,18 +1221,18 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: fileCreated } = await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Cross-user Lock File" },
+      createFileRequest: { title: "Autotest Cross-user Lock File" },
     });
     const fileId = fileCreated.response!.id!;
 
     await userApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     const { data, status } = await roomManagerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: false },
+      lockFileRequest: { lockFile: false },
     });
 
     expect(status).toBe(200);
@@ -1264,18 +1264,18 @@ test.describe("PUT /files/file/:fileId/lock - Lock file permissions", () => {
 
     const { data: fileCreated } = await userApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Creator Unlock File" },
+      createFileRequest: { title: "Autotest Creator Unlock File" },
     });
     const fileId = fileCreated.response!.id!;
 
     await ownerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     const { status } = await userApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: false },
+      lockFileRequest: { lockFile: false },
     });
 
     expect(status).toBe(403);
@@ -1289,7 +1289,7 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.files.createHtmlFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest HTML My Docs Owner",
         content: "<p>Owner content</p>",
         createNewIfExist: true,
@@ -1310,7 +1310,7 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
     );
 
     const { data, status } = await adminApi.files.createHtmlFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest HTML My Docs Admin",
         content: "<p>Admin content</p>",
         createNewIfExist: true,
@@ -1332,7 +1332,7 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
 
     const { data, status } =
       await roomAdminApi.files.createHtmlFileInMyDocuments({
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest HTML My Docs Room Admin",
           content: "<p>Room admin content</p>",
           createNewIfExist: true,
@@ -1353,7 +1353,7 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
     );
 
     const { data, status } = await userApi.files.createHtmlFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest HTML My Docs User",
         content: "<p>User content</p>",
         createNewIfExist: true,
@@ -1374,7 +1374,7 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
     );
 
     const { status } = await guestApi.files.createHtmlFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest HTML My Docs Guest",
         content: "<p>Guest content</p>",
         createNewIfExist: true,
@@ -1390,7 +1390,7 @@ test.describe("POST /files/@my/html - Create HTML file in My Documents permissio
     const { status } = await apiSdk
       .forAnonymous()
       .files.createHtmlFileInMyDocuments({
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest HTML My Docs Anon",
           createNewIfExist: true,
         },
@@ -1407,7 +1407,7 @@ test.describe("POST /files/@my/text permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data, status } = await ownerApi.files.createTextFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Text My Docs Owner",
         content: "Owner content",
         createNewIfExist: true,
@@ -1428,7 +1428,7 @@ test.describe("POST /files/@my/text permissions", () => {
     );
 
     const { data, status } = await adminApi.files.createTextFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Text My Docs Admin",
         content: "Admin content",
         createNewIfExist: true,
@@ -1450,7 +1450,7 @@ test.describe("POST /files/@my/text permissions", () => {
 
     const { data, status } =
       await roomAdminApi.files.createTextFileInMyDocuments({
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest Text My Docs Room Admin",
           content: "Room admin content",
           createNewIfExist: true,
@@ -1471,7 +1471,7 @@ test.describe("POST /files/@my/text permissions", () => {
     );
 
     const { data, status } = await userApi.files.createTextFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Text My Docs User",
         content: "User content",
         createNewIfExist: true,
@@ -1490,7 +1490,7 @@ test.describe("POST /files/@my/text permissions", () => {
     );
 
     const { status } = await guestApi.files.createTextFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Text My Docs Guest",
         content: "Guest content",
         createNewIfExist: true,
@@ -1506,7 +1506,7 @@ test.describe("POST /files/@my/text permissions", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .files.createTextFileInMyDocuments({
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest Text My Docs Anon",
           createNewIfExist: true,
         },
@@ -1537,7 +1537,7 @@ test.describe("POST /files/:folderId/text - Create text file permissions", () =>
 
     const { status } = await apiSdk.forAnonymous().files.createTextFile({
       folderId: roomId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Text Anon",
         content: "some text",
       },
@@ -1565,7 +1565,7 @@ test.describe("POST /files/:folderId/text - Create text file permissions", () =>
 
     const { data, status } = await userApi.files.createTextFile({
       folderId: roomId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Text ContentCreator User",
         content: "some text",
         createNewIfExist: true,
@@ -1595,7 +1595,7 @@ test.describe("POST /files/:folderId/text - Create text file permissions", () =>
 
     const { status } = await userApi.files.createTextFile({
       folderId: roomId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Text Read User",
         content: "some text",
       },
@@ -1613,7 +1613,7 @@ test.describe("POST /files/:folderId/text - Create text file permissions", () =>
 
     const { status } = await apiSdk.forRole("user").files.createTextFile({
       folderId: roomId,
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Text No Access",
         content: "some text",
       },
@@ -1630,7 +1630,7 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Order Owner File" },
+      createFileRequest: { title: "Autotest Order Owner File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1652,7 +1652,7 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     );
 
     const { data: fileData } = await adminApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Order Admin File" },
+      createFileRequest: { title: "Autotest Order Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1675,7 +1675,7 @@ test.describe("PUT /files/:fileId/order permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
       {
-        createFileJsonElement: { title: "Autotest Order Room Admin File" },
+        createFileRequest: { title: "Autotest Order Room Admin File" },
       },
     );
     const fileId = fileData.response!.id!;
@@ -1698,7 +1698,7 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     );
 
     const { data: fileData } = await userApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Order User File" },
+      createFileRequest: { title: "Autotest Order User File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1721,7 +1721,7 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     );
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Order Private File" },
+      createFileRequest: { title: "Autotest Order Private File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1746,7 +1746,7 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     );
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Order Guest File" },
+      createFileRequest: { title: "Autotest Order Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1767,7 +1767,7 @@ test.describe("PUT /files/:fileId/order permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Order Anon File" },
+      createFileRequest: { title: "Autotest Order Anon File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1787,7 +1787,7 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Recent Owner File" },
+      createFileRequest: { title: "Autotest Recent Owner File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1807,7 +1807,7 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
     );
 
     const { data: fileData } = await adminApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Recent Admin File" },
+      createFileRequest: { title: "Autotest Recent Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1828,7 +1828,7 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
       {
-        createFileJsonElement: { title: "Autotest Recent Room Admin File" },
+        createFileRequest: { title: "Autotest Recent Room Admin File" },
       },
     );
     const fileId = fileData.response!.id!;
@@ -1851,7 +1851,7 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
     );
 
     const { data: fileData } = await userApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Recent User File" },
+      createFileRequest: { title: "Autotest Recent User File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1872,7 +1872,7 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
     );
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Recent Private File" },
+      createFileRequest: { title: "Autotest Recent Private File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1887,7 +1887,7 @@ test.describe("POST /files/file/:fileId/recent permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Recent Anon File" },
+      createFileRequest: { title: "Autotest Recent Anon File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1915,7 +1915,7 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Recent Owner Room File" },
+      createFileRequest: { title: "Autotest Recent Owner Room File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -1960,7 +1960,7 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Recent DocSpaceAdmin File" },
+      createFileRequest: { title: "Autotest Recent DocSpaceAdmin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2007,7 +2007,7 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Recent RoomAdmin File" },
+      createFileRequest: { title: "Autotest Recent RoomAdmin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2054,7 +2054,7 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Recent User Comment File" },
+      createFileRequest: { title: "Autotest Recent User Comment File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2099,7 +2099,7 @@ test.describe("POST /files/file/:fileId/recent - Room file: access by user type 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Recent Guest File" },
+      createFileRequest: { title: "Autotest Recent Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2125,7 +2125,7 @@ test.describe("DELETE /files/recent permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Delete Recent Owner" },
+      createFileRequest: { title: "Autotest Delete Recent Owner" },
     });
     const fileId = fileData.response!.id!;
     await ownerApi.files.addFileToRecent({ fileId });
@@ -2151,7 +2151,7 @@ test.describe("DELETE /files/recent permissions", () => {
     );
 
     const { data: fileData } = await adminApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Delete Recent Admin" },
+      createFileRequest: { title: "Autotest Delete Recent Admin" },
     });
     const fileId = fileData.response!.id!;
     await adminApi.files.addFileToRecent({ fileId });
@@ -2178,7 +2178,7 @@ test.describe("DELETE /files/recent permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
       {
-        createFileJsonElement: { title: "Autotest Delete Recent Room Admin" },
+        createFileRequest: { title: "Autotest Delete Recent Room Admin" },
       },
     );
     const fileId = fileData.response!.id!;
@@ -2205,7 +2205,7 @@ test.describe("DELETE /files/recent permissions", () => {
     );
 
     const { data: fileData } = await userApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Delete Recent User" },
+      createFileRequest: { title: "Autotest Delete Recent User" },
     });
     const fileId = fileData.response!.id!;
     await userApi.files.addFileToRecent({ fileId });
@@ -2228,7 +2228,7 @@ test.describe("DELETE /files/recent permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Delete Recent Anon" },
+      createFileRequest: { title: "Autotest Delete Recent Anon" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2247,7 +2247,7 @@ test.describe("PUT /files/file/:id/links permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Set Link Owner" },
+      createFileRequest: { title: "Autotest Set Link Owner" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2273,7 +2273,7 @@ test.describe("PUT /files/file/:id/links permissions", () => {
     );
 
     const { data: fileData } = await adminApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Set Link Admin" },
+      createFileRequest: { title: "Autotest Set Link Admin" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2300,7 +2300,7 @@ test.describe("PUT /files/file/:id/links permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
       {
-        createFileJsonElement: { title: "Autotest Set Link Room Admin" },
+        createFileRequest: { title: "Autotest Set Link Room Admin" },
       },
     );
     const fileId = fileData.response!.id!;
@@ -2327,7 +2327,7 @@ test.describe("PUT /files/file/:id/links permissions", () => {
     );
 
     const { data: fileData } = await userApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Set Link User" },
+      createFileRequest: { title: "Autotest Set Link User" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2350,7 +2350,7 @@ test.describe("PUT /files/file/:id/links permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Set Link Anon" },
+      createFileRequest: { title: "Autotest Set Link Anon" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2376,7 +2376,7 @@ test.describe("PUT /files/file/:id/links permissions", () => {
     );
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Set Link Other User Private",
       },
     });
@@ -2405,7 +2405,7 @@ test.describe("PUT /files/file/:id/links permissions", () => {
     );
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Set Link Admin Other Private",
       },
     });
@@ -2431,7 +2431,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest External Link Owner" },
+      createFileRequest: { title: "Autotest External Link Owner" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2453,7 +2453,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
     );
 
     const { data: fileData } = await adminApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest External Link Admin" },
+      createFileRequest: { title: "Autotest External Link Admin" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2476,7 +2476,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
       {
-        createFileJsonElement: { title: "Autotest External Link Room Admin" },
+        createFileRequest: { title: "Autotest External Link Room Admin" },
       },
     );
     const fileId = fileData.response!.id!;
@@ -2498,7 +2498,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
     );
 
     const { data: fileData } = await userApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest External Link User" },
+      createFileRequest: { title: "Autotest External Link User" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2517,7 +2517,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest External Link Anon" },
+      createFileRequest: { title: "Autotest External Link Anon" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2539,7 +2539,7 @@ test.describe("GET /files/file/:id/link permissions", () => {
     );
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest External Link Other User Private",
       },
     });
@@ -2560,7 +2560,7 @@ test.describe("GET /files/file/:id/links permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest File Links Owner" },
+      createFileRequest: { title: "Autotest File Links Owner" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2580,7 +2580,7 @@ test.describe("GET /files/file/:id/links permissions", () => {
     );
 
     const { data: fileData } = await adminApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest File Links Admin" },
+      createFileRequest: { title: "Autotest File Links Admin" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2601,7 +2601,7 @@ test.describe("GET /files/file/:id/links permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
       {
-        createFileJsonElement: { title: "Autotest File Links Room Admin" },
+        createFileRequest: { title: "Autotest File Links Room Admin" },
       },
     );
     const fileId = fileData.response!.id!;
@@ -2624,7 +2624,7 @@ test.describe("GET /files/file/:id/links permissions", () => {
     );
 
     const { data: fileData } = await userApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest File Links User" },
+      createFileRequest: { title: "Autotest File Links User" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2641,7 +2641,7 @@ test.describe("GET /files/file/:id/links permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest File Links Anon" },
+      createFileRequest: { title: "Autotest File Links Anon" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2662,7 +2662,7 @@ test.describe("GET /files/file/:id/links permissions", () => {
     );
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest File Links Other User Private",
       },
     });
@@ -2691,7 +2691,7 @@ test.describe("POST /files/file/:fileId/sendeditornotify - access control", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest File" },
+      createFileRequest: { title: "Autotest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2709,7 +2709,7 @@ test.describe("POST /files/file/:fileId/sendeditornotify - access control", () =
 
     const { data, status } = await viewerApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: {
           action: { data: "nolimit", type: "comment" },
         },
@@ -2741,7 +2741,7 @@ test.describe("POST /files/file/:fileId/sendeditornotify - input validation", ()
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest File" },
+      createFileRequest: { title: "Autotest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2759,7 +2759,7 @@ test.describe("POST /files/file/:fileId/sendeditornotify - input validation", ()
 
     const { data, status } = await editorApi.sharing.sendEditorNotify({
       fileId,
-      mentionMessageWrapper: {
+      mentionMessageRequest: {
         actionLink: {
           action: { data: "a".repeat(10000), type: "comment" },
         },
@@ -2802,7 +2802,7 @@ test.describe("GET /files/file/:fileId/protectusers - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Protected File" },
+      createFileRequest: { title: "Autotest Protected File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2835,7 +2835,7 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Chunked Owner File" },
+      createFileRequest: { title: "Autotest Chunked Owner File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2862,7 +2862,7 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Chunked Admin File" },
+      createFileRequest: { title: "Autotest Chunked Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2902,7 +2902,7 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Chunked RoomAdmin File" },
+      createFileRequest: { title: "Autotest Chunked RoomAdmin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2942,7 +2942,7 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Chunked Editor File" },
+      createFileRequest: { title: "Autotest Chunked Editor File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -2982,7 +2982,7 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Chunked Reader File" },
+      createFileRequest: { title: "Autotest Chunked Reader File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3021,7 +3021,7 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Chunked Guest File" },
+      createFileRequest: { title: "Autotest Chunked Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3048,7 +3048,7 @@ test.describe("POST /api/2.0/files/{fileId}/edit_session - access control", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId,
-      createFileJsonElement: { title: "Autotest Chunked Anon File" },
+      createFileRequest: { title: "Autotest Chunked Anon File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3067,7 +3067,7 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Version History Owner" },
+      createFileRequest: { title: "Autotest Version History Owner" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3089,7 +3089,7 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
     );
 
     const { data: fileData } = await adminApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Version History Admin" },
+      createFileRequest: { title: "Autotest Version History Admin" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3111,7 +3111,7 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFileInMyDocuments(
       {
-        createFileJsonElement: {
+        createFileRequest: {
           title: "Autotest Version History Room Admin",
         },
       },
@@ -3135,7 +3135,7 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
     );
 
     const { data: fileData } = await userApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Version History User" },
+      createFileRequest: { title: "Autotest Version History User" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3153,7 +3153,7 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Version History Anon" },
+      createFileRequest: { title: "Autotest Version History Anon" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3174,7 +3174,7 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
     );
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History Other Private",
       },
     });
@@ -3199,7 +3199,7 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History Admin Cross-User",
       },
     });
@@ -3231,7 +3231,7 @@ test.describe("GET /files/file/:fileId/history permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History Room File",
       },
     });
@@ -3275,7 +3275,7 @@ test.describe("File version access - access control", () => {
     // Step 2: Owner creates a file in the room
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version Access File.docx",
       },
     });
@@ -3325,7 +3325,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Edit History Perm Owner" },
+      createFileRequest: { title: "Autotest Edit History Perm Owner" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3362,7 +3362,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Edit History DocSpaceAdmin File",
       },
     });
@@ -3401,7 +3401,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Edit History Editing File" },
+      createFileRequest: { title: "Autotest Edit History Editing File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3438,7 +3438,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Edit History Comment File" },
+      createFileRequest: { title: "Autotest Edit History Comment File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3467,7 +3467,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Edit History No Access File",
       },
     });
@@ -3484,7 +3484,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Edit History Anon" },
+      createFileRequest: { title: "Autotest Edit History Anon" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3524,7 +3524,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Edit History Guest File" },
+      createFileRequest: { title: "Autotest Edit History Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3562,7 +3562,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Edit History Read File" },
+      createFileRequest: { title: "Autotest Edit History Read File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -3589,7 +3589,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data: fileData } = await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Edit History DocSpaceAdmin Own File",
       },
     });
@@ -3619,7 +3619,7 @@ test.describe("GET /files/file/:fileId/edit/history permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Edit History RoomAdmin Own File",
       },
     });
@@ -3641,7 +3641,7 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History Perm Owner",
       },
     });
@@ -3649,12 +3649,12 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { data, status } = await ownerApi.files.changeVersionHistory({
       fileId,
-      changeHistory: { version: 2, continueVersion: false },
+      changeHistoryRequest: { version: 2, continueVersion: false },
     });
 
     expect(status).toBe(200);
@@ -3679,7 +3679,7 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     const { data: fileData } = await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History DocSpaceAdmin File",
       },
     });
@@ -3687,12 +3687,12 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     await adminApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { data, status } = await adminApi.files.changeVersionHistory({
       fileId,
-      changeHistory: { version: 2, continueVersion: false },
+      changeHistoryRequest: { version: 2, continueVersion: false },
     });
 
     expect(status).toBe(200);
@@ -3717,7 +3717,7 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History RoomAdmin File",
       },
     });
@@ -3725,12 +3725,12 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     await roomAdminApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { data, status } = await roomAdminApi.files.changeVersionHistory({
       fileId,
-      changeHistory: { version: 2, continueVersion: false },
+      changeHistoryRequest: { version: 2, continueVersion: false },
     });
 
     expect(status).toBe(200);
@@ -3764,7 +3764,7 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History DSA RoomManager File",
       },
     });
@@ -3772,12 +3772,12 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { data, status } = await adminApi.files.changeVersionHistory({
       fileId,
-      changeHistory: { version: 2, continueVersion: false },
+      changeHistoryRequest: { version: 2, continueVersion: false },
     });
 
     expect(status).toBe(200);
@@ -3811,7 +3811,7 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History Editing File",
       },
     });
@@ -3819,12 +3819,12 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { status } = await userApi.files.changeVersionHistory({
       fileId,
-      changeHistory: { version: 2, continueVersion: false },
+      changeHistoryRequest: { version: 2, continueVersion: false },
     });
 
     expect(status).toBe(403);
@@ -3857,7 +3857,7 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History Read File",
       },
     });
@@ -3865,12 +3865,12 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { status } = await userApi.files.changeVersionHistory({
       fileId,
-      changeHistory: { version: 2, continueVersion: false },
+      changeHistoryRequest: { version: 2, continueVersion: false },
     });
 
     expect(status).toBe(403);
@@ -3896,7 +3896,7 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History No Access File",
       },
     });
@@ -3904,12 +3904,12 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { status } = await userApi.files.changeVersionHistory({
       fileId,
-      changeHistory: { version: 2, continueVersion: false },
+      changeHistoryRequest: { version: 2, continueVersion: false },
     });
 
     expect(status).toBe(403);
@@ -3944,20 +3944,20 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Version History Guest File" },
+      createFileRequest: { title: "Autotest Version History Guest File" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { status } = await apiSdk
       .forRole("guest")
       .files.changeVersionHistory({
         fileId,
-        changeHistory: { version: 2, continueVersion: false },
+        changeHistoryRequest: { version: 2, continueVersion: false },
       });
 
     expect(status).toBe(403);
@@ -3969,7 +3969,7 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Version History Anon",
       },
     });
@@ -3977,12 +3977,12 @@ test.describe("PUT /files/file/:fileId/history - access control", () => {
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { status } = await apiSdk.forAnonymous().files.changeVersionHistory({
       fileId,
-      changeHistory: { version: 2, continueVersion: false },
+      changeHistoryRequest: { version: 2, continueVersion: false },
     });
 
     expect(status).toBe(401);
@@ -3996,13 +3996,13 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Restore Perm Owner" },
+      createFileRequest: { title: "Autotest Restore Perm Owner" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { data, status } = await ownerApi.files.restoreFileVersion({
@@ -4032,13 +4032,13 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
 
     const { data: fileData } = await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Restore DSA File" },
+      createFileRequest: { title: "Autotest Restore DSA File" },
     });
     const fileId = fileData.response!.id!;
 
     await adminApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { data, status } = await adminApi.files.restoreFileVersion({
@@ -4068,13 +4068,13 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
 
     const { data: fileData } = await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Restore RoomAdmin File" },
+      createFileRequest: { title: "Autotest Restore RoomAdmin File" },
     });
     const fileId = fileData.response!.id!;
 
     await roomAdminApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { data, status } = await roomAdminApi.files.restoreFileVersion({
@@ -4113,13 +4113,13 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Restore Editing File" },
+      createFileRequest: { title: "Autotest Restore Editing File" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { status } = await userApi.files.restoreFileVersion({
@@ -4157,13 +4157,13 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Restore Read File" },
+      createFileRequest: { title: "Autotest Restore Read File" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { status } = await userApi.files.restoreFileVersion({
@@ -4203,13 +4203,13 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Restore Guest File" },
+      createFileRequest: { title: "Autotest Restore Guest File" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { status } = await apiSdk.forRole("guest").files.restoreFileVersion({
@@ -4226,13 +4226,13 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Restore Anon" },
+      createFileRequest: { title: "Autotest Restore Anon" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { status } = await apiSdk.forAnonymous().files.restoreFileVersion({
@@ -4249,13 +4249,13 @@ test.describe("POST /files/file/:fileId/restoreversion - access control", () => 
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Restore CSRF GET" },
+      createFileRequest: { title: "Autotest Restore CSRF GET" },
     });
     const fileId = fileData.response!.id!;
 
     await ownerApi.files.updateFile({
       fileId,
-      updateFile: { lastVersion: 2 },
+      updateFileRequest: { lastVersion: 2 },
     });
 
     const { data: before } = await ownerApi.files.getEditHistory({ fileId });
@@ -4299,7 +4299,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest RefData Admin File" },
+      createFileRequest: { title: "Autotest RefData Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4342,7 +4342,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest RefData RoomAdmin File" },
+      createFileRequest: { title: "Autotest RefData RoomAdmin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4374,7 +4374,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest RefData Unauth File" },
+      createFileRequest: { title: "Autotest RefData Unauth File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4404,7 +4404,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest RefData No Access File" },
+      createFileRequest: { title: "Autotest RefData No Access File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4436,7 +4436,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest RefData Guest File" },
+      createFileRequest: { title: "Autotest RefData Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4478,7 +4478,7 @@ test.describe("POST /files/file/referencedata - Get reference data permissions",
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest RefData Guest No Access File",
       },
     });
@@ -4505,7 +4505,7 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest File History Guest Test",
       },
     });
@@ -4550,7 +4550,7 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest History Admin File" },
+      createFileRequest: { title: "Autotest History Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4587,7 +4587,7 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest History RoomAdmin File",
       },
     });
@@ -4627,7 +4627,7 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest History User File" },
+      createFileRequest: { title: "Autotest History User File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4654,7 +4654,7 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest History NoAccess File",
       },
     });
@@ -4684,7 +4684,7 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest History Guest File",
       },
     });
@@ -4712,7 +4712,7 @@ test.describe("GET /files/file/:fileId/log - Get file history permissions", () =
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest History Unauth File",
       },
     });
@@ -4742,13 +4742,14 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest StartEdit Unauth File" },
+      createFileRequest: { title: "Autotest StartEdit Unauth File" },
     });
     const fileId = fileData.response!.id!;
 
-    const { status } = await apiSdk
-      .forAnonymous()
-      .files.startEditFile({ fileId, startEdit: { editingAlone: true } });
+    const { status } = await apiSdk.forAnonymous().files.startEditFile({
+      fileId,
+      startEditRequest: { editingAlone: true },
+    });
 
     expect(status).toBe(401);
   });
@@ -4768,7 +4769,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest StartEdit Guest File" },
+      createFileRequest: { title: "Autotest StartEdit Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4785,7 +4786,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
 
     const { data, status } = await guestApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: false },
+      startEditRequest: { editingAlone: false },
     });
 
     expect(status).toBe(403);
@@ -4809,7 +4810,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest StartEdit Read File" },
+      createFileRequest: { title: "Autotest StartEdit Read File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4826,7 +4827,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
 
     const { data, status } = await userApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: false },
+      startEditRequest: { editingAlone: false },
     });
 
     expect(status).toBe(403);
@@ -4850,7 +4851,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest StartEdit User RoomManager File",
       },
     });
@@ -4872,7 +4873,7 @@ test.describe("POST /files/file/:fileId/startedit - Start file editing permissio
 
     const { data, status } = await userApi.files.startEditFile({
       fileId,
-      startEdit: { editingAlone: true },
+      startEditRequest: { editingAlone: true },
     });
 
     expect(status).toBe(403);
@@ -4898,7 +4899,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest BulkOrder Anon File" },
+      createFileRequest: { title: "Autotest BulkOrder Anon File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4940,7 +4941,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest BulkOrder Guest File" },
+      createFileRequest: { title: "Autotest BulkOrder Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -4989,7 +4990,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest BulkOrder User File" },
+      createFileRequest: { title: "Autotest BulkOrder User File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5031,7 +5032,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest BulkOrder User Read File",
       },
     });
@@ -5066,7 +5067,7 @@ test.describe("PUT /files/order - Set files order in bulk permissions", () => {
 
     const { data: fileData } = await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest BulkOrder Admin File" },
+      createFileRequest: { title: "Autotest BulkOrder Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5098,7 +5099,7 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Anon File" },
+      createFileRequest: { title: "Autotest TrackEdit Anon File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5125,7 +5126,7 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Guest File" },
+      createFileRequest: { title: "Autotest TrackEdit Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5177,7 +5178,7 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Manager File" },
+      createFileRequest: { title: "Autotest TrackEdit Manager File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5202,7 +5203,7 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Read File" },
+      createFileRequest: { title: "Autotest TrackEdit Read File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5241,7 +5242,7 @@ test.describe("GET /files/file/:fileId/trackeditfile - Track file editing permis
 
     const { data: fileData } = await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest TrackEdit Admin File" },
+      createFileRequest: { title: "Autotest TrackEdit Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5275,7 +5276,7 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Thumbnails Anon File" },
+      createFileRequest: { title: "Autotest Thumbnails Anon File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5302,7 +5303,7 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Thumbnails Guest File" },
+      createFileRequest: { title: "Autotest Thumbnails Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5341,7 +5342,7 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Thumbnails Read File" },
+      createFileRequest: { title: "Autotest Thumbnails Read File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5396,7 +5397,7 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Thumbnails Manager File" },
+      createFileRequest: { title: "Autotest Thumbnails Manager File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5426,7 +5427,7 @@ test.describe("POST /files/thumbnails - Create thumbnails permissions", () => {
 
     const { data: fileData } = await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Thumbnails Admin File" },
+      createFileRequest: { title: "Autotest Thumbnails Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5445,7 +5446,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Edit Diff Perm Owner" },
+      createFileRequest: { title: "Autotest Edit Diff Perm Owner" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5483,7 +5484,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Edit Diff DocSpaceAdmin File",
       },
     });
@@ -5523,7 +5524,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Edit Diff Editing File" },
+      createFileRequest: { title: "Autotest Edit Diff Editing File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5561,7 +5562,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Edit Diff Comment File" },
+      createFileRequest: { title: "Autotest Edit Diff Comment File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5600,7 +5601,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Edit Diff Read File" },
+      createFileRequest: { title: "Autotest Edit Diff Read File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5632,7 +5633,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Edit Diff No Access File" },
+      createFileRequest: { title: "Autotest Edit Diff No Access File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5650,7 +5651,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Edit Diff Anon" },
+      createFileRequest: { title: "Autotest Edit Diff Anon" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5693,7 +5694,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Edit Diff Guest File" },
+      createFileRequest: { title: "Autotest Edit Diff Guest File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5725,7 +5726,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
 
     const { data: fileData } = await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Edit Diff DocSpaceAdmin Own File",
       },
     });
@@ -5756,7 +5757,7 @@ test.describe("GET /files/file/:fileId/edit/diff permissions", () => {
 
     const { data: fileData } = await roomAdminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Edit Diff RoomAdmin Own File",
       },
     });
@@ -5830,7 +5831,7 @@ test.describe("POST /files/templates - Add templates permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Templates Admin File" },
+      createFileRequest: { title: "Autotest Templates Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5858,7 +5859,7 @@ test.describe("POST /files/templates - Add templates permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Templates Owner File" },
+      createFileRequest: { title: "Autotest Templates Owner File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5878,7 +5879,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
   }) => {
     const { status } = await apiSdk
       .forAnonymous()
-      .files.deleteTemplates({ requestBody: [1] });
+      .files.deleteTemplates({ deleteTemplateFilesRequestDto: [1] });
 
     expect(status).toBe(401);
   });
@@ -5891,7 +5892,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
 
     const { status } = await apiSdk
       .forRole("guest")
-      .files.deleteTemplates({ requestBody: [1] });
+      .files.deleteTemplates({ deleteTemplateFilesRequestDto: [1] });
 
     expect(status).toBe(403);
   });
@@ -5912,7 +5913,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Delete Templates User File" },
+      createFileRequest: { title: "Autotest Delete Templates User File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5924,7 +5925,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .files.deleteTemplates({ requestBody: [fileId] });
+      .files.deleteTemplates({ deleteTemplateFilesRequestDto: [fileId] });
 
     // templates are a personal (per-user) feature -- available to all authenticated users
     expect(status).toBe(200);
@@ -5950,7 +5951,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
 
     const { data: fileData } = await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Delete Templates Admin File" },
+      createFileRequest: { title: "Autotest Delete Templates Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5959,7 +5960,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
     });
 
     const { data, status } = await adminApi.files.deleteTemplates({
-      requestBody: [fileId],
+      deleteTemplateFilesRequestDto: [fileId],
     });
 
     expect(status).toBe(200);
@@ -5982,7 +5983,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Delete Templates Owner File" },
+      createFileRequest: { title: "Autotest Delete Templates Owner File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -5991,7 +5992,7 @@ test.describe("DELETE /files/templates - Delete templates permissions", () => {
     });
 
     const { data, status } = await ownerApi.files.deleteTemplates({
-      requestBody: [fileId],
+      deleteTemplateFilesRequestDto: [fileId],
     });
 
     expect(status).toBe(200);
@@ -6015,7 +6016,7 @@ test.describe("GET /files/file/:fileId/isformpdf - isFormPDF permissions", () =>
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest IsFormPDF Owner File" },
+      createFileRequest: { title: "Autotest IsFormPDF Owner File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -6040,7 +6041,7 @@ test.describe("GET /files/file/:fileId/isformpdf - isFormPDF permissions", () =>
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest IsFormPDF Admin File" },
+      createFileRequest: { title: "Autotest IsFormPDF Admin File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -6069,7 +6070,7 @@ test.describe("GET /files/file/:fileId/isformpdf - isFormPDF permissions", () =>
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest IsFormPDF Read File" },
+      createFileRequest: { title: "Autotest IsFormPDF Read File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -6105,7 +6106,7 @@ test.describe("GET /files/file/:fileId/isformpdf - isFormPDF permissions", () =>
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest IsFormPDF Unauth File" },
+      createFileRequest: { title: "Autotest IsFormPDF Unauth File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -6129,7 +6130,7 @@ test.describe("GET /files/file/:fileId/isformpdf - isFormPDF permissions", () =>
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest IsFormPDF No Access File" },
+      createFileRequest: { title: "Autotest IsFormPDF No Access File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -6237,7 +6238,7 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest GetAllFormRoles Unauth File" },
+      createFileRequest: { title: "Autotest GetAllFormRoles Unauth File" },
     });
     const fileId = fileData.response!.id!;
 
@@ -6263,7 +6264,7 @@ test.describe("GET /files/file/:fileId/formroles - getAllFormRoles permissions",
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest GetAllFormRoles No Access File",
       },
     });
@@ -6403,7 +6404,7 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest GetPresignedFileUri Unauth File",
       },
     });
@@ -6431,7 +6432,7 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest GetPresignedFileUri Admin File",
       },
     });
@@ -6465,7 +6466,7 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest GetPresignedFileUri RoomAdmin File",
       },
     });
@@ -6506,7 +6507,7 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest GetPresignedFileUri User File",
       },
     });
@@ -6547,7 +6548,7 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest GetPresignedFileUri No Access File",
       },
     });
@@ -6577,7 +6578,7 @@ test.describe("GET /files/file/:fileId/presigned - Get presigned file URI permis
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest GetPresignedFileUri Guest File",
       },
     });
@@ -6881,7 +6882,7 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
 
     const { status } = await apiSdk.forAnonymous().files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1 },
+      checkFillFormDraftRequest: { version: 1 },
     });
 
     expect(status).toBe(401);
@@ -6896,7 +6897,7 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
 
     const { status } = await apiSdk.forRole("user").files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1 },
+      checkFillFormDraftRequest: { version: 1 },
     });
 
     expect(status).toBe(403);
@@ -6911,7 +6912,7 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - Check form dr
 
     const { status } = await apiSdk.forRole("guest").files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1 },
+      checkFillFormDraftRequest: { version: 1 },
     });
 
     expect(status).toBe(403);
@@ -6944,7 +6945,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag perm
 
     const { status } = await apiSdk.forAnonymous().files.setCustomFilterTag({
       fileId,
-      customFilterParameters: { enabled: true },
+      customFilterRequest: { enabled: true },
     });
 
     expect(status).toBe(401);
@@ -6973,7 +6974,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag perm
       .forRole("roomAdmin")
       .files.setCustomFilterTag({
         fileId,
-        customFilterParameters: { enabled: true },
+        customFilterRequest: { enabled: true },
       });
 
     expect(status).toBe(200);
@@ -7001,7 +7002,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag perm
 
     const { status } = await apiSdk.forRole("user").files.setCustomFilterTag({
       fileId,
-      customFilterParameters: { enabled: true },
+      customFilterRequest: { enabled: true },
     });
 
     expect(status).toBe(403);
@@ -7016,7 +7017,7 @@ test.describe("PUT /files/file/:fileId/customfilter - Set custom filter tag perm
 
     const { status } = await apiSdk.forRole("user").files.setCustomFilterTag({
       fileId,
-      customFilterParameters: { enabled: true },
+      customFilterRequest: { enabled: true },
     });
 
     expect(status).toBe(403);
@@ -7165,7 +7166,7 @@ test.describe("POST /files/file/:id/link - permissions", () => {
       const roomId = roomData.response!.id!;
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest Primary Link File.docx" },
+        createFileRequest: { title: "Autotest Primary Link File.docx" },
       });
       const fileId = fileData.response!.id!;
       const { api, data: memberData } = await apiSdk.addAuthenticatedMember(
@@ -7205,7 +7206,7 @@ test.describe("POST /files/file/:id/link - permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Primary Link Anonymous.docx" },
+      createFileRequest: { title: "Autotest Primary Link Anonymous.docx" },
     });
 
     const { status } = await apiSdk
@@ -7234,7 +7235,7 @@ test.describe("GET /files/file/:fileId/protectusers - permissions", () => {
     const roomId = roomData.response!.id!;
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Protect Users File.docx" },
+      createFileRequest: { title: "Autotest Protect Users File.docx" },
     });
     const { api, data: memberData } = await apiSdk.addAuthenticatedMember(
       "owner",
@@ -7277,7 +7278,7 @@ test.describe("GET /files/file/:fileId/protectusers - permissions", () => {
     const roomId = roomData.response!.id!;
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Protect Users File.docx" },
+      createFileRequest: { title: "Autotest Protect Users File.docx" },
     });
     await ownerApi.rooms.setRoomSecurity({
       id: roomId,
@@ -7306,7 +7307,7 @@ test.describe("GET /files/file/:fileId/protectusers - permissions", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Protect Users Anonymous.docx" },
+      createFileRequest: { title: "Autotest Protect Users Anonymous.docx" },
     });
 
     const { status } = await apiSdk

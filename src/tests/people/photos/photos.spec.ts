@@ -15,7 +15,7 @@ test("BUG 80569 POST /people/:userid/photo - Owner uploads avatar via SDK photos
   });
 
   const { data, status } = await ownerApi.photos.uploadMemberPhoto({
-    userid: userId,
+    userId: userId,
     file,
     autosave: true,
   });
@@ -140,7 +140,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
     await apiSdk.uploadMemberPhoto("owner", userId, createTestImageBuffer());
 
     const { data, status } = await ownerApi.photos.deleteMemberPhoto({
-      userid: userId,
+      userId: userId,
     });
 
     expect(status).toBe(200);
@@ -165,7 +165,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
-      .photos.deleteMemberPhoto({ userid: userId });
+      .photos.deleteMemberPhoto({ userId: userId });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -189,7 +189,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .photos.deleteMemberPhoto({ userid: userId });
+      .photos.deleteMemberPhoto({ userId: userId });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -209,7 +209,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .photos.deleteMemberPhoto({ userid: userId });
+      .photos.deleteMemberPhoto({ userId: userId });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -229,7 +229,7 @@ test.describe("DELETE /people/:userid/photo - Delete member photo", () => {
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .photos.deleteMemberPhoto({ userid: userId });
+      .photos.deleteMemberPhoto({ userId: userId });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -246,7 +246,7 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
     const userId = profile.response!.id!;
 
     const { data, status } = await ownerApi.photos.getMemberPhoto({
-      userid: userId,
+      userId: userId,
     });
 
     expect(status).toBe(200);
@@ -265,7 +265,7 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
 
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
-      .photos.getMemberPhoto({ userid: userId });
+      .photos.getMemberPhoto({ userId: userId });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -283,7 +283,7 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
-      .photos.getMemberPhoto({ userid: userId });
+      .photos.getMemberPhoto({ userId: userId });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -301,7 +301,7 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
 
     const { data, status } = await apiSdk
       .forRole("user")
-      .photos.getMemberPhoto({ userid: userId });
+      .photos.getMemberPhoto({ userId: userId });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -319,7 +319,7 @@ test.describe("GET /people/:userid/photo - Get member photo", () => {
 
     const { data, status } = await apiSdk
       .forRole("guest")
-      .photos.getMemberPhoto({ userid: userId });
+      .photos.getMemberPhoto({ userId: userId });
 
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -352,7 +352,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("Owner gets DocSpaceAdmin photo", async () => {
       const { data, status } = await apiSdk
         .forRole("owner")
-        .photos.getMemberPhoto({ userid: adminId });
+        .photos.getMemberPhoto({ userId: adminId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -361,7 +361,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("Owner gets RoomAdmin photo", async () => {
       const { data, status } = await apiSdk
         .forRole("owner")
-        .photos.getMemberPhoto({ userid: roomAdminId });
+        .photos.getMemberPhoto({ userId: roomAdminId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -370,7 +370,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("Owner gets User photo", async () => {
       const { data, status } = await apiSdk
         .forRole("owner")
-        .photos.getMemberPhoto({ userid: userId });
+        .photos.getMemberPhoto({ userId: userId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -379,7 +379,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("Owner gets Guest photo", async () => {
       const { data, status } = await apiSdk
         .forRole("owner")
-        .photos.getMemberPhoto({ userid: guestId });
+        .photos.getMemberPhoto({ userId: guestId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -411,7 +411,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("DocSpace admin gets Owner photo", async () => {
       const { data, status } = await apiSdk
         .forRole("docSpaceAdmin")
-        .photos.getMemberPhoto({ userid: ownerId });
+        .photos.getMemberPhoto({ userId: ownerId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -420,7 +420,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("DocSpace admin gets RoomAdmin photo", async () => {
       const { data, status } = await apiSdk
         .forRole("docSpaceAdmin")
-        .photos.getMemberPhoto({ userid: roomAdminId });
+        .photos.getMemberPhoto({ userId: roomAdminId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -429,7 +429,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("DocSpace admin gets User photo", async () => {
       const { data, status } = await apiSdk
         .forRole("docSpaceAdmin")
-        .photos.getMemberPhoto({ userid: userId });
+        .photos.getMemberPhoto({ userId: userId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -438,7 +438,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("DocSpace admin gets Guest photo", async () => {
       const { data, status } = await apiSdk
         .forRole("docSpaceAdmin")
-        .photos.getMemberPhoto({ userid: guestId });
+        .photos.getMemberPhoto({ userId: guestId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -467,7 +467,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("Room admin gets Owner photo", async () => {
       const { data, status } = await apiSdk
         .forRole("roomAdmin")
-        .photos.getMemberPhoto({ userid: ownerId });
+        .photos.getMemberPhoto({ userId: ownerId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -476,7 +476,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("Room admin gets DocSpaceAdmin photo", async () => {
       const { data, status } = await apiSdk
         .forRole("roomAdmin")
-        .photos.getMemberPhoto({ userid: adminId });
+        .photos.getMemberPhoto({ userId: adminId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);
@@ -485,7 +485,7 @@ test.describe("GET /people/:userid/photo - Get other users photo", () => {
     await test.step("Room admin gets User photo", async () => {
       const { data, status } = await apiSdk
         .forRole("roomAdmin")
-        .photos.getMemberPhoto({ userid: userId });
+        .photos.getMemberPhoto({ userId: userId });
       expect(status).toBe(200);
       expect(data.statusCode).toBe(200);
       expect(data.count).toBe(1);

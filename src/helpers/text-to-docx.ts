@@ -56,7 +56,7 @@ export async function filesApiTitleFor(
 ): Promise<string> {
   const { data, status } = await api.files.createFile({
     folderId,
-    createFileJsonElement: { title },
+    createFileRequest: { title },
   });
   if (status !== 200 || !data.response?.title) {
     throw new Error(

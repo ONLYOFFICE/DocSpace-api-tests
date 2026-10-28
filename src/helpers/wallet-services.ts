@@ -5,7 +5,7 @@ import {
   PaymentApiChangeTenantWalletServiceStateRequest,
   CustomerServiceUsageDto,
   OperationDto,
-  TenantWalletSettings,
+  TenantWalletSettingsDto,
 } from "@onlyoffice/docspace-api-sdk";
 import { PaymentApi as PortalPaymentApi } from "@/src/services/payment-api";
 import { AiAccessClient, setPortalAiAccess } from "./ai-access";
@@ -243,10 +243,10 @@ export async function fundWalletBelowThreshold(
  */
 export async function getWalletTopUpSettings(
   paymentApi: Pick<PaymentApi, "getTenantWalletSettings">,
-): Promise<TenantWalletSettings | undefined> {
+): Promise<TenantWalletSettingsDto | undefined> {
   const { data, status } = await paymentApi.getTenantWalletSettings();
   expect(status, "GET /portal/payment/topupsettings").toBe(200);
-  return (data as unknown as { response?: TenantWalletSettings }).response;
+  return (data as unknown as { response?: TenantWalletSettingsDto }).response;
 }
 
 /**

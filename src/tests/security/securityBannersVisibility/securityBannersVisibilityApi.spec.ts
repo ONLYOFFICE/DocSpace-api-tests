@@ -19,7 +19,7 @@ test.describe("POST /api/2.0/settings/banner", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .securityBanners.setTenantBannerSettings({
-        tenantBannerSettingsDto: { hidden: true },
+        tenantBannerSettingsRequestDto: { hidden: true },
       });
 
     expect(status).toBe(200);
@@ -37,7 +37,7 @@ test.describe("POST /api/2.0/settings/banner", () => {
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .securityBanners.setTenantBannerSettings({
-        tenantBannerSettingsDto: { hidden: true },
+        tenantBannerSettingsRequestDto: { hidden: true },
       });
 
     expect(status).toBe(200);

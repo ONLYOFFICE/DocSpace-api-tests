@@ -1,8 +1,8 @@
 import { expect } from "@playwright/test";
 import {
   BackupApi,
-  BackupProgress,
-  BackupRestoreDto,
+  BackupProgressDto,
+  StartBackupRestoreRequestDto,
   BackupStorageType,
   BackupsCountResultDto,
   DistributedTaskStatus,
@@ -18,7 +18,7 @@ type BackupClient = Pick<
  * progress can show `isCompleted` for a moment while the status is still
  * Created or Running, so the flag alone is not taken as the end.
  */
-export function hasStopped(job: BackupProgress | undefined): boolean {
+export function hasStopped(job: BackupProgressDto | undefined): boolean {
   return (
     !!job?.isCompleted &&
     job.status !== DistributedTaskStatus.Created &&
@@ -37,7 +37,7 @@ export function hasStopped(job: BackupProgress | undefined): boolean {
  */
 export async function runBackup(api: BackupClient): Promise<string> {
   const { data, status } = await api.startBackup({
-    backupDto: { storageType: BackupStorageType.DataStore },
+    startBackupRequestDto: { storageType: BackupStorageType.DataStore },
   });
   expect(status, `startbackup: ${JSON.stringify(data)}`).toBe(200);
 
@@ -74,7 +74,7 @@ type BackupStateClient = Pick<
 
 export interface BackupSnapshot {
   /** The backup job in the queue, or undefined when there is none. */
-  job: BackupProgress | undefined;
+  job: BackupProgressDto | undefined;
   historyIds: string[];
   counts: BackupsCountResultDto | undefined;
 }
@@ -101,8 +101,8 @@ export async function snapshotBackups(
 export async function waitForBackupJobEnd(
   api: Pick<BackupApi, "getBackupProgress">,
   taskId: string,
-): Promise<BackupProgress> {
-  let final: BackupProgress | undefined;
+): Promise<BackupProgressDto> {
+  let final: BackupProgressDto | undefined;
 
   await expect(async () => {
     const { data } = await api.getBackupProgress();
@@ -226,7 +226,9 @@ export async function startRestoreThatCannotQueue(
   assertRestoreRequestCannotQueue(dto);
 
   return api.startBackupRestore({
-    backupRestoreDto: dto as BackupRestoreDto | undefined,
+    startBackupRestoreRequestDto: dto as
+      | StartBackupRestoreRequestDto
+      | undefined,
   });
 }
 
@@ -262,12 +264,12 @@ export async function waitForBackupRecord(
 
 export interface JobObservation {
   /** The last state of the queue: no job, or a stopped one. */
-  final: BackupProgress | undefined;
+  final: BackupProgressDto | undefined;
   /** Each distinct state seen on the way, oldest first. */
   states: string[];
 }
 
-const describeJob = (job: BackupProgress | undefined, taskId: string) =>
+const describeJob = (job: BackupProgressDto | undefined, taskId: string) =>
   job
     ? `${job.taskId === taskId ? "ours" : "other"} status=${job.status} done=${job.isCompleted}`
     : "none";
@@ -339,7 +341,7 @@ export async function startBackupAndCatchItRunning(
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const { data, status } = await api.startBackup({
-      backupDto: { storageType: BackupStorageType.DataStore },
+      startBackupRequestDto: { storageType: BackupStorageType.DataStore },
     });
     expect(status, JSON.stringify(data)).toBe(200);
     const taskId = data.response!.taskId!;

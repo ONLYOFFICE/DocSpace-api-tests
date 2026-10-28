@@ -885,7 +885,7 @@ test.describe("MCP - tool permission mode and server-executed tools", () => {
     const { data: myFolder } = await h.ownerApi.folders.getMyFolder({});
     const { data: created, status } = await h.ownerApi.folders.createFolder({
       folderId: myFolder.response!.current!.id!,
-      createFolder: { title: "Autotest server tool folder" },
+      createFolderRequest: { title: "Autotest server tool folder" },
     });
     expect(status).toBe(200);
     const folderId = created.response!.id!;
@@ -941,7 +941,7 @@ test.describe("MCP - tool permission mode and server-executed tools", () => {
     const myFolderId = myFolder.response!.current!.id!;
     const { data: scope } = await h.ownerApi.folders.createFolder({
       folderId: myFolderId,
-      createFolder: { title: "Autotest server tool scope" },
+      createFolderRequest: { title: "Autotest server tool scope" },
     });
     const scopeId = scope.response!.id!;
 

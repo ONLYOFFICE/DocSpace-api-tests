@@ -103,14 +103,14 @@ test.describe("POST /api/2.0/settings/ssov2 - access control", () => {
     );
 
     const { status } = await userApi.sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: { serializeSettings: "{}" },
+      ssoSettingsRequestDto: { serializeSettings: "{}" },
     });
     expect(status).toBe(403);
   });
 
   test("Anonymous cannot save the SSO settings", async ({ apiSdk }) => {
     const { status } = await apiSdk.forAnonymous().sso.saveSsoSettingsV2({
-      ssoSettingsRequestsDto: { serializeSettings: "{}" },
+      ssoSettingsRequestDto: { serializeSettings: "{}" },
     });
     expect(status).toBe(401);
   });

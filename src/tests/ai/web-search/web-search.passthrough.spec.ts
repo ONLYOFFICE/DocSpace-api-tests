@@ -567,7 +567,7 @@ test.describe("AI Web Search passthrough - billing attribution", () => {
     const { data: file, status: createStatus } =
       await ownerApi.files.createFile({
         folderId: myFolder.response!.current!.id!,
-        createFileJsonElement: { title },
+        createFileRequest: { title },
       });
     expect(createStatus).toBe(200);
     const fileId = file.response!.id!;

@@ -2897,7 +2897,7 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
 
     const { data, status } =
       await ownerApi.filesSettings.changeDefaultAccessRights({
-        requestBody: [FileShare.ReadWrite, FileShare.Read],
+        defaultAccessRightsRequestDto: [FileShare.ReadWrite, FileShare.Read],
       });
 
     const validFileShareValues = Object.values(FileShare) as number[];
@@ -2916,7 +2916,7 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
 
     const { data, status } =
       await ownerApi.filesSettings.changeDefaultAccessRights({
-        requestBody: [FileShare.Read],
+        defaultAccessRightsRequestDto: [FileShare.Read],
       });
 
     expect(status).toBe(200);
@@ -2948,7 +2948,7 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
 
     const { data, status } =
       await ownerApi.filesSettings.changeDefaultAccessRights({
-        requestBody: allRights,
+        defaultAccessRightsRequestDto: allRights,
       });
 
     const validFileShareValues = Object.values(FileShare) as number[];
@@ -2966,7 +2966,7 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     const { data, status } = await apiSdk
       .forRole("owner")
       .filesSettings.changeDefaultAccessRights({
-        requestBody: [],
+        defaultAccessRightsRequestDto: [],
       });
 
     const validFileShareValues = Object.values(FileShare) as number[];
@@ -2993,12 +2993,16 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.filesSettings.changeDefaultAccessRights({
-      requestBody: [FileShare.ReadWrite, FileShare.Read, FileShare.Review],
+      defaultAccessRightsRequestDto: [
+        FileShare.ReadWrite,
+        FileShare.Read,
+        FileShare.Review,
+      ],
     });
 
     const { data, status } =
       await ownerApi.filesSettings.changeDefaultAccessRights({
-        requestBody: [FileShare.Comment],
+        defaultAccessRightsRequestDto: [FileShare.Comment],
       });
 
     expect(status).toBe(200);
@@ -3017,7 +3021,7 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .filesSettings.changeDefaultAccessRights({
-        requestBody: [FileShare.ReadWrite, FileShare.Read],
+        defaultAccessRightsRequestDto: [FileShare.ReadWrite, FileShare.Read],
       });
 
     const validFileShareValues = Object.values(FileShare) as number[];
@@ -3034,12 +3038,12 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.filesSettings.changeDefaultAccessRights({
-      requestBody: [FileShare.Read],
+      defaultAccessRightsRequestDto: [FileShare.Read],
     });
 
     const { data, status } =
       await ownerApi.filesSettings.changeDefaultAccessRights({
-        requestBody: [FileShare.Read],
+        defaultAccessRightsRequestDto: [FileShare.Read],
       });
 
     expect(status).toBe(200);
@@ -3056,7 +3060,7 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     const { data, status } = await apiSdk
       .forRole("owner")
       .filesSettings.changeDefaultAccessRights({
-        requestBody: [FileShare.Read, FileShare.Read],
+        defaultAccessRightsRequestDto: [FileShare.Read, FileShare.Read],
       });
 
     const validFileShareValues = Object.values(FileShare) as number[];
@@ -3073,7 +3077,7 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     const { status } = await apiSdk
       .forRole("owner")
       .filesSettings.changeDefaultAccessRights({
-        requestBody: [999 as FileShare],
+        defaultAccessRightsRequestDto: [999 as FileShare],
       });
 
     expect(status).toBe(400);
@@ -3085,7 +3089,7 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.filesSettings.changeDefaultAccessRights({
-      requestBody: [FileShare.Read],
+      defaultAccessRightsRequestDto: [FileShare.Read],
     });
 
     const { data, status } = await ownerApi.filesSettings.getFilesSettings();
@@ -3107,10 +3111,10 @@ test.describe("PUT /api/2.0/files/settings/dafaultaccessrights - Change the defa
     const userApi = apiSdk.forRole("user");
 
     await ownerApi.filesSettings.changeDefaultAccessRights({
-      requestBody: [FileShare.Read],
+      defaultAccessRightsRequestDto: [FileShare.Read],
     });
     await userApi.filesSettings.changeDefaultAccessRights({
-      requestBody: [FileShare.ReadWrite],
+      defaultAccessRightsRequestDto: [FileShare.ReadWrite],
     });
 
     const { data, status } = await ownerApi.filesSettings.getFilesSettings();
@@ -3146,7 +3150,7 @@ test.describe("PUT /api/2.0/files/settings/defaulttemplate - Validation", () => 
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Mismatched Template.pptx" },
+      createFileRequest: { title: "Autotest Mismatched Template.pptx" },
     });
     const fileId = fileData.response!.id!;
     const { status } = await ownerApi.filesSettings.setDefaultTemplate({

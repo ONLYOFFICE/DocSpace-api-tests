@@ -325,7 +325,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: {
+        docsCloudConfigRequestDto: {
           security: { secret, header },
           wopi: { enable: true },
           server: { isAnonymousSupport: false, fileSizeLimit: 209715200 },
@@ -356,7 +356,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config", () => {
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: {
+        docsCloudConfigRequestDto: {
           security: { secret, header },
           wopi: { enable: true },
           server: { isAnonymousSupport: false, fileSizeLimit: 209715200 },
@@ -495,7 +495,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
     const { data, status } = await apiSdk
       .forRole("owner")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: {
+        docsCloudConfigRequestDto: {
           tenantName: apiSdk.faker.generateString(256),
         },
       });
@@ -514,7 +514,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
     const { data, status } = await apiSdk
       .forRole("owner")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: {
+        docsCloudConfigRequestDto: {
           security: { secret: apiSdk.faker.generateString(256) },
         },
       });
@@ -533,7 +533,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
     const { data, status } = await apiSdk
       .forRole("owner")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: {
+        docsCloudConfigRequestDto: {
           security: { header: apiSdk.faker.generateString(256) },
         },
       });
@@ -552,7 +552,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - string length val
     const { data, status } = await apiSdk
       .forRole("owner")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: {
+        docsCloudConfigRequestDto: {
           ipFilter: {
             rules: [
               { address: apiSdk.faker.generateString(256), allowed: true },
@@ -579,7 +579,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - server.fileSizeLi
     const { status } = await apiSdk
       .forRole("owner")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: {
+        docsCloudConfigRequestDto: {
           server: { fileSizeLimit: 9999999999 },
         },
       });
@@ -757,7 +757,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - negative", () => 
     const { data, status } = await apiSdk
       .forRole("owner")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: { wopi: { enable: true } },
+        docsCloudConfigRequestDto: { wopi: { enable: true } },
       });
 
     expect(status).toBe(400);

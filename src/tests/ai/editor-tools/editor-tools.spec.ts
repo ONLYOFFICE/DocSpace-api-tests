@@ -52,7 +52,7 @@ async function myFolderId(apiSdk: ApiSDK) {
 async function newFile(apiSdk: ApiSDK, title: string) {
   const { data, status } = await apiSdk
     .forRole("owner")
-    .files.createFileInMyDocuments({ createFileJsonElement: { title } });
+    .files.createFileInMyDocuments({ createFileRequest: { title } });
   expect(status, `creating "${title}" through the Files API`).toBe(200);
   return data.response!.id!;
 }

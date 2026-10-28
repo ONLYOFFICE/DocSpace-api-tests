@@ -833,7 +833,7 @@ test.describe("Threads - access control on a room or folder entity", () => {
     const { data: myFolder } = await ownerApi.folders.getMyFolder();
     const { data: folder } = await ownerApi.folders.createFolder({
       folderId: myFolder.response!.current!.id!,
-      createFolder: { title: "Autotest Owner Private Folder" },
+      createFolderRequest: { title: "Autotest Owner Private Folder" },
     });
     const folderId = folder.response!.id!;
 
@@ -1575,7 +1575,7 @@ test.describe("Threads - validation", () => {
     const profileId = await aiChat.defaultProfileId("owner");
 
     const { data: file } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Entity Probe" },
+      createFileRequest: { title: "Autotest Entity Probe" },
     });
     const fileId = file.response!.id!;
 

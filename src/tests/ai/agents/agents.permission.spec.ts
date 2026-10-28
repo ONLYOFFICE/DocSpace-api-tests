@@ -481,7 +481,7 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota access control"
       await paymentsApi.setupPayment();
       const ownerApi = apiSdk.forRole("owner");
       await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: {
+        quotaSettingsRequestDto: {
           enableQuota: true,
           defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
         },
@@ -537,7 +537,7 @@ test.describe("PUT /ai/agents/agentquota - Change AI agent quota access control"
     await paymentsApi.setupPayment();
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-      quotaSettingsRequestsDto: {
+      quotaSettingsRequestDto: {
         enableQuota: true,
         defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
       },
@@ -571,7 +571,7 @@ test.describe("PUT /ai/agents/resetquota - Reset AI agent quota access control",
       await paymentsApi.setupPayment();
       const ownerApi = apiSdk.forRole("owner");
       await ownerApi.settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: {
+        quotaSettingsRequestDto: {
           enableQuota: true,
           defaultQuota: DEFAULT_QUOTA_AGENT_BYTES,
         },

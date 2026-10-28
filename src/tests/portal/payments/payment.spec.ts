@@ -3,7 +3,7 @@ import { expect } from "@playwright/test";
 import {
   TenantWalletService,
   type PaymentApi,
-  type ServicePriceInfo,
+  type ServicePriceDto,
 } from "@onlyoffice/docspace-api-sdk";
 import {
   topUpDeposit,
@@ -1234,7 +1234,7 @@ test.describe("POST /api/2.0/portal/payment/request", () => {
   }) => {
     const { status } = await apiSdk
       .forRole("owner")
-      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+      .payment.sendPaymentRequest({ salesRequestDto: SALES_REQUEST });
 
     expect(status).toBe(200);
   });
@@ -1246,7 +1246,7 @@ test.describe("POST /api/2.0/portal/payment/request", () => {
 
     const { status } = await apiSdk
       .forRole("docSpaceAdmin")
-      .payment.sendPaymentRequest({ salesRequestsDto: SALES_REQUEST });
+      .payment.sendPaymentRequest({ salesRequestDto: SALES_REQUEST });
 
     expect(status).toBe(200);
   });
@@ -1460,7 +1460,7 @@ test.describe("GET /api/2.0/portal/payment/topupsettings", () => {
 
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: {
           enabled: true,
           minBalance: 100,
@@ -1486,7 +1486,7 @@ test.describe("GET /api/2.0/portal/payment/topupsettings", () => {
 
     const ownerApi = apiSdk.forRole("owner");
     await ownerApi.payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: {
           enabled: true,
           minBalance: 100,
@@ -2272,7 +2272,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.setTenantWalletSettings({
-        tenantWalletSettingsWrapper: {
+        tenantWalletSettingsRequestDto: {
           settings: { enabled: true, minBalance: 100, upToBalance: 1000 },
         },
       });
@@ -2291,7 +2291,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings", () => {
     await paymentsApi.makeWalletTopUp();
 
     await apiSdk.forRole("owner").payment.setTenantWalletSettings({
-      tenantWalletSettingsWrapper: {
+      tenantWalletSettingsRequestDto: {
         settings: { enabled: true, minBalance: 100, upToBalance: 1000 },
       },
     });
@@ -2299,7 +2299,7 @@ test.describe("POST /api/2.0/portal/payment/topupsettings", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .payment.setTenantWalletSettings({
-        tenantWalletSettingsWrapper: {
+        tenantWalletSettingsRequestDto: {
           settings: { enabled: false, minBalance: 100, upToBalance: 1000 },
         },
       });
@@ -3129,7 +3129,7 @@ async function getPricedServices(payment: PaymentApi) {
   const { data: services } = await payment.getWalletServices();
   const priced = new Map<
     string,
-    { all: ServicePriceInfo[]; active: ServicePriceInfo[]; walletPrice: number }
+    { all: ServicePriceDto[]; active: ServicePriceDto[]; walletPrice: number }
   >();
   for (const service of services.response ?? []) {
     const name = service.serviceName!;

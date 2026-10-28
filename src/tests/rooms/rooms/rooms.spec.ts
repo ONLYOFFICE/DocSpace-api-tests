@@ -346,7 +346,7 @@ test.describe("API rooms methods", () => {
 
       // Per-room quota must be enabled portal-wide first, otherwise quota in createRoom is ignored.
       await ownerApi.settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: {
+        quotaSettingsRequestDto: {
           enableQuota: true,
           defaultQuota: 100 * 1024 * 1024,
         },
@@ -647,7 +647,7 @@ test.describe("API rooms methods", () => {
       const myquota = -100;
 
       await ownerApi.settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: {
+        quotaSettingsRequestDto: {
           enableQuota: true,
           defaultQuota: 100 * 1024 * 1024,
         },
@@ -2179,13 +2179,13 @@ test.describe("API rooms methods", () => {
 
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest File Before Archive" },
+        createFileRequest: { title: "Autotest File Before Archive" },
       });
       const fileId = fileData.response!.id!;
 
       const { data: folderData } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Autotest Folder Before Archive" },
+        createFolderRequest: { title: "Autotest Folder Before Archive" },
       });
       const folderId = folderData.response!.id!;
 
@@ -2236,7 +2236,7 @@ test.describe("API rooms methods", () => {
       await test.step("createFolder in archived room is forbidden", async () => {
         const { status } = await ownerApi.folders.createFolder({
           folderId: roomId,
-          createFolder: { title: "Autotest Folder In Archive" },
+          createFolderRequest: { title: "Autotest Folder In Archive" },
         });
         expect(status).toBe(403);
       });
@@ -2289,7 +2289,7 @@ test.describe("API rooms methods", () => {
 
       const { status } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest File In Archive" },
+        createFileRequest: { title: "Autotest File In Archive" },
       });
 
       expect(status).toBe(403);
@@ -2837,13 +2837,13 @@ test.describe("API rooms methods", () => {
 
         const { data: fileData } = await ownerApi.files.createFile({
           folderId: roomId,
-          createFileJsonElement: { title: "Autotest File Round-Trip" },
+          createFileRequest: { title: "Autotest File Round-Trip" },
         });
         const fileId = fileData.response!.id!;
 
         const { data: folderData } = await ownerApi.folders.createFolder({
           folderId: roomId,
-          createFolder: { title: "Autotest Folder Round-Trip" },
+          createFolderRequest: { title: "Autotest Folder Round-Trip" },
         });
         const folderId = folderData.response!.id!;
 
@@ -5156,7 +5156,7 @@ test.describe("API rooms methods", () => {
       const ownerApi = apiSdk.forRole("owner");
 
       await ownerApi.settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: {
+        quotaSettingsRequestDto: {
           enableQuota: true,
           defaultQuota: 100 * 1024 * 1024,
         },
@@ -6000,11 +6000,11 @@ test.describe("API rooms methods", () => {
       const sourceRoomId = roomData.response!.id!;
       const { data: parent } = await ownerApi.folders.createFolder({
         folderId: sourceRoomId,
-        createFolder: { title: "Parent" },
+        createFolderRequest: { title: "Parent" },
       });
       await ownerApi.folders.createFolder({
         folderId: parent.response!.id!,
-        createFolder: { title: "Child" },
+        createFolderRequest: { title: "Child" },
       });
 
       const { status } = await ownerApi.rooms.createRoomTemplate({
@@ -6031,7 +6031,7 @@ test.describe("API rooms methods", () => {
       const sourceRoomId = roomData.response!.id!;
       await ownerApi.files.createFile({
         folderId: sourceRoomId,
-        createFileJsonElement: { title: "TmplSource.docx" },
+        createFileRequest: { title: "TmplSource.docx" },
       });
 
       const { status } = await ownerApi.rooms.createRoomTemplate({
@@ -12472,7 +12472,7 @@ test.describe("API rooms methods", () => {
       const folderTitle = "Source Folder";
       await ownerApi.folders.createFolder({
         folderId: sourceRoomId,
-        createFolder: { title: folderTitle },
+        createFolderRequest: { title: folderTitle },
       });
 
       await ownerApi.rooms.createRoomTemplate({
@@ -12511,12 +12511,12 @@ test.describe("API rooms methods", () => {
 
       const { data: parent } = await ownerApi.folders.createFolder({
         folderId: sourceRoomId,
-        createFolder: { title: "Parent" },
+        createFolderRequest: { title: "Parent" },
       });
       const parentId = parent.response!.id!;
       await ownerApi.folders.createFolder({
         folderId: parentId,
-        createFolder: { title: "Child" },
+        createFolderRequest: { title: "Child" },
       });
 
       await ownerApi.rooms.createRoomTemplate({
@@ -12565,7 +12565,7 @@ test.describe("API rooms methods", () => {
       const fileTitle = "Source File";
       await ownerApi.files.createFile({
         folderId: sourceRoomId,
-        createFileJsonElement: { title: fileTitle },
+        createFileRequest: { title: fileTitle },
       });
 
       await ownerApi.rooms.createRoomTemplate({
@@ -12603,7 +12603,7 @@ test.describe("API rooms methods", () => {
       const sourceRoomId = roomData.response!.id!;
       const { data: srcFolder } = await ownerApi.folders.createFolder({
         folderId: sourceRoomId,
-        createFolder: { title: "Folder For Ids" },
+        createFolderRequest: { title: "Folder For Ids" },
       });
       const srcFolderId = srcFolder.response!.id!;
 
@@ -12645,7 +12645,7 @@ test.describe("API rooms methods", () => {
       const sourceRoomId = roomData.response!.id!;
       await ownerApi.folders.createFolder({
         folderId: sourceRoomId,
-        createFolder: { title: "Isolated Folder" },
+        createFolderRequest: { title: "Isolated Folder" },
       });
 
       await ownerApi.rooms.createRoomTemplate({
@@ -12671,7 +12671,7 @@ test.describe("API rooms methods", () => {
 
       await ownerApi.folders.deleteFolder({
         folderId: (copyFolder as any).id as number,
-        deleteFolder: { deleteAfter: false, immediately: true },
+        deleteFolderRequest: { deleteAfter: false, immediately: true },
       });
       await waitForOperation(ownerApi.operations);
 
@@ -13140,7 +13140,7 @@ test.describe("API rooms methods", () => {
       const sourceRoomId = roomData.response!.id!;
       await ownerApi.folders.createFolder({
         folderId: sourceRoomId,
-        createFolder: { title: "Source-Only Folder" },
+        createFolderRequest: { title: "Source-Only Folder" },
       });
 
       await ownerApi.rooms.createRoomTemplate({
@@ -13396,7 +13396,7 @@ test.describe("API rooms methods", () => {
       for (let i = 0; i < 3; i++) {
         await ownerApi.folders.createFolder({
           folderId: sourceRoomId,
-          createFolder: { title: `Lifecycle Folder ${i}` },
+          createFolderRequest: { title: `Lifecycle Folder ${i}` },
         });
       }
 
@@ -14473,19 +14473,19 @@ test.describe("API rooms methods", () => {
       // root-level folder, a nested folder inside it, and a couple of files
       const { data: rootFolder } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Root Folder" },
+        createFolderRequest: { title: "Root Folder" },
       });
       await ownerApi.folders.createFolder({
         folderId: rootFolder.response!.id!,
-        createFolder: { title: "Nested Folder" },
+        createFolderRequest: { title: "Nested Folder" },
       });
       await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Root File" },
+        createFileRequest: { title: "Root File" },
       });
       await ownerApi.files.createFile({
         folderId: rootFolder.response!.id!,
-        createFileJsonElement: { title: "Nested File" },
+        createFileRequest: { title: "Nested File" },
       });
 
       const { data, status } = await ownerApi.rooms.startRoomIndexExport({
@@ -14758,15 +14758,15 @@ test.describe("API rooms methods", () => {
       // Nested content so the export is not guaranteed to finish instantly.
       const { data: folder } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder" },
+        createFolderRequest: { title: "Folder" },
       });
       await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "File A" },
+        createFileRequest: { title: "File A" },
       });
       await ownerApi.files.createFile({
         folderId: folder.response!.id!,
-        createFileJsonElement: { title: "File B" },
+        createFileRequest: { title: "File B" },
       });
 
       const start = await ownerApi.rooms.startRoomIndexExport({ id: roomId });
@@ -14906,11 +14906,11 @@ test.describe("API rooms methods", () => {
       // Content so the owner's export is still running when the admin terminates.
       const { data: folder } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder" },
+        createFolderRequest: { title: "Folder" },
       });
       await ownerApi.files.createFile({
         folderId: folder.response!.id!,
-        createFileJsonElement: { title: "File" },
+        createFileRequest: { title: "File" },
       });
 
       await ownerApi.rooms.startRoomIndexExport({ id: roomId });
@@ -15013,15 +15013,15 @@ test.describe("API rooms methods", () => {
 
       const { data: folderA } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder A" },
+        createFolderRequest: { title: "Folder A" },
       });
       const { data: folderB } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder B" },
+        createFolderRequest: { title: "Folder B" },
       });
       const { data: folderC } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder C" },
+        createFolderRequest: { title: "Folder C" },
       });
 
       // Manually set non-sequential indexes with gaps
@@ -15082,15 +15082,15 @@ test.describe("API rooms methods", () => {
 
       await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder A" },
+        createFolderRequest: { title: "Folder A" },
       });
       await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder B" },
+        createFolderRequest: { title: "Folder B" },
       });
       await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder C" },
+        createFolderRequest: { title: "Folder C" },
       });
 
       const { data: before } = await ownerApi.folders.getFolderByFolderId({
@@ -15132,15 +15132,15 @@ test.describe("API rooms methods", () => {
 
       const { data: fileA } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "File A" },
+        createFileRequest: { title: "File A" },
       });
       const { data: fileB } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "File B" },
+        createFileRequest: { title: "File B" },
       });
       const { data: fileC } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "File C" },
+        createFileRequest: { title: "File C" },
       });
       const idA = fileA.response!.id!;
       const idB = fileB.response!.id!;
@@ -15194,11 +15194,11 @@ test.describe("API rooms methods", () => {
 
       const { data: folder } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Mixed Folder" },
+        createFolderRequest: { title: "Mixed Folder" },
       });
       const { data: file } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Mixed File" },
+        createFileRequest: { title: "Mixed File" },
       });
       const folderId = folder.response!.id!;
       const fileId = file.response!.id!;
@@ -15242,19 +15242,19 @@ test.describe("API rooms methods", () => {
       // A folder at the room root with a nested file inside it
       const { data: parentFolder } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Parent Folder" },
+        createFolderRequest: { title: "Parent Folder" },
       });
       const parentFolderId = parentFolder.response!.id!;
       const { data: nestedFile } = await ownerApi.files.createFile({
         folderId: parentFolderId,
-        createFileJsonElement: { title: "Nested File" },
+        createFileRequest: { title: "Nested File" },
       });
       const nestedTitle = nestedFile.response!.title!;
 
       // A second root folder, with a sparse order forcing a root reindex
       const { data: rootFolder } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Root Folder" },
+        createFolderRequest: { title: "Root Folder" },
       });
       await ownerApi.folders.setFolderOrder({
         folderId: rootFolder.response!.id!,
@@ -15299,7 +15299,7 @@ test.describe("API rooms methods", () => {
 
       const { data: folder } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Lonely Folder" },
+        createFolderRequest: { title: "Lonely Folder" },
       });
       await ownerApi.folders.setFolderOrder({
         folderId: folder.response!.id!,
@@ -15330,15 +15330,15 @@ test.describe("API rooms methods", () => {
 
       const { data: folderA } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder A" },
+        createFolderRequest: { title: "Folder A" },
       });
       const { data: folderB } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder B" },
+        createFolderRequest: { title: "Folder B" },
       });
       const { data: folderC } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder C" },
+        createFolderRequest: { title: "Folder C" },
       });
 
       await ownerApi.folders.setFolderOrder({
@@ -15384,15 +15384,15 @@ test.describe("API rooms methods", () => {
 
       const { data: folderA } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder A" },
+        createFolderRequest: { title: "Folder A" },
       });
       const { data: folderB } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder B" },
+        createFolderRequest: { title: "Folder B" },
       });
       const { data: folderC } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder C" },
+        createFolderRequest: { title: "Folder C" },
       });
 
       // Force the same order value on every folder
@@ -15438,11 +15438,11 @@ test.describe("API rooms methods", () => {
 
       const { data: folderA } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder A" },
+        createFolderRequest: { title: "Folder A" },
       });
       const { data: folderB } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder B" },
+        createFolderRequest: { title: "Folder B" },
       });
       await ownerApi.folders.setFolderOrder({
         folderId: folderA.response!.id!,
@@ -15491,15 +15491,15 @@ test.describe("API rooms methods", () => {
 
       const { data: folderA } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder A" },
+        createFolderRequest: { title: "Folder A" },
       });
       const { data: folderB } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder B" },
+        createFolderRequest: { title: "Folder B" },
       });
       await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Doc" },
+        createFileRequest: { title: "Doc" },
       });
       await ownerApi.folders.setFolderOrder({
         folderId: folderA.response!.id!,
@@ -15610,11 +15610,11 @@ test.describe("API rooms methods", () => {
 
       const { data: folderA } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder A" },
+        createFolderRequest: { title: "Folder A" },
       });
       const { data: folderB } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder B" },
+        createFolderRequest: { title: "Folder B" },
       });
 
       const { data, status } = await ownerApi.rooms.reorderRoom({ id: roomId });
@@ -15647,11 +15647,11 @@ test.describe("API rooms methods", () => {
 
       const { data: folderA } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder A" },
+        createFolderRequest: { title: "Folder A" },
       });
       const { data: folderB } = await ownerApi.folders.createFolder({
         folderId: roomId,
-        createFolder: { title: "Folder B" },
+        createFolderRequest: { title: "Folder B" },
       });
 
       const { data, status } = await ownerApi.rooms.reorderRoom({ id: roomId });
@@ -18067,7 +18067,7 @@ test.describe("PUT /files/fileops/duplicate", () => {
 
     await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Admin Room File" },
+      createFileRequest: { title: "Autotest Admin Room File" },
     });
 
     const ownerApi = apiSdk.forRole("owner");
@@ -18121,15 +18121,15 @@ test.describe("PUT /files/fileops/delete - Room deletion with open file", () => 
 
     const { data: f1 } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "file1" },
+      createFileRequest: { title: "file1" },
     });
     const { data: f2 } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "file2" },
+      createFileRequest: { title: "file2" },
     });
     const { data: openedFile } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "opened-file" },
+      createFileRequest: { title: "opened-file" },
     });
 
     const file1Id = f1.response!.id!;
@@ -18516,7 +18516,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "delete-me.docx" },
+      createFileRequest: { title: "delete-me.docx" },
     });
     const fileId = fileData.response!.id!;
 
@@ -18775,7 +18775,7 @@ test.describe("DELETE /files/rooms/:id - functional", () => {
     const ownerApi = apiSdk.forRole("owner");
 
     await ownerApi.settingsQuota.saveRoomQuotaSettings({
-      quotaSettingsRequestsDto: {
+      quotaSettingsRequestDto: {
         enableQuota: true,
         defaultQuota: 100 * 1024 * 1024,
       },
@@ -20077,7 +20077,7 @@ test.describe("DELETE /files/rooms/:id/tags - deleteRoomTags", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Inner Folder" },
+      createFolderRequest: { title: "Inner Folder" },
     });
     const folderId = folderData.response!.id!;
 
@@ -22457,7 +22457,7 @@ test.describe("Room state after operations and refusals", () => {
     expect(inviteStatus).toBe(200);
     const { status: fileStatus } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest State Cycle File.docx" },
+      createFileRequest: { title: "Autotest State Cycle File.docx" },
     });
     expect(fileStatus).toBe(200);
 
@@ -22517,7 +22517,7 @@ test.describe("Room state after operations and refusals", () => {
     expect(inviteStatus).toBe(200);
     await ownerApi.files.createFile({
       folderId: neighbourId,
-      createFileJsonElement: { title: "Autotest State Neighbour File.docx" },
+      createFileRequest: { title: "Autotest State Neighbour File.docx" },
     });
     const settingsBefore = await snapshot(apiSdk, neighbourId);
     const membersBefore = await members(apiSdk, neighbourId);

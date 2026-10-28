@@ -231,7 +231,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - access control", () => {
 
     const { status } = await adminApi.rooms.createRoomThirdParty({
       id: (conn as any).response.id,
-      createThirdPartyRoom: {
+      createThirdPartyRoomRequest: {
         title: "Autotest Perm Admin TP Room",
         roomType: RoomType.CustomRoom,
       },
@@ -253,7 +253,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - access control", () => {
 
     const { status } = await userApi.rooms.createRoomThirdParty({
       id: folderId,
-      createThirdPartyRoom: {
+      createThirdPartyRoomRequest: {
         title: "Autotest User TP Room IDOR",
         roomType: RoomType.CustomRoom,
       },
@@ -277,7 +277,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - access control", () => {
 
     const { status } = await guestApi.rooms.createRoomThirdParty({
       id: folderId,
-      createThirdPartyRoom: {
+      createThirdPartyRoomRequest: {
         title: "Autotest Guest TP Room",
         roomType: RoomType.CustomRoom,
       },
@@ -291,7 +291,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - access control", () => {
   }) => {
     const { status } = await apiSdk.forAnonymous().rooms.createRoomThirdParty({
       id: "sbox-1",
-      createThirdPartyRoom: {
+      createThirdPartyRoomRequest: {
         title: "Autotest Anon TP Room",
         roomType: RoomType.CustomRoom,
       },

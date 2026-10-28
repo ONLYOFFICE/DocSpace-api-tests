@@ -669,7 +669,7 @@ test.describe("API profile methods", () => {
       updateMembersRequestDto: userDataChangeStatus,
     });
     const { data, status } = await ownerApi.profiles.deleteMember({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -694,7 +694,7 @@ test.describe("API profile methods", () => {
       updateMembersRequestDto: userDataChangeStatus,
     });
     const { data, status } = await ownerApi.profiles.deleteMember({
-      userid: userId,
+      userId: userId,
     });
 
     expect(status).toBe(200);
@@ -720,7 +720,7 @@ test.describe("API profile methods", () => {
       updateMembersRequestDto: userDataChangeStatus,
     });
     const { data, status } = await ownerApi.profiles.deleteMember({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -745,7 +745,7 @@ test.describe("API profile methods", () => {
       updateMembersRequestDto: userDataChangeStatus,
     });
     const { data, status } = await ownerApi.profiles.deleteMember({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -781,7 +781,7 @@ test.describe("API profile methods", () => {
     );
 
     const { data, status } = await adminApi.profiles.deleteMember({
-      userid: userIdToDelete,
+      userId: userIdToDelete,
     });
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -816,7 +816,7 @@ test.describe("API profile methods", () => {
     );
 
     const { data, status } = await adminApi.profiles.deleteMember({
-      userid: userIdToDelete,
+      userId: userIdToDelete,
     });
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -834,7 +834,7 @@ test.describe("API profile methods", () => {
     const userId = userData.response!.id!;
 
     const { data, status } = await ownerApi.profiles.getProfileByUserId({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -861,7 +861,7 @@ test.describe("API profile methods", () => {
     }
     const userId = owner.id;
     const { data, status } = await adminApi.profiles.getProfileByUserId({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -890,7 +890,7 @@ test.describe("API profile methods", () => {
     }
     const userId = owner.id;
     const { data, status } = await roomAdminApi.profiles.getProfileByUserId({
-      userid: userId,
+      userId: userId,
     });
     expect(status).toBe(200);
     expect(data.statusCode).toBe(200);
@@ -913,7 +913,7 @@ test.describe("API profile methods", () => {
     };
 
     const { data, status } = await ownerApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(200);
@@ -939,7 +939,7 @@ test.describe("API profile methods", () => {
     };
 
     const { data, status } = await adminApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(200);
@@ -966,7 +966,7 @@ test.describe("API profile methods", () => {
     };
 
     const { data, status } = await roomAdminApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(200);
@@ -993,7 +993,7 @@ test.describe("API profile methods", () => {
     };
 
     const { data, status } = await userApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(200);
@@ -1020,7 +1020,7 @@ test.describe("API profile methods", () => {
     };
 
     const { data, status } = await guestApi.profiles.updateMember({
-      userid: userId,
+      userId: userId,
       updateMemberRequestDto: userData,
     });
     expect(status).toBe(200);
@@ -1396,8 +1396,8 @@ test.describe("API profile methods", () => {
     const ownerId = ownerData.response!.id!;
 
     const { data, status } = await ownerApi.profiles.updateMemberCulture({
-      userid: ownerId,
-      culture: {
+      userId: ownerId,
+      updateMemberCultureRequest: {
         cultureName: "es",
       },
     });
@@ -1418,8 +1418,8 @@ test.describe("API profile methods", () => {
     const docSpaceAdminId = docSpaceAdminData.response!.id!;
 
     const { data, status } = await adminApi.profiles.updateMemberCulture({
-      userid: docSpaceAdminId,
-      culture: {
+      userId: docSpaceAdminId,
+      updateMemberCultureRequest: {
         cultureName: "es",
       },
     });
@@ -1442,8 +1442,8 @@ test.describe("API profile methods", () => {
     const roomAdminId = roomAdminData.response!.id!;
 
     const { data, status } = await roomAdminApi.profiles.updateMemberCulture({
-      userid: roomAdminId,
-      culture: {
+      userId: roomAdminId,
+      updateMemberCultureRequest: {
         cultureName: "es",
       },
     });
@@ -1464,8 +1464,8 @@ test.describe("API profile methods", () => {
     const userId = userData.response!.id!;
 
     const { data, status } = await userApi.profiles.updateMemberCulture({
-      userid: userId,
-      culture: {
+      userId: userId,
+      updateMemberCultureRequest: {
         cultureName: "es",
       },
     });
@@ -1486,8 +1486,8 @@ test.describe("API profile methods", () => {
     const userId = guestData.response!.id!;
 
     const { data, status } = await guestApi.profiles.updateMemberCulture({
-      userid: userId,
-      culture: {
+      userId: userId,
+      updateMemberCultureRequest: {
         cultureName: "es",
       },
     });
@@ -1514,7 +1514,7 @@ test.describe("API profile methods", () => {
       updateMembersRequestDto: { userIds: [userId], resendAll: false },
     });
 
-    await ownerApi.profiles.deleteMember({ userid: userId });
+    await ownerApi.profiles.deleteMember({ userId: userId });
 
     const { data: ownerProfile } = await ownerApi.profiles.getSelfProfile();
     const ownerId = ownerProfile.response!.id!;
@@ -1557,7 +1557,7 @@ test.describe("API profile methods", () => {
 
     await memberApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Delete User File" },
+      createFileRequest: { title: "Autotest Delete User File" },
     });
 
     await ownerApi.userStatus.updateUserStatus({
@@ -1571,11 +1571,11 @@ test.describe("API profile methods", () => {
 
     await expect(async () => {
       const { data: progressData } =
-        await ownerApi.userData.getReassignProgress({ userid: userId });
+        await ownerApi.userData.getReassignProgress({ userId: userId });
       expect(progressData.response?.status).toBe(2);
     }).toPass({ intervals: [1_000, 2_000, 5_000], timeout: 60_000 });
 
-    await ownerApi.profiles.deleteMember({ userid: userId });
+    await ownerApi.profiles.deleteMember({ userId: userId });
 
     const { data: listData, status: listStatus } =
       await ownerApi.profiles.getAllProfiles();

@@ -9,7 +9,7 @@ test.describe("POST /api/2.0/settings/notification - access control", () => {
     const { status } = await apiSdk
       .forAnonymous()
       .notifications.setNotificationSettings({
-        notificationSettingsRequestsDto: {
+        notificationSettingsRequestDto: {
           type: NotificationType.Badges,
           isEnabled: true,
         },

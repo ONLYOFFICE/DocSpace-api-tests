@@ -59,7 +59,7 @@ export async function createNextcloudRoom(
     .forRole(role)
     .rooms.createRoomThirdParty({
       id: folderId,
-      createThirdPartyRoom: { title, roomType },
+      createThirdPartyRoomRequest: { title, roomType },
     });
   const roomId = (data as any).response?.id;
   if (status !== 200 || !roomId) {

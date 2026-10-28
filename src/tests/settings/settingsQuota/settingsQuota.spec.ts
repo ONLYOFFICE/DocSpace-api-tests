@@ -51,7 +51,7 @@ test.describe("POST /api/2.0/settings/aiagentquotasettings - Owner saves AI agen
     const { data, status } = await apiSdk
       .forRole("owner")
       .settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(200);
@@ -76,7 +76,7 @@ test.describe("POST /api/2.0/settings/aiagentquotasettings - Owner saves AI agen
     const { data, status } = await apiSdk
       .forRole("owner")
       .settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota },
+        quotaSettingsRequestDto: { enableQuota: true, defaultQuota },
       });
 
     expect(status).toBe(200);
@@ -106,7 +106,7 @@ test.describe("POST /api/2.0/settings/roomquotasettings - Owner saves room quota
     const { data, status } = await apiSdk
       .forRole("owner")
       .settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(200);
@@ -131,7 +131,7 @@ test.describe("POST /api/2.0/settings/roomquotasettings - Owner saves room quota
     const { data, status } = await apiSdk
       .forRole("owner")
       .settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota },
+        quotaSettingsRequestDto: { enableQuota: true, defaultQuota },
       });
 
     expect(status).toBe(200);
@@ -157,7 +157,7 @@ test.describe("POST /api/2.0/settings/roomquotasettings - DocSpaceAdmin saves ro
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(200);
@@ -183,7 +183,7 @@ test.describe("POST /api/2.0/settings/roomquotasettings - DocSpaceAdmin saves ro
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .settingsQuota.saveRoomQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota },
+        quotaSettingsRequestDto: { enableQuota: true, defaultQuota },
       });
 
     expect(status).toBe(200);
@@ -209,7 +209,7 @@ test.describe("POST /api/2.0/settings/aiagentquotasettings - DocSpaceAdmin saves
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: false, defaultQuota: -1 },
+        quotaSettingsRequestDto: { enableQuota: false, defaultQuota: -1 },
       });
 
     expect(status).toBe(200);
@@ -235,7 +235,7 @@ test.describe("POST /api/2.0/settings/aiagentquotasettings - DocSpaceAdmin saves
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .settingsQuota.saveAiAgentQuotaSettings({
-        quotaSettingsRequestsDto: { enableQuota: true, defaultQuota },
+        quotaSettingsRequestDto: { enableQuota: true, defaultQuota },
       });
 
     expect(status).toBe(200);

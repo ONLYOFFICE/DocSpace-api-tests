@@ -1,9 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "@/src/fixtures/index";
-import {
-  TfaRequestsDtoType,
-  MessageAction,
-} from "@onlyoffice/docspace-api-sdk";
+import { TfaType, MessageAction } from "@onlyoffice/docspace-api-sdk";
 import {
   enableTfaApp,
   expectActionRecorded,
@@ -23,7 +20,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner updates TFA settings", () =>
     const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(200);
@@ -36,7 +33,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner updates TFA settings", () =>
     const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.None },
+        tfaRequestDto: { type: TfaType.None },
       });
 
     expect(status).toBe(200);
@@ -49,7 +46,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner updates TFA settings", () =>
     const { status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.Sms },
+        tfaRequestDto: { type: TfaType.Sms },
       });
 
     expect(status).toBe(405);
@@ -63,7 +60,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values",
     const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: 99 as TfaRequestsDtoType },
+        tfaRequestDto: { type: 99 as TfaType },
       });
 
     expect(status).toBe(200);
@@ -76,8 +73,8 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values",
     const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: {
-          type: TfaRequestsDtoType.None,
+        tfaRequestDto: {
+          type: TfaType.None,
           mandatoryUsers: ["00000000-0000-0000-0000-000000000000"],
         },
       });
@@ -92,8 +89,8 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values",
     const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: {
-          type: TfaRequestsDtoType.None,
+        tfaRequestDto: {
+          type: TfaType.None,
           mandatoryGroups: ["00000000-0000-0000-0000-000000000000"],
         },
       });
@@ -108,8 +105,8 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values",
     const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: {
-          type: TfaRequestsDtoType.None,
+        tfaRequestDto: {
+          type: TfaType.None,
           mandatoryUsers: ["not-a-guid"],
         },
       });
@@ -126,8 +123,8 @@ test.describe("PUT /api/2.0/settings/tfaapp - Owner sends invalid field values",
     const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: {
-          type: TfaRequestsDtoType.App,
+        tfaRequestDto: {
+          type: TfaType.App,
           trustedIps: ["not-an-ip"],
         },
       });
@@ -147,8 +144,8 @@ test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for th
     const { status: settingsStatus } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: {
-          type: TfaRequestsDtoType.App,
+        tfaRequestDto: {
+          type: TfaType.App,
           mandatoryUsers: [mandatoryId],
         },
       });
@@ -157,7 +154,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for th
     const { data, status } = await apiSdk
       .forRole("owner")
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: mandatory.userData.email,
           password: mandatory.userData.password,
           session: true,
@@ -188,8 +185,8 @@ test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for th
     const { status: settingsStatus } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: {
-          type: TfaRequestsDtoType.App,
+        tfaRequestDto: {
+          type: TfaType.App,
           mandatoryUsers: [mandatoryId],
           trustedIps: [trustedIp],
         },
@@ -200,7 +197,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for th
       const { data, status } = await apiSdk
         .forRole("owner")
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: mandatory.userData.email,
             password: mandatory.userData.password,
             session: true,
@@ -216,7 +213,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for th
       const { data, status } = await apiSdk
         .forRole("owner")
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: trusted.userData.email,
             password: trusted.userData.password,
             session: true,
@@ -258,8 +255,8 @@ test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for th
     const { status: settingsStatus } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: {
-          type: TfaRequestsDtoType.App,
+        tfaRequestDto: {
+          type: TfaType.App,
           mandatoryGroups: [groupId],
           trustedIps: [trustedIp],
         },
@@ -270,7 +267,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for th
       const { data, status } = await apiSdk
         .forRole("owner")
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: mandatory.userData.email,
             password: mandatory.userData.password,
             session: true,
@@ -286,7 +283,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - mandatoryUsers enforces TFA for th
       const { data, status } = await apiSdk
         .forRole("owner")
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: outsider.userData.email,
             password: outsider.userData.password,
             session: true,
@@ -309,7 +306,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - DocSpaceAdmin updates TFA settings
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(200);
@@ -324,7 +321,7 @@ test.describe("PUT /api/2.0/settings/tfaapp - DocSpaceAdmin updates TFA settings
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.None },
+        tfaRequestDto: { type: TfaType.None },
       });
 
     expect(status).toBe(200);
@@ -426,7 +423,7 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - Owner updates TFA settings
     const { data, status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettingsLink({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
 
     expect(status).toBe(200);
@@ -445,7 +442,7 @@ test.describe("PUT /api/2.0/settings/tfaappwithlink - Owner updates TFA settings
     const { status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettingsLink({
-        tfaRequestsDto: { type: TfaRequestsDtoType.Sms },
+        tfaRequestDto: { type: TfaType.Sms },
       });
 
     expect(status).toBe(405);
@@ -464,7 +461,7 @@ test.describe("POST /api/2.0/settings/tfaapp/validate - Owner validates a TFA co
     const { status } = await apiSdk
       .forRole("owner")
       .tfaSettings.tfaValidateAuthCode({
-        tfaValidateRequestsDto: { code: "000000" },
+        tfaValidateRequestDto: { code: "000000" },
       });
 
     expect(status).toBe(403);
@@ -570,7 +567,7 @@ test.describe("POST /api/2.0/authentication - Owner logs in using a backup code 
         .forRole("owner")
         .authentication.authenticateMeFromBodyWithCode({
           code: backupCode,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             ...credentials,
             code: backupCode,
             session: true,
@@ -594,7 +591,7 @@ test.describe("POST /api/2.0/authentication - Owner logs in using a backup code 
         .forRole("owner")
         .authentication.authenticateMeFromBodyWithCode({
           code: backupCode,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             ...credentials,
             code: backupCode,
             session: true,
@@ -771,7 +768,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks another user's
 
     const { status } = await apiSdk
       .forRole("owner")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: userId } });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: { id: userId } });
 
     expect(status).toBe(405);
   });
@@ -781,7 +778,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks another user's
   }) => {
     const { data, status } = await apiSdk
       .forRole("owner")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: "not-a-guid" } });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: { id: "not-a-guid" } });
 
     expect(status).toBe(400);
     expect((data as any).response?.errors?.["$.id"]).toBeTruthy();
@@ -792,7 +789,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks another user's
   }) => {
     const { data, status } = await apiSdk
       .forRole("owner")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: "" } });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: { id: "" } });
 
     expect(status).toBe(400);
     expect((data as any).response?.errors?.["$.id"]).toBeTruthy();
@@ -812,7 +809,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks another user's
 
     const { status } = await apiSdk
       .forRole("owner")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: userId } });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: { id: userId } });
 
     expect(status).toBe(200);
 
@@ -830,7 +827,7 @@ test.describe("PUT /api/2.0/settings/tfaappnewapp - Owner unlinks another user's
 
     const { status } = await apiSdk
       .forRole("owner")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: {} });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: {} });
 
     expect(status).toBe(403);
   });
@@ -859,7 +856,7 @@ test.describe("TFA actions are recorded in the audit trail / login history", () 
     const disableResult = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.None },
+        tfaRequestDto: { type: TfaType.None },
       });
     expect(disableResult.status).toBe(200);
 
@@ -868,7 +865,7 @@ test.describe("TFA actions are recorded in the audit trail / login history", () 
     const relogin = await apiSdk
       .forRole("owner")
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: config.DOCSPACE_OWNER_EMAIL,
           password: config.DOCSPACE_OWNER_PASSWORD,
           session: true,
@@ -914,7 +911,7 @@ test.describe("TFA actions are recorded in the audit trail / login history", () 
 
     const unlinkResult = await apiSdk
       .forRole("owner")
-      .tfaSettings.unlinkTfaApp({ tfaRequestsDto: { id: targetId } });
+      .tfaSettings.unlinkTfaApp({ tfaRequestDto: { id: targetId } });
     expect(unlinkResult.status).toBe(200);
 
     await expectActionRecorded(

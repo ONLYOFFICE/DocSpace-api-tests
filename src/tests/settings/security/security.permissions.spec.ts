@@ -22,7 +22,7 @@ test.describe("PUT /settings/security/administrator - access control", () => {
     );
 
     const { data, status } = await admin1Api.security.setProductAdministrator({
-      securityRequestsDto: {
+      securityRequestDto: {
         productId: PRODUCT_ID_ALL,
         userId: admin2Id,
         administrator: false,
@@ -53,7 +53,7 @@ test.describe("PUT /settings/security/administrator - access control", () => {
 
     // DocSpace admin tries to promote Room admin to administrator — only Owner can do this
     const { data, status } = await adminApi.security.setProductAdministrator({
-      securityRequestsDto: {
+      securityRequestDto: {
         productId: PRODUCT_ID_ALL,
         userId: roomAdminId,
         administrator: true,
@@ -88,7 +88,7 @@ test.describe("PUT /api/2.0/settings/security/password - access control", () => 
     );
 
     const { data, status } = await roomAdminApi.security.updatePasswordSettings(
-      { passwordSettingsRequestsDto: { minLength: 10 } },
+      { passwordSettingsRequestDto: { minLength: 10 } },
     );
 
     expect(status).toBe(403);
@@ -104,7 +104,7 @@ test.describe("PUT /api/2.0/settings/security/password - access control", () => 
     );
 
     const { data, status } = await userApi.security.updatePasswordSettings({
-      passwordSettingsRequestsDto: { minLength: 10 },
+      passwordSettingsRequestDto: { minLength: 10 },
     });
 
     expect(status).toBe(403);
@@ -120,7 +120,7 @@ test.describe("PUT /api/2.0/settings/security/password - access control", () => 
     );
 
     const { data, status } = await guestApi.security.updatePasswordSettings({
-      passwordSettingsRequestsDto: { minLength: 10 },
+      passwordSettingsRequestDto: { minLength: 10 },
     });
 
     expect(status).toBe(403);
@@ -150,7 +150,7 @@ test.describe("PUT /api/2.0/settings/security/security - access control", () => 
     );
 
     const { data, status } = await roomAdminApi.security.setWebItemSecurity({
-      webItemSecurityRequestsDto: { id: crypto.randomUUID(), enabled: false },
+      webItemSecurityRequestDto: { id: crypto.randomUUID(), enabled: false },
     });
 
     expect(status).toBe(403);
@@ -166,7 +166,7 @@ test.describe("PUT /api/2.0/settings/security/security - access control", () => 
     );
 
     const { data, status } = await userApi.security.setWebItemSecurity({
-      webItemSecurityRequestsDto: { id: crypto.randomUUID(), enabled: false },
+      webItemSecurityRequestDto: { id: crypto.randomUUID(), enabled: false },
     });
 
     expect(status).toBe(403);
@@ -182,7 +182,7 @@ test.describe("PUT /api/2.0/settings/security/security - access control", () => 
     );
 
     const { data, status } = await guestApi.security.setWebItemSecurity({
-      webItemSecurityRequestsDto: { id: crypto.randomUUID(), enabled: false },
+      webItemSecurityRequestDto: { id: crypto.randomUUID(), enabled: false },
     });
 
     expect(status).toBe(403);
@@ -200,7 +200,7 @@ test.describe("PUT /api/2.0/settings/security/access - access control", () => {
     );
 
     const { data, status } = await userApi.security.setAccessToWebItems({
-      webItemsSecurityRequestsDto: {
+      webItemsSecurityRequestDto: {
         items: [{ key: crypto.randomUUID(), value: true }],
       },
     });
@@ -231,7 +231,7 @@ test.describe("GET /api/2.0/settings/security/administrator/{productid} - access
 
     const { data, status } =
       await roomAdminApi.security.getProductAdministrators({
-        productid: PRODUCT_ID_ALL,
+        productId: PRODUCT_ID_ALL,
       });
 
     expect(status).toBe(403);
@@ -247,7 +247,7 @@ test.describe("GET /api/2.0/settings/security/administrator/{productid} - access
     );
 
     const { data, status } = await userApi.security.getProductAdministrators({
-      productid: PRODUCT_ID_ALL,
+      productId: PRODUCT_ID_ALL,
     });
 
     expect(status).toBe(403);
@@ -263,7 +263,7 @@ test.describe("GET /api/2.0/settings/security/administrator/{productid} - access
     );
 
     const { data, status } = await guestApi.security.getProductAdministrators({
-      productid: PRODUCT_ID_ALL,
+      productId: PRODUCT_ID_ALL,
     });
 
     expect(status).toBe(403);
@@ -281,8 +281,8 @@ test.describe("GET /api/2.0/settings/security/administrator - access control", (
     );
 
     const { data, status } = await userApi.security.getIsProductAdministrator({
-      productid: PRODUCT_ID_ALL,
-      userid: crypto.randomUUID(),
+      productId: PRODUCT_ID_ALL,
+      userId: crypto.randomUUID(),
     });
 
     expect(status).toBe(403);

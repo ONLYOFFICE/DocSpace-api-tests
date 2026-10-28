@@ -142,7 +142,7 @@ test.describe("AI Settings - AI Disabled", () => {
 
     const { status: writeStatus } = await ownerApi.aiSettings.aiSettingsSetUser(
       {
-        requestBody: { chatRecommendedModelVisible: target },
+        aiSettingsSetUserRequest: { chatRecommendedModelVisible: target },
       },
     );
     expect(writeStatus).toBe(200);
@@ -382,7 +382,7 @@ test.describe("AI Settings - switching AI off and on again", () => {
     };
     const write = async (value: boolean) => {
       const { status } = await ownerApi.aiSettings.aiSettingsSetUser({
-        requestBody: { chatRecommendedModelVisible: value },
+        aiSettingsSetUserRequest: { chatRecommendedModelVisible: value },
       });
       expect(status).toBe(200);
     };

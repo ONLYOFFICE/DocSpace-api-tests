@@ -105,9 +105,13 @@ test.describe("Threads - lifecycle", () => {
     });
 
     await test.step("delete-message, confirmed by read-messages and open-or-create", async () => {
-      expect((await api.aiThreadsDeleteMessage({ body: ids[0] })).status).toBe(
-        200,
-      );
+      expect(
+        (
+          await api.aiThreadsDeleteMessage({
+            aiThreadsDeleteMessageRequest: ids[0],
+          })
+        ).status,
+      ).toBe(200);
       expect(await readTexts(ctx, threadId)).toEqual(["two, edited", "three"]);
       const opened = await ctx.aiChat.openOrCreateThread("owner", {
         threadId,
@@ -124,14 +128,21 @@ test.describe("Threads - lifecycle", () => {
 
     await test.step("clear-messages, confirmed by read-messages; the thread stays", async () => {
       expect(
-        (await api.aiThreadsClearMessages({ body: threadId })).status,
+        (
+          await api.aiThreadsClearMessages({
+            aiThreadsClearMessagesRequest: threadId,
+          })
+        ).status,
       ).toBe(200);
       expect(await readAll(ctx, threadId)).toEqual([]);
       expect((await getThread(ctx, threadId)).title).toBe("Lifecycle renamed");
     });
 
     await test.step("delete, confirmed by list and by every route answering 404", async () => {
-      expect((await api.aiThreadsDelete({ body: threadId })).status).toBe(200);
+      expect(
+        (await api.aiThreadsDelete({ aiThreadsDeleteRequest: threadId }))
+          .status,
+      ).toBe(200);
       expect(await listThreadIds(ctx)).toEqual([]);
       expect((await api.aiThreadsGetById({ threadId })).status).toBe(404);
       expect((await api.aiThreadsReadMessages({ threadId })).status).toBe(404);
@@ -143,7 +154,11 @@ test.describe("Threads - lifecycle", () => {
         ).status,
       ).toBe(404);
       expect(
-        (await api.aiThreadsClearMessages({ body: threadId })).status,
+        (
+          await api.aiThreadsClearMessages({
+            aiThreadsClearMessagesRequest: threadId,
+          })
+        ).status,
       ).toBe(404);
       expect(
         (await api.aiThreadsTouch({ aiThreadsTouchRequest: { threadId } }))
@@ -322,7 +337,11 @@ test.describe("Threads - lifecycle", () => {
 
     await test.step("deleting the reply leaves the question", async () => {
       expect(
-        (await ctx.api.aiThreadsDeleteMessage({ body: reply.id })).status,
+        (
+          await ctx.api.aiThreadsDeleteMessage({
+            aiThreadsDeleteMessageRequest: reply.id,
+          })
+        ).status,
       ).toBe(200);
       const left = await readAll(ctx, threadId);
       expect(left.map((message) => message.role)).toEqual(["user"]);
@@ -330,7 +349,11 @@ test.describe("Threads - lifecycle", () => {
 
     await test.step("clear-messages removes the rest", async () => {
       expect(
-        (await ctx.api.aiThreadsClearMessages({ body: threadId })).status,
+        (
+          await ctx.api.aiThreadsClearMessages({
+            aiThreadsClearMessagesRequest: threadId,
+          })
+        ).status,
       ).toBe(200);
       expect(await readAll(ctx, threadId)).toEqual([]);
     });
@@ -374,11 +397,18 @@ test.describe("Threads - lifecycle", () => {
         ).status,
       ).toBe(403);
       expect(
-        (await memberClient.aiThreadsClearMessages({ body: ownerThread }))
-          .status,
+        (
+          await memberClient.aiThreadsClearMessages({
+            aiThreadsClearMessagesRequest: ownerThread,
+          })
+        ).status,
       ).toBe(403);
       expect(
-        (await memberClient.aiThreadsDelete({ body: ownerThread })).status,
+        (
+          await memberClient.aiThreadsDelete({
+            aiThreadsDeleteRequest: ownerThread,
+          })
+        ).status,
       ).toBe(403);
     });
 
@@ -451,13 +481,15 @@ test.describe("Threads - lifecycle", () => {
         },
       },
     });
-    await ctx.api.aiThreadsClearMessages({ body: first });
+    await ctx.api.aiThreadsClearMessages({
+      aiThreadsClearMessagesRequest: first,
+    });
     expect(
       await snapshotThread(ctx, second),
       "rename, edit and clear stayed in their agent",
     ).toEqual(secondBefore);
 
-    await ctx.api.aiThreadsDelete({ body: first });
+    await ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: first });
     expect(await listed(String(ctx.agentId))).toEqual([]);
     expect(await listed(otherAgent)).toEqual([second]);
     expect(
@@ -509,7 +541,11 @@ test.describe("Threads - lifecycle", () => {
     await test.step("delete the first, a middle and the last", async () => {
       for (const index of [0, 19, 39]) {
         expect(
-          (await ctx.api.aiThreadsDeleteMessage({ body: ids[index] })).status,
+          (
+            await ctx.api.aiThreadsDeleteMessage({
+              aiThreadsDeleteMessageRequest: ids[index],
+            })
+          ).status,
         ).toBe(200);
       }
       const expected = markers
@@ -543,7 +579,11 @@ test.describe("Threads - lifecycle", () => {
 
     await test.step("clear, then a new message, and the old history stays gone", async () => {
       expect(
-        (await ctx.api.aiThreadsClearMessages({ body: threadId })).status,
+        (
+          await ctx.api.aiThreadsClearMessages({
+            aiThreadsClearMessagesRequest: threadId,
+          })
+        ).status,
       ).toBe(200);
       expect(await readAll(ctx, threadId)).toEqual([]);
       await appendText(ctx, threadId, "a fresh start");
@@ -607,8 +647,11 @@ test.describe("Threads - lifecycle", () => {
 
     await test.step("clear-messages empties the thread of the message", async () => {
       expect(
-        (await ctx.api.aiThreadsClearMessages({ body: cleared.threadId }))
-          .status,
+        (
+          await ctx.api.aiThreadsClearMessages({
+            aiThreadsClearMessagesRequest: cleared.threadId,
+          })
+        ).status,
       ).toBe(200);
       expect(await readAll(ctx, cleared.threadId)).toEqual([]);
       expect(
@@ -622,7 +665,11 @@ test.describe("Threads - lifecycle", () => {
 
     await test.step("delete takes the thread and its attachment-bearing message", async () => {
       expect(
-        (await ctx.api.aiThreadsDelete({ body: deleted.threadId })).status,
+        (
+          await ctx.api.aiThreadsDelete({
+            aiThreadsDeleteRequest: deleted.threadId,
+          })
+        ).status,
       ).toBe(200);
       expect(
         (await ctx.api.aiThreadsGetById({ threadId: deleted.threadId })).status,
@@ -657,7 +704,7 @@ test.describe("Threads - lifecycle", () => {
           ctx.api.aiThreadsReadMessages({ threadId }),
         ),
       ),
-      ctx.api.aiThreadsDelete({ body: threadId }),
+      ctx.api.aiThreadsDelete({ aiThreadsDeleteRequest: threadId }),
     ]);
 
     expect(deleted.status).toBe(200);
@@ -706,9 +753,14 @@ test.describe("Threads - lifecycle", () => {
           aiThreadsTouchRequest: { threadId: UNKNOWN_ID },
         })
       ).status,
-      "clear-messages": (await api.aiThreadsClearMessages({ body: UNKNOWN_ID }))
-        .status,
-      delete: (await api.aiThreadsDelete({ body: UNKNOWN_ID })).status,
+      "clear-messages": (
+        await api.aiThreadsClearMessages({
+          aiThreadsClearMessagesRequest: UNKNOWN_ID,
+        })
+      ).status,
+      delete: (
+        await api.aiThreadsDelete({ aiThreadsDeleteRequest: UNKNOWN_ID })
+      ).status,
       "append-user-message": (
         await api.aiThreadsAppendUserMessage({
           aiThreadsAppendUserMessageRequest: {

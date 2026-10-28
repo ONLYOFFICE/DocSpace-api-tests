@@ -2864,7 +2864,7 @@ test.describe("API room groups methods", () => {
         expect(share.status).toBe(200);
         const file = await owner.files.createFile({
           folderId: roomId,
-          createFileJsonElement: { title: "Group Delete Keeps Me" },
+          createFileRequest: { title: "Group Delete Keeps Me" },
         });
         expect(file.status).toBe(200);
         const fileId = file.data.response!.id!;

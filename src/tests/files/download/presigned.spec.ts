@@ -33,7 +33,10 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
       });
       const { data: fileData } = await ownerApi.files.createHtmlFile({
         folderId: roomData.response!.id!,
-        createTextOrHtmlFile: { title: "Autotest Presigned", content: MARKUP },
+        createTextOrHtmlFileRequest: {
+          title: "Autotest Presigned",
+          content: MARKUP,
+        },
       });
       const fileId = fileData.response!.id!;
 
@@ -93,7 +96,10 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createHtmlFileInMyDocuments(
       {
-        createTextOrHtmlFile: { title: "Autotest Presigned", content: MARKUP },
+        createTextOrHtmlFileRequest: {
+          title: "Autotest Presigned",
+          content: MARKUP,
+        },
       },
     );
 
@@ -114,7 +120,7 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: created } = await ownerApi.files.createHtmlFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Presigned Version",
         content: "<p>v1</p>",
       },
@@ -123,7 +129,7 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
     const oldUrl = await getDownloadUrl(ownerApi, fileId);
 
     const { data: updated } = await ownerApi.files.createHtmlFileInMyDocuments({
-      createTextOrHtmlFile: {
+      createTextOrHtmlFileRequest: {
         title: "Autotest Presigned Version",
         content: "<p>v2</p>",
         createNewIfExist: true,
@@ -150,7 +156,7 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createHtmlFileInMyDocuments(
       {
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest Presigned Key",
           content: MARKUP,
         },
@@ -182,7 +188,7 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
       const ownerApi = apiSdk.forRole("owner");
       const { data: fileData } =
         await ownerApi.files.createHtmlFileInMyDocuments({
-          createTextOrHtmlFile: {
+          createTextOrHtmlFileRequest: {
             title: "Autotest Presigned Anonymous",
             content: MARKUP,
           },
@@ -202,7 +208,7 @@ test.describe("GET /files/file/:fileId/presigneduri - download address", () => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createHtmlFileInMyDocuments(
       {
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest Presigned No Key",
           content: MARKUP,
         },
@@ -232,7 +238,10 @@ test.describe("GET /files/file/:fileId/presigned - signed download address", () 
       });
       const { data: fileData } = await ownerApi.files.createHtmlFile({
         folderId: roomData.response!.id!,
-        createTextOrHtmlFile: { title: "Autotest Signed", content: MARKUP },
+        createTextOrHtmlFileRequest: {
+          title: "Autotest Signed",
+          content: MARKUP,
+        },
       });
       const fileId = fileData.response!.id!;
 
@@ -256,7 +265,7 @@ test.describe("GET /files/file/:fileId/presigned - signed download address", () 
     const ownerApi = apiSdk.forRole("owner");
     const { data: fileData } = await ownerApi.files.createHtmlFileInMyDocuments(
       {
-        createTextOrHtmlFile: {
+        createTextOrHtmlFileRequest: {
           title: "Autotest Signed Fresh",
           content: MARKUP,
         },

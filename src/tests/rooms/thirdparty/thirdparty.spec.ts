@@ -494,7 +494,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
       .forRole("owner")
       .rooms.createRoomThirdParty({
         id: folderId,
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest TP Second Room Attempt",
           roomType: RoomType.EditingRoom,
         },
@@ -541,7 +541,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
       .forRole("owner")
       .rooms.createRoomThirdParty({
         id: folderId,
-        createThirdPartyRoom: { roomType: RoomType.CustomRoom } as any,
+        createThirdPartyRoomRequest: { roomType: RoomType.CustomRoom } as any,
       });
 
     expect(status).toBe(400);
@@ -560,7 +560,9 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
       .forRole("owner")
       .rooms.createRoomThirdParty({
         id: folderId,
-        createThirdPartyRoom: { title: "Autotest No RoomType Body" } as any,
+        createThirdPartyRoomRequest: {
+          title: "Autotest No RoomType Body",
+        } as any,
       });
 
     expect(status).toBe(400);
@@ -573,7 +575,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
       .forRole("owner")
       .rooms.createRoomThirdParty({
         id: "not-a-real-provider-folder",
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest Bad TP Id",
           roomType: RoomType.CustomRoom,
         },
@@ -594,7 +596,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
       .forRole("owner")
       .rooms.createRoomThirdParty({
         id: String(internalFolderId),
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest Internal Id As TP Id",
           roomType: RoomType.CustomRoom,
         },
@@ -610,7 +612,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - Create a room on third-party s
       .forRole("owner")
       .rooms.createRoomThirdParty({
         id: "sbox-999999999",
-        createThirdPartyRoom: {
+        createThirdPartyRoomRequest: {
           title: "Autotest Bad Sbox Id",
           roomType: RoomType.CustomRoom,
         },
@@ -1054,7 +1056,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - createAsNewFolder", () => {
     );
     const { data, status } = await ownerApi.rooms.createRoomThirdParty({
       id: folderId,
-      createThirdPartyRoom: {
+      createThirdPartyRoomRequest: {
         title,
         roomType: RoomType.CustomRoom,
         ...extra,
@@ -1134,7 +1136,7 @@ test.describe("PUT /files/rooms/thirdparty/{id} - createAsNewFolder", () => {
 
     const { status } = await ownerApi.rooms.createRoomThirdParty({
       id: folderId,
-      createThirdPartyRoom: {
+      createThirdPartyRoomRequest: {
         title: "Autotest TP Twice Second",
         roomType: RoomType.CustomRoom,
         createAsNewFolder: true,

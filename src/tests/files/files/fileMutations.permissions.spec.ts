@@ -79,7 +79,7 @@ const matrix: Array<{
 async function ownerFile(apiSdk: ApiSDK, roomId: number, title: string) {
   const { data } = await apiSdk.forRole("owner").files.createHtmlFile({
     folderId: roomId,
-    createTextOrHtmlFile: { title, content: "<p>keep</p>" },
+    createTextOrHtmlFileRequest: { title, content: "<p>keep</p>" },
   });
   return (data.response as { id: number }).id;
 }
@@ -130,7 +130,7 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
         await test.step("updateFile (rename)", async () => {
           const { status } = await api.files.updateFile({
             fileId: renameId,
-            updateFile: { title: "Renamed by member" },
+            updateFileRequest: { title: "Renamed by member" },
           });
           expect(status).toBe(level.manager ? 200 : 403);
           expect((await state(apiSdk, renameId)).title).toBe(
@@ -141,7 +141,7 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
         await test.step("lockFile", async () => {
           const { status } = await api.files.lockFile({
             fileId: lockId,
-            lockFileParameters: { lockFile: true },
+            lockFileRequest: { lockFile: true },
           });
           expect(status).toBe(level.creator ? 200 : 403);
           expect((await state(apiSdk, lockId)).locked).toBe(level.creator);
@@ -150,7 +150,7 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
         await test.step("deleteFile", async () => {
           const { status } = await api.files.deleteFile({
             fileId: deleteId,
-            _delete: { immediately: true },
+            deleteFileRequest: { immediately: true },
           });
           expect(status).toBe(level.manager ? 200 : 403);
           if (level.manager) {
@@ -191,31 +191,31 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
     expect(inviteStatus).toBe(200);
     const { data: created } = await api.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "Mine", content: "<p>mine</p>" },
+      createTextOrHtmlFileRequest: { title: "Mine", content: "<p>mine</p>" },
     });
     const fileId = (created.response as { id: number }).id;
 
     const { status: renameStatus } = await api.files.updateFile({
       fileId,
-      updateFile: { title: "Mine renamed" },
+      updateFileRequest: { title: "Mine renamed" },
     });
     expect(renameStatus).toBe(200);
     expect((await state(apiSdk, fileId)).title).toBe("Mine renamed.html");
 
     const { status: lockStatus } = await api.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
     expect(lockStatus).toBe(200);
     expect((await state(apiSdk, fileId)).locked).toBe(true);
     await api.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: false },
+      lockFileRequest: { lockFile: false },
     });
 
     const { status: deleteStatus } = await api.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
     expect(deleteStatus).toBe(200);
     await waitForOperation(api.operations);
@@ -249,12 +249,12 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
     expect(inviteStatus).toBe(200);
     const { data: created } = await api.files.createHtmlFile({
       folderId: roomId,
-      createTextOrHtmlFile: { title: "Locked", content: "<p>x</p>" },
+      createTextOrHtmlFileRequest: { title: "Locked", content: "<p>x</p>" },
     });
     const fileId = (created.response as { id: number }).id;
     const { status: lockStatus } = await ownerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
     expect(lockStatus).toBe(200);
     return { api, fileId };
@@ -267,7 +267,7 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
 
     const { status } = await api.files.deleteFile({
       fileId,
-      _delete: { immediately: true },
+      deleteFileRequest: { immediately: true },
     });
 
     expect(status).toBe(403);
@@ -287,7 +287,7 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
 
     await api.files.updateFile({
       fileId,
-      updateFile: { title: "Renamed while locked" },
+      updateFileRequest: { title: "Renamed while locked" },
     });
 
     expect(await state(apiSdk, fileId)).toEqual(before);
@@ -302,7 +302,7 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
 
       const { status } = await api.files.updateFile({
         fileId,
-        updateFile: { title: "Renamed while locked" },
+        updateFileRequest: { title: "Renamed while locked" },
       });
 
       expect((await state(apiSdk, fileId)).title).toBe("Locked.html");
@@ -338,12 +338,12 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
     });
     await ownerApi.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: true },
+      lockFileRequest: { lockFile: true },
     });
 
     const { status } = await api.files.lockFile({
       fileId,
-      lockFileParameters: { lockFile: false },
+      lockFileRequest: { lockFile: false },
     });
 
     expect(status).toBe(403);
@@ -377,13 +377,16 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
       const results = [
         await api.files.updateFile({
           fileId,
-          updateFile: { title: "Renamed by outsider" },
+          updateFileRequest: { title: "Renamed by outsider" },
         }),
         await api.files.lockFile({
           fileId,
-          lockFileParameters: { lockFile: true },
+          lockFileRequest: { lockFile: true },
         }),
-        await api.files.deleteFile({ fileId, _delete: { immediately: true } }),
+        await api.files.deleteFile({
+          fileId,
+          deleteFileRequest: { immediately: true },
+        }),
       ];
 
       expect(results.map((r) => r.status)).toEqual([403, 403, 403]);
@@ -417,7 +420,7 @@ test.describe("updateFile, lockFile and deleteFile - room type and access level 
 
     const { status } = await api.files.updateFile({
       fileId,
-      updateFile: { title: "Renamed by admin" },
+      updateFileRequest: { title: "Renamed by admin" },
     });
 
     expect(status).toBe(403);

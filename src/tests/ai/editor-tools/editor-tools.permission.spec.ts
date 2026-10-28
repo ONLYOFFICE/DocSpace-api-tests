@@ -202,7 +202,7 @@ test.describe("AI Editor Tools - a member's tools never exceed the member's righ
     const { data: myFolder } = await owner.folders.getMyFolder({});
     const myId = myFolder.response!.current!.id!;
     const { data: file } = await owner.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest owner private.docx" },
+      createFileRequest: { title: "Autotest owner private.docx" },
     });
     const fileId = file.response!.id!;
     const roomId = await ownerRoom(apiSdk, "Autotest owner room");
@@ -356,7 +356,7 @@ test.describe("AI Editor Tools - entityId: a room the caller may not use is deni
       // The same refusal for a REST tool: it must not run against the member's
       // own file with the room merely ignored.
       const { data: own } = await memberApi.files.createFileInMyDocuments({
-        createFileJsonElement: { title: "Autotest member own.docx" },
+        createFileRequest: { title: "Autotest member own.docx" },
       });
       const ownId = own.response!.id!;
       const rest = await api.callTool(role, {
@@ -391,7 +391,7 @@ test.describe("AI Editor Tools - entityId: a room the caller may not use is deni
     );
     const { status: direct } = await adminApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest admin direct" },
+      createFileRequest: { title: "Autotest admin direct" },
     });
     expect(direct, "the Files API refuses a non-member admin").toBe(403);
 
@@ -443,7 +443,7 @@ async function guestInRoom(apiSdk: ApiSDK) {
   const roomId = await ownerRoom(apiSdk, "Autotest guest room");
   const { data: control } = await owner.files.createFile({
     folderId: roomId,
-    createFileJsonElement: { title: "Autotest Control" },
+    createFileRequest: { title: "Autotest Control" },
   });
   const { data: guestData, userData } = await apiSdk.addMember(
     "owner",
@@ -465,7 +465,7 @@ async function guestInRoom(apiSdk: ApiSDK) {
   const { status: createStatus, data: direct } =
     await guestApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Direct Create" },
+      createFileRequest: { title: "Autotest Direct Create" },
     });
   expect(createStatus, "the Guest may create files in the room").toBe(200);
   return {

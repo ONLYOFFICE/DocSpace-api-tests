@@ -420,7 +420,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - permissions", () 
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: { wopi: { enable: true } },
+        docsCloudConfigRequestDto: { wopi: { enable: true } },
       });
 
     expect(status).toBe(403);
@@ -435,7 +435,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - permissions", () 
     const { data, status } = await apiSdk
       .forRole("user")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: { wopi: { enable: true } },
+        docsCloudConfigRequestDto: { wopi: { enable: true } },
       });
 
     expect(status).toBe(403);
@@ -450,7 +450,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - permissions", () 
     const { data, status } = await apiSdk
       .forRole("guest")
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: { wopi: { enable: true } },
+        docsCloudConfigRequestDto: { wopi: { enable: true } },
       });
 
     expect(status).toBe(403);
@@ -463,7 +463,7 @@ test.describe("PUT /api/2.0/settings/docscloud/tenant/config - permissions", () 
     const { status } = await apiSdk
       .forAnonymous()
       .docsCloud.updateTenantConfig({
-        docsCloudConfig: { wopi: { enable: true } },
+        docsCloudConfigRequestDto: { wopi: { enable: true } },
       });
 
     expect(status).toBe(401);

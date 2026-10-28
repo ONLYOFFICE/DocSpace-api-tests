@@ -212,7 +212,7 @@ test.describe("POST /api/2.0/security/audit/settings/lifetime - permissions", ()
     apiSdk,
   }) => {
     const { status } = await apiSdk.forAnonymous().auditTrail.setAuditSettings({
-      tenantAuditSettingsWrapper: {
+      tenantAuditSettingsRequestDto: {
         settings: { loginHistoryLifeTime: 180, auditTrailLifeTime: 180 },
       },
     });
@@ -230,7 +230,7 @@ test.describe("POST /api/2.0/security/audit/settings/lifetime - permissions", ()
     const { data, status } = await apiSdk
       .forRole("roomAdmin")
       .auditTrail.setAuditSettings({
-        tenantAuditSettingsWrapper: {
+        tenantAuditSettingsRequestDto: {
           settings: { loginHistoryLifeTime: 180, auditTrailLifeTime: 180 },
         },
       });
@@ -249,7 +249,7 @@ test.describe("POST /api/2.0/security/audit/settings/lifetime - permissions", ()
     const { data, status } = await apiSdk
       .forRole("user")
       .auditTrail.setAuditSettings({
-        tenantAuditSettingsWrapper: {
+        tenantAuditSettingsRequestDto: {
           settings: { loginHistoryLifeTime: 180, auditTrailLifeTime: 180 },
         },
       });
@@ -268,7 +268,7 @@ test.describe("POST /api/2.0/security/audit/settings/lifetime - permissions", ()
     const { data, status } = await apiSdk
       .forRole("guest")
       .auditTrail.setAuditSettings({
-        tenantAuditSettingsWrapper: {
+        tenantAuditSettingsRequestDto: {
           settings: { loginHistoryLifeTime: 180, auditTrailLifeTime: 180 },
         },
       });

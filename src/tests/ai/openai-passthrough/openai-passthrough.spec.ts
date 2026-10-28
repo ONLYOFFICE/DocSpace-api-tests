@@ -71,7 +71,7 @@ test.describe("POST /ai/openai/:profileId/v1/chat/completions", () => {
       .forRole("owner")
       .openaiPassthrough.aiOpenaiChatCompletions({
         profileId: chatProfileId,
-        requestBody: {
+        aiOpenaiChatCompletionsRequest: {
           model: chatModel,
           messages: [
             { role: "system", content: "You are terse." },
@@ -119,7 +119,7 @@ test.describe("POST /ai/openai/:profileId/v1/chat/completions", () => {
       .forRole("owner")
       .openaiPassthrough.aiOpenaiChatCompletions({
         profileId: chatProfileId,
-        requestBody: {
+        aiOpenaiChatCompletionsRequest: {
           model: chatModel,
           temperature: 0,
           max_tokens: 200,
@@ -156,7 +156,7 @@ test.describe("POST /ai/openai/:profileId/v1/chat/completions", () => {
       .forRole("owner")
       .openaiPassthrough.aiOpenaiChatCompletions({
         profileId: chatProfileId,
-        requestBody: {
+        aiOpenaiChatCompletionsRequest: {
           model: chatModel,
           max_tokens: 16,
           messages: [
@@ -292,7 +292,7 @@ test.describe("POST /ai/openai/:profileId/v1/images/generations", () => {
       .forRole("owner")
       .openaiPassthrough.aiOpenaiImagesGenerations({
         profileId: imageProfileId,
-        requestBody: {
+        aiOpenaiImagesGenerationsRequest: {
           model: imageModel,
           prompt: 'красный круг 🔴 на белом фоне, подпись "тест"',
         },

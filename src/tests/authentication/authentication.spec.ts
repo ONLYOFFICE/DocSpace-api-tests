@@ -8,7 +8,7 @@ import {
   FileShare,
   LinkType,
   RoomType,
-  TfaRequestsDtoType,
+  TfaType,
   ValidationResult,
 } from "@onlyoffice/docspace-api-sdk";
 import { rememberOwnerTfaSecret, resetTfaAfterTest } from "@/src/helpers/tfa";
@@ -106,7 +106,7 @@ test.describe("POST /api/2.0/authentication", () => {
     const { data, status } = await apiSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: config.DOCSPACE_OWNER_EMAIL,
           password: config.DOCSPACE_OWNER_PASSWORD,
         },
@@ -129,7 +129,7 @@ test.describe("POST /api/2.0/authentication", () => {
     const { data, status } = await apiSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: userData.email,
           password: userData.password,
         },
@@ -152,7 +152,7 @@ test.describe("POST /api/2.0/authentication", () => {
     const { data, status } = await apiSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: userData.email,
           password: userData.password,
         },
@@ -175,7 +175,7 @@ test.describe("POST /api/2.0/authentication", () => {
     const { data, status } = await apiSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: userData.email,
           password: userData.password,
         },
@@ -198,7 +198,7 @@ test.describe("POST /api/2.0/authentication", () => {
     const { data, status } = await apiSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: userData.email,
           password: userData.password,
         },
@@ -219,7 +219,7 @@ test.describe("POST /api/2.0/authentication", () => {
     const { data: first } = await apiSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: config.DOCSPACE_OWNER_EMAIL,
           password: config.DOCSPACE_OWNER_PASSWORD,
         },
@@ -230,7 +230,7 @@ test.describe("POST /api/2.0/authentication", () => {
     const { data: second, status } = await apiSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: config.DOCSPACE_OWNER_EMAIL,
           password: config.DOCSPACE_OWNER_PASSWORD,
         },
@@ -261,7 +261,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.App },
+          tfaRequestDto: { type: TfaType.App },
         });
 
       expect(status).toBe(200);
@@ -271,7 +271,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
           },
@@ -291,7 +291,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
             code,
@@ -308,7 +308,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.None },
+          tfaRequestDto: { type: TfaType.None },
         });
 
       expect(status).toBe(200);
@@ -325,7 +325,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.App },
+          tfaRequestDto: { type: TfaType.App },
         });
 
       expect(status).toBe(200);
@@ -335,7 +335,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
           },
@@ -353,7 +353,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
             code,
@@ -372,7 +372,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
             code,
@@ -390,7 +390,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.None },
+          tfaRequestDto: { type: TfaType.None },
         });
 
       expect(status).toBe(200);
@@ -407,7 +407,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.App },
+          tfaRequestDto: { type: TfaType.App },
         });
 
       expect(status).toBe(200);
@@ -417,7 +417,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: userData.email,
             password: userData.password,
           },
@@ -436,7 +436,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: userData.email,
             password: userData.password,
             code,
@@ -451,7 +451,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
           },
@@ -467,7 +467,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code: ownerCode,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
             code: ownerCode,
@@ -478,7 +478,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.None },
+          tfaRequestDto: { type: TfaType.None },
         });
 
       expect(status).toBe(200);
@@ -495,7 +495,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.App },
+          tfaRequestDto: { type: TfaType.App },
         });
 
       expect(status).toBe(200);
@@ -505,7 +505,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: userData.email,
             password: userData.password,
           },
@@ -524,7 +524,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: userData.email,
             password: userData.password,
             code,
@@ -539,7 +539,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
           },
@@ -555,7 +555,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code: ownerCode,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
             code: ownerCode,
@@ -566,7 +566,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.None },
+          tfaRequestDto: { type: TfaType.None },
         });
 
       expect(status).toBe(200);
@@ -583,7 +583,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.App },
+          tfaRequestDto: { type: TfaType.App },
         });
 
       expect(status).toBe(200);
@@ -593,7 +593,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: userData.email,
             password: userData.password,
           },
@@ -612,7 +612,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: userData.email,
             password: userData.password,
             code,
@@ -627,7 +627,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
           },
@@ -643,7 +643,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code: ownerCode,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
             code: ownerCode,
@@ -654,7 +654,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.None },
+          tfaRequestDto: { type: TfaType.None },
         });
 
       expect(status).toBe(200);
@@ -671,7 +671,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.App },
+          tfaRequestDto: { type: TfaType.App },
         });
 
       expect(status).toBe(200);
@@ -681,7 +681,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: userData.email,
             password: userData.password,
           },
@@ -700,7 +700,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: userData.email,
             password: userData.password,
             code,
@@ -715,7 +715,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { data } = await apiSdk
         .forAnonymous()
         .authentication.authenticateMe({
-          authRequestsDto: {
+          authRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
           },
@@ -731,7 +731,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code: ownerCode,
-          authWithCodeRequestsDto: {
+          authWithCodeRequestDto: {
             userName: config.DOCSPACE_OWNER_EMAIL,
             password: config.DOCSPACE_OWNER_PASSWORD,
             code: ownerCode,
@@ -742,7 +742,7 @@ test.describe("POST /api/2.0/authentication/{code}", () => {
       const { status } = await apiSdk
         .forRole("owner")
         .tfaSettings.updateTfaSettings({
-          tfaRequestsDto: { type: TfaRequestsDtoType.None },
+          tfaRequestDto: { type: TfaType.None },
         });
 
       expect(status).toBe(200);
@@ -814,7 +814,7 @@ test.describe("POST /api/2.0/authentication - session and credentials", () => {
     const { data, status } = await isolatedSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: { userName: user.email, password: user.password },
+        authRequestDto: { userName: user.email, password: user.password },
       });
 
     expect(status).toBe(200);
@@ -844,7 +844,7 @@ test.describe("POST /api/2.0/authentication - session and credentials", () => {
 
     await test.step("session=true has no expiry date", async () => {
       const { data, status } = await anonymous.authentication.authenticateMe({
-        authRequestsDto: { ...credentials, session: true },
+        authRequestDto: { ...credentials, session: true },
       });
       expect(status).toBe(200);
       expect(data.response?.token).toBeTruthy();
@@ -857,7 +857,7 @@ test.describe("POST /api/2.0/authentication - session and credentials", () => {
     })) {
       await test.step(`${name} expires in about a year`, async () => {
         const { data, status } = await anonymous.authentication.authenticateMe({
-          authRequestsDto: { ...credentials, ...extra },
+          authRequestDto: { ...credentials, ...extra },
         });
         expect(status).toBe(200);
         const expiresInDays =
@@ -877,7 +877,7 @@ test.describe("POST /api/2.0/authentication - session and credentials", () => {
     const { data, status } = await isolatedSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: {
+        authRequestDto: {
           userName: user.email.toUpperCase(),
           password: user.password,
         },
@@ -899,7 +899,7 @@ test.describe("POST /api/2.0/authentication - session and credentials", () => {
     const { data, status } = await isolatedSdk
       .forAnonymous()
       .authentication.authenticateMe({
-        authRequestsDto: { userName: user.email, password: user.password },
+        authRequestDto: { userName: user.email, password: user.password },
       });
 
     expect(status).toBe(200);
@@ -1127,7 +1127,9 @@ test.describe("POST /api/2.0/authentication/confirm", () => {
     await test.step("an anonymous visitor gets Ok", async () => {
       const { data, status: checkStatus } = await apiSdk
         .forAnonymous()
-        .authentication.checkConfirm({ emailValidationKeyModel });
+        .authentication.checkConfirm({
+          checkConfirmRequestDto: emailValidationKeyModel,
+        });
       expect(checkStatus).toBe(200);
       expect(data.response?.result).toBe(ValidationResult.Ok);
       expect(data.response?.isAgent).toBe(false);
@@ -1140,7 +1142,9 @@ test.describe("POST /api/2.0/authentication/confirm", () => {
     await test.step("a signed-in member of the portal gets UserExisted", async () => {
       const { data, status: checkStatus } = await apiSdk
         .forRole("owner")
-        .authentication.checkConfirm({ emailValidationKeyModel });
+        .authentication.checkConfirm({
+          checkConfirmRequestDto: emailValidationKeyModel,
+        });
       expect(checkStatus).toBe(200);
       expect(data.response?.result).toBe(ValidationResult.UserExisted);
     });
@@ -1165,7 +1169,7 @@ test.describe("POST /api/2.0/authentication/confirm", () => {
     );
 
     const { data } = await apiSdk.forAnonymous().authentication.checkConfirm({
-      emailValidationKeyModel: {
+      checkConfirmRequestDto: {
         key,
         uiD: uid,
         emplType: EmployeeType.RoomAdmin,
@@ -1202,7 +1206,7 @@ test.describe("POST /api/2.0/authentication/confirm", () => {
     const { data, status: checkStatus } = await apiSdk
       .forAnonymous()
       .authentication.checkConfirm({
-        emailValidationKeyModel: {
+        checkConfirmRequestDto: {
           key,
           uiD: uid,
           type: ConfirmType.LinkInvite,
@@ -1235,7 +1239,7 @@ test.describe("POST /api/2.0/authentication/confirm", () => {
     for (const attempt of ["first", "second", "third"]) {
       await test.step(`${attempt} check is Ok`, async () => {
         const { data } = await anonymous.authentication.checkConfirm({
-          emailValidationKeyModel: {
+          checkConfirmRequestDto: {
             key,
             uiD: uid,
             emplType: EmployeeType.RoomAdmin,
@@ -1276,7 +1280,7 @@ test.describe("POST /api/2.0/authentication/confirm", () => {
 
     await test.step("the key is Ok before deletion", async () => {
       const { data } = await anonymous.authentication.checkConfirm({
-        emailValidationKeyModel,
+        checkConfirmRequestDto: emailValidationKeyModel,
       });
       expect(data.response?.result).toBe(ValidationResult.Ok);
     });
@@ -1290,7 +1294,7 @@ test.describe("POST /api/2.0/authentication/confirm", () => {
 
     await test.step("the same key is Invalid after deletion", async () => {
       const { data, status } = await anonymous.authentication.checkConfirm({
-        emailValidationKeyModel,
+        checkConfirmRequestDto: emailValidationKeyModel,
       });
       expect(status).toBe(200);
       expect(data.response?.result).toBe(ValidationResult.Invalid);
@@ -1321,7 +1325,7 @@ test.describe("POST /api/2.0/authentication - TFA App login flow", () => {
 
     await test.step("enable TFA App", async () => {
       const { status } = await ownerApi.tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
       expect(status).toBe(200);
     });
@@ -1333,7 +1337,7 @@ test.describe("POST /api/2.0/authentication - TFA App login flow", () => {
 
     const { data, status } = await isolatedSdk
       .forAnonymous()
-      .authentication.authenticateMe({ authRequestsDto: credentials });
+      .authentication.authenticateMe({ authRequestDto: credentials });
     if (data.response?.tfaKey) {
       rememberOwnerTfaSecret(apiSdk, data.response.tfaKey);
     }
@@ -1353,7 +1357,7 @@ test.describe("POST /api/2.0/authentication - TFA App login flow", () => {
         .forAnonymous()
         .authentication.authenticateMeFromBodyWithCode({
           code,
-          authWithCodeRequestsDto: { ...credentials, code },
+          authWithCodeRequestDto: { ...credentials, code },
         });
       // hand the owner the token before asserting anything: once the code is
       // accepted TFA is linked, and without this token the portal cannot be
@@ -1381,12 +1385,12 @@ test.describe("POST /api/2.0/authentication - TFA App login flow", () => {
     const { status } = await apiSdk
       .forRole("owner")
       .tfaSettings.updateTfaSettings({
-        tfaRequestsDto: { type: TfaRequestsDtoType.App },
+        tfaRequestDto: { type: TfaType.App },
       });
     expect(status, "setup: enable TFA App").toBe(200);
     const { data: first } = await isolatedSdk
       .forAnonymous()
-      .authentication.authenticateMe({ authRequestsDto: credentials });
+      .authentication.authenticateMe({ authRequestDto: credentials });
     const secret = first.response!.tfaKey!;
     rememberOwnerTfaSecret(apiSdk, secret);
 
@@ -1395,7 +1399,7 @@ test.describe("POST /api/2.0/authentication - TFA App login flow", () => {
       .forAnonymous()
       .authentication.authenticateMeFromBodyWithCode({
         code,
-        authWithCodeRequestsDto: { ...credentials, code },
+        authWithCodeRequestDto: { ...credentials, code },
       });
 
     if (data.response?.token) {

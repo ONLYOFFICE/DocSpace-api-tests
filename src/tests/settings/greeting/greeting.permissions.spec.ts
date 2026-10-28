@@ -8,7 +8,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
     const anonApi = apiSdk.forAnonymous();
 
     const { status } = await anonApi.greetingSettings.saveGreetingSettings({
-      greetingSettingsRequestsDto: { title: "Unauthorized Title" },
+      greetingSettingsRequestDto: { title: "Unauthorized Title" },
     });
 
     expect(status).toBe(401);
@@ -24,7 +24,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
 
     const { data, status } =
       await roomAdminApi.greetingSettings.saveGreetingSettings({
-        greetingSettingsRequestsDto: { title: "RoomAdmin Title" },
+        greetingSettingsRequestDto: { title: "RoomAdmin Title" },
       });
 
     expect(status).toBe(403);
@@ -42,7 +42,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
 
     const { data, status } =
       await userApi.greetingSettings.saveGreetingSettings({
-        greetingSettingsRequestsDto: { title: "User Title" },
+        greetingSettingsRequestDto: { title: "User Title" },
       });
 
     expect(status).toBe(403);
@@ -60,7 +60,7 @@ test.describe("POST /api/2.0/settings/greetingsettings - access control", () => 
 
     const { data, status } =
       await guestApi.greetingSettings.saveGreetingSettings({
-        greetingSettingsRequestsDto: { title: "Guest Title" },
+        greetingSettingsRequestDto: { title: "Guest Title" },
       });
 
     expect(status).toBe(403);

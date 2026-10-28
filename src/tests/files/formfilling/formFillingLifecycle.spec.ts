@@ -175,7 +175,7 @@ test.describe("PUT /files/file/:fileId/manageformfilling - states", () => {
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: created } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Not A Form.docx" },
+      createFileRequest: { title: "Autotest Not A Form.docx" },
     });
     const fileId = created.response!.id!;
 
@@ -275,7 +275,7 @@ test.describe("PUT /files/file/:fileId/startfilling - open a form for filling", 
   }) => {
     const ownerApi = apiSdk.forRole("owner");
     const { data: created } = await ownerApi.files.createFileInMyDocuments({
-      createFileJsonElement: { title: "Autotest Not A Form.docx" },
+      createFileRequest: { title: "Autotest Not A Form.docx" },
     });
     const fileId = created.response!.id!;
 
@@ -309,12 +309,12 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - drafts", () =
 
     const unstarted = await ownerApi.files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1 },
+      checkFillFormDraftRequest: { version: 1 },
     });
     await manage(ownerApi, formId, FormFillingManageAction.Start);
     const startedForm = await ownerApi.files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1 },
+      checkFillFormDraftRequest: { version: 1 },
     });
 
     expect(unstarted.status).toBe(200);
@@ -332,7 +332,7 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - drafts", () =
 
     const { data, status } = await ownerApi.files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1, action: "view" },
+      checkFillFormDraftRequest: { version: 1, action: "view" },
     });
 
     expect(status).toBe(200);
@@ -365,11 +365,11 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - drafts", () =
 
     const first = await api.files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1 },
+      checkFillFormDraftRequest: { version: 1 },
     });
     const second = await api.files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1 },
+      checkFillFormDraftRequest: { version: 1 },
     });
 
     expect(first.status).toBe(200);
@@ -399,7 +399,7 @@ test.describe("POST /files/masterform/:fileId/checkfillformdraft - drafts", () =
 
     const { data, status } = await ownerApi.files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1 },
+      checkFillFormDraftRequest: { version: 1 },
     });
 
     expect(status).toBe(200);

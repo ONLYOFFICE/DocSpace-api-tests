@@ -20,7 +20,7 @@ test.describe("POST /api/2.0/settings/deeplink - Configure deep link settings", 
     const { data, status } = await apiSdk
       .forRole("owner")
       .commonSettings.configureDeepLink({
-        deepLinkConfigurationRequestsDto: {
+        deepLinkConfigurationRequestDto: {
           deepLinkSettings: { handlingMode: DeepLinkHandlingMode.Web },
         },
       });
@@ -41,7 +41,7 @@ test.describe("POST /api/2.0/settings/deeplink - Configure deep link settings", 
     const { data, status } = await apiSdk
       .forRole("owner")
       .commonSettings.configureDeepLink({
-        deepLinkConfigurationRequestsDto: {
+        deepLinkConfigurationRequestDto: {
           deepLinkSettings: {
             handlingMode: DeepLinkHandlingMode.ProvideChoice,
           },
@@ -64,7 +64,7 @@ test.describe("POST /api/2.0/settings/deeplink - Configure deep link settings", 
     );
 
     const { data, status } = await adminApi.commonSettings.configureDeepLink({
-      deepLinkConfigurationRequestsDto: {
+      deepLinkConfigurationRequestDto: {
         deepLinkSettings: { handlingMode: DeepLinkHandlingMode.App },
       },
     });
@@ -82,7 +82,7 @@ test.describe("PUT /api/2.0/settings/colortheme - Save portal color theme", () =
     const { data, status } = await apiSdk
       .forRole("owner")
       .commonSettings.savePortalColorTheme({
-        customColorThemesSettingsRequestsDto: {
+        customColorThemesSettingsRequestDto: {
           theme: {
             name: "Test Theme",
             main: { accent: "#0F4071", buttons: "#5299E0" },
@@ -108,7 +108,7 @@ test.describe("PUT /api/2.0/settings/colortheme - Save portal color theme", () =
 
     const { data, status } = await adminApi.commonSettings.savePortalColorTheme(
       {
-        customColorThemesSettingsRequestsDto: {
+        customColorThemesSettingsRequestDto: {
           theme: {
             name: "Admin Theme",
             main: { accent: "#333333", buttons: "#666666" },
@@ -366,7 +366,7 @@ test.describe("DELETE /api/2.0/settings/colortheme - Delete portal color theme",
 
     const { data: created } =
       await ownerApi.commonSettings.savePortalColorTheme({
-        customColorThemesSettingsRequestsDto: {
+        customColorThemesSettingsRequestDto: {
           theme: {
             name: "Theme To Delete",
             main: { accent: "#0F4071", buttons: "#5299E0" },
@@ -401,7 +401,7 @@ test.describe("DELETE /api/2.0/settings/colortheme - Delete portal color theme",
 
     const { data: created } =
       await ownerApi.commonSettings.savePortalColorTheme({
-        customColorThemesSettingsRequestsDto: {
+        customColorThemesSettingsRequestDto: {
           theme: {
             name: "Theme To Delete",
             main: { accent: "#333333", buttons: "#666666" },

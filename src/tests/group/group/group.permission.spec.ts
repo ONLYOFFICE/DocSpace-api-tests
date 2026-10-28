@@ -1317,7 +1317,7 @@ test.describe("GET /api/2.0/group/user/{userid} - validation and negative cases"
   }) => {
     const { status } = await apiSdk
       .forRole("owner")
-      .groupApi.getGroupByUserId({ userid: "not-a-valid-id" });
+      .groupApi.getGroupByUserId({ userId: "not-a-valid-id" });
 
     expect(status).toBe(404);
   });
@@ -1327,7 +1327,7 @@ test.describe("GET /api/2.0/group/user/{userid} - validation and negative cases"
   }) => {
     const { data, status } = await apiSdk
       .forRole("owner")
-      .groupApi.getGroupByUserId({ userid: faker.string.uuid() });
+      .groupApi.getGroupByUserId({ userId: faker.string.uuid() });
 
     expect(status).toBe(200);
     expect(data.response).toEqual([]);
@@ -1338,7 +1338,7 @@ test.describe("GET /api/2.0/group/user/{userid} - validation and negative cases"
   }) => {
     const { status } = await apiSdk
       .forRole("owner")
-      .groupApi.getGroupByUserId({ userid: "" });
+      .groupApi.getGroupByUserId({ userId: "" });
 
     expect(status).toBe(404);
   });
@@ -1349,7 +1349,7 @@ test.describe("GET /api/2.0/group/user/{userid} - validation and negative cases"
     await expect(
       apiSdk
         .forRole("owner")
-        .groupApi.getGroupByUserId({ userid: null as unknown as string }),
+        .groupApi.getGroupByUserId({ userId: null as unknown as string }),
     ).rejects.toThrow(/userid/);
   });
 
@@ -1359,7 +1359,7 @@ test.describe("GET /api/2.0/group/user/{userid} - validation and negative cases"
     await expect(
       apiSdk
         .forRole("owner")
-        .groupApi.getGroupByUserId({ userid: undefined as unknown as string }),
+        .groupApi.getGroupByUserId({ userId: undefined as unknown as string }),
     ).rejects.toThrow(/userid/);
   });
 });
@@ -1377,7 +1377,7 @@ test.describe("GET /api/2.0/group/user/{userid} - permissions", () => {
     );
 
     const { status } = await adminApi.groupApi.getGroupByUserId({
-      userid: targetId,
+      userId: targetId,
     });
 
     expect(status).toBe(200);
@@ -1395,7 +1395,7 @@ test.describe("GET /api/2.0/group/user/{userid} - permissions", () => {
     );
 
     const { status } = await roomAdminApi.groupApi.getGroupByUserId({
-      userid: targetId,
+      userId: targetId,
     });
 
     expect(status).toBe(200);
@@ -1409,7 +1409,7 @@ test.describe("GET /api/2.0/group/user/{userid} - permissions", () => {
     const userId = userData.response!.id!;
 
     const { status } = await userApi.groupApi.getGroupByUserId({
-      userid: userId,
+      userId: userId,
     });
 
     expect(status).toBe(403);
@@ -1427,7 +1427,7 @@ test.describe("GET /api/2.0/group/user/{userid} - permissions", () => {
     );
 
     const { status } = await userApi.groupApi.getGroupByUserId({
-      userid: targetId,
+      userId: targetId,
     });
 
     expect(status).toBe(403);
@@ -1441,7 +1441,7 @@ test.describe("GET /api/2.0/group/user/{userid} - permissions", () => {
     const guestId = guestData.response!.id!;
 
     const { status } = await guestApi.groupApi.getGroupByUserId({
-      userid: guestId,
+      userId: guestId,
     });
 
     expect(status).toBe(403);
@@ -1459,7 +1459,7 @@ test.describe("GET /api/2.0/group/user/{userid} - permissions", () => {
     );
 
     const { status } = await guestApi.groupApi.getGroupByUserId({
-      userid: targetId,
+      userId: targetId,
     });
 
     expect(status).toBe(403);
@@ -1472,7 +1472,7 @@ test.describe("GET /api/2.0/group/user/{userid} - permissions", () => {
     const targetId = targetData.response!.id!;
 
     const { status } = await apiSdk.forAnonymous().groupApi.getGroupByUserId({
-      userid: targetId,
+      userId: targetId,
     });
 
     expect(status).toBe(401);

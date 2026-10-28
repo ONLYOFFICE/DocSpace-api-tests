@@ -79,7 +79,10 @@ async function roomWithHtmlFile(apiSdk: ApiSDK, title: string) {
   const roomId = roomData.response!.id!;
   const { data: fileData } = await ownerApi.files.createHtmlFile({
     folderId: roomId,
-    createTextOrHtmlFile: { title: "Autotest Source", content: "<p>src</p>" },
+    createTextOrHtmlFileRequest: {
+      title: "Autotest Source",
+      content: "<p>src</p>",
+    },
   });
   return { ownerApi, roomId, fileId: fileData.response!.id! };
 }
@@ -112,15 +115,18 @@ test.describe("File creation - permissions", () => {
       const ownerResults = await Promise.all([
         ownerApi.files.copyFileAs({
           fileId,
-          copyAsJsonElement: { destTitle: "Owner.html", destFolderId: roomId },
+          copyAsRequest: { destTitle: "Owner.html", destFolderId: roomId },
         }),
         ownerApi.files.saveFileAsPdf({
           id: fileId,
-          saveAsPdf: { folderId: roomId, title: "Owner" },
+          saveAsPdfRequest: { folderId: roomId, title: "Owner" },
         }),
         ownerApi.files.createHtmlFile({
           folderId: roomId,
-          createTextOrHtmlFile: { title: "Owner Html", content: "<p>o</p>" },
+          createTextOrHtmlFileRequest: {
+            title: "Owner Html",
+            content: "<p>o</p>",
+          },
         }),
       ]);
       expect(ownerResults.map((r) => r.status)).toEqual([200, 200, 200]);
@@ -131,21 +137,24 @@ test.describe("File creation - permissions", () => {
       await test.step("copyFileAs", async () => {
         const { status } = await api.files.copyFileAs({
           fileId,
-          copyAsJsonElement: { destTitle: "Member.html", destFolderId: roomId },
+          copyAsRequest: { destTitle: "Member.html", destFolderId: roomId },
         });
         expect(status).toBe(expected);
       });
       await test.step("saveFileAsPdf", async () => {
         const { status } = await api.files.saveFileAsPdf({
           id: fileId,
-          saveAsPdf: { folderId: roomId, title: "Member" },
+          saveAsPdfRequest: { folderId: roomId, title: "Member" },
         });
         expect(status).toBe(expected);
       });
       await test.step("createHtmlFile", async () => {
         const { status } = await api.files.createHtmlFile({
           folderId: roomId,
-          createTextOrHtmlFile: { title: "Member Html", content: "<p>m</p>" },
+          createTextOrHtmlFileRequest: {
+            title: "Member Html",
+            content: "<p>m</p>",
+          },
         });
         expect(status).toBe(expected);
       });
@@ -168,15 +177,18 @@ test.describe("File creation - permissions", () => {
     const results = await Promise.all([
       anonymousApi.files.copyFileAs({
         fileId,
-        copyAsJsonElement: { destTitle: "Anon.html", destFolderId: roomId },
+        copyAsRequest: { destTitle: "Anon.html", destFolderId: roomId },
       }),
       anonymousApi.files.saveFileAsPdf({
         id: fileId,
-        saveAsPdf: { folderId: roomId, title: "Anon" },
+        saveAsPdfRequest: { folderId: roomId, title: "Anon" },
       }),
       anonymousApi.files.createHtmlFile({
         folderId: roomId,
-        createTextOrHtmlFile: { title: "Anon Html", content: "<p>a</p>" },
+        createTextOrHtmlFileRequest: {
+          title: "Anon Html",
+          content: "<p>a</p>",
+        },
       }),
     ]);
 
@@ -219,28 +231,31 @@ test.describe("File creation and download - cross-room isolation", () => {
     // Positive control: the same member can create in room A.
     const { status: controlStatus } = await api.files.createHtmlFile({
       folderId: roomAId,
-      createTextOrHtmlFile: { title: "Own Room File", content: "<p>a</p>" },
+      createTextOrHtmlFileRequest: {
+        title: "Own Room File",
+        content: "<p>a</p>",
+      },
     });
     expect(controlStatus).toBe(200);
 
     await test.step("File of room B cannot be copied into room A", async () => {
       const { status } = await api.files.copyFileAs({
         fileId: fileBId,
-        copyAsJsonElement: { destTitle: "Stolen.html", destFolderId: roomAId },
+        copyAsRequest: { destTitle: "Stolen.html", destFolderId: roomAId },
       });
       expect(status).toBe(403);
     });
     await test.step("File of room B cannot be converted into room A", async () => {
       const { status } = await api.files.saveFileAsPdf({
         id: fileBId,
-        saveAsPdf: { folderId: roomAId, title: "Stolen" },
+        saveAsPdfRequest: { folderId: roomAId, title: "Stolen" },
       });
       expect(status).toBe(403);
     });
     await test.step("Nothing can be created in room B", async () => {
       const { status } = await api.files.createHtmlFile({
         folderId: roomBId,
-        createTextOrHtmlFile: { title: "Planted", content: "<p>x</p>" },
+        createTextOrHtmlFileRequest: { title: "Planted", content: "<p>x</p>" },
       });
       expect(status).toBe(403);
     });

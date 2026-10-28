@@ -1,6 +1,6 @@
 import { generate, createGuardrails } from "otplib";
 import { expect } from "@playwright/test";
-import { TfaRequestsDtoType } from "@onlyoffice/docspace-api-sdk";
+import { TfaType } from "@onlyoffice/docspace-api-sdk";
 import config from "@/config";
 import { ApiSDK } from "../services/api-sdk";
 import { Role } from "../services/token-store";
@@ -37,7 +37,7 @@ export function totpCode(secret: string): Promise<string> {
  */
 export async function enableTfaApp(apiSdk: ApiSDK, role: Role) {
   const { status } = await apiSdk.forRole(role).tfaSettings.updateTfaSettings({
-    tfaRequestsDto: { type: TfaRequestsDtoType.App },
+    tfaRequestDto: { type: TfaType.App },
   });
   if (status !== 200) {
     throw new Error(`enableTfaApp: updateTfaSettings failed with ${status}`);
@@ -58,7 +58,7 @@ async function exchangeTfaCodeForToken(
     .forRole(role)
     .authentication.authenticateMeFromBodyWithCode({
       code,
-      authWithCodeRequestsDto: { ...credentials, code, session: true },
+      authWithCodeRequestDto: { ...credentials, code, session: true },
     });
   const token = data.response?.token;
   if (status !== 200 || !token) {
@@ -101,7 +101,7 @@ export async function linkTfaApp(
   const { data: login, status: loginStatus } = await apiSdk
     .forRole(role)
     .authentication.authenticateMe({
-      authRequestsDto: { ...credentials, session: true },
+      authRequestDto: { ...credentials, session: true },
     });
   const secret = login.response?.tfaKey;
   if (loginStatus !== 200 || !secret) {
@@ -127,7 +127,7 @@ export async function linkTfaApp(
 export async function resetTfaAfterTest(apiSdk: ApiSDK) {
   const disable = () =>
     apiSdk.forRole("owner").tfaSettings.updateTfaSettings({
-      tfaRequestsDto: { type: TfaRequestsDtoType.None },
+      tfaRequestDto: { type: TfaType.None },
     });
 
   const { status } = await disable().catch(() => ({ status: 0 }));

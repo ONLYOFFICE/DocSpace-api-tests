@@ -2699,7 +2699,7 @@ test.describe("AI Chat - room and folder entity context", () => {
     const myDocsId = myFolder.response!.current!.id!;
     const { data: folder } = await ownerApi.folders.createFolder({
       folderId: myDocsId,
-      createFolder: { title: "Autotest Entity Folder" },
+      createFolderRequest: { title: "Autotest Entity Folder" },
     });
     const folderId = folder.response!.id!;
 
@@ -2827,7 +2827,7 @@ test.describe("AI Chat - room and folder entity context", () => {
     ]) {
       const { data } = await ownerApi.folders.createFolder({
         folderId: myDocsId,
-        createFolder: { title },
+        createFolderRequest: { title },
       });
       siblings.push(data.response!.id!);
     }
@@ -2842,7 +2842,7 @@ test.describe("AI Chat - room and folder entity context", () => {
     const roomId = room.response!.id!;
     const { data: sub } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Scope Subfolder" },
+      createFolderRequest: { title: "Autotest Scope Subfolder" },
     });
     const subFolderId = sub.response!.id!;
 
@@ -2909,13 +2909,13 @@ test.describe("AI Chat - room and folder entity context", () => {
     const roomId = room.response!.id!;
     const { data: sub } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: { title: "Autotest Nesting Subfolder" },
+      createFolderRequest: { title: "Autotest Nesting Subfolder" },
     });
     const subFolderId = sub.response!.id!;
     // Two levels down: inheritance has to be transitive, not just one hop.
     const { data: deep } = await ownerApi.folders.createFolder({
       folderId: subFolderId,
-      createFolder: { title: "Autotest Nesting Deep Subfolder" },
+      createFolderRequest: { title: "Autotest Nesting Deep Subfolder" },
     });
     const deepFolderId = deep.response!.id!;
 
@@ -2924,7 +2924,7 @@ test.describe("AI Chat - room and folder entity context", () => {
     const { data: myFolder } = await ownerApi.folders.getMyFolder();
     const { data: outside } = await ownerApi.folders.createFolder({
       folderId: myFolder.response!.current!.id!,
-      createFolder: { title: "Autotest Nesting Outside Folder" },
+      createFolderRequest: { title: "Autotest Nesting Outside Folder" },
     });
     const outsideFolderId = outside.response!.id!;
     const { data: otherRoom } = await ownerApi.rooms.createRoom({
@@ -4407,7 +4407,7 @@ test.describe("AI Chat - the model of one thread", () => {
     const { data: myFolder } = await ownerApi.folders.getMyFolder();
     const { data: folder } = await ownerApi.folders.createFolder({
       folderId: myFolder.response!.current!.id!,
-      createFolder: { title: "Autotest Model Folder" },
+      createFolderRequest: { title: "Autotest Model Folder" },
     });
     const folderId = folder.response!.id!;
 
@@ -6315,7 +6315,7 @@ test.describe("AI Chat - image generation", () => {
 
     const probe = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Write Probe" },
+      createFileRequest: { title: "Autotest Write Probe" },
     });
     expect(probe.status, "the owner may write into this room").toBe(200);
 
@@ -6404,7 +6404,7 @@ test.describe("AI Chat - image generation", () => {
     // tried.
     const probe = await memberApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Member Write Probe" },
+      createFileRequest: { title: "Autotest Member Write Probe" },
     });
     expect(probe.status, "a Read member may not write into the room").toBe(403);
 
@@ -7014,8 +7014,8 @@ async function setProfileCulture(
   cultureName: string,
 ) {
   const { status, data } = await ownerApi.profiles.updateMemberCulture({
-    userid: userId,
-    culture: { cultureName },
+    userId: userId,
+    updateMemberCultureRequest: { cultureName },
   });
   expect(status, `PUT /people/${userId}/culture {${cultureName}}`).toBe(200);
   expect(

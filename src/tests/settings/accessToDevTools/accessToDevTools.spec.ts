@@ -38,7 +38,7 @@ test.describe("GET /api/2.0/settings/devtoolsaccess", () => {
     await apiSdk
       .forRole("owner")
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
 
     const { data, status } = await apiSdk
@@ -55,7 +55,9 @@ test.describe("GET /api/2.0/settings/devtoolsaccess", () => {
     await apiSdk
       .forRole("owner")
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: false },
+        tenantDevToolsAccessSettingsRequestDto: {
+          limitedAccessForUsers: false,
+        },
       });
 
     const { data, status } = await apiSdk
@@ -74,7 +76,7 @@ test.describe("GET /api/2.0/settings/devtoolsaccess", () => {
     await apiSdk
       .forRole("owner")
       .securityAccessToDevTools.setTenantDevToolsAccessSettings({
-        tenantDevToolsAccessSettingsDto: { limitedAccessForUsers: true },
+        tenantDevToolsAccessSettingsRequestDto: { limitedAccessForUsers: true },
       });
 
     const { data, status } = await apiSdk

@@ -197,7 +197,7 @@ test.describe("Form-filling lifecycle - permissions in a form-filling room", () 
 
       const { data, status } = await api.files.checkFillFormDraft({
         fileId: formId,
-        checkFillFormDraft: { version: 1 },
+        checkFillFormDraftRequest: { version: 1 },
       });
 
       expect(status).toBe(200);
@@ -217,7 +217,7 @@ test.describe("Form-filling lifecycle - permissions in a form-filling room", () 
 
     const { status } = await api.files.checkFillFormDraft({
       fileId: formId,
-      checkFillFormDraft: { version: 1 },
+      checkFillFormDraftRequest: { version: 1 },
     });
 
     expect(status).toBe(403);

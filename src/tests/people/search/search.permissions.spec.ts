@@ -22,7 +22,7 @@ test.describe("GET /accounts/file/:id/search - Permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Search File",
       },
     });
@@ -79,7 +79,7 @@ test.describe("GET /accounts/file/:id/search - Permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Search File",
       },
     });
@@ -109,7 +109,7 @@ test.describe("GET /accounts/file/:id/search - Permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Search File",
       },
     });
@@ -152,7 +152,7 @@ test.describe("GET /accounts/file/:id/search - Permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Search File",
       },
     });
@@ -182,7 +182,7 @@ test.describe("GET /people/file/:id - Permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Users File",
       },
     });
@@ -213,7 +213,7 @@ test.describe("GET /people/file/:id - Permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Users File",
       },
     });
@@ -242,7 +242,7 @@ test.describe("GET /people/file/:id - Permissions", () => {
 
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: {
+      createFileRequest: {
         title: "Autotest Users File",
       },
     });
@@ -272,7 +272,7 @@ test.describe("GET /accounts/folder/:id/search - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Search Folder",
       },
     });
@@ -315,7 +315,7 @@ test.describe("GET /accounts/folder/:id/search - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Search Folder",
       },
     });
@@ -358,7 +358,7 @@ test.describe("GET /accounts/folder/:id/search - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Search Folder",
       },
     });
@@ -388,7 +388,7 @@ test.describe("GET /people/folder/:id - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Users Folder",
       },
     });
@@ -419,7 +419,7 @@ test.describe("GET /people/folder/:id - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Users Folder",
       },
     });
@@ -448,7 +448,7 @@ test.describe("GET /people/folder/:id - Permissions", () => {
 
     const { data: folderData } = await ownerApi.folders.createFolder({
       folderId: roomId,
-      createFolder: {
+      createFolderRequest: {
         title: "Autotest Users Folder",
       },
     });

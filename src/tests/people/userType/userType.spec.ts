@@ -195,7 +195,7 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
     while (!isCompleted) {
       const { data, status } =
         await ownerApi.userType.getUserTypeUpdateProgress({
-          userid: adminId,
+          userId: adminId,
         });
       progressData = data;
       progressStatus = status;
@@ -240,7 +240,7 @@ test.describe("GET /people/type/progress/{userid} - Get user type update progres
     while (!isCompleted) {
       const { data, status } =
         await adminApi.userType.getUserTypeUpdateProgress({
-          userid: roomAdminId,
+          userId: roomAdminId,
         });
       progressData = data;
       progressStatus = status;
@@ -295,7 +295,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
 
     // Verify user is still DocSpace admin
     const { data: profileData } = await ownerApi.profiles.getProfileByUserId({
-      userid: adminId,
+      userId: adminId,
     });
     expect(profileData.response!.isAdmin).toBe(true);
   });
@@ -334,7 +334,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
 
     // Verify user is still DocSpace admin
     const { data: profileData } = await ownerApi.profiles.getProfileByUserId({
-      userid: userId,
+      userId: userId,
     });
     expect(profileData.response!.isAdmin).toBe(true);
   });
@@ -378,7 +378,7 @@ test.describe("PUT /people/type/terminate - Terminate user type update", () => {
 
     // Verify user is still Room admin
     const { data: profileData } = await adminApi.profiles.getProfileByUserId({
-      userid: roomAdminId,
+      userId: roomAdminId,
     });
     expect(profileData.response!.isRoomAdmin).toBe(true);
   });

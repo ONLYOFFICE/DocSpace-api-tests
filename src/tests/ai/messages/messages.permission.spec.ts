@@ -139,7 +139,7 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
       // which is also what an unreadable room would look like.
       const { data: control } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest Control" },
+        createFileRequest: { title: "Autotest Control" },
       });
       const controlId = control.response!.id!;
 
@@ -162,7 +162,7 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
       // through the files API either.
       const { status: createStatus } = await memberApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest Direct Create" },
+        createFileRequest: { title: "Autotest Direct Create" },
       });
       expect(createStatus).toBe(403);
 
@@ -283,7 +283,7 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
     // listing at the end cannot be confused with a room they could not read.
     const { data: control } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Control" },
+      createFileRequest: { title: "Autotest Control" },
     });
     const controlId = control.response!.id!;
 
@@ -312,7 +312,7 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
     const { status: createStatus, data: direct } =
       await guestApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest Direct Create" },
+        createFileRequest: { title: "Autotest Direct Create" },
       });
     expect(createStatus, "the Guest may create files in the room").toBe(200);
     const directId = direct.response!.id!;
@@ -519,7 +519,7 @@ test.describe("AI Messages - text-to-docx target folder permissions", () => {
 
     const { data: control } = await ownerApi.files.createFile({
       folderId: roomId,
-      createFileJsonElement: { title: "Autotest Control" },
+      createFileRequest: { title: "Autotest Control" },
     });
     const controlId = control.response!.id!;
 

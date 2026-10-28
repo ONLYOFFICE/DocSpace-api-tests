@@ -299,7 +299,7 @@ test.describe("AI Preferences - deep mode of a room or a folder", () => {
         const { data: myFolder } = await ownerApi.folders.getMyFolder();
         const { data: folder } = await ownerApi.folders.createFolder({
           folderId: myFolder.response!.current!.id!,
-          createFolder: { title: "Autotest Reasoning Folder" },
+          createFolderRequest: { title: "Autotest Reasoning Folder" },
         });
         entityId = folder.response!.id!;
       }
@@ -1154,7 +1154,7 @@ test.describe("AI Preferences - reasoning level is per entity", () => {
         const { data: myFolder } = await ownerApi.folders.getMyFolder();
         const { data: folder } = await ownerApi.folders.createFolder({
           folderId: myFolder.response!.current!.id!,
-          createFolder: { title: "Autotest Level Folder" },
+          createFolderRequest: { title: "Autotest Level Folder" },
         });
         entityId = folder.response!.id!;
       } else {
@@ -1252,7 +1252,7 @@ async function createNonAgentEntity(
     const { data: myFolder } = await ownerApi.folders.getMyFolder();
     const { data } = await ownerApi.folders.createFolder({
       folderId: myFolder.response!.current!.id!,
-      createFolder: { title: "Autotest Scope Folder" },
+      createFolderRequest: { title: "Autotest Scope Folder" },
     });
     return data.response!.id!;
   }

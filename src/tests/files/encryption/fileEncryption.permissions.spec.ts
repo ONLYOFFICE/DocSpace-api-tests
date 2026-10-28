@@ -80,7 +80,7 @@ test.describe("File encryption - permissions", () => {
       const roomId = roomData.response!.id!;
       const { data: fileData } = await ownerApi.files.createFile({
         folderId: roomId,
-        createFileJsonElement: { title: "Autotest Encrypted File.docx" },
+        createFileRequest: { title: "Autotest Encrypted File.docx" },
       });
       const fileId = fileData.response!.id!;
 
@@ -153,7 +153,7 @@ test.describe("File encryption - permissions", () => {
     });
     const { data: fileData } = await ownerApi.files.createFile({
       folderId: roomData.response!.id!,
-      createFileJsonElement: { title: "Autotest Encrypted File.docx" },
+      createFileRequest: { title: "Autotest Encrypted File.docx" },
     });
     const fileId = fileData.response!.id!;
     const anonymousApi = apiSdk.forAnonymous();

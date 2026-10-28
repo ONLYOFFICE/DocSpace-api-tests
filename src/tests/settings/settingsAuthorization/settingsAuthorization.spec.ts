@@ -16,7 +16,7 @@ test.describe("POST /api/2.0/settings/authservice/externaldb/test", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .settingsAuthorization.testExternalDatabaseConnection({
-        externalDatabaseSettings: invalidMysqlSettings,
+        externalDatabaseConnectionRequestDto: invalidMysqlSettings,
       });
 
     expect(status).toBe(200);
@@ -33,7 +33,7 @@ test.describe("POST /api/2.0/settings/authservice/externaldb/test", () => {
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .settingsAuthorization.testExternalDatabaseConnection({
-        externalDatabaseSettings: invalidMysqlSettings,
+        externalDatabaseConnectionRequestDto: invalidMysqlSettings,
       });
 
     expect(status).toBe(200);
@@ -51,7 +51,7 @@ test.describe("GET /api/2.0/settings/authservice", () => {
     await paymentsApi.setupPayment();
 
     await apiSdk.forRole("owner").settingsAuthorization.saveAuthKeys({
-      authServiceRequestsDto: s3AuthServiceDto,
+      saveAuthKeysRequestDto: s3AuthServiceDto,
     });
 
     const { data, status } = await apiSdk
@@ -92,7 +92,7 @@ test.describe("GET /api/2.0/settings/authservice", () => {
     await apiSdk.addAuthenticatedMember("owner", "DocSpaceAdmin");
 
     await apiSdk.forRole("owner").settingsAuthorization.saveAuthKeys({
-      authServiceRequestsDto: s3AuthServiceDto,
+      saveAuthKeysRequestDto: s3AuthServiceDto,
     });
 
     const { data, status } = await apiSdk
@@ -130,7 +130,7 @@ test.describe("POST /api/2.0/settings/authservice", () => {
     const { data, status } = await apiSdk
       .forRole("owner")
       .settingsAuthorization.saveAuthKeys({
-        authServiceRequestsDto: s3AuthServiceDto,
+        saveAuthKeysRequestDto: s3AuthServiceDto,
       });
 
     expect(status).toBe(200);
@@ -147,7 +147,7 @@ test.describe("POST /api/2.0/settings/authservice", () => {
     const { data, status } = await apiSdk
       .forRole("docSpaceAdmin")
       .settingsAuthorization.saveAuthKeys({
-        authServiceRequestsDto: s3AuthServiceDto,
+        saveAuthKeysRequestDto: s3AuthServiceDto,
       });
 
     expect(status).toBe(200);
